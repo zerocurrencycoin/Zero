@@ -28,6 +28,8 @@ void RegisterSporkRPCCommands(CRPCTable &tableRPC);
 /** Register Experimental RPC commands */
 void RegisterZeroExclusiveRPCCommands(CRPCTable &tableRPC);
 
+void RegisterZeroExperimentalRPCCommands(CRPCTable &tableRPC);
+
 static inline void RegisterAllCoreRPCCommands(CRPCTable &tableRPC)
 {
     RegisterBlockchainRPCCommands(tableRPC);
@@ -39,6 +41,7 @@ static inline void RegisterAllCoreRPCCommands(CRPCTable &tableRPC)
     //RegisterBudgetRPCCommands(tableRPC); //Disabled for now
     RegisterSporkRPCCommands(tableRPC);
     RegisterZeroExclusiveRPCCommands(tableRPC);
+    RegisterZeroExperimentalRPCCommands(tableRPC);
 }
 
 #endif

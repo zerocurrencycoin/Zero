@@ -170,6 +170,14 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "zs_listspentbyaddress", 5},
     { "getsupply", 0},
     { "getsupply", 1},
+    { "getsaplingwitness", 1},
+    { "getsaplingwitness", 2},
+    { "getsaplingwitnessatheight", 1},
+    { "getsaplingwitnessatheight", 2},
+    { "getsaplingwitnessatheight", 3},
+    { "getsaplingblocks", 0},
+    { "getsaplingblocks", 1},
+    { "getsaplingblocks", 2},
 
 };
 
