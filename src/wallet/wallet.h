@@ -885,6 +885,9 @@ public:
 
     void ClearNoteWitnessCache();
 
+    int64_t NullifierCount();
+    std::set<uint256> GetNullifiers();
+
 protected:
 
     int SproutWitnessMinimumHeight(const uint256& nullifier, int nWitnessHeight, int nMinimumHeight);

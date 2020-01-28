@@ -1164,6 +1164,37 @@ bool CWallet::GetVinAndKeysFromOutput(COutput out, CTxIn& txinRet, CPubKey& pubK
     return true;
 }
 
+std::set<uint256> CWallet::GetNullifiers()
+{
+    std::set<uint256> nullifierSet;
+    for (const auto & txPair : mapWallet) {
+        // Sapling
+        for (const auto & noteDataPair : txPair.second.mapSaplingNoteData) {
+            auto & noteData = noteDataPair.second;
+            auto & nullifier = noteData.nullifier;
+            if (nullifier) {
+                nullifierSet.insert(nullifier.get());
+            }
+        }
+    }
+    return nullifierSet;
+}
+
+int64_t CWallet::NullifierCount()
+{
+    LOCK(cs_wallet);
+    if(fDebug) {
+        // this is our *local* nullifier count
+        LogPrint("zindex","%s:mapTxSaplingNullifers.size=%d\n",__FUNCTION__,(int)mapTxSaplingNullifiers.size() );
+        // here be dragons
+        LogPrint("zindex","%s:mempool.getNullifiers.size=%d\n",__FUNCTION__,(int)mempool.getNullifiers().size() );
+        // this is the global nullifier count
+        LogPrint("zindex","%s:cacheSaplingNullifiers.size=%d\n",__FUNCTION__,(int)pcoinsTip->getNullifiers().size() );
+    }
+    // TODO: expose local nullifier stats, for now global only
+    return pcoinsTip->getNullifiers().size();
+}
+
 void CWallet::ClearNoteWitnessCache()
 {
     LOCK(cs_wallet);

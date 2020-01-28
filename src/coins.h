@@ -459,6 +459,8 @@ public:
     CCoinsViewCache(CCoinsView *baseIn);
     ~CCoinsViewCache();
 
+    CNullifiersMap getNullifiers();
+
     // Standard CCoinsView methods
     bool GetSproutAnchorAt(const uint256 &rt, SproutMerkleTree &tree) const;
     bool GetSaplingAnchorAt(const uint256 &rt, SaplingMerkleTree &tree) const;
