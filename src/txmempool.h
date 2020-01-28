@@ -178,6 +178,8 @@ public:
     CTxMemPool(const CFeeRate& _minRelayFee);
     ~CTxMemPool();
 
+    std::map<uint256, const CTransaction*> getNullifiers();
+    
     /**
      * If sanity-checking is turned on, check makes sure the pool is
      * consistent (does not contain two transactions that spend the same inputs,
