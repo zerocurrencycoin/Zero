@@ -777,6 +777,10 @@ bool CTxMemPool::IsFullyNotified() {
     return nRecentlyAddedSequence == nNotifiedSequence;
 }
 
+std::map<uint256, const CTransaction*> CTxMemPool::getNullifiers() {
+    return mapSaplingNullifiers;
+}
+
 CCoinsViewMemPool::CCoinsViewMemPool(CCoinsView *baseIn, CTxMemPool &mempoolIn) : CCoinsViewBacked(baseIn), mempool(mempoolIn) { }
 
 bool CCoinsViewMemPool::GetNullifier(const uint256 &nf, ShieldedType type) const

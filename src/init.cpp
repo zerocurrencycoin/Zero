@@ -385,7 +385,7 @@ std::string HelpMessage(HelpMessageMode mode)
     // strUsage += HelpMessageOpt("-timestampindex", strprintf(_("Maintain a timestamp index for block hashes, used to query blocks hashes by a range of timestamps (default: %u)"), DEFAULT_TIMESTAMPINDEX));
     // strUsage += HelpMessageOpt("-spentindex", strprintf(_("Maintain a full spent index, used to query the spending txid and input index for an outpoint (default: %u)"), DEFAULT_SPENTINDEX));
     strUsage += HelpMessageOpt("-insightexplorer", strprintf(_("Maintain a full address, spent & timestamp indexes, used by insight explorer (default: %u)"), DEFAULT_SPENTINDEX));
-
+    strUsage += HelpMessageOpt("-zindex", strprintf(_("Maintain extra statistics about shielded transactions and payments (default: %u)"), 0));
 
     strUsage += HelpMessageGroup(_("Connection options:"));
     strUsage += HelpMessageOpt("-addnode=<ip>", _("Add a node to connect to and attempt to keep the connection open"));
@@ -486,7 +486,7 @@ std::string HelpMessage(HelpMessageMode mode)
         strUsage += HelpMessageOpt("-nuparams=hexBranchId:activationHeight", "Use given activation height for specified network upgrade (regtest-only)");
     }
     string debugCategories = "addrman, alert, bench, coindb, db, deletetx, estimatefee, http, libevent, lock, mempool, net, partitioncheck, pow, proxy, prune, "
-                             "rand, reindex, rpc, selectcoins, tor, zmq, zrpc, zrpcunsafe (implies zrpc)"; // Don't translate these
+                             "rand, reindex, rpc, selectcoins, tor, zindex, zmq, zrpc, zrpcunsafe (implies zrpc)"; // Don't translate these
     strUsage += HelpMessageOpt("-debug=<category>", strprintf(_("Output debugging information (default: %u, supplying <category> is optional)"), 0) + ". " +
         _("If <category> is not supplied or if <category> = 1, output all debugging information.") + " " + _("<category> can be:") + " " + debugCategories + ".");
     strUsage += HelpMessageOpt("-experimentalfeatures", _("Enable use of experimental features"));
@@ -1578,6 +1578,11 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 // Check for changed -insightexplorer state
                 if (fInsightExplorer != GetBoolArg("-insightexplorer", false)) {
                     strLoadError = _("You need to rebuild the database using -reindex to change -insightexplorer");
+                    break;
+                }
+
+                if (fZindex != GetBoolArg("-zindex", false)) {
+                    strLoadError = _("You need to rebuild the database using -reindex to change -zindex");
                     break;
                 }
 
