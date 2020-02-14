@@ -221,7 +221,7 @@ libzcash::SaplingPaymentAddress AsyncRPCOperation_saplingmigration::getMigration
         pwalletMain->GetSaplingFullViewingKey(ivk, fvk) &&
         pwalletMain->HaveSaplingSpendingKey(fvk))) {
         // Sapling account 0 must be the first address returned by GenerateNewSaplingZKey
-        assert(pwalletMain->GenerateNewSaplingZKey() == toAddress);
+        assert(pwalletMain->GenerateNewSaplingZKey(true) == toAddress);
     }
 
     return toAddress;
