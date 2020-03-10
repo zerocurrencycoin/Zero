@@ -1,30 +1,30 @@
 ![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/zero%203d%20mountain.png?raw=true)
 
-[ZERO](https://zerocurrency.io) - [Pavo:3.0.2](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.0.2)
+[ZERO](https://zerocurrency.io) - [Pegasus:3.1.0](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.1.0)
 
 ||FAST|| ||DECENTRALISED|| ||ANONYMOUS|| ||SECURE|| ||ASIC RESISTANT||  - LAUNCE DATE: 2017-02-19
 
 GENESIS BLOCK - 19th Feb 2017 11:26:40 - 068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6
 
-Download the latest version here - [ZERO - Latest Version - Pavo:3.0.2](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.0.2)
+Download the latest version here - [ZERO - Latest Version - Pegasus:3.1.0](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.1.0)
 
 ------------------------------------------
 
 ❓ What is ZERO?
 --------------
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.0.2) is a revolutionary cryptocurrency and transaction platform based on Zcash.
+[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.1.0) is a revolutionary cryptocurrency and transaction platform based on Zcash.
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.0.2) offers total payment confidentiality, while still maintaining a decentralised network using a public blockchain.
+[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.1.0) offers total payment confidentiality, while still maintaining a decentralised network using a public blockchain.
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.0.2) combines Bitcoin’s security with Zcash’s anonymity and privacy.
+[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.1.0) combines Bitcoin’s security with Zcash’s anonymity and privacy.
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.0.2) stands out from the competition as a fully working product that has already
+[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.1.0) stands out from the competition as a fully working product that has already
 implemented a set of special features not found in any other cryptocurrency.
 
 Our main focus as a team and community is to remain as transparent as we can possibly be and to maintain an interactive relationship with everyone involved. We are fully open about the project, listening to all suggestions from investors, miners and supporters.
 
-This software is the [ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.0.2) node. It downloads and stores the entire history of ZERO's transactions, about 1.2GB at this point.
+This software is the [ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.1.0) node. It downloads and stores the entire history of ZERO's transactions, about 1.2GB at this point.
 Depending on the speed of your computer and network connection, the synchronization process could take several hours.
 
 ------------------------------------------
@@ -78,6 +78,11 @@ Zero has a small inflation that degrades over time. With a stable supply of 7776
 
 ![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/tech%20improv%20zero.jfif)
 
+[Zero](https://z.cash/) is an implementation of the "Zerocash" protocol.
+Based on Bitcoin's code, Zero intends to offer a far higher standard of privacy
+through a sophisticated zero-knowledge proving scheme that preserves
+confidentiality of transaction metadata. More technical details are available
+in our [Protocol Specification](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf).
 
 ![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/algo%20zer%20improv.jfif)
 
@@ -119,10 +124,11 @@ https://bitcointalk.org/index.php?topic=3310714.0
 See important security warnings on the
 [Security Information page](https://z.cash/support/security/).
 
+**Zero is experimental and a work in progress.** Use it at your own risk.
 
 📒 Deprecation Policy
 ------------------
-Disabledeprecation flag has been removed. Old nodes will automatically be shut down and must be upgraded upon reaching the deprecation block height, which will occur approximately 26 weeks (6/27/2020) from the release of v3.0.2.
+Disabledeprecation flag has been removed. Old nodes will automatically be shut down and must be upgraded upon reaching the deprecation block height, which will occur approximately 26 weeks (6/27/2020) from the release of v3.1.0.
 
 
 🔧 Building
