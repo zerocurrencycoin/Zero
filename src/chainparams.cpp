@@ -1,7 +1,7 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
-// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+// file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
 #include "key_io.h"
 #include "main.h"
@@ -85,16 +85,23 @@ public:
         bip44CoinType = 323; // As registered in https://github.com/satoshilabs/slips/blob/master/slip-0044.md
         consensus.fCoinbaseMustBeProtected = true;
         consensus.nFeeStartBlockHeight = 412300;
-        consensus.nSubsidyHalvingInterval = 800000;
+        consensus.nPreBlossomSubsidyHalvingInterval = Consensus::PRE_BLOSSOM_HALVING_INTERVAL;
+        consensus.nPostBlossomSubsidyHalvingInterval = Consensus::POST_BLOSSOM_HALVING_INTERVAL;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 4000;
+
+        const size_t N = 192, K = 7;
+        BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
+        consensus.nEquihashN = N;
+        consensus.nEquihashK = K;
         consensus.powLimit = uint256S("0AB1Efffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowAveragingWindow = 17;
         assert(maxUint/UintToArith256(consensus.powLimit) >= consensus.nPowAveragingWindow);
         consensus.nPowMaxAdjustDown = 30; // 30% adjustment down
         consensus.nPowMaxAdjustUp = 10; // 10% adjustment up
-        consensus.nPowTargetSpacing = 2 * 60;
+        consensus.nPreBlossomPowTargetSpacing = Consensus::PRE_BLOSSOM_POW_TARGET_SPACING;
+        consensus.nPostBlossomPowTargetSpacing = Consensus::POST_BLOSSOM_POW_TARGET_SPACING;
         consensus.nPowAllowMinDifficultyBlocksAfterHeight = boost::none;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nProtocolVersion = 170002;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nActivationHeight =
@@ -104,13 +111,22 @@ public:
             Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT;
         consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nProtocolVersion = 170005;
         consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = 492850;
+        consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].hashActivationBlock =
+           uint256S("0000004c1c7583dfda0e37d1f52a00f0452dba3054444011c332858ad48b5e66");
         consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nProtocolVersion = 170007;
         consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 492850;
+        consensus.vUpgrades[Consensus::UPGRADE_SAPLING].hashActivationBlock =
+            uint256S("0000004c1c7583dfda0e37d1f52a00f0452dba3054444011c332858ad48b5e66");
         consensus.vUpgrades[Consensus::UPGRADE_COSMOS].nProtocolVersion = 170008;
         consensus.vUpgrades[Consensus::UPGRADE_COSMOS].nActivationHeight = 620450;
-        
+        consensus.vUpgrades[Consensus::UPGRADE_COSMOS].hashActivationBlock =
+           uint256S("00000049b61eca40af429e1552500116d40ea446d0271dce141af5d51956cb6e");
+        consensus.vUpgrades[Consensus::UPGRADE_BLOSSOM].nProtocolVersion = 170009;
+        consensus.vUpgrades[Consensus::UPGRADE_BLOSSOM].nActivationHeight =
+            Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT;
+
         // The best chain should have at least this much work.
-        consensus.nMinimumChainWork = uint256S("0x00");
+        consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000023297bef3cd");
 
         /**
          * The message start string should be awesome!
@@ -123,10 +139,6 @@ public:
         nDefaultPort = 23801;
         //nMaxTipAge = 24 * 60 * 60;
         nPruneAfterHeight = 100000;
-        const size_t N = 192, K = 7;
-        BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
-        nEquihashN = N;
-        nEquihashK = K;
 
         //Start Zeronode
         nZeronodeCountDrift = 0;
@@ -196,13 +208,22 @@ public:
             ( 300000, uint256S("0x000001e0b15c1f74af391c39bcb2d61ea879238b53ba738a45303cccd84c2c3f"))
             ( 400000, uint256S("0x000001ebcc62c257dd00d70bb7fbc210580875e8dbc9f1f9c9aafdb4dc1d8a4e"))
             ( 500000, uint256S("0x000000c642fda400a464c50dcf310e65efa2627799b9b0c378524205ba2307b7"))
-            ( 550000, uint256S("0x000003cb1f3c128819bdf84632fd31058014542af64eea8959d5139fc26c21cd")),
-            1553590617,     // * UNIX timestamp of last checkpoint block
-            1067556,         // * total number of transactions between genesis and last checkpoint
+            ( 600000, uint256S("0x000000a0e6efed6a536c2c5063c666102fb2f9ddb4a226b34a0894c723519e48"))
+            ( 700000, uint256S("0x000001bee8c5bc29fb8d6c3642662ecb479ec85df648e851edaaa0e090b2c797")),
+            1571551061,     // * UNIX timestamp of last checkpoint block
+            1376076,         // * total number of transactions between genesis and last checkpoint
                                         //   (the tx=... number in the SetBestChain debug.log lines)
-            1118            // * estimated number of transactions per day after checkpoint
+            1132            // * estimated number of transactions per day after checkpoint
                                         //   total number of tx / (checkpoint block height / (24 * 24))
         };
+
+        // Hardcoded fallback value for the Sprout shielded value pool balance
+        // for nodes that have not reindexed since the introduction of monitoring
+        // in #2795.
+        nSproutValuePoolCheckpointHeight = 492850;
+        nSproutValuePoolCheckpointBalance = 7517901832365;
+        fZIP209Enabled = true;
+        hashSproutValuePoolCheckpointBlock = uint256S("0000004c1c7583dfda0e37d1f52a00f0452dba3054444011c332858ad48b5e66");
 
         // Founders reward script expects a vector of 2-of-3 multisig addresses
         vFoundersRewardAddress = {
@@ -218,7 +239,7 @@ public:
           "t3aJkYT1i6tyytq8J6khPaDNtgZsBSXgfBf", /* main-index: 9*/
 
         };
-        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight());
+        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight(0));
     }
 };
 static CMainParams mainParams;
@@ -234,16 +255,23 @@ public:
         bip44CoinType = 1;
         consensus.fCoinbaseMustBeProtected = true;
         consensus.nFeeStartBlockHeight = 1;
-        consensus.nSubsidyHalvingInterval = 800000;
+        consensus.nPreBlossomSubsidyHalvingInterval = Consensus::PRE_BLOSSOM_HALVING_INTERVAL;
+        consensus.nPostBlossomSubsidyHalvingInterval = Consensus::POST_BLOSSOM_HALVING_INTERVAL;
         consensus.nMajorityEnforceBlockUpgrade = 51;
         consensus.nMajorityRejectBlockOutdated = 75;
         consensus.nMajorityWindow = 400;
+
+        const size_t N = 192, K = 7;
+        BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
+        consensus.nEquihashN = N;
+        consensus.nEquihashK = K;
         consensus.powLimit = uint256S("0effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowAveragingWindow = 17;
         assert(maxUint/UintToArith256(consensus.powLimit) >= consensus.nPowAveragingWindow);
         consensus.nPowMaxAdjustDown = 30; // 30% adjustment down
         consensus.nPowMaxAdjustUp = 10; // 10% adjustment up
-        consensus.nPowTargetSpacing = 2 * 60;
+        consensus.nPreBlossomPowTargetSpacing = Consensus::PRE_BLOSSOM_POW_TARGET_SPACING;
+        consensus.nPostBlossomPowTargetSpacing = Consensus::POST_BLOSSOM_POW_TARGET_SPACING;
         consensus.nPowAllowMinDifficultyBlocksAfterHeight = boost::none;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nProtocolVersion = 170002;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nActivationHeight =
@@ -253,10 +281,21 @@ public:
             Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT;
         consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nProtocolVersion = 170005;
         consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = 50;
+        // consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].hashActivationBlock =
+            // uint256S("0000257c4331b098045023fcfbfa2474681f4564ab483f84e4e1ad078e4acf44");
         consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nProtocolVersion = 170007;
         consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = 50;
+        // consensus.vUpgrades[Consensus::UPGRADE_SAPLING].hashActivationBlock =
+        //     uint256S("000420e7fcc3a49d729479fb0b560dd7b8617b178a08e9e389620a9d1dd6361a");
         consensus.vUpgrades[Consensus::UPGRADE_COSMOS].nProtocolVersion = 170008;
         consensus.vUpgrades[Consensus::UPGRADE_COSMOS].nActivationHeight =47925;
+        // consensus.vUpgrades[Consensus::UPGRADE_COSMOS].hashActivationBlock =
+        //     uint256S("00367515ef2e781b8c9358b443b6329572599edd02c59e8af67db9785122f298");
+        consensus.vUpgrades[Consensus::UPGRADE_BLOSSOM].nProtocolVersion = 170009;
+        consensus.vUpgrades[Consensus::UPGRADE_BLOSSOM].nActivationHeight =
+            Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT;
+        // consensus.vUpgrades[Consensus::UPGRADE_BLOSSOM].hashActivationBlock =
+        //     uint256S("00367515ef2e781b8c9358b443b6329572599edd02c59e8af67db9785122f298");
 
 
         // The best chain should have at least this much work.
@@ -270,10 +309,6 @@ public:
         nDefaultPort = 23802;
         //nMaxTipAge = 1000000000;
         nPruneAfterHeight = 1000;
-        const size_t N = 192, K = 7;
-        BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
-        nEquihashN = N;
-        nEquihashK = K;
 
         //Start Zeronode
         nZeronodeCountDrift = 0;
@@ -363,7 +398,7 @@ public:
           "t2LYZj3LiCDaCGUXQNXH1ZFPmHiC46wB9se",
           "t28azskSALVTtgbW63CqDwzXgtWQ56GVVXa"
         };
-        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight());
+        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight(0));
     }
 };
 static CTestNetParams testNetParams;
@@ -379,16 +414,22 @@ public:
         bip44CoinType = 1;
         consensus.fCoinbaseMustBeProtected = false;
         consensus.nFeeStartBlockHeight = 5000;
-        consensus.nSubsidyHalvingInterval = 10000;
+        consensus.nPreBlossomSubsidyHalvingInterval = Consensus::PRE_BLOSSOM_REGTEST_HALVING_INTERVAL;
+        consensus.nPostBlossomSubsidyHalvingInterval = Consensus::POST_BLOSSOM_REGTEST_HALVING_INTERVAL;
         consensus.nMajorityEnforceBlockUpgrade = 750;
         consensus.nMajorityRejectBlockOutdated = 950;
         consensus.nMajorityWindow = 1000;
+        const size_t N = 48, K = 5;
+        BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
+        consensus.nEquihashN = N;
+        consensus.nEquihashK = K;
         consensus.powLimit = uint256S("0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f");
         consensus.nPowAveragingWindow = 17;
         assert(maxUint/UintToArith256(consensus.powLimit) >= consensus.nPowAveragingWindow);
         consensus.nPowMaxAdjustDown = 0; // Turn off adjustment down
         consensus.nPowMaxAdjustUp = 0; // Turn off adjustment up
-        consensus.nPowTargetSpacing = 2 * 60;
+        consensus.nPreBlossomPowTargetSpacing = Consensus::PRE_BLOSSOM_POW_TARGET_SPACING;
+        consensus.nPostBlossomPowTargetSpacing = Consensus::POST_BLOSSOM_POW_TARGET_SPACING;
         consensus.nPowAllowMinDifficultyBlocksAfterHeight = 0;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nProtocolVersion = 170002;
         consensus.vUpgrades[Consensus::BASE_SPROUT].nActivationHeight =
@@ -403,8 +444,11 @@ public:
         consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight =
             Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT;
         consensus.vUpgrades[Consensus::UPGRADE_COSMOS].nProtocolVersion = 170008;
-        consensus.vUpgrades[Consensus::UPGRADE_COSMOS].nActivationHeight = 
+        consensus.vUpgrades[Consensus::UPGRADE_COSMOS].nActivationHeight =
                 Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT;
+        consensus.vUpgrades[Consensus::UPGRADE_BLOSSOM].nProtocolVersion = 170009;
+        consensus.vUpgrades[Consensus::UPGRADE_BLOSSOM].nActivationHeight =
+            Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT;
 
 
         // The best chain should have at least this much work.
@@ -418,10 +462,6 @@ public:
         nDefaultPort = 23803;
         //nMaxTipAge = 24 * 60 * 60;
         nPruneAfterHeight = 1000;
-        const size_t N = 48, K = 5;
-        BOOST_STATIC_ASSERT(equihash_parameters_acceptable(N, K));
-        nEquihashN = N;
-        nEquihashK = K;
 
         //Start Zeronode
         nZeronodeCountDrift = 0;
@@ -445,8 +485,8 @@ public:
         assert(consensus.hashGenesisBlock == uint256S("0275863eebea76f824674494b7f6a3770ac46c732aaa62b07328feaa9d79798b"));
         //assert(genesis.hashMerkleRoot == uint256S(""));
 
-        vFixedSeeds.clear(); //! Regtest mode doesn't have any fixed seeds.
-        vSeeds.clear();  //! Regtest mode doesn't have any DNS seeds.
+        vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
+        vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
 
         // guarantees the first 2 characters, when base58 encoded, are "tm"
         base58Prefixes[PUBKEY_ADDRESS]     = {0x1D,0x25};
@@ -485,13 +525,24 @@ public:
 
         // Founders reward script expects a vector of 2-of-3 multisig addresses
         vFoundersRewardAddress = { "t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg" };
-        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight());
+        assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight(0));
     }
 
     void UpdateNetworkUpgradeParameters(Consensus::UpgradeIndex idx, int nActivationHeight)
     {
         assert(idx > Consensus::BASE_SPROUT && idx < Consensus::MAX_NETWORK_UPGRADES);
         consensus.vUpgrades[idx].nActivationHeight = nActivationHeight;
+    }
+
+    void UpdateRegtestPow(int64_t nPowMaxAdjustDown, int64_t nPowMaxAdjustUp, uint256 powLimit)
+    {
+        consensus.nPowMaxAdjustDown = nPowMaxAdjustDown;
+        consensus.nPowMaxAdjustUp = nPowMaxAdjustUp;
+        consensus.powLimit = powLimit;
+    }
+
+    void SetRegTestZIP209Enabled() {
+        fZIP209Enabled = true;
     }
 };
 static CRegTestParams regTestParams;
@@ -525,6 +576,11 @@ void SelectParams(CBaseChainParams::Network network) {
     if (network == CBaseChainParams::REGTEST && mapArgs.count("-regtestprotectcoinbase")) {
         regTestParams.SetRegTestCoinbaseMustBeProtected();
     }
+
+    // When a developer is debugging turnstile violations in regtest mode, enable ZIP209
+    if (network == CBaseChainParams::REGTEST && mapArgs.count("-developersetpoolsizezero")) {
+        regTestParams.SetRegTestZIP209Enabled();
+    }
 }
 
 bool SelectParamsFromCommandLine()
@@ -541,7 +597,7 @@ bool SelectParamsFromCommandLine()
 // Block height must be >0 and <=last founders reward block height
 // Index variable i ranges from 0 - (vFoundersRewardAddress.size()-1)
 std::string CChainParams::GetFoundersRewardAddressAtHeight(int nHeight) const {
-    int maxHeight = consensus.GetLastFoundersRewardBlockHeight();
+    int maxHeight = consensus.GetLastFoundersRewardBlockHeight(nHeight);
     assert(nHeight >= consensus.nFeeStartBlockHeight && nHeight <= maxHeight);
 
     size_t addressChangeInterval = (maxHeight + vFoundersRewardAddress.size()) / vFoundersRewardAddress.size();
@@ -552,7 +608,7 @@ std::string CChainParams::GetFoundersRewardAddressAtHeight(int nHeight) const {
 // Block height must be >0 and <=last founders reward block height
 // The founders reward address is expected to be a multisig (P2SH) address
 CScript CChainParams::GetFoundersRewardScriptAtHeight(int nHeight) const {
-    assert(nHeight >= consensus.nFeeStartBlockHeight && nHeight <= consensus.GetLastFoundersRewardBlockHeight());
+    assert(nHeight >= consensus.nFeeStartBlockHeight && nHeight <= consensus.GetLastFoundersRewardBlockHeight(nHeight));
 
     CTxDestination address = DecodeDestination(GetFoundersRewardAddressAtHeight(nHeight).c_str());
     assert(IsValidDestination(address));
@@ -570,4 +626,8 @@ std::string CChainParams::GetFoundersRewardAddressAtIndex(int i) const {
 void UpdateNetworkUpgradeParameters(Consensus::UpgradeIndex idx, int nActivationHeight)
 {
     regTestParams.UpdateNetworkUpgradeParameters(idx, nActivationHeight);
+}
+
+void UpdateRegtestPow(int64_t nPowMaxAdjustDown, int64_t nPowMaxAdjustUp, uint256 powLimit) {
+    regTestParams.UpdateRegtestPow(nPowMaxAdjustDown, nPowMaxAdjustUp, powLimit);
 }
