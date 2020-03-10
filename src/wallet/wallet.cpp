@@ -37,7 +37,9 @@
 #include <boost/filesystem.hpp>
 #include <boost/thread.hpp>
 
+#ifdef __linux__ //linux only
 #include <malloc.h>
+#endif
 
 using namespace std;
 using namespace libzcash;
@@ -3069,9 +3071,11 @@ void CWallet::DeleteTransactions(std::vector<uint256> &removeTxs) {
             return;
         }
     }
-    
-    // Miodrag: release memory back to the OS
+
+    // Miodrag: release memory back to the OS, only works on linux
+    #ifdef __linux__
     malloc_trim(0);
+    #endif
 }
 
 void CWallet::DeleteWalletTransactions(const CBlockIndex* pindex) {
