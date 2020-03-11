@@ -41,7 +41,7 @@ bool IsBudgetCollateralValid(uint256 nTxCollateralHash, uint256 nExpectedHash, s
 {
     CTransaction txCollateral;
     uint256 nBlockHash;
-    if (!GetTransaction(nTxCollateralHash, txCollateral, nBlockHash, true)) {
+    if (!GetTransaction(nTxCollateralHash, txCollateral, Params().GetConsensus(), nBlockHash, true)) {
         strError = strprintf("Can't find collateral tx %s", txCollateral.ToString());
         LogPrint("zeronode","CBudgetProposalBroadcast::IsBudgetCollateralValid - %s\n", strError);
         return false;
@@ -203,7 +203,7 @@ void CBudgetManager::SubmitFinalBudget()
     CTransaction txCollateral;
     uint256 nBlockHash;
 
-    if (!GetTransaction(txidCollateral, txCollateral, nBlockHash, true)) {
+    if (!GetTransaction(txidCollateral, txCollateral, Params().GetConsensus(), nBlockHash, true)) {
         LogPrint("zeronode","CBudgetManager::SubmitFinalBudget - Can't find collateral tx %s", txidCollateral.ToString());
         return;
     }
@@ -521,7 +521,7 @@ void CBudgetManager::FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, C
     //miners get the full amount on these blocks
     txNew.vout[0].nValue = blockValue;
 
-    if ((pindexPrev->nHeight + 1 >= Params().GetConsensus().nFeeStartBlockHeight) && (pindexPrev->nHeight + 1 <= Params().GetConsensus().GetLastFoundersRewardBlockHeight())) {
+    if ((pindexPrev->nHeight + 1 >= Params().GetConsensus().nFeeStartBlockHeight) && (pindexPrev->nHeight + 1 <= Params().GetConsensus().GetLastFoundersRewardBlockHeight(pindexPrev->nHeight))) {
         // Founders reward is 7.5% of the block subsidy
         CAmount vFoundersReward = txNew.vout[0].nValue * 7.5 / 100;
 
