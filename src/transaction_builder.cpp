@@ -466,8 +466,8 @@ void TransactionBuilder::CreateJSDescriptions()
                 vpub_old += vjsout[n].value;
             }
 
-            std::array<size_t, ZC_NUM_JS_INPUTS> inputMap;
-            std::array<size_t, ZC_NUM_JS_OUTPUTS> outputMap;
+            std::array<uint64_t, ZC_NUM_JS_INPUTS> inputMap;
+            std::array<uint64_t, ZC_NUM_JS_OUTPUTS> outputMap;
             CreateJSDescription(vpub_old, 0, vjsin, vjsout, inputMap, outputMap);
         }
         return;
@@ -662,8 +662,8 @@ void TransactionBuilder::CreateJSDescriptions()
             LogPrint("zrpcunsafe", "generating note for change (amount=%s)\n", FormatMoney(jsChange));
         }
 
-        std::array<size_t, ZC_NUM_JS_INPUTS> inputMap;
-        std::array<size_t, ZC_NUM_JS_OUTPUTS> outputMap;
+        std::array<uint64_t, ZC_NUM_JS_INPUTS> inputMap;
+        std::array<uint64_t, ZC_NUM_JS_OUTPUTS> outputMap;
         CreateJSDescription(vpub_old, vpub_new, vjsin, vjsout, inputMap, outputMap);
 
         if (jsChange > 0) {
@@ -683,8 +683,8 @@ void TransactionBuilder::CreateJSDescription(
     uint64_t vpub_new,
     std::array<libzcash::JSInput, ZC_NUM_JS_INPUTS> vjsin,
     std::array<libzcash::JSOutput, ZC_NUM_JS_OUTPUTS> vjsout,
-    std::array<size_t, ZC_NUM_JS_INPUTS>& inputMap,
-    std::array<size_t, ZC_NUM_JS_OUTPUTS>& outputMap)
+    std::array<uint64_t, ZC_NUM_JS_INPUTS>& inputMap,
+    std::array<uint64_t, ZC_NUM_JS_OUTPUTS>& outputMap)
 {
     LogPrint("zrpcunsafe", "CreateJSDescription: creating joinsplit at index %d (vpub_old=%s, vpub_new=%s, in[0]=%s, in[1]=%s, out[0]=%s, out[1]=%s)\n",
         mtx.vJoinSplit.size(),
