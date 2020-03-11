@@ -151,8 +151,8 @@ private:
         uint64_t vpub_new,
         std::array<libzcash::JSInput, ZC_NUM_JS_INPUTS> vjsin,
         std::array<libzcash::JSOutput, ZC_NUM_JS_OUTPUTS> vjsout,
-        std::array<size_t, ZC_NUM_JS_INPUTS>& inputMap,
-        std::array<size_t, ZC_NUM_JS_OUTPUTS>& outputMap);
+        std::array<uint64_t, ZC_NUM_JS_INPUTS>& inputMap,
+        std::array<uint64_t, ZC_NUM_JS_OUTPUTS>& outputMap);
 };
 
 #endif /* TRANSACTION_BUILDER_H */
