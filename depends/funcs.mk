@@ -40,7 +40,7 @@ endef
 
 define vendor_crate_source
 mkdir -p $($(1)_staging_prefix_dir)/$(CRATE_REGISTRY) && \
-cp -r $($(1)_extract_dir) $($(1)_staging_prefix_dir)/$(CRATE_REGISTRY)/$($(1)_crate_name) && \
+cp -r $($(1)_extract_dir) $($(1)_staging_prefix_dir)/$(CRATE_REGISTRY)/$($(1)_crate_versioned_name) && \
 cd $($(1)_staging_prefix_dir)/$(CRATE_REGISTRY)/$($(1)_crate_versioned_name) && \
 rm -r `basename $($(1)_patch_dir)` .stamp_* .$($(1)_file_name).hash
 endef
@@ -59,8 +59,8 @@ $(eval $(1)_build_id:=$(shell echo -n "$($(1)_build_id_long)" | $(build_SHA256SU
 final_build_id_long+=$($(package)_build_id_long)
 
 #override platform specific files and hashes
-$(eval $(1)_file_name=$(if $($(1)_file_name_$(host_os)),$($(1)_file_name_$(host_os)),$($(1)_file_name)))
-$(eval $(1)_sha256_hash=$(if $($(1)_sha256_hash_$(host_os)),$($(1)_sha256_hash_$(host_os)),$($(1)_sha256_hash)))
+$(eval $(1)_file_name=$(if $($(1)_exact_file_name),$($(1)_exact_file_name),$(if $($(1)_file_name_$(host_os)),$($(1)_file_name_$(host_os)),$($(1)_file_name))))
+$(eval $(1)_sha256_hash=$(if $($(1)_exact_sha256_hash),$($(1)_exact_sha256_hash),$(if $($(1)_sha256_hash_$(host_os)),$($(1)_sha256_hash_$(host_os)),$($(1)_sha256_hash))))
 
 #compute package-specific paths
 $(1)_build_subdir?=.
