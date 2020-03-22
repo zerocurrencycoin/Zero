@@ -1790,6 +1790,70 @@ UniValue getalldata(const UniValue& params, bool fHelp)
     return returnObj;
 }
 
+UniValue getsupply(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+        throw runtime_error(
+            "getsupply \"height \"\n"
+            "\n"
+            "This function returns the coin supply at a specific height."
+            "\n"
+            "\nArguments:\n"
+            "1. \"height\"     (integer, required) \n"
+            "\nResult:\n"
+            "{\n"
+            "  \"supplyzats\": n,     (numeric) Total supply in zatoshis\n"
+            "  \"supply\": n,         (numeric) Total supply\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getsupply", "0")
+            + HelpExampleRpc("getsupply", "0")
+        );
+
+    LOCK2(cs_main, pwalletMain->cs_wallet);
+
+    int nHeight = 0;
+    uint64_t supply = 0;
+
+    if (params.size() > 0) {
+      nHeight = params[0].get_int64();
+    } else {
+      nHeight = chainActive.Height();
+    }
+
+    auto consensusParams = Params().GetConsensus();
+    unsigned int halving = consensusParams.nPreBlossomSubsidyHalvingInterval;
+    int halvings = nHeight/halving;
+
+    for (int i = 0; i <= halvings; i++ ) {
+
+        int loopHeight = 0;
+        if (i < halvings) {
+            loopHeight = (halving * (i + 1)) - 1;
+        } else {
+            loopHeight = nHeight;
+        }
+
+        if (i == 0) {
+            if (nHeight >= consensusParams.nFeeStartBlockHeight) {
+                supply = GetBlockSubsidy(1, consensusParams) * (consensusParams.nFeeStartBlockHeight - 1);
+                supply += GetBlockSubsidy(loopHeight, consensusParams) * (loopHeight - consensusParams.nFeeStartBlockHeight + 1);
+            } else {
+                supply = GetBlockSubsidy(loopHeight, consensusParams) * loopHeight;
+            }
+        } else {
+            supply += GetBlockSubsidy(loopHeight, consensusParams) * (loopHeight - ((halving * i) -1));
+        }
+    }
+
+UniValue ret(UniValue::VOBJ);
+
+ret.push_back(Pair("supplyzats", supply));
+ret.push_back(Pair("supply", ValueFromAmount(supply)));
+
+return ret;
+
+}
 
 static const CRPCCommand commands[] =
 {   //  category              name                          actor (function)              okSafeMode
@@ -1800,6 +1864,7 @@ static const CRPCCommand commands[] =
     {   "zero Exclusive",     "zs_listreceivedbyaddress",  &zs_listreceivedbyaddress,  true },
     {   "zero Exclusive",     "zs_listsentbyaddress",      &zs_listsentbyaddress,      true },
     {   "zero Exclusive",     "getalldata",                &getalldata,                true },
+    {   "zero Exclusive",     "getsupply",                 &getsupply,                true },
 };
 
 void RegisterZeroExclusiveRPCCommands(CRPCTable &tableRPC)
