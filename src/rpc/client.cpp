@@ -168,6 +168,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "zs_listspentbyaddress", 3},
     { "zs_listspentbyaddress", 4},
     { "zs_listspentbyaddress", 5},
+    { "getsupply", 0},
+    { "getsupply", 1},
 
 };
 
