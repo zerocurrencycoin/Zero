@@ -15,6 +15,7 @@
 #include "zeronode/zeronode-sync.h"
 #include "rpc/server.h"
 #include "utilmoneystr.h"
+#include "wallet/rpczerowallet.h"
 
 #include <boost/tokenizer.hpp>
 
@@ -977,6 +978,128 @@ UniValue zeronode(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 
+UniValue zeronodestats(const UniValue& params, bool fHelp)
+
+{
+  if (fHelp || (params.size() > 0))
+      throw runtime_error(
+          "zeronodestats\n"
+          "\nThis function returns Zeronode & Blockchain statistics.\n"
+
+          "\nResults:\n"
+          "{\n"
+          "  chainStats:\n"
+          "  {\n"
+          "    \"height\": n,                 (numeric) Block height\n"
+          "    \"supply\": n,                 (numeric) Total supply at block height\n"
+          "    \"supplyzats\": n,             (numeric) Total supply in zatoshis\n"
+          "    \"sproutpool\": n,             (numeric) Value of sprout pool\n"
+          "    \"sproutpoolzats\": n,         (numeric) Value of sprout pool in zatoshis\n"
+          "    \"saplingpool\": n,            (numeric) Value of sapling pool\n"
+          "    \"saplingpoolzats\": n,        (numeric) Value of sapling pool in zatoshis\n"
+          "    \"blockreward\": n,            (numeric) Value of blockreward\n"
+          "    \"blockrewardzats\": n,        (numeric) Value of blockreward in zatoshis\n"
+          "    \"zeronodepayment\": n,        (numeric) Value of zeronode payments\n"
+          "    \"zeronodepaymentzats\": n,    (numeric) Value of zeronode payments in zatoshis\n"
+          "    \"developmentfee\": n,         (numeric) Value of development fee\n"
+          "    \"developmentfeezats\": n,     (numeric) Value of development fee in zatoshis\n"
+          "  },\n"
+          "  nodeCount:\n"
+          "  {\n"
+          "    \"total\": n,                  (numeric) Total zeronodes\n"
+          "    \"stable\": n,                 (numeric) Stable count\n"
+          "    \"obfcompat\": n,              (numeric) Obfuscation Compatible\n"
+          "    \"enabled\": n,                (numeric) Enabled zeronodes\n"
+          "    \"inqueue\": n                 (numeric) Zeronodes in queue\n"
+          "    \"ipv4\": n,                   (numeric) Zeronodes using ipv4\n"
+          "    \"ipv6\": n,                   (numeric) Zeronodes using ipv6\n"
+          "    \"onion\": n,                  (numeric) Zeronodes using onion\n"
+          "  },\n"
+          "  nodeList:\n"
+          "  [\n"
+          "    {\n"
+          "      \"rank\": n,                 (numeric) Zeronode Rank (or 0 if not enabled)\n"
+          "      \"txhash\": \"hash\",          (string) Collateral transaction hash\n"
+          "      \"outidx\": n,               (numeric) Collateral transaction output index\n"
+          "      \"status\": s,               (string) Status (ENABLED/EXPIRED/REMOVE/etc)\n"
+          "      \"addr\": \"addr\",            (string) Zeronode Zero address\n"
+          "      \"version\": v,              (numeric) Zeronode protocol version\n"
+          "      \"lastseen\": ttt,           (numeric) The time in seconds since epoch (Jan 1 1970 GMT) of the last seen\n"
+          "      \"activetime\": ttt,         (numeric) The time in seconds since epoch (Jan 1 1970 GMT) zeronode has been active\n"
+          "      \"lastpaid\": ttt,           (numeric) The time in seconds since epoch (Jan 1 1970 GMT) zeronode was last paid\n"
+          "    }\n"
+          "    ,...\n"
+          "  ]\n"
+          "}\n"
+          "\nExamples:\n" +
+          HelpExampleCli("zeronodestats", "") + HelpExampleRpc("zeronodestats", ""));
+
+          UniValue ret(UniValue::VOBJ);
+          UniValue newParams(UniValue::VARR);
+          UniValue ct = getzeronodecount(newParams, false);
+          UniValue supply = getsupply(newParams, false);
+
+          int nHeight = 0;
+          CAmount blockValue = 0;
+          CAmount zeronodePayment = 0;
+          CAmount vFoundersReward = 0;
+          boost::optional<CAmount> saplingPool = 0;
+          boost::optional<CAmount> sproutPool = 0;
+          CAmount supplyzats = 0;
+          CAmount transaparentpoolzats = 0;
+
+          {
+            LOCK(cs_main);
+            nHeight = chainActive.Height();
+            blockValue = GetBlockSubsidy(nHeight, Params().GetConsensus());
+            zeronodePayment = GetZeronodePayment(nHeight, blockValue);
+            vFoundersReward = blockValue * 7.5 / 100;
+            supplyzats = supply["supplyzats"].get_int64();
+            transaparentpoolzats = supplyzats;
+            CBlockIndex* tip = chainActive.Tip();
+            if (tip->nChainSaplingValue)
+              saplingPool = tip->nChainSaplingValue;
+            if (tip->nChainSproutValue)
+              sproutPool = tip->nChainSproutValue;
+          }
+
+          UniValue chain(UniValue::VOBJ);
+          chain.push_back(Pair("height", nHeight));
+          chain.push_back(Pair("supply", ValueFromAmount(supplyzats)));
+          chain.push_back(Pair("supplyzats", supplyzats));
+          if (sproutPool) {
+            chain.push_back(Pair("sproutpool", ValueFromAmount(*sproutPool)));
+            chain.push_back(Pair("sproutpoolzats", *sproutPool));
+          } else {
+            chain.push_back(Pair("sproutpool", 0));
+            chain.push_back(Pair("sproutpoolzats", 0));
+          }
+          if (saplingPool) {
+            chain.push_back(Pair("saplingpool", ValueFromAmount(*saplingPool)));
+            chain.push_back(Pair("saplingpoolzats", *saplingPool));
+          } else {
+            chain.push_back(Pair("saplingpool", 0));
+            chain.push_back(Pair("saplingpoolzats", 0));
+          }
+          chain.push_back(Pair("blockreward", ValueFromAmount(blockValue)));
+          chain.push_back(Pair("blockrewardzats", blockValue));
+          chain.push_back(Pair("zeronodepayment", ValueFromAmount(zeronodePayment)));
+          chain.push_back(Pair("zeronodepaymentzats", zeronodePayment));
+          chain.push_back(Pair("developmentfee", ValueFromAmount(vFoundersReward)));
+          chain.push_back(Pair("developmentfeezats", vFoundersReward));
+
+          ret.push_back(Pair("chainStats", chain));
+          ret.push_back(Pair("nodeCount", ct));
+          ret.push_back(Pair("nodeList", listzeronodes(newParams, false)));
+
+          int iq = ct["inqueue"].get_int();
+          LogPrintf("Node Count %i\n", iq);
+
+          return ret;
+
+}
+
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
@@ -996,6 +1119,7 @@ static const CRPCCommand commands[] =
   {"zeronode",            "getzeronodescores",      &getzeronodescores,   true},
   {"zeronode",            "zeronode",               &zeronode,            true},
   {"zeronode",            "znsync",                 &znsync,              true},
+  {"zeronode",            "zeronodestats",          &zeronodestats,       true},
 
 };
 
