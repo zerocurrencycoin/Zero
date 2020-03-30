@@ -4071,7 +4071,7 @@ bool ReceivedBlockTransactions(
     pindexNew->nUndoPos = 0;
     pindexNew->nStatus |= BLOCK_HAVE_DATA;
     pindexNew->RaiseValidity(BLOCK_VALID_TRANSACTIONS);
-    setDirtyBlockIndex.insert(pindexNew);
+    //setDirtyBlockIndex.insert(pindexNew);
 
     if (fZindex) {
         pindexNew->nPayments              = nPayments;
@@ -4100,8 +4100,8 @@ bool ReceivedBlockTransactions(
             pindex->nChainTx = (pindex->pprev ? pindex->pprev->nChainTx : 0) + pindex->nTx;
 
             if (fZindex) {
-                if (fDebug)
-                    LogPrint("zindex","%s: setting blockchain zstats with zouts=%d\n", __FUNCTION__, nShieldedOutputsInBlock );
+                //if (fDebug)
+                LogPrint("zindex","%s: setting blockchain zstats with zouts=%d\n", __FUNCTION__, nShieldedOutputsInBlock );
                 pindex->nChainNotarizations         = (pindex->pprev ? pindex->pprev->nChainNotarizations         : 0) + pindex->nNotarizations;
                 pindex->nChainShieldedTx            = (pindex->pprev ? pindex->pprev->nChainShieldedTx            : 0) + pindex->nShieldedTx;
                 pindex->nChainShieldedOutputs       = (pindex->pprev ? pindex->pprev->nChainShieldedOutputs       : 0) + pindex->nShieldedOutputs;
@@ -4113,6 +4113,17 @@ bool ReceivedBlockTransactions(
                 pindex->nChainFullyShieldedPayments = (pindex->pprev ? pindex->pprev->nChainFullyShieldedPayments : 0) + pindex->nFullyShieldedPayments;
                 pindex->nChainShieldingPayments     = (pindex->pprev ? pindex->pprev->nChainShieldingPayments     : 0) + pindex->nShieldingPayments;
                 pindex->nChainDeshieldingPayments   = (pindex->pprev ? pindex->pprev->nChainDeshieldingPayments   : 0) + pindex->nDeshieldingPayments;
+
+                LogPrint("zindex", "ht.%d, ChainNotarizations=%d, ChainShieldedTx=%d, ChainShieldedOutputs=%d, ChainFullyShieldedTx=%d\n",
+                pindex->nHeight, pindex->nChainNotarizations, pindex->nChainShieldedTx, pindex->nChainShieldedOutputs, pindex->nChainFullyShieldedTx);
+
+                LogPrint("zindex", "ht.%d, ChainShieldingTx=%d, ChainDeshieldingTx=%d, ChainPayments=%d, ChainShieldedPayments=%d\n",
+                pindex->nHeight, pindex->nChainShieldingTx, pindex->nChainDeshieldingTx, pindex->nChainPayments, pindex->nChainShieldedPayments);
+
+                LogPrint("zindex", "ht.%d, ChainFullyShieldedPayments=%d, ChainShieldingPayments=%d, ChainDeshieldingPayments=%d\n",
+                pindex->nHeight, pindex->nChainFullyShieldedPayments, pindex->nChainShieldingPayments, pindex->nChainDeshieldingPayments);
+
+                
             }
 
             if (pindex->pprev) {
