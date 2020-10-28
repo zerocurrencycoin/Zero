@@ -1077,6 +1077,21 @@ void CWallet::AddToSaplingSpends(const uint256& nullifier, const uint256& wtxid)
     SyncMetaData<uint256>(range);
 }
 
+void CWallet::AddToArcTxs(const uint256& wtxid, const ArchiveTxPoint& ArcTxPt)
+{
+    mapArcTxs[wtxid] = ArcTxPt;
+}
+
+void CWallet::AddToArcJSOutPoints(const uint256& nullifier, const JSOutPoint& op)
+{
+    mapArcJSOutPoints[nullifier] = op;
+}
+
+void CWallet::AddToArcSaplingOutPoints(const uint256& nullifier, const SaplingOutPoint& op)
+{
+    mapArcSaplingOutPoints[nullifier] = op;
+}
+
 void CWallet::AddToSpends(const uint256& wtxid)
 {
     assert(mapWallet.count(wtxid));
@@ -1763,12 +1778,14 @@ void CWallet::UpdateNullifierNoteMapWithTx(const CWalletTx& wtx)
         for (const mapSproutNoteData_t::value_type& item : wtx.mapSproutNoteData) {
             if (item.second.nullifier) {
                 mapSproutNullifiersToNotes[*item.second.nullifier] = item.first;
+                mapArcJSOutPoints[*item.second.nullifier] = item.first;
             }
         }
 
         for (const mapSaplingNoteData_t::value_type& item : wtx.mapSaplingNoteData) {
             if (item.second.nullifier) {
                 mapSaplingNullifiersToNotes[*item.second.nullifier] = item.first;
+                mapArcSaplingOutPoints[*item.second.nullifier] = item.first;
             }
         }
     }
@@ -1810,7 +1827,12 @@ void CWallet::UpdateSproutNullifierNoteMapWithTx(CWalletTx& wtx) {
 
                 uint256 nullifier = optNullifier.get();
                 mapSproutNullifiersToNotes[nullifier] = item.first;
+                mapArcJSOutPoints[nullifier] = item.first;
                 item.second.nullifier = nullifier;
+
+                //write the ArcOp to disk
+                CWalletDB walletdb(strWalletFile, "r+", false);
+                wtx.WriteArcSproutOpToDisk(&walletdb, nullifier, item.first);
             }
         }
     }
@@ -1854,7 +1876,12 @@ void CWallet::UpdateSaplingNullifierNoteMapWithTx(CWalletTx& wtx) {
             }
             uint256 nullifier = optNullifier.get();
             mapSaplingNullifiersToNotes[nullifier] = op;
+            mapArcSaplingOutPoints[nullifier] = op;
             item.second.nullifier = nullifier;
+
+            //write the ArcOp to disk
+            CWalletDB walletdb(strWalletFile, "r+", false);
+            wtx.WriteArcSaplingOpToDisk(&walletdb, nullifier, op);
         }
     }
 }
@@ -1977,8 +2004,9 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
         //// debug print
         LogPrintf("AddToWallet %s  %s%s\n", wtxIn.GetHash().ToString(), (fInsertedNew ? "new" : ""), (fUpdated ? "update" : ""));
 
-        // Write to disk
+        // Write to disk and update tx archive map
         if (fInsertedNew || fUpdated)
+            AddToArcTxs(hash, ArchiveTxPoint(wtx.hashBlock, wtx.nIndex));
             if (!wtx.WriteToDisk(pwalletdb))
                 return false;
 
@@ -3058,7 +3086,24 @@ void CWalletTx::GetAccountAmounts(const string& strAccount, CAmount& nReceived,
 
 bool CWalletTx::WriteToDisk(CWalletDB *pwalletdb)
 {
-    return pwalletdb->WriteTx(GetHash(), *this);
+
+      bool txWrite = pwalletdb->WriteTx(GetHash(), *this);
+      bool arcTxWrite = pwalletdb->WriteArcTx(GetHash(), ArchiveTxPoint(this->hashBlock, this->nIndex));
+
+      if (!txWrite || !arcTxWrite)
+          return false;
+
+      return true;
+}
+
+bool CWalletTx::WriteArcSproutOpToDisk(CWalletDB *pwalletdb, uint256 nullifier, JSOutPoint op)
+{
+    return pwalletdb->WriteArcSproutOp(nullifier, op);
+}
+
+bool CWalletTx::WriteArcSaplingOpToDisk(CWalletDB *pwalletdb, uint256 nullifier, SaplingOutPoint op)
+{
+    return pwalletdb->WriteArcSaplingOp(nullifier, op);
 }
 
 void CWallet::WitnessNoteCommitment(std::vector<uint256> commitments,
