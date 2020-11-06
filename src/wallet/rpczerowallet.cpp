@@ -19,7 +19,7 @@ bool EnsureWalletIsAvailable(bool avoidException);
 
 
 template<typename RpcTx>
-void getTransparentSpends(RpcTx &tx, vector<TransactionSpendT> &vSpend, CAmount &transparentValue) {
+void getTransparentSpends(RpcTx &tx, vector<TransactionSpendT> &vSpend, CAmount &transparentValue, bool fIncludeWatchonly) {
     // Transparent Inputs belonging to the wallet
     for (int i = 0; i < tx.vin.size(); i++) {
 
@@ -43,14 +43,22 @@ void getTransparentSpends(RpcTx &tx, vector<TransactionSpendT> &vSpend, CAmount 
             transparentValue -= parentOut.nValue;
             CTxDestination address;
             ExtractDestination(parentOut.scriptPubKey, address);
-            if(IsMine(*pwalletMain, address)){
-                spend.encodedAddress = EncodeDestination(address);
-                spend.encodedScriptPubKey = HexStr(parentOut.scriptPubKey.begin(), parentOut.scriptPubKey.end());
-                spend.amount = parentOut.nValue;
-                spend.spendTxid = txin.prevout.hash.ToString();
-                spend.spendVout = (int)txin.prevout.n;
-                vSpend.push_back(spend);
+
+            spend.encodedAddress = EncodeDestination(address);
+            spend.encodedScriptPubKey = HexStr(parentOut.scriptPubKey.begin(), parentOut.scriptPubKey.end());
+            spend.amount = parentOut.nValue;
+            spend.spendTxid = txin.prevout.hash.ToString();
+            spend.spendVout = (int)txin.prevout.n;
+
+            if(IsMine(*pwalletMain, address) == ISMINE_SPENDABLE) {
+                spend.spendable = true;
+            } else {
+                spend.spendable = false;
             }
+
+            if (IsMine(*pwalletMain, address) == ISMINE_SPENDABLE || (IsMine(*pwalletMain, address) == ISMINE_WATCH_ONLY  && fIncludeWatchonly))
+                vSpend.push_back(spend);
+
         }
     }
 }
@@ -76,30 +84,33 @@ void getTransparentSends(RpcTx &tx, vector<TransactionSendT> &vSend, CAmount &tr
 }
 
 template<typename RpcTx>
-void getTransparentRecieves(RpcTx &tx, vector<TransactionReceivedT> &vReceived) {
+void getTransparentRecieves(RpcTx &tx, vector<TransactionReceivedT> &vReceived, bool fIncludeWatchonly) {
     //Transparent Received txos belonging to the wallet
     for (int i = 0; i < tx.vout.size(); i++) {
         TransactionReceivedT received;
         const CTxOut& txout = tx.vout[i];
         CTxDestination address;
         ExtractDestination(txout.scriptPubKey, address);
-        if(IsMine(*pwalletMain, address)) {
-            received.encodedAddress = EncodeDestination(address);
-            received.encodedScriptPubKey = HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end());
-            received.amount = txout.nValue;
-            received.vout =  i;
-            if(IsMine(*pwalletMain, address) == ISMINE_SPENDABLE) {
-                received.spendable = true;
-            } else {
-                received.spendable = false;
-            }
-            vReceived.push_back(received);
+
+        received.encodedAddress = EncodeDestination(address);
+        received.encodedScriptPubKey = HexStr(txout.scriptPubKey.begin(), txout.scriptPubKey.end());
+        received.amount = txout.nValue;
+        received.vout =  i;
+
+        if(IsMine(*pwalletMain, address) == ISMINE_SPENDABLE) {
+            received.spendable = true;
+        } else {
+            received.spendable = false;
         }
+
+        if (IsMine(*pwalletMain, address) == ISMINE_SPENDABLE || (IsMine(*pwalletMain, address) == ISMINE_WATCH_ONLY  && fIncludeWatchonly))
+            vReceived.push_back(received);
+
     }
 }
 
 template<typename RpcTx>
-void getSproutSpends(RpcTx &tx, vector<TransactionSpendZC> &vSpend, CAmount &sproutValue, CAmount &sproutValueSpent) {
+void getSproutSpends(RpcTx &tx, vector<TransactionSpendZC> &vSpend, CAmount &sproutValue, CAmount &sproutValueSpent, bool fIncludeWatchonly) {
 
     for (int itr = 0; itr < tx.vJoinSplit.size(); itr++) {
 
@@ -143,7 +154,11 @@ void getSproutSpends(RpcTx &tx, vector<TransactionSpendZC> &vSpend, CAmount &spr
                     spend.spendTxid = op.hash.ToString();
                     spend.spendJsIndex = i;
                     spend.spendJsOutIndex = j;
-                    vSpend.push_back(spend);
+
+                    spend.spendable = pwalletMain->HaveSproutSpendingKey(addr);
+
+                    if (spend.spendable || fIncludeWatchonly)
+                        vSpend.push_back(spend);
 
                 } catch (const note_decryption_failed &err) {
                   //do nothing
@@ -155,7 +170,7 @@ void getSproutSpends(RpcTx &tx, vector<TransactionSpendZC> &vSpend, CAmount &spr
 
 
 template<typename RpcTx>
-void getSproutReceives(RpcTx &tx, vector<TransactionReceivedZC> &vReceived) {
+void getSproutReceives(RpcTx &tx, vector<TransactionReceivedZC> &vReceived, bool fIncludeWatchonly) {
 
     for (int i = 0; i < tx.vJoinSplit.size(); i++) {
         const JSDescription& jsOut = tx.vJoinSplit[i];
@@ -182,7 +197,9 @@ void getSproutReceives(RpcTx &tx, vector<TransactionReceivedZC> &vReceived) {
                     receive.jsIndex = i;
                     receive.jsOutIndex = j;
                     receive.spendable = pwalletMain->HaveSproutSpendingKey(addr);
-                    vReceived.push_back(receive);
+
+                    if (receive.spendable || fIncludeWatchonly)
+                        vReceived.push_back(receive);
 
                 } catch (const note_decryption_failed &err) {
                   //do nothing
@@ -194,7 +211,7 @@ void getSproutReceives(RpcTx &tx, vector<TransactionReceivedZC> &vReceived) {
 
 
 template<typename RpcTx>
-void getSaplingSpends(RpcTx &tx, vector<uint256> &ivks, vector<TransactionSpendZS> &vSpend) {
+void getSaplingSpends(RpcTx &tx, vector<uint256> &ivks, vector<TransactionSpendZS> &vSpend, bool fIncludeWatchonly) {
     // Sapling Inputs belonging to the wallet
     for (int i = 0; i < tx.vShieldedSpend.size(); i++) {
 
@@ -227,7 +244,13 @@ void getSaplingSpends(RpcTx &tx, vector<uint256> &ivks, vector<TransactionSpendZ
                 spend.amount = note.value();
                 spend.spendShieldedOutputIndex = (int)op.n;
                 spend.spendTxid = op.hash.ToString();
-                vSpend.push_back(spend);
+
+                libzcash::SaplingExtendedFullViewingKey extfvk;
+                pwalletMain->GetSaplingFullViewingKey(ivk, extfvk);
+                spend.spendable = pwalletMain->HaveSaplingSpendingKey(extfvk);
+
+                if (spend.spendable || fIncludeWatchonly)
+                    vSpend.push_back(spend);
                 //ivk found no need ot try anymore
                 break;
             }
@@ -290,7 +313,7 @@ void getSaplingSends(RpcTx &tx, vector<uint256> &ovks, vector<TransactionSendZS>
 }
 
 template<typename RpcTx>
-void getSaplingReceives(RpcTx &tx, vector<uint256> &ivks, vector<TransactionReceivedZS> &vReceived) {
+void getSaplingReceives(RpcTx &tx, vector<uint256> &ivks, vector<TransactionReceivedZS> &vReceived, bool fIncludeWatchonly) {
 
     for (int i = 0; i < tx.vShieldedOutput.size(); i++) {
         TransactionReceivedZS received;
@@ -328,8 +351,9 @@ void getSaplingReceives(RpcTx &tx, vector<uint256> &ivks, vector<TransactionRece
                     }
                 }
 
-                vReceived.push_back(received);
-                //ivk found no need ot try anymore
+                if (received.spendable || fIncludeWatchonly)
+                    vReceived.push_back(received);
+                //ivk found no need to try anymore
                 break;
             }
         }
@@ -346,7 +370,7 @@ void getAllSproutRKs(vector<uint256> &rks) {
     }
 }
 
-void getAllSaplingOVKs(vector<uint256> &ovks) {
+void getAllSaplingOVKs(vector<uint256> &ovks, bool fIncludeWatchonly) {
 
     //get ovks for all spending keys
     std::set<libzcash::SaplingPaymentAddress> addresses;
@@ -356,7 +380,9 @@ void getAllSaplingOVKs(vector<uint256> &ovks) {
         libzcash::SaplingExtendedFullViewingKey extfvk;
         if(pwalletMain->GetSaplingIncomingViewingKey(addr, ivk)) {
             if(pwalletMain->GetSaplingFullViewingKey(ivk, extfvk)) {
-                ovks.push_back(extfvk.fvk.ovk);
+                if (pwalletMain->HaveSaplingSpendingKey(extfvk) || fIncludeWatchonly) {
+                    ovks.push_back(extfvk.fvk.ovk);
+                }
             }
         }
     }
@@ -369,7 +395,7 @@ void getAllSaplingOVKs(vector<uint256> &ovks) {
 
 }
 
-void getAllSaplingIVKs(vector<uint256> &ivks) {
+void getAllSaplingIVKs(vector<uint256> &ivks, bool fIncludeWatchonly) {
 
     //get ivks for all spending keys
     std::set<libzcash::SaplingPaymentAddress> addresses;
@@ -379,14 +405,16 @@ void getAllSaplingIVKs(vector<uint256> &ivks) {
         libzcash::SaplingExtendedFullViewingKey extfvk;
         if(pwalletMain->GetSaplingIncomingViewingKey(addr, ivk)) {
             if(pwalletMain->GetSaplingFullViewingKey(ivk, extfvk)) {
-                ivks.push_back(extfvk.fvk.in_viewing_key());
+                if (pwalletMain->HaveSaplingSpendingKey(extfvk) || fIncludeWatchonly) {
+                    ivks.push_back(extfvk.fvk.in_viewing_key());
+                }
             }
         }
     }
 }
 
 
-void getRpcArcTx(uint256 &txid, RpcArcTransaction &arcTx, vector<uint256> &ivks, vector<uint256> &ovks, int type) {
+void getRpcArcTx(uint256 &txid, RpcArcTransaction &arcTx, vector<uint256> &ivks, vector<uint256> &ovks, bool fIncludeWatchonly) {
 
     arcTx.txid = txid;
 
@@ -428,16 +456,16 @@ void getRpcArcTx(uint256 &txid, RpcArcTransaction &arcTx, vector<uint256> &ivks,
     }
 
     //Spends must be located to determine if outputs are change
-    getTransparentSpends(tx, arcTx.vTSpend, arcTx.transparentValue);
-    getSproutSpends(tx, arcTx.vZcSpend, arcTx.sproutValue, arcTx.sproutValueSpent);
-    getSaplingSpends(tx, ivks, arcTx.vZsSpend);
+    getTransparentSpends(tx, arcTx.vTSpend, arcTx.transparentValue, fIncludeWatchonly);
+    getSproutSpends(tx, arcTx.vZcSpend, arcTx.sproutValue, arcTx.sproutValueSpent, fIncludeWatchonly);
+    getSaplingSpends(tx, ivks, arcTx.vZsSpend, fIncludeWatchonly);
 
     getTransparentSends(tx, arcTx.vTSend, arcTx.transparentValue);
     getSaplingSends(tx, ovks, arcTx.vZsSend);
 
-    getTransparentRecieves(tx, arcTx.vTReceived);
-    getSproutReceives(tx, arcTx.vZcReceived);
-    getSaplingReceives(tx, ivks, arcTx.vZsReceived);
+    getTransparentRecieves(tx, arcTx.vTReceived, fIncludeWatchonly);
+    getSproutReceives(tx, arcTx.vZcReceived, fIncludeWatchonly);
+    getSaplingReceives(tx, ivks, arcTx.vZsReceived, fIncludeWatchonly);
 
     arcTx.saplingValue = -tx.valueBalance;
 
@@ -454,7 +482,7 @@ void getRpcArcTx(uint256 &txid, RpcArcTransaction &arcTx, vector<uint256> &ivks,
     }
 }
 
-void getRpcArcTx(CWalletTx &tx, RpcArcTransaction &arcTx, vector<uint256> &ivks, vector<uint256> &ovks, int type) {
+void getRpcArcTx(CWalletTx &tx, RpcArcTransaction &arcTx, vector<uint256> &ivks, vector<uint256> &ovks, bool fIncludeWatchonly) {
 
     arcTx.txid = tx.GetHash();
     arcTx.blockIndex = tx.nIndex;
@@ -487,16 +515,16 @@ void getRpcArcTx(CWalletTx &tx, RpcArcTransaction &arcTx, vector<uint256> &ivks,
 
 
     //Spends must be located to determine if outputs are change
-    getTransparentSpends(tx, arcTx.vTSpend, arcTx.transparentValue);
-    getSproutSpends(tx, arcTx.vZcSpend, arcTx.sproutValue, arcTx.sproutValueSpent);
-    getSaplingSpends(tx, ivks, arcTx.vZsSpend);
+    getTransparentSpends(tx, arcTx.vTSpend, arcTx.transparentValue, fIncludeWatchonly);
+    getSproutSpends(tx, arcTx.vZcSpend, arcTx.sproutValue, arcTx.sproutValueSpent, fIncludeWatchonly);
+    getSaplingSpends(tx, ivks, arcTx.vZsSpend, fIncludeWatchonly);
 
     getTransparentSends(tx, arcTx.vTSend, arcTx.transparentValue);
     getSaplingSends(tx, ovks, arcTx.vZsSend);
 
-    getTransparentRecieves(tx, arcTx.vTReceived);
-    getSproutReceives(tx, arcTx.vZcReceived);
-    getSaplingReceives(tx, ivks, arcTx.vZsReceived);
+    getTransparentRecieves(tx, arcTx.vTReceived, fIncludeWatchonly);
+    getSproutReceives(tx, arcTx.vZcReceived, fIncludeWatchonly);
+    getSaplingReceives(tx, ivks, arcTx.vZsReceived, fIncludeWatchonly);
 
     arcTx.saplingValue = -tx.valueBalance;
 
@@ -548,6 +576,7 @@ void getRpcArcTxJSONSpends(RpcArcTransaction &arcTx, UniValue& ArcTxJSON, bool f
         obj.push_back(Pair("scriptPubKey", arcTx.vTSpend[i].encodedScriptPubKey));
         obj.push_back(Pair("value", ValueFromAmount(CAmount(arcTx.vTSpend[i].amount))));
         obj.push_back(Pair("valueZat", arcTx.vTSpend[i].amount));
+        obj.push_back(Pair("spendable", arcTx.vTSpend[i].spendable));
         if (!filterAddress || arcTx.vTSpend[i].encodedAddress == encodedAddress)
             ArcTxJSON.push_back(obj);
     }
@@ -562,6 +591,7 @@ void getRpcArcTxJSONSpends(RpcArcTransaction &arcTx, UniValue& ArcTxJSON, bool f
         obj.push_back(Pair("address", arcTx.vZcSpend[i].encodedAddress));
         obj.push_back(Pair("value", ValueFromAmount(CAmount(arcTx.vZcSpend[i].amount))));
         obj.push_back(Pair("valueZat", arcTx.vZcSpend[i].amount));
+        obj.push_back(Pair("spendable", arcTx.vZcSpend[i].spendable));
         if (!filterAddress || arcTx.vZcSpend[i].encodedAddress == encodedAddress)
             ArcTxJSON.push_back(obj);
     }
@@ -575,6 +605,7 @@ void getRpcArcTxJSONSpends(RpcArcTransaction &arcTx, UniValue& ArcTxJSON, bool f
         obj.push_back(Pair("address", arcTx.vZsSpend[i].encodedAddress));
         obj.push_back(Pair("value", ValueFromAmount(CAmount(arcTx.vZsSpend[i].amount))));
         obj.push_back(Pair("valueZat", arcTx.vZsSpend[i].amount));
+        obj.push_back(Pair("spendable", arcTx.vZsSpend[i].spendable));
         if (!filterAddress || arcTx.vZsSpend[i].encodedAddress == encodedAddress)
             ArcTxJSON.push_back(obj);
     }
@@ -700,7 +731,7 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
   if (!EnsureWalletIsAvailable(fHelp))
       return NullUniValue;
 
-  if (fHelp || params.size() > 4 || params.size() == 2)
+  if (fHelp || params.size() > 5 || params.size() == 2)
       throw runtime_error(
         "zs_listtransactions\n"
         "\nReturns an array of decrypted Zero transactions.\n"
@@ -723,11 +754,14 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
         "4. \"Count:\"                 (numeric, optional, default=100000) \n"
         "                               Last n number of transactions returned\n"
         "\n"
+        "5. \"Include Watch Only\"   (bool, optional, Default = false) \n"
+        "\n"
         "Default Parameters:\n"
         "1. 0 - O confimations required\n"
         "2. 0 - Returns all transactions\n"
         "3. 0 - Ignored\n"
         "4. 100000 - Return the last 100,000 transactions.\n"
+        "5. false - exclude watch only\n"
         "\n"
         "\nResult:\n"
         "[{\n                                     An Array of Transactions\n"
@@ -751,6 +785,7 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
         "      \"scriptPubKey\": \"script\",        (string)  Script for the Zero transparent address (transparent address type only)\n"
         "      \"value\": x.xxxx,                 (numeric) Value of output being spent " + CURRENCY_UNIT + "\n"
         "      \"valueZat\": xxxxx,               (numeric) Value of output being spent in Zatoshis " + CURRENCY_UNIT + "\n"
+        "      \"spendable\": true/false          (bool)  Is this output spendable by this wallet\n"
         "      },\n"
         "   \"sent\": {                        A list of outputs of where funds were sent to in the transaction,\n"
         "      \"type\": \"address type\",          (string)  transparent, sprout, sapling\n"
@@ -775,6 +810,7 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
         "      \"value\": x.xxxx,                 (numeric) Value of output being spent " + CURRENCY_UNIT + "\n"
         "      \"valueZat\": xxxxx,               (numeric) Value of output being spent in Zatoshis " + CURRENCY_UNIT + "\n"
         "      \"change\": true/false             (string)  The note is change. This can result from sending funds\n"
+        "      \"spendable\": true/false          (bool)  Is this output spendable by this wallet\n"
         "      \"memo\": \"hex string\",            (string)  Hex encoded memo (sprout and sapling address types only)\n"
         "      \"memoStr\": \"memo\",               (string)  UTF-8 encoded memo (sprout and sapling address types only)\n"
         "   },\n"
@@ -808,6 +844,11 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
 
     if (params.size() == 4) {
       nCount = params[3].get_int64();
+    }
+
+    bool fIncludeWatchonly = false;
+    if (params.size() == 5) {
+        fIncludeWatchonly = params[4].get_bool();
     }
 
     if (nMinConfirms < 0)
@@ -857,11 +898,11 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
 
     //get Ovks for sapling decryption
     std::vector<uint256> ovks;
-    getAllSaplingOVKs(ovks);
+    getAllSaplingOVKs(ovks, fIncludeWatchonly);
 
     //get Ivks for sapling decryption
     std::vector<uint256> ivks;
-    getAllSaplingIVKs(ivks);
+    getAllSaplingIVKs(ivks, fIncludeWatchonly);
 
     uint64_t t = GetTime();
     int chainHeight = chainActive.Tip()->nHeight;
@@ -896,7 +937,7 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
             if (nFilterType == 2 && wtx.GetDepthInMainChain() > nFilter)
                 continue;
 
-            getRpcArcTx(wtx, arcTx, ivks, ovks, ALL_SECTIONS);
+            getRpcArcTx(wtx, arcTx, ivks, ovks, fIncludeWatchonly);
 
         } else {
 
@@ -911,7 +952,7 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
                 continue;
 
             //Archived Transactions
-            getRpcArcTx(txid, arcTx, ivks, ovks, ALL_SECTIONS);
+            getRpcArcTx(txid, arcTx, ivks, ovks, fIncludeWatchonly);
 
             if (arcTx.blockHash.IsNull() || mapBlockIndex[arcTx.blockHash] == nullptr)
                 continue;
@@ -965,8 +1006,6 @@ UniValue zs_gettransaction(const UniValue& params, bool fHelp)
         "zs_gettransaction\n"
         "\nReturns a decrypted Zero transaction.\n"
         "\n"
-        "This function only returns information on addresses with full spending keys."
-        "\n"
         "\nArguments:\n"
         "1. \"txid:\"   (string, required) \n"
         "\n"
@@ -977,10 +1016,11 @@ UniValue zs_gettransaction(const UniValue& params, bool fHelp)
         "   \"blockhash\": \"hashvalue\",           (string)  The block hash containing the transaction\n"
         "   \"blockindex\": n,                    (numeric) The block index containing the transaction\n"
         "   \"blocktime\": n,                     (numeric) The block time in seconds of the block containing the transaction, 0 for unconfirmed transactions\n"
-        "   \"expiryHeight\": n,                  (numeric) The expiry height of the transaction\n"
         "   \"confirmations\": n,                 (numeric) The number of confirmations for the transaction\n"
         "   \"time\": xxx,                        (numeric) The transaction time in seconds of the transaction\n"
+        "   \"expiryHeight\": n,                  (numeric) The expiry height of the transaction\n"
         "   \"size\": xxx,                        (numeric) The transaction size\n"
+        "   \"fee\": n,                           (numeric) Transaction fee in Zatoshis\n"
         "   \"spends\": {                       A list of the spends used as inputs in the transaction\n"
         "      \"type\": \"address type\",          (string)  transparent, sprout, sapling\n"
         "      \"spend\": n,                      (numeric) spend index\n"
@@ -991,6 +1031,7 @@ UniValue zs_gettransaction(const UniValue& params, bool fHelp)
         "      \"scriptPubKey\": \"script\",        (string)  Script for the Zero transparent address (transparent address type only)\n"
         "      \"value\": x.xxxx,                 (numeric) Value of output being spent " + CURRENCY_UNIT + "\n"
         "      \"valueZat\": xxxxx,               (numeric) Value of output being spent in Zatoshis " + CURRENCY_UNIT + "\n"
+        "      \"spendable\": true/false          (bool)  Is this output spendable by this wallet\n"
         "      },\n"
         "   \"sent\": {                        A list of outputs of where funds were sent to in the transaction,\n"
         "      \"type\": \"address type\",          (string)  transparent, sprout, sapling\n"
@@ -1015,6 +1056,7 @@ UniValue zs_gettransaction(const UniValue& params, bool fHelp)
         "      \"value\": x.xxxx,                 (numeric) Value of output being spent " + CURRENCY_UNIT + "\n"
         "      \"valueZat\": xxxxx,               (numeric) Value of output being spent in Zatoshis " + CURRENCY_UNIT + "\n"
         "      \"change\": true/false             (string)  The note is change. This can result from sending funds\n"
+        "      \"spendable\": true/false          (bool)  Is this output spendable by this wallet\n"
         "      \"memo\": \"hex string\",            (string)  Hex encoded memo (sprout and sapling address types only)\n"
         "      \"memoStr\": \"memo\",               (string)  UTF-8 encoded memo (sprout and sapling address types only)\n"
         "   },\n"
@@ -1033,18 +1075,18 @@ UniValue zs_gettransaction(const UniValue& params, bool fHelp)
 
     //get Ovks for sapling decryption
     std::vector<uint256> ovks;
-    getAllSaplingOVKs(ovks);
+    getAllSaplingOVKs(ovks, true);
 
     //get Ivks for sapling decryption
     std::vector<uint256> ivks;
-    getAllSaplingIVKs(ivks);
+    getAllSaplingIVKs(ivks, true);
 
     RpcArcTransaction arcTx;
     if (pwalletMain->mapWallet.count(hash)) {
         CWalletTx& wtx = pwalletMain->mapWallet[hash];
-        getRpcArcTx(wtx, arcTx, ivks, ovks, ALL_SECTIONS);
+        getRpcArcTx(wtx, arcTx, ivks, ovks, true);
     } else {
-        getRpcArcTx(hash, arcTx, ivks, ovks, ALL_SECTIONS);
+        getRpcArcTx(hash, arcTx, ivks, ovks, true);
     }
 
     UniValue txObj(UniValue::VOBJ);
@@ -1109,10 +1151,11 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
         "   \"blockhash\": \"hashvalue\",           (string)  The block hash containing the transaction\n"
         "   \"blockindex\": n,                    (numeric) The block index containing the transaction\n"
         "   \"blocktime\": n,                     (numeric) The block time in seconds of the block containing the transaction, 0 for unconfirmed transactions\n"
-        "   \"expiryHeight\": n,                  (numeric) The expiry height of the transaction\n"
         "   \"confirmations\": n,                 (numeric) The number of confirmations for the transaction\n"
         "   \"time\": xxx,                        (numeric) The transaction time in seconds of the transaction\n"
+        "   \"expiryHeight\": n,                  (numeric) The expiry height of the transaction\n"
         "   \"size\": xxx,                        (numeric) The transaction size\n"
+        "   \"fee\": n,                           (numeric) Transaction fee in Zatoshis\n"
         "   \"spends\": {                       A list of the spends used as inputs in the transaction\n"
         "      \"type\": \"address type\",          (string)  transparent, sprout, sapling\n"
         "      \"spend\": n,                      (numeric) spend index\n"
@@ -1123,6 +1166,7 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
         "      \"scriptPubKey\": \"script\",        (string)  Script for the Zero transparent address (transparent address type only)\n"
         "      \"value\": x.xxxx,                 (numeric) Value of output being spent " + CURRENCY_UNIT + "\n"
         "      \"valueZat\": xxxxx,               (numeric) Value of output being spent in Zatoshis " + CURRENCY_UNIT + "\n"
+        "      \"spendable\": true/false          (bool)  Is this output spendable by this wallet\n"
         "      },\n"
         "\nExamples:\n"
         + HelpExampleCli("zs_listspentbyaddress", "t1KzZ5n2TPEGYXTZ3WYGL1AYEumEQaRoHaL")
@@ -1150,6 +1194,8 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
     if (params.size() == 5) {
       nCount = params[4].get_int64();
     }
+
+    bool fIncludeWatchonly = true;
 
     if (nMinConfirms < 0)
       throw runtime_error("Minimum confimations must be greater that 0");
@@ -1227,11 +1273,11 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
 
     //get Ovks for sapling decryption
     std::vector<uint256> ovks;
-    getAllSaplingOVKs(ovks);
+    getAllSaplingOVKs(ovks, fIncludeWatchonly);
 
     //get Ivks for sapling decryption
     std::vector<uint256> ivks;
-    getAllSaplingIVKs(ivks);
+    getAllSaplingIVKs(ivks, fIncludeWatchonly);
 
     uint64_t t = GetTime();
     int chainHeight = chainActive.Tip()->nHeight;
@@ -1266,7 +1312,7 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
             if (nFilterType == 2 && wtx.GetDepthInMainChain() > nFilter)
                 continue;
 
-            getRpcArcTx(wtx, arcTx, ivks, ovks, ALL_SECTIONS);
+            getRpcArcTx(wtx, arcTx, ivks, ovks, fIncludeWatchonly);
 
         } else {
 
@@ -1281,7 +1327,7 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
                 continue;
 
             //Archived Transactions
-            getRpcArcTx(txid, arcTx, ivks, ovks, ALL_SECTIONS);
+            getRpcArcTx(txid, arcTx, ivks, ovks, fIncludeWatchonly);
 
             if (arcTx.blockHash.IsNull() || mapBlockIndex[arcTx.blockHash] == nullptr)
                 continue;
@@ -1313,7 +1359,7 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
         }
 
         if (containsAddress) {
-            getRpcArcTxJSONReceives(arcTx, spends, true, encodedAddress);
+            getRpcArcTxJSONSpends(arcTx, spends, true, encodedAddress);
             txObj.push_back(Pair("spends", spends));
             ret.push_back(txObj);
         }
@@ -1374,10 +1420,12 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
         "   \"blockhash\": \"hashvalue\",           (string)  The block hash containing the transaction\n"
         "   \"blockindex\": n,                    (numeric) The block index containing the transaction\n"
         "   \"blocktime\": n,                     (numeric) The block time in seconds of the block containing the transaction, 0 for unconfirmed transactions\n"
-        "   \"expiryHeight\": n,                  (numeric) The expiry height of the transaction\n"
-        "   \"confirmations\": n,                 (numeric) The number of confirmations for the transaction\n"
+        "   \"rawconfirmations\": n,              (numeric) The number of onchain confirmations for the transaction\n"
+        "   \"confirmations\": n,                 (numeric) The number of dpow confirmations for the transaction\n"
         "   \"time\": xxx,                        (numeric) The transaction time in seconds of the transaction\n"
+        "   \"expiryHeight\": n,                  (numeric) The expiry height of the transaction\n"
         "   \"size\": xxx,                        (numeric) The transaction size\n"
+        "   \"fee\": n,                           (numeric) Transaction fee in Zatoshis\n"
         "   \"recieved\": {                     A list of receives from the transaction\n"
         "      \"type\": \"address type\",          (string)  transparent, sprout, sapling\n"
         "      \"output\": n,                     (numeric) vout, shieledoutput or jsindex\n"
@@ -1387,7 +1435,8 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
         "      \"scriptPubKey\": \"script\",        (string)  Script for the Zero transparent address (transparent address type only)\n"
         "      \"value\": x.xxxx,                 (numeric) Value of output being spent " + CURRENCY_UNIT + "\n"
         "      \"valueZat\": xxxxx,               (numeric) Value of output being spent in Zatoshis " + CURRENCY_UNIT + "\n"
-        "      \"change\": true/false             (string)  The note is change. This can result from sending funds\n"
+        "      \"change\": true/false             (bool)  The note is change. This can result from sending funds\n"
+        "      \"spendable\": true/false          (bool)  Is this output spendable by this wallet\n"
         "      \"memo\": \"hex string\",            (string)  Hex encoded memo (sprout and sapling address types only)\n"
         "      \"memoStr\": \"memo\",               (string)  UTF-8 encoded memo (sprout and sapling address types only)\n"
         "   },\n"
@@ -1417,6 +1466,8 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
     if (params.size() == 5) {
       nCount = params[4].get_int64();
     }
+
+    bool fIncludeWatchonly = true;
 
     if (nMinConfirms < 0)
       throw runtime_error("Minimum confimations must be greater that 0");
@@ -1492,11 +1543,11 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
 
     //get Ovks for sapling decryption
     std::vector<uint256> ovks;
-    getAllSaplingOVKs(ovks);
+    getAllSaplingOVKs(ovks, fIncludeWatchonly);
 
     //get Ivks for sapling decryption
     std::vector<uint256> ivks;
-    getAllSaplingIVKs(ivks);
+    getAllSaplingIVKs(ivks, fIncludeWatchonly);
 
     uint64_t t = GetTime();
     int chainHeight = chainActive.Tip()->nHeight;
@@ -1531,7 +1582,7 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
             if (nFilterType == 2 && wtx.GetDepthInMainChain() > nFilter)
                 continue;
 
-            getRpcArcTx(wtx, arcTx, ivks, ovks, ALL_SECTIONS);
+            getRpcArcTx(wtx, arcTx, ivks, ovks, fIncludeWatchonly);
 
         } else {
 
@@ -1546,7 +1597,7 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
                 continue;
 
             //Archived Transactions
-            getRpcArcTx(txid, arcTx, ivks, ovks, ALL_SECTIONS);
+            getRpcArcTx(txid, arcTx, ivks, ovks, fIncludeWatchonly);
 
             if (arcTx.blockHash.IsNull() || mapBlockIndex[arcTx.blockHash] == nullptr)
                 continue;
@@ -1639,10 +1690,11 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
         "   \"blockhash\": \"hashvalue\",           (string)  The block hash containing the transaction\n"
         "   \"blockindex\": n,                    (numeric) The block index containing the transaction\n"
         "   \"blocktime\": n,                     (numeric) The block time in seconds of the block containing the transaction, 0 for unconfirmed transactions\n"
-        "   \"expiryHeight\": n,                  (numeric) The expiry height of the transaction\n"
         "   \"confirmations\": n,                 (numeric) The number of confirmations for the transaction\n"
         "   \"time\": xxx,                        (numeric) The transaction time in seconds of the transaction\n"
+        "   \"expiryHeight\": n,                  (numeric) The expiry height of the transaction\n"
         "   \"size\": xxx,                        (numeric) The transaction size\n"
+        "   \"fee\": n,                           (numeric) Transaction fee in Zatoshis\n"
         "   \"sent\": {                        A list of outputs of where funds were sent to in the transaction,\n"
         "      \"type\": \"address type\",          (string)  transparent, sprout, sapling\n"
         "      \"output\": n,                     (numeric) vout, shieledoutput or jsindex\n"
@@ -1682,6 +1734,8 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
     if (params.size() == 5) {
       nCount = params[4].get_int64();
     }
+
+    bool fIncludeWatchonly = true;
 
     if (nMinConfirms < 0)
       throw runtime_error("Minimum confimations must be greater that 0");
@@ -1759,11 +1813,11 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
 
     //get Ovks for sapling decryption
     std::vector<uint256> ovks;
-    getAllSaplingOVKs(ovks);
+    getAllSaplingOVKs(ovks, fIncludeWatchonly);
 
     //get Ivks for sapling decryption
     std::vector<uint256> ivks;
-    getAllSaplingIVKs(ivks);
+    getAllSaplingIVKs(ivks, fIncludeWatchonly);
 
     uint64_t t = GetTime();
     int chainHeight = chainActive.Tip()->nHeight;
@@ -1799,7 +1853,7 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
             if (nFilterType == 2 && wtx.GetDepthInMainChain() > nFilter)
                 continue;
 
-            getRpcArcTx(wtx, arcTx, ivks, ovks, ALL_SECTIONS);
+            getRpcArcTx(wtx, arcTx, ivks, ovks, fIncludeWatchonly);
 
         } else {
 
@@ -1814,7 +1868,7 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
                 continue;
 
             //Archived Transactions
-            getRpcArcTx(txid, arcTx, ivks, ovks, ALL_SECTIONS);
+            getRpcArcTx(txid, arcTx, ivks, ovks, fIncludeWatchonly);
 
             if (arcTx.blockHash.IsNull() || mapBlockIndex[arcTx.blockHash] == nullptr)
                 continue;
@@ -1874,7 +1928,7 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
 **/
 UniValue getalldata(const UniValue& params, bool fHelp)
 {
-    if (fHelp || params.size() > 3)
+    if (fHelp || params.size() > 4)
         throw runtime_error(
             "getalldata \"datatype transactiontype \"\n"
             "\n"
@@ -1886,11 +1940,15 @@ UniValue getalldata(const UniValue& params, bool fHelp)
             "                    Value of 1: Return address, balance, blockchain info\n"
             "                    Value of 2: Return transactions and blockchain info\n"
             "2. \"transactiontype\"     (integer, optional) \n"
+            "                    Value of 0: Return all transactions\n"
             "                    Value of 1: Return all transactions in the last 24 hours\n"
             "                    Value of 2: Return all transactions in the last 7 days\n"
             "                    Value of 3: Return all transactions in the last 30 days\n"
-            "                    Other number: Return all transactions in the last 24 hours\n"
+            "                    Value of 3: Return all transactions in the last 90 days\n"
+            "                    Value of 3: Return all transactions in the last 365 days\n"
+            "                    Other number: Return all transactions\n"
             "3. \"transactioncount\"     (integer, optional) \n"
+            "4. \"Include Watch Only\"   (bool, optional, Default = false) \n"
             "\nResult:\n"
             "\nExamples:\n"
             + HelpExampleCli("getalldata", "0")
@@ -1898,6 +1956,11 @@ UniValue getalldata(const UniValue& params, bool fHelp)
         );
 
     LOCK(cs_main);
+
+    bool fIncludeWatchonly = false;
+    if (params.size() == 4) {
+        fIncludeWatchonly = params[3].get_bool();
+    }
 
     UniValue returnObj(UniValue::VOBJ);
     int connectionCount = 0;
@@ -1932,26 +1995,50 @@ UniValue getalldata(const UniValue& params, bool fHelp)
     BOOST_FOREACH(const PAIRTYPE(CTxDestination, CAddressBookData)& item, pwalletMain->mapAddressBook)
     {
         string addressString = EncodeDestination(item.first);
-        if (addressBalances.count(addressString) == 0)
-          addressBalances.insert(make_pair(addressString,txAmounts));
+        isminetype mine = IsMine(*pwalletMain, item.first);
+
+        if (mine == ISMINE_SPENDABLE || (mine == ISMINE_WATCH_ONLY  && fIncludeWatchonly)) {
+            if (addressBalances.count(addressString) == 0)
+                addressBalances.insert(make_pair(addressString,txAmounts));
+
+            if (mine == ISMINE_SPENDABLE) {
+              addressBalances.at(addressString).spendable = true;
+            } else {
+              addressBalances.at(addressString).spendable = false;
+            }
+        }
     }
 
     //Add all Sapling addresses to map
     std::set<libzcash::SaplingPaymentAddress> zs_addresses;
     pwalletMain->GetSaplingPaymentAddresses(zs_addresses);
     for (auto addr : zs_addresses) {
-      string addressString = EncodePaymentAddress(addr);
-      if (addressBalances.count(addressString) == 0)
-        addressBalances.insert(make_pair(addressString,txAmounts));
+        libzcash::SaplingIncomingViewingKey ivk;
+        libzcash::SaplingExtendedFullViewingKey extfvk;
+        if(pwalletMain->GetSaplingIncomingViewingKey(addr, ivk)) {
+            if(pwalletMain->GetSaplingFullViewingKey(ivk, extfvk)) {
+                if (pwalletMain->HaveSaplingSpendingKey(extfvk) || fIncludeWatchonly) {
+                    string addressString = EncodePaymentAddress(addr);
+                    if (addressBalances.count(addressString) == 0) {}
+                        addressBalances.insert(make_pair(addressString,txAmounts));
+
+                    addressBalances.at(addressString).spendable = pwalletMain->HaveSaplingSpendingKey(extfvk);
+                }
+            }
+        }
     }
 
     //Add all Sprout addresses to map
     std::set<libzcash::SproutPaymentAddress> zc_addresses;
     pwalletMain->GetSproutPaymentAddresses(zc_addresses);
     for (auto addr : zc_addresses) {
-      string addressString = EncodePaymentAddress(addr);
-      if (addressBalances.count(addressString) == 0)
-        addressBalances.insert(make_pair(addressString,txAmounts));
+        if (pwalletMain->HaveSproutSpendingKey(addr) || fIncludeWatchonly) {
+            string addressString = EncodePaymentAddress(addr);
+            if (addressBalances.count(addressString) == 0)
+                addressBalances.insert(make_pair(addressString,txAmounts));
+
+            addressBalances.at(addressString).spendable = pwalletMain->HaveSproutSpendingKey(addr);
+        }
     }
 
 
@@ -1991,9 +2078,9 @@ UniValue getalldata(const UniValue& params, bool fHelp)
         if (!ExtractDestination(wtx.vout[i].scriptPubKey, address))
           continue;
 
-        //excluded coins that we dont have the spending keys for
-        isminetype mine = IsMine(*pwalletMain,address);
-        if (mine != ISMINE_SPENDABLE)
+        //excluded coins that we dont have the spending or watchonly keys for
+        isminetype mine = IsMine(*pwalletMain, address);
+        if (mine != ISMINE_SPENDABLE && !(mine == ISMINE_WATCH_ONLY  && fIncludeWatchonly))
           continue;
 
         //Exclude spent coins
@@ -2025,101 +2112,119 @@ UniValue getalldata(const UniValue& params, bool fHelp)
           addressBalances.at(addressString).locked += wtx.vout[i].nValue;
           locked += wtx.vout[i].nValue;
         }
+        if (mine == ISMINE_SPENDABLE) {
+          addressBalances.at(addressString).spendable = true;
+        } else {
+          addressBalances.at(addressString).spendable = false;
+        }
+
+
       }
 
       for (auto & pair : wtx.mapSaplingNoteData) {
-        SaplingOutPoint op = pair.first;
-        SaplingNoteData nd = pair.second;
+          SaplingOutPoint op = pair.first;
+          SaplingNoteData nd = pair.second;
 
-        //Skip Spent
-        if (nd.nullifier && pwalletMain->IsSaplingSpent(*nd.nullifier))
-            continue;
-
-        //Decrypt sapling incoming commitments using IVK
-        for (auto addr : zs_addresses) {
-          libzcash::SaplingExtendedSpendingKey extsk;
-          if (pwalletMain->GetSaplingExtendedSpendingKey(addr, extsk)) {
-            auto pt = libzcash::SaplingNotePlaintext::decrypt(
-              wtx.vShieldedOutput[op.n].encCiphertext,extsk.expsk.full_viewing_key().in_viewing_key(),wtx.vShieldedOutput[op.n].ephemeralKey,wtx.vShieldedOutput[op.n].cm);
-
-            if (txType == 0 && pwalletMain->IsLockedNote(op))
-                txType == 3;
-
-            if (pt) {
-              auto note = pt.get();
-              string addressString = EncodePaymentAddress(addr);
-              if (addressBalances.count(addressString) == 0)
-                addressBalances.insert(make_pair(addressString,txAmounts));
-
-              if (txType == 0) {
-                addressBalances.at(addressString).confirmed += note.value();
-                privateConfirmed += note.value();
-              } else if (txType == 1) {
-                addressBalances.at(addressString).immature += note.value();
-                privateImmature += note.value();
-              } else if (txType == 2) {
-                addressBalances.at(addressString).unconfirmed += note.value();
-                privateUnconfirmed += note.value();
-              } else if (txType == 3) {
-                addressBalances.at(addressString).locked += note.value();
-                privateLocked += note.value();
-              }
-
+          //Skip Spent
+          if (nd.nullifier && pwalletMain->IsSaplingSpent(*nd.nullifier))
               continue;
 
-            }
+          //Decrypt sapling incoming commitments using IVK
+          for (auto addr : zs_addresses) {
+              libzcash::SaplingIncomingViewingKey ivk;
+              libzcash::SaplingExtendedFullViewingKey extfvk;
+              if(pwalletMain->GetSaplingIncomingViewingKey(addr, ivk)) {
+                  if(pwalletMain->GetSaplingFullViewingKey(ivk, extfvk)) {
+                      if (!pwalletMain->HaveSaplingSpendingKey(extfvk) && !fIncludeWatchonly)
+                          continue;
+
+                      auto pt = libzcash::SaplingNotePlaintext::decrypt(
+                          wtx.vShieldedOutput[op.n].encCiphertext,ivk,wtx.vShieldedOutput[op.n].ephemeralKey,wtx.vShieldedOutput[op.n].cm);
+
+                      if (txType == 0 && pwalletMain->IsLockedNote(op))
+                          txType == 3;
+
+                      if (pt) {
+                          auto note = pt.get();
+                          string addressString = EncodePaymentAddress(addr);
+                          if (addressBalances.count(addressString) == 0)
+                              addressBalances.insert(make_pair(addressString,txAmounts));
+
+                          if (txType == 0) {
+                              addressBalances.at(addressString).confirmed += note.value();
+                              privateConfirmed += note.value();
+                          } else if (txType == 1) {
+                              addressBalances.at(addressString).immature += note.value();
+                              privateImmature += note.value();
+                          } else if (txType == 2) {
+                              addressBalances.at(addressString).unconfirmed += note.value();
+                              privateUnconfirmed += note.value();
+                          } else if (txType == 3) {
+                              addressBalances.at(addressString).locked += note.value();
+                              privateLocked += note.value();
+                          }
+                          addressBalances.at(addressString).spendable = pwalletMain->HaveSaplingSpendingKey(extfvk);
+
+                          continue;
+
+                      }
+                  }
+              }
           }
-        }
       }
 
       for (auto & pair : wtx.mapSproutNoteData) {
-        JSOutPoint jsop = pair.first;
-        SproutNoteData nd = pair.second;
-        libzcash::SproutPaymentAddress pa = nd.address;
+          JSOutPoint jsop = pair.first;
+          SproutNoteData nd = pair.second;
+          libzcash::SproutPaymentAddress pa = nd.address;
 
-        int i = jsop.js; // Index into CTransaction.vJoinSplit
-        int j = jsop.n; // Index into JSDescription.ciphertexts
+          int i = jsop.js; // Index into CTransaction.vjoinsplit
+          int j = jsop.n; // Index into JSDescription.ciphertexts
 
-        //Skip Spent
-        if (nd.nullifier && pwalletMain->IsSproutSpent(*nd.nullifier))
-            continue;
+          //Skip Spent
+          if (nd.nullifier && pwalletMain->IsSproutSpent(*nd.nullifier))
+              continue;
 
-        for (auto addr : zc_addresses) {
-          try {
-            libzcash::SproutSpendingKey sk;
-            pwalletMain->GetSproutSpendingKey(addr, sk);
-            ZCNoteDecryption decryptor(sk.receiving_key());
+          for (auto addr : zc_addresses) {
+              try {
+                  if (!pwalletMain->HaveSproutSpendingKey(addr) && !fIncludeWatchonly)
+                      continue;
 
-            // determine amount of funds in the note
-            auto hSig = wtx.vJoinSplit[i].h_sig(*pzcashParams, wtx.joinSplitPubKey);
+                  SproutViewingKey vk;
+                  pwalletMain->GetSproutViewingKey(addr, vk);
+                  ZCNoteDecryption decryptor(vk.sk_enc);
 
-            SproutNotePlaintext pt = libzcash::SproutNotePlaintext::decrypt(decryptor,wtx.vJoinSplit[i].ciphertexts[j],wtx.vJoinSplit[i].ephemeralKey,hSig,(unsigned char) j);
+                  // determine amount of funds in the note
+                  auto hSig = wtx.vjoinsplit[i].h_sig(*pzcashParams, wtx.joinSplitPubKey);
 
-            auto note = pt.note(addr);
-            string addressString = EncodePaymentAddress(addr);
-            if (addressBalances.count(addressString) == 0)
-              addressBalances.insert(make_pair(addressString,txAmounts));
+                  SproutNotePlaintext pt = libzcash::SproutNotePlaintext::decrypt(decryptor,wtx.vjoinsplit[i].ciphertexts[j],wtx.vjoinsplit[i].ephemeralKey,hSig,(unsigned char) j);
 
-            if (txType == 0) {
-              addressBalances.at(addressString).confirmed += note.value();
-              privateConfirmed += note.value();
-            } else if (txType == 1) {
-              addressBalances.at(addressString).immature+= note.value();
-              privateImmature += note.value();
-            } else if (txType == 2) {
-              addressBalances.at(addressString).unconfirmed += note.value();
-              privateUnconfirmed += note.value();
-            } else if (txType == 3) {
-              addressBalances.at(addressString).locked += note.value();
-              privateLocked += note.value();
-            }
+                  auto note = pt.note(addr);
+                  string addressString = EncodePaymentAddress(addr);
+                  if (addressBalances.count(addressString) == 0)
+                      addressBalances.insert(make_pair(addressString,txAmounts));
 
-            continue;
+                  if (txType == 0) {
+                      addressBalances.at(addressString).confirmed += note.value();
+                      privateConfirmed += note.value();
+                  } else if (txType == 1) {
+                      addressBalances.at(addressString).immature+= note.value();
+                      privateImmature += note.value();
+                  } else if (txType == 2) {
+                      addressBalances.at(addressString).unconfirmed += note.value();
+                      privateUnconfirmed += note.value();
+                  } else if (txType == 3) {
+                      addressBalances.at(addressString).locked += note.value();
+                      privateLocked += note.value();
+                  }
+                  addressBalances.at(addressString).spendable = pwalletMain->HaveSproutSpendingKey(addr);
 
-          } catch (const note_decryption_failed &err) {
-            //do nothing
+                  continue;
+
+              } catch (const note_decryption_failed &err) {
+                //do nothing
+              }
           }
-        }
       }
     }
 
@@ -2155,7 +2260,7 @@ UniValue getalldata(const UniValue& params, bool fHelp)
         addr.push_back(Pair("unconfirmed", ValueFromAmount(it->second.unconfirmed)));
         addr.push_back(Pair("locked", ValueFromAmount(it->second.locked)));
         addr.push_back(Pair("immature", ValueFromAmount(it->second.immature)));
-        addr.push_back(Pair("ismine", true));
+        addr.push_back(Pair("spendable", it->second.spendable));
         addrlist.push_back(Pair(it->first, addr));
       }
     }
@@ -2244,11 +2349,11 @@ UniValue getalldata(const UniValue& params, bool fHelp)
 
         //get Ovks for sapling decryption
         std::vector<uint256> ovks;
-        getAllSaplingOVKs(ovks);
+        getAllSaplingOVKs(ovks, fIncludeWatchonly);
 
         //get Ivks for sapling decryption
         std::vector<uint256> ivks;
-        getAllSaplingIVKs(ivks);
+        getAllSaplingIVKs(ivks, fIncludeWatchonly);
 
         uint64_t t = GetTime();
         for (map<std::pair<int,int>, uint256>::reverse_iterator it = sortedArchive.rbegin(); it != sortedArchive.rend(); ++it)
@@ -2276,11 +2381,11 @@ UniValue getalldata(const UniValue& params, bool fHelp)
                     continue;
                 }
 
-                getRpcArcTx(wtx, arcTx, ivks, ovks, ALL_SECTIONS);
+                getRpcArcTx(wtx, arcTx, ivks, ovks, fIncludeWatchonly);
 
             } else {
                 //Archived Transactions
-                getRpcArcTx(txid, arcTx, ivks, ovks, ALL_SECTIONS);
+                getRpcArcTx(txid, arcTx, ivks, ovks, fIncludeWatchonly);
 
                 if (arcTx.blockHash.IsNull() || mapBlockIndex[arcTx.blockHash] == nullptr)
                   continue;
@@ -2304,7 +2409,9 @@ UniValue getalldata(const UniValue& params, bool fHelp)
             UniValue receive(UniValue::VARR);
             getRpcArcTxJSONReceives(arcTx,receive);
             txObj.push_back(Pair("received", receive));
-            trans.push_back(txObj);
+
+            if (arcTx.vTReceived.size() + arcTx.vZcReceived.size() + arcTx.vZsReceived.size() + arcTx.spentFrom.size() > 0)
+                trans.push_back(txObj);
 
             if (trans.size() >= nCount) break;
 
