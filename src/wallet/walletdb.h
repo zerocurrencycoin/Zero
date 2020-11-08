@@ -11,7 +11,7 @@
 #include "key.h"
 #include "keystore.h"
 #include "zcash/Address.hpp"
-#include "zcash/zip32.h"
+#include "zcash/address/zip32.h"
 
 #include <list>
 #include <stdint.h>
