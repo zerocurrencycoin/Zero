@@ -24,7 +24,7 @@
 #include "wallet/walletdb.h"
 #include "wallet/rpcwallet.h"
 #include "zcash/Address.hpp"
-#include "zcash/zip32.h"
+#include "zcash/address/zip32.h"
 #include "base58.h"
 
 #include <univalue.h>
@@ -1213,8 +1213,7 @@ public:
         const libzcash::SaplingPaymentAddress &addr);
     bool AddCryptedSaplingSpendingKey(
         const libzcash::SaplingExtendedFullViewingKey &extfvk,
-        const std::vector<unsigned char> &vchCryptedSecret,
-        const libzcash::SaplingPaymentAddress &defaultAddr);
+        const std::vector<unsigned char> &vchCryptedSecret);
     //! Adds spending key to the store, without saving it to disk (used by LoadWallet)
     bool LoadSaplingZKey(const libzcash::SaplingExtendedSpendingKey &key);
     //! Load spending key metadata (used by LoadWallet)
@@ -1560,6 +1559,30 @@ public:
     bool operator()(const libzcash::InvalidEncoding& no) const;
 };
 
+class GetViewingKeyForPaymentAddress : public boost::static_visitor<boost::optional<libzcash::ViewingKey>>
+{
+private:
+    CWallet *m_wallet;
+public:
+    GetViewingKeyForPaymentAddress(CWallet *wallet) : m_wallet(wallet) {}
+
+    boost::optional<libzcash::ViewingKey> operator()(const libzcash::SproutPaymentAddress &zaddr) const;
+    boost::optional<libzcash::ViewingKey> operator()(const libzcash::SaplingPaymentAddress &zaddr) const;
+    boost::optional<libzcash::ViewingKey> operator()(const libzcash::InvalidEncoding& no) const;
+};
+
+class IncomingViewingKeyBelongsToWallet : public boost::static_visitor<bool>
+{
+private:
+    CWallet *m_wallet;
+public:
+    IncomingViewingKeyBelongsToWallet(CWallet *wallet) : m_wallet(wallet) {}
+
+    bool operator()(const libzcash::SproutPaymentAddress &zaddr) const;
+    bool operator()(const libzcash::SaplingPaymentAddress &zaddr) const;
+    bool operator()(const libzcash::InvalidEncoding& no) const;
+};
+
 class HaveSpendingKeyForPaymentAddress : public boost::static_visitor<bool>
 {
 private:
@@ -1584,13 +1607,65 @@ public:
     boost::optional<libzcash::SpendingKey> operator()(const libzcash::InvalidEncoding& no) const;
 };
 
-enum SpendingKeyAddResult {
+class GetPubKeyForPubKey : public boost::static_visitor<CPubKey> {
+public:
+    GetPubKeyForPubKey() {}
+
+    CPubKey operator()(const CKeyID &id) const {
+        return CPubKey();
+    }
+
+    CPubKey operator()(const CPubKey &key) const {
+        return key;
+    }
+
+    CPubKey operator()(const CScriptID &sid) const {
+        return CPubKey();
+    }
+
+    CPubKey operator()(const CNoDestination &no) const {
+        return CPubKey();
+    }
+};
+
+class AddressVisitorString : public boost::static_visitor<std::string>
+{
+public:
+    std::string operator()(const CNoDestination &dest) const { return ""; }
+
+    std::string operator()(const CKeyID &keyID) const {
+        return "key hash: " + keyID.ToString();
+    }
+
+    std::string operator()(const CPubKey &key) const {
+        return "public key: " + HexStr(key);
+    }
+
+    std::string operator()(const CScriptID &scriptID) const {
+        return "script hash: " + scriptID.ToString();
+    }
+};
+
+enum KeyAddResult {
+    SpendingKeyExists,
     KeyAlreadyExists,
     KeyAdded,
     KeyNotAdded,
 };
 
-class AddSpendingKeyToWallet : public boost::static_visitor<SpendingKeyAddResult>
+class AddViewingKeyToWallet : public boost::static_visitor<KeyAddResult>
+{
+private:
+    CWallet *m_wallet;
+public:
+    AddViewingKeyToWallet(CWallet *wallet) : m_wallet(wallet) {}
+
+    KeyAddResult operator()(const libzcash::SproutViewingKey &sk) const;
+    KeyAddResult operator()(const libzcash::SaplingExtendedFullViewingKey &sk) const;
+    KeyAddResult operator()(const libzcash::InvalidEncoding& no) const;
+};
+
+class AddSpendingKeyToWallet : public boost::static_visitor<KeyAddResult>
 {
 private:
     CWallet *m_wallet;
@@ -1612,9 +1687,9 @@ public:
     ) : m_wallet(wallet), params(params), nTime(_nTime), hdKeypath(_hdKeypath), seedFpStr(_seedFp), log(_log) {}
 
 
-    SpendingKeyAddResult operator()(const libzcash::SproutSpendingKey &sk) const;
-    SpendingKeyAddResult operator()(const libzcash::SaplingExtendedSpendingKey &sk) const;
-    SpendingKeyAddResult operator()(const libzcash::InvalidEncoding& no) const;
+    KeyAddResult operator()(const libzcash::SproutSpendingKey &sk) const;
+    KeyAddResult operator()(const libzcash::SaplingExtendedSpendingKey &sk) const;
+    KeyAddResult operator()(const libzcash::InvalidEncoding& no) const;
 };
 
 

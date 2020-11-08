@@ -21,7 +21,7 @@
 #include "primitives/transaction.h"
 #include "zcbenchmarks.h"
 #include "script/interpreter.h"
-#include "zcash/zip32.h"
+#include "zcash/address/zip32.h"
 
 #include "utiltime.h"
 #include "asyncrpcoperation.h"
@@ -2597,10 +2597,10 @@ UniValue z_listunspent(const UniValue& params, bool fHelp)
             obj.push_back(Pair("outindex", (int)entry.op.n));
             obj.push_back(Pair("confirmations", entry.confirmations));
             libzcash::SaplingIncomingViewingKey ivk;
-            libzcash::SaplingFullViewingKey fvk;
+            libzcash::SaplingExtendedFullViewingKey extfvk;
             pwalletMain->GetSaplingIncomingViewingKey(boost::get<libzcash::SaplingPaymentAddress>(entry.address), ivk);
-            pwalletMain->GetSaplingFullViewingKey(ivk, fvk);
-            bool hasSaplingSpendingKey = pwalletMain->HaveSaplingSpendingKey(fvk);
+            pwalletMain->GetSaplingFullViewingKey(ivk, extfvk);
+            bool hasSaplingSpendingKey = pwalletMain->HaveSaplingSpendingKey(extfvk);
             obj.push_back(Pair("spendable", hasSaplingSpendingKey));
             obj.push_back(Pair("address", EncodePaymentAddress(entry.address)));
             obj.push_back(Pair("amount", ValueFromAmount(CAmount(entry.note.value())))); // note.value() is equivalent to plaintext.value()
@@ -3216,11 +3216,7 @@ UniValue z_listaddresses(const UniValue& params, bool fHelp)
         libzcash::SaplingIncomingViewingKey ivk;
         libzcash::SaplingFullViewingKey fvk;
         for (auto addr : addresses) {
-            if (fIncludeWatchonly || (
-                pwalletMain->GetSaplingIncomingViewingKey(addr, ivk) &&
-                pwalletMain->GetSaplingFullViewingKey(ivk, fvk) &&
-                pwalletMain->HaveSaplingSpendingKey(fvk)
-            )) {
+            if (fIncludeWatchonly || HaveSpendingKeyForPaymentAddress(pwalletMain)(addr)) {
                 ret.push_back(EncodePaymentAddress(addr));
             }
         }
@@ -3659,9 +3655,9 @@ UniValue z_viewtransaction(const UniValue& params, bool fHelp)
         auto pa = decrypted.second;
 
         // Store the OutgoingViewingKey for recovering outputs
-        libzcash::SaplingFullViewingKey fvk;
-        assert(pwalletMain->GetSaplingFullViewingKey(wtxPrev.mapSaplingNoteData.at(op).ivk, fvk));
-        ovks.insert(fvk.ovk);
+        libzcash::SaplingExtendedFullViewingKey extfvk;
+        assert(pwalletMain->GetSaplingFullViewingKey(wtxPrev.mapSaplingNoteData.at(op).ivk, extfvk));
+        ovks.insert(extfvk.fvk.ovk);
 
         UniValue entry(UniValue::VOBJ);
         entry.push_back(Pair("type", ADDR_TYPE_SAPLING));
