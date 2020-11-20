@@ -379,8 +379,7 @@ std::string HelpMessage(HelpMessageMode mode)
 #if !defined(WIN32)
     strUsage += HelpMessageOpt("-sysperms", _("Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)"));
 #endif
-    strUsage += HelpMessageOpt("-txindex", strprintf(_("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)"), 0));
-
+    // strUsage += HelpMessageOpt("-txindex", strprintf(_("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)"), 0));
     // strUsage += HelpMessageOpt("-addressindex", strprintf(_("Maintain a full address index, used to query for the balance, txids and unspent outputs for addresses (default: %u)"), DEFAULT_ADDRESSINDEX));
     // strUsage += HelpMessageOpt("-timestampindex", strprintf(_("Maintain a timestamp index for block hashes, used to query blocks hashes by a range of timestamps (default: %u)"), DEFAULT_TIMESTAMPINDEX));
     // strUsage += HelpMessageOpt("-spentindex", strprintf(_("Maintain a full spent index, used to query the spending txid and input index for an outpoint (default: %u)"), DEFAULT_SPENTINDEX));
@@ -1502,9 +1501,9 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // https://github.com/bitpay/bitcoin/commit/c91d78b578a8700a45be936cb5bb0931df8f4b87#diff-c865a8939105e6350a50af02766291b7R1233
     if (GetBoolArg("-insightexplorer", false)) {
-        if (!GetBoolArg("-txindex", false)) {
-            return InitError(_("-insightexplorer requires -txindex."));
-        }
+        // if (!GetBoolArg("-txindex", false)) {
+        //     return InitError(_("-insightexplorer requires -txindex."));
+        // }
         // increase cache if additional indices are needed
         nBlockTreeDBCache = nTotalCache * 3 / 4;
     }
@@ -1570,10 +1569,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 }
 
                 // Check for changed -txindex state
-                if (fTxIndex != GetBoolArg("-txindex", false)) {
-                    strLoadError = _("You need to rebuild the database using -reindex to change -txindex");
-                    break;
-                }
+                // if (fTxIndex != GetBoolArg("-txindex", true)) {
+                //     strLoadError = _("You need to rebuild the database using -reindex to change -txindex");
+                //     break;
+                // }
 
                 // Check for changed -insightexplorer state
                 if (fInsightExplorer != GetBoolArg("-insightexplorer", false)) {
