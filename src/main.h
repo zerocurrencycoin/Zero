@@ -165,6 +165,9 @@ extern bool fTimestampIndex;
 
 // END insightexplorer
 
+//Set Transactions Archive rule to require reindex
+extern bool fArchive;
+
 extern bool fIsBareMultisigStd;
 extern bool fCheckBlockIndex;
 extern bool fCheckpointsEnabled;

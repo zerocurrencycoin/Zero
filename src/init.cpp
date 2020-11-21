@@ -1516,6 +1516,59 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("* Using %.1fMiB for chain state database\n", nCoinDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for in-memory UTXO set\n", nCoinCacheUsage * (1.0 / 1024 / 1024));
 
+    if ( fReindex == 0 ){
+
+        bool checkval;
+        pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
+
+        //One time reindex to enable transaction archiving.
+        pblocktree->ReadFlag("archiverule", checkval);
+        if (checkval != fArchive)
+        {
+            pblocktree->WriteFlag("archiverule", fArchive);
+            LogPrintf("Transaction archive not set, will reindex. could take a while.\n");
+            fReindex = true;
+        }
+
+        //Check txindex
+        pblocktree->ReadFlag("txindex", checkval);
+        if ( checkval != fTxIndex)
+        {
+            pblocktree->WriteFlag("txindex", fTxIndex);
+            LogPrintf("set txindex, will reindex. could take a while.\n");
+            fReindex = true;
+        }
+
+        //Check prune mode
+        pblocktree->ReadFlag("prunedblockfiles", checkval);
+        if ( checkval != fPruneMode)
+        {
+            pblocktree->WriteFlag("txindex", fPruneMode);
+            LogPrintf("set prunemode, will reindex. could take a while.\n");
+            fReindex = true;
+        }
+
+        //Check Insight Index
+        fInsightExplorer = GetBoolArg("-insightexplorer", false);
+        pblocktree->ReadFlag("insightexplorer", checkval);
+        if ( checkval != fInsightExplorer )
+        {
+            pblocktree->WriteFlag("insightexplorer", fInsightExplorer);
+            LogPrintf("set insightexplorer, will reindex. could take a while.\n");
+            fReindex = true;
+        }
+
+        //Check Insight Index
+        fZindex = GetBoolArg("-zindex", DEFAULT_SHIELDEDINDEX);
+        pblocktree->ReadFlag("zindex", checkval);
+        if ( checkval != fZindex )
+        {
+            pblocktree->WriteFlag("zindex", fZindex);
+            LogPrintf("set zindex, will reindex. could take a while.\n");
+            fReindex = true;
+        }
+    }
+
     bool clearWitnessCaches = false;
 
     bool fLoaded = false;
@@ -1575,22 +1628,22 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 // }
 
                 // Check for changed -insightexplorer state
-                if (fInsightExplorer != GetBoolArg("-insightexplorer", false)) {
-                    strLoadError = _("You need to rebuild the database using -reindex to change -insightexplorer");
-                    break;
-                }
+                // if (fInsightExplorer != GetBoolArg("-insightexplorer", false)) {
+                //     strLoadError = _("You need to rebuild the database using -reindex to change -insightexplorer");
+                //     break;
+                // }
 
-                if (fZindex != GetBoolArg("-zindex", false)) {
-                    strLoadError = _("You need to rebuild the database using -reindex to change -zindex");
-                    break;
-                }
+                // if (fZindex != GetBoolArg("-zindex", false)) {
+                //     strLoadError = _("You need to rebuild the database using -reindex to change -zindex");
+                //     break;
+                // }
 
                 // Check for changed -prune state.  What we are concerned about is a user who has pruned blocks
                 // in the past, but is now trying to run unpruned.
-                if (fHavePruned && !fPruneMode) {
-                    strLoadError = _("You need to rebuild the database using -reindex to go back to unpruned mode.  This will redownload the entire blockchain");
-                    break;
-                }
+                // if (fHavePruned && !fPruneMode) {
+                //     strLoadError = _("You need to rebuild the database using -reindex to go back to unpruned mode.  This will redownload the entire blockchain");
+                //     break;
+                // }
 
                 if (!fReindex) {
                     uiInterface.InitMessage(_("Rewinding blocks if needed..."));
