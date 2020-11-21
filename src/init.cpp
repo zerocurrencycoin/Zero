@@ -884,8 +884,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             return InitError(_("Payment disclosure requires -experimentalfeatures."));
         } else if (mapArgs.count("-zmergetoaddress")) {
             return InitError(_("RPC method z_mergetoaddress requires -experimentalfeatures."));
-        } else if (mapArgs.count("-insightexplorer")) {
-            return InitError(_("Insight explorer requires -experimentalfeatures."));
         }
     }
 
