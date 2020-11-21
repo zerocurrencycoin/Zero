@@ -74,6 +74,7 @@ bool fExperimentalMode = false;
 bool fImporting = false;
 bool fReindex = false;
 bool fTxIndex = true;
+bool fArchive = true;
 bool fZindex = false;
 bool fInsightExplorer = false;  // insightexplorer
 bool fAddressIndex = false;     // insightexplorer
@@ -5394,6 +5395,8 @@ bool InitBlockIndex(const CChainParams& chainparams)
     if (chainActive.Genesis() != NULL)
         return true;
 
+    pblocktree->WriteFlag("prunedblockfiles", fPruneMode);
+    pblocktree->WriteFlag("archiverule", fArchive);
     // Use the provided setting for -txindex in the new database
     // fTxIndex = GetBoolArg("-txindex", false);
     pblocktree->WriteFlag("txindex", fTxIndex);
