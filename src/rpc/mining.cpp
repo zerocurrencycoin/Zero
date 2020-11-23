@@ -553,6 +553,10 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
     if (IsInitialBlockDownload(Params()))
         throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "ZERO is downloading blocks...");
 
+    if (IsSporkActive(SPORK_6_ZERONODE_FULL_PAYMENT_ENABLED) && !zeronodeSync.IsSynced()) {
+        throw JSONRPCError(RPC_ZERONODES_NOT_SYNCED, "ZERO is syncing ZeroNodes...");
+    }
+
     static unsigned int nTransactionsUpdatedLast;
 
     if (!lpval.isNull())
