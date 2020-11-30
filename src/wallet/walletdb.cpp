@@ -1122,15 +1122,15 @@ DBErrors CWalletDB::FindWalletTxToZap(CWallet* pwallet, vector<uint256>& vTxHash
                 }
 
                 vTxHash.push_back(hash);
-            } if (strType == "arctx") {
+            } else if (strType == "arctx") {
                 uint256 hash;
                 ssKey >> hash;
                 vArcHash.push_back(hash);
-            } if (strType == "arczcop") {
+            } else if (strType == "arczcop") {
                 uint256 nullifier;
                 ssKey >> nullifier;
                 vArcSproutNullifier.push_back(nullifier);
-            } if (strType == "arczsop") {
+            } else if (strType == "arczsop") {
                 uint256 nullifier;
                 ssKey >> nullifier;
                 vArcSaplingNullifier.push_back(nullifier);

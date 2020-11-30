@@ -2026,11 +2026,13 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
         LogPrintf("AddToWallet %s  %s%s\n", wtxIn.GetHash().ToString(), (fInsertedNew ? "new" : ""), (fUpdated ? "update" : ""));
 
         // Write to disk and update tx archive map
-        if (fInsertedNew || fUpdated)
+        if (fInsertedNew || fUpdated) {
             AddToArcTxs(hash, ArchiveTxPoint(wtx.hashBlock, wtx.nIndex));
-            if (!wtx.WriteToDisk(pwalletdb))
+            if (!wtx.WriteToDisk(pwalletdb)) {
                 return false;
-
+            }
+        }
+        
         // Break debit/credit balance caches:
         wtx.MarkDirty();
 
