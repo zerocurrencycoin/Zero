@@ -1494,8 +1494,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     nTotalCache = std::max(nTotalCache, nMinDbCache << 20); // total cache cannot be less than nMinDbCache
     nTotalCache = std::min(nTotalCache, nMaxDbCache << 20); // total cache cannot be greated than nMaxDbcache
     int64_t nBlockTreeDBCache = nTotalCache / 8;
-    if (nBlockTreeDBCache > (1 << 21) && !GetBoolArg("-txindex", false))
-        nBlockTreeDBCache = (1 << 21); // block tree db cache shouldn't be larger than 2 MiB
+    // if (nBlockTreeDBCache > (1 << 21) && !GetBoolArg("-txindex", false))
+    //     nBlockTreeDBCache = (1 << 21); // block tree db cache shouldn't be larger than 2 MiB
 
     // https://github.com/bitpay/bitcoin/commit/c91d78b578a8700a45be936cb5bb0931df8f4b87#diff-c865a8939105e6350a50af02766291b7R1233
     if (GetBoolArg("-insightexplorer", false)) {
@@ -1541,7 +1541,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         pblocktree->ReadFlag("prunedblockfiles", checkval);
         if ( checkval != fPruneMode)
         {
-            pblocktree->WriteFlag("txindex", fPruneMode);
+            pblocktree->WriteFlag("prunedblockfiles", fPruneMode);
             LogPrintf("set prunemode, will reindex. could take a while.\n");
             fReindex = true;
         }
