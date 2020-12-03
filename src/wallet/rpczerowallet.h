@@ -186,7 +186,7 @@ void getRpcArcTxJSONSends(RpcArcTransaction &arcTx, UniValue& ArcTxJSON, bool fi
 void getRpcArcTxJSONReceives(RpcArcTransaction &arcTx, UniValue& ArcTxJSON, bool filterAddress = false, string addressString = "");
 
 UniValue getsupply(const UniValue& params, bool fHelp);
-
+void decrypttransaction(CTransaction &tx, RpcArcTransaction &arcTx);
 
 
 

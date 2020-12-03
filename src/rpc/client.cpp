@@ -179,7 +179,10 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "getsaplingblocks", 1},
     { "getsaplingblocks", 2},
     { "getchaintxstats", 0},
-    
+    { "z_createbuildinstuctions", 0 },
+    { "z_createbuildinstuctions", 1 },
+    { "z_createbuildinstuctions", 2 },
+    { "z_createbuildinstuctions", 3 }
 };
 
 class CRPCConvertTable

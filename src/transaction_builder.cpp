@@ -84,7 +84,7 @@ void TransactionBuilder::SetExpiryHeight(uint32_t nExpiryHeight)
     mtx.nExpiryHeight = nExpiryHeight;
 }
 
-void TransactionBuilder::AddSaplingSpend(
+bool TransactionBuilder::AddSaplingSpend(
     libzcash::SaplingExpandedSpendingKey expsk,
     libzcash::SaplingNote note,
     uint256 anchor,
@@ -102,6 +102,24 @@ void TransactionBuilder::AddSaplingSpend(
 
     spends.emplace_back(expsk, note, anchor, witness);
     mtx.valueBalance += note.value();
+    return true;
+}
+
+bool TransactionBuilder::AddSaplingSpendRaw(
+  libzcash::SaplingPaymentAddress from,
+  CAmount value,
+  SaplingOutPoint op)
+{
+    rawSpends.emplace_back(from, value, op);
+
+    // Consistency check: all from addresses must equal the first one
+    if (!rawSpends.empty()) {
+        if (!(rawSpends[0].addr == from)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void TransactionBuilder::AddSaplingOutput(
@@ -119,6 +137,22 @@ void TransactionBuilder::AddSaplingOutput(
     outputs.emplace_back(ovk, note, memo);
     mtx.valueBalance -= value;
 }
+
+void TransactionBuilder::AddSaplingOutputRaw(
+    libzcash::SaplingPaymentAddress to,
+    CAmount value,
+    std::array<unsigned char, ZC_MEMO_SIZE> memo)
+{
+    rawOutputs.emplace_back(to, value, memo);
+}
+
+void TransactionBuilder::ConvertRawSaplingOutput(uint256 ovk)
+{
+    for (int i = 0; i < rawOutputs.size(); i++) {
+        AddSaplingOutput(ovk, rawOutputs[i].addr, rawOutputs[i].value, rawOutputs[i].memo);
+    }
+}
+
 
 void TransactionBuilder::AddSproutInput(
     libzcash::SproutSpendingKey sk,
@@ -177,6 +211,11 @@ void TransactionBuilder::AddTransparentOutput(CTxDestination& to, CAmount value)
 void TransactionBuilder::SetFee(CAmount fee)
 {
     this->fee = fee;
+}
+
+void TransactionBuilder::SetExpiryHeight(int nHeight)
+{
+    this->mtx.nExpiryHeight = nHeight;
 }
 
 void TransactionBuilder::SendChangeTo(libzcash::SaplingPaymentAddress changeAddr, uint256 ovk)
