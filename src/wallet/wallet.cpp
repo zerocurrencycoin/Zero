@@ -622,6 +622,12 @@ void CWallet::ChainTip(const CBlockIndex *pindex,
             if (initialDownloadCheck && pindex->nHeight % fDeleteInterval == 0) {
                 DeleteWalletTransactions(pindex);
             }
+
+            //Build full witness cache 1 hour before IsInitialBlockDownload() unlocks
+            if (pblock->GetBlockTime() > GetTime() - nMaxTipAge - 3600) {
+                BuildWitnessCache(pindex, false);
+            }
+
         }
 
     } else {
@@ -1509,8 +1515,11 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
     }
   }
   //enable z_sendmany when the wallet has no Notes
-  if (!walletHasNotes || nMinimumHeight == pindex->nHeight)
-    initWitnessesBuilt = true;
+  if (!IsInitialBlockDownload(Params())) {
+      if (!walletHasNotes || nMinimumHeight == pindex->nHeight) {
+          fInitWitnessesBuilt = true;
+      }
+  }
 
   return nMinimumHeight;
 }
@@ -1524,6 +1533,11 @@ void CWallet::BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly)
 
   if (startHeight > pindex->nHeight || witnessOnly) {
     return;
+  }
+
+  //Disable RPC while IsInitialBlockDownload()
+  if (IsInitialBlockDownload(Params()) && !fInitWitnessesBuilt) {
+      fBuilingWitnessCache = true;
   }
 
   uint256 sproutRoot;
@@ -1612,7 +1626,9 @@ void CWallet::BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly)
   }
 
   //Set witnessBuilt to true to allow zsendmany to run
-  initWitnessesBuilt = true;
+  fInitWitnessesBuilt = true;
+  fBuilingWitnessCache = false;
+
 }
 
 bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
@@ -2038,7 +2054,7 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
                 return false;
             }
         }
-        
+
         // Break debit/credit balance caches:
         wtx.MarkDirty();
 

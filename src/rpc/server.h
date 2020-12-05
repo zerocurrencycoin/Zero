@@ -20,7 +20,8 @@
 
 #include <univalue.h>
 
-extern bool initWitnessesBuilt;
+extern bool fBuilingWitnessCache;
+extern bool fInitWitnessesBuilt;
 
 class AsyncRPCQueue;
 class CRPCCommand;
