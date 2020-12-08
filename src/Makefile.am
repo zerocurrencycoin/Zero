@@ -95,9 +95,11 @@ LIBZCASH_H = \
   zcash/Note.hpp \
   zcash/prf.h \
   zcash/Proof.hpp \
+	zcash/address/sapling.hpp \
+	zcash/address/sprout.hpp \
   zcash/util.h \
   zcash/Zcash.h \
-  zcash/zip32.h
+  zcash/address/zip32.h
 
 .PHONY: FORCE check-symbols check-security
 # bitcoin core #
@@ -343,7 +345,8 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/wallet.cpp \
   wallet/wallet_ismine.cpp \
   wallet/walletdb.cpp \
-	wallet/witness.cpp \
+  wallet/witness.cpp \
+  zcash/address/zip32.cpp \
   $(BITCOIN_CORE_H) \
   $(LIBZCASH_H)
 
@@ -548,7 +551,9 @@ libzcash_a_SOURCES = \
   zcash/Note.cpp \
   zcash/prf.cpp \
   zcash/util.cpp \
-  zcash/zip32.cpp
+	zcash/address/sapling.cpp \
+	zcash/address/sprout.cpp \
+  zcash/address/zip32.cpp
 
 libzcash_a_CPPFLAGS = $(AM_CPPFLAGS) $(PIC_FLAGS) -DBINARY_OUTPUT -DCURVE_ALT_BN128 -DBOOST_SPIRIT_THREADSAFE -fvisibility=hidden -DSTATIC $(BITCOIN_INCLUDES)
 libzcash_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)

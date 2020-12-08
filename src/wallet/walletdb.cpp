@@ -55,6 +55,44 @@ bool CWalletDB::ErasePurpose(const string& strPurpose)
     return Erase(make_pair(string("purpose"), strPurpose));
 }
 
+//Begin Historical Wallet Tx
+bool CWalletDB::WriteArcTx(uint256 hash, ArchiveTxPoint arcTxPoint)
+{
+    nWalletDBUpdated++;
+    return Write(std::make_pair(std::string("arctx"), hash), arcTxPoint);
+}
+
+bool CWalletDB::EraseArcTx(uint256 hash)
+{
+    nWalletDBUpdated++;
+    return Erase(std::make_pair(std::string("arctx"), hash));
+}
+
+bool CWalletDB::WriteArcSproutOp(uint256 nullifier, JSOutPoint op)
+{
+    nWalletDBUpdated++;
+    return Write(std::make_pair(std::string("arczcop"), nullifier), op);
+}
+
+bool CWalletDB::EraseArcSproutOp(uint256 nullifier)
+{
+    nWalletDBUpdated++;
+    return Erase(std::make_pair(std::string("arczcop"), nullifier));
+}
+
+bool CWalletDB::WriteArcSaplingOp(uint256 nullifier, SaplingOutPoint op)
+{
+    nWalletDBUpdated++;
+    return Write(std::make_pair(std::string("arczsop"), nullifier), op);
+}
+
+bool CWalletDB::EraseArcSaplingOp(uint256 nullifier)
+{
+    nWalletDBUpdated++;
+    return Erase(std::make_pair(std::string("arczsop"), nullifier));
+}
+//End Historical Wallet Tx
+
 bool CWalletDB::WriteTx(uint256 hash, const CWalletTx& wtx)
 {
     nWalletDBUpdated++;
@@ -194,6 +232,20 @@ bool CWalletDB::EraseSproutViewingKey(const libzcash::SproutViewingKey &vk)
 {
     nWalletDBUpdated++;
     return Erase(std::make_pair(std::string("vkey"), vk));
+}
+
+bool CWalletDB::WriteSaplingExtendedFullViewingKey(
+    const libzcash::SaplingExtendedFullViewingKey &extfvk)
+{
+    nWalletDBUpdated++;
+    return Write(std::make_pair(std::string("sapextfvk"), extfvk), '1');
+}
+
+bool CWalletDB::EraseSaplingExtendedFullViewingKey(
+    const libzcash::SaplingExtendedFullViewingKey &extfvk)
+{
+    nWalletDBUpdated++;
+    return Erase(std::make_pair(std::string("sapextfvk"), extfvk));
 }
 
 bool CWalletDB::WriteCScript(const uint160& hash, const CScript& redeemScript)
@@ -496,6 +548,33 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
 
             pwallet->AddToWallet(wtx, true, NULL);
         }
+        else if (strType == "arctx")
+        {
+            uint256 wtxid;
+            ssKey >> wtxid;
+            ArchiveTxPoint ArcTxPt;
+            ssValue >> ArcTxPt;
+
+            pwallet->AddToArcTxs(wtxid, ArcTxPt);
+        }
+        else if (strType == "arczcop")
+        {
+            uint256 nullifier;
+            ssKey >> nullifier;
+            JSOutPoint op;
+            ssValue >> op;
+
+            pwallet->AddToArcJSOutPoints(nullifier, op);
+        }
+        else if (strType == "arczsop")
+        {
+            uint256 nullifier;
+            ssKey >> nullifier;
+            SaplingOutPoint op;
+            ssValue >> op;
+
+            pwallet->AddToArcSaplingOutPoints(nullifier, op);
+        }
         else if (strType == "acentry")
         {
             string strAccount;
@@ -569,6 +648,20 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
 
             //add checks for integrity
             wss.nZKeys++;
+        }
+        else if (strType == "sapextfvk")
+        {
+            libzcash::SaplingExtendedFullViewingKey extfvk;
+            ssKey >> extfvk;
+            char fYes;
+            ssValue >> fYes;
+            if (fYes == '1') {
+                pwallet->LoadSaplingFullViewingKey(extfvk);
+            }
+
+            // Viewing keys have no birthday information for now,
+            // so set the wallet birthday to the beginning of time.
+            pwallet->nTimeFirstKey = 1;
         }
 
         else if (strType == "key" || strType == "wkey")
@@ -971,7 +1064,7 @@ DBErrors CWalletDB::LoadWallet(CWallet* pwallet)
     return result;
 }
 
-DBErrors CWalletDB::FindWalletTxToZap(CWallet* pwallet, vector<uint256>& vTxHash, vector<CWalletTx>& vWtx)
+DBErrors CWalletDB::FindWalletTxToZap(CWallet* pwallet, vector<uint256>& vTxHash, vector<CWalletTx>& vWtx, vector<uint256>& vArcHash, vector<uint256>& vArcSproutNullifier, vector<uint256>& vArcSaplingNullifier)
 {
     pwallet->vchDefaultKey = CPubKey();
     bool fNoncriticalErrors = false;
@@ -1029,6 +1122,18 @@ DBErrors CWalletDB::FindWalletTxToZap(CWallet* pwallet, vector<uint256>& vTxHash
                 }
 
                 vTxHash.push_back(hash);
+            } else if (strType == "arctx") {
+                uint256 hash;
+                ssKey >> hash;
+                vArcHash.push_back(hash);
+            } else if (strType == "arczcop") {
+                uint256 nullifier;
+                ssKey >> nullifier;
+                vArcSproutNullifier.push_back(nullifier);
+            } else if (strType == "arczsop") {
+                uint256 nullifier;
+                ssKey >> nullifier;
+                vArcSaplingNullifier.push_back(nullifier);
             }
         }
         pcursor->close();
@@ -1050,7 +1155,10 @@ DBErrors CWalletDB::ZapWalletTx(CWallet* pwallet, vector<CWalletTx>& vWtx)
 {
     // build list of wallet TXs
     vector<uint256> vTxHash;
-    DBErrors err = FindWalletTxToZap(pwallet, vTxHash, vWtx);
+    vector<uint256> vArcTxHash;
+    vector<uint256> vArcSproutNullifier;
+    vector<uint256> vArcSaplingNullifier;
+    DBErrors err = FindWalletTxToZap(pwallet, vTxHash, vWtx, vArcTxHash, vArcSproutNullifier, vArcSaplingNullifier);
     if (err != DB_LOAD_OK)
         return err;
 
@@ -1060,6 +1168,23 @@ DBErrors CWalletDB::ZapWalletTx(CWallet* pwallet, vector<CWalletTx>& vWtx)
             return DB_CORRUPT;
     }
 
+    // erase each archive TX
+    BOOST_FOREACH (uint256& arcHash, vArcTxHash) {
+        if (!EraseArcTx(arcHash))
+            return DB_CORRUPT;
+    }
+
+    // erase each archive Nullier SaplingOutput set
+    BOOST_FOREACH (uint256& arcNullifier, vArcSproutNullifier) {
+        if (!EraseArcSproutOp(arcNullifier))
+            return DB_CORRUPT;
+    }
+
+    // erase each archive Nullier SaplingOutput set
+    BOOST_FOREACH (uint256& arcNullifier, vArcSaplingNullifier) {
+        if (!EraseArcSaplingOp(arcNullifier))
+            return DB_CORRUPT;
+    }
     return DB_LOAD_OK;
 }
 

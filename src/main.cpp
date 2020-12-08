@@ -73,7 +73,8 @@ int nScriptCheckThreads = 0;
 bool fExperimentalMode = false;
 bool fImporting = false;
 bool fReindex = false;
-bool fTxIndex = false;
+bool fTxIndex = true;
+bool fArchive = true;
 bool fZindex = false;
 bool fInsightExplorer = false;  // insightexplorer
 bool fAddressIndex = false;     // insightexplorer
@@ -4123,7 +4124,7 @@ bool ReceivedBlockTransactions(
                 LogPrint("zindex", "ht.%d, ChainFullyShieldedPayments=%d, ChainShieldingPayments=%d, ChainDeshieldingPayments=%d\n",
                 pindex->nHeight, pindex->nChainFullyShieldedPayments, pindex->nChainShieldingPayments, pindex->nChainDeshieldingPayments);
 
-                
+
             }
 
             if (pindex->pprev) {
@@ -5394,8 +5395,10 @@ bool InitBlockIndex(const CChainParams& chainparams)
     if (chainActive.Genesis() != NULL)
         return true;
 
+    pblocktree->WriteFlag("prunedblockfiles", fPruneMode);
+    pblocktree->WriteFlag("archiverule", fArchive);
     // Use the provided setting for -txindex in the new database
-    fTxIndex = GetBoolArg("-txindex", false);
+    // fTxIndex = GetBoolArg("-txindex", false);
     pblocktree->WriteFlag("txindex", fTxIndex);
 
     // Use the provided setting for -insightexplorer in the new database
