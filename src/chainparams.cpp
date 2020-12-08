@@ -192,6 +192,7 @@ public:
         bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "zviews";
         bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "zivks";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "secret-extended-key-main";
+        bech32HRPs[SAPLING_EXTENDED_FVK]         = "zxviews";
 
         fMiningRequiresPeers = true;
         fDefaultConsistencyChecks = false;
@@ -359,6 +360,7 @@ public:
         bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "zviewtestsapling";
         bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "zivktestsapling";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "secret-extended-key-test";
+        bech32HRPs[SAPLING_EXTENDED_FVK]         = "zxviewtestsapling";
 
         fMiningRequiresPeers = true;
         fDefaultConsistencyChecks = false;
@@ -508,6 +510,7 @@ public:
         bech32HRPs[SAPLING_FULL_VIEWING_KEY]     = "zviewregtestsapling";
         bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "zivkregtestsapling";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "secret-extended-key-regtest";
+        bech32HRPs[SAPLING_EXTENDED_FVK]         = "zxviewregtestsapling";
 
         fMiningRequiresPeers = false;
         fDefaultConsistencyChecks = true;

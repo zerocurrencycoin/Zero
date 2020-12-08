@@ -216,10 +216,10 @@ libzcash::SaplingPaymentAddress AsyncRPCOperation_saplingmigration::getMigration
 
     // Refactor: this is similar logic as in the visitor HaveSpendingKeyForPaymentAddress and is used elsewhere
     libzcash::SaplingIncomingViewingKey ivk;
-    libzcash::SaplingFullViewingKey fvk;
+    libzcash::SaplingExtendedFullViewingKey extfvk;
     if (!(pwalletMain->GetSaplingIncomingViewingKey(toAddress, ivk) &&
-        pwalletMain->GetSaplingFullViewingKey(ivk, fvk) &&
-        pwalletMain->HaveSaplingSpendingKey(fvk))) {
+        pwalletMain->GetSaplingFullViewingKey(ivk, extfvk) &&
+        pwalletMain->HaveSaplingSpendingKey(extfvk))) {
         // Sapling account 0 must be the first address returned by GenerateNewSaplingZKey
         assert(pwalletMain->GenerateNewSaplingZKey(true) == toAddress);
     }

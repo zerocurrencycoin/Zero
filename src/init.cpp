@@ -372,15 +372,14 @@ std::string HelpMessage(HelpMessageMode mode)
 #ifndef WIN32
     strUsage += HelpMessageOpt("-pid=<file>", strprintf(_("Specify pid file (default: %s)"), "zerod.pid"));
 #endif
-    strUsage += HelpMessageOpt("-prune=<n>", strprintf(_("Reduce storage requirements by pruning (deleting) old blocks. This mode disables wallet support and is incompatible with -txindex. "
-            "Warning: Reverting this setting requires re-downloading the entire blockchain. "
-            "(default: 0 = disable pruning blocks, >%u = target size in MiB to use for block files)"), MIN_DISK_SPACE_FOR_BLOCK_FILES / 1024 / 1024));
+    // strUsage += HelpMessageOpt("-prune=<n>", strprintf(_("Reduce storage requirements by pruning (deleting) old blocks. This mode disables wallet support and is incompatible with -txindex. "
+    //         "Warning: Reverting this setting requires re-downloading the entire blockchain. "
+    //         "(default: 0 = disable pruning blocks, >%u = target size in MiB to use for block files)"), MIN_DISK_SPACE_FOR_BLOCK_FILES / 1024 / 1024));
     strUsage += HelpMessageOpt("-reindex", _("Rebuild block chain index from current blk000??.dat files on startup"));
 #if !defined(WIN32)
     strUsage += HelpMessageOpt("-sysperms", _("Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)"));
 #endif
-    strUsage += HelpMessageOpt("-txindex", strprintf(_("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)"), 0));
-
+    // strUsage += HelpMessageOpt("-txindex", strprintf(_("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)"), 0));
     // strUsage += HelpMessageOpt("-addressindex", strprintf(_("Maintain a full address index, used to query for the balance, txids and unspent outputs for addresses (default: %u)"), DEFAULT_ADDRESSINDEX));
     // strUsage += HelpMessageOpt("-timestampindex", strprintf(_("Maintain a timestamp index for block hashes, used to query blocks hashes by a range of timestamps (default: %u)"), DEFAULT_TIMESTAMPINDEX));
     // strUsage += HelpMessageOpt("-spentindex", strprintf(_("Maintain a full spent index, used to query the spending txid and input index for an outpoint (default: %u)"), DEFAULT_SPENTINDEX));
@@ -885,8 +884,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             return InitError(_("Payment disclosure requires -experimentalfeatures."));
         } else if (mapArgs.count("-zmergetoaddress")) {
             return InitError(_("RPC method z_mergetoaddress requires -experimentalfeatures."));
-        } else if (mapArgs.count("-insightexplorer")) {
-            return InitError(_("Insight explorer requires -experimentalfeatures."));
         }
     }
 
@@ -964,18 +961,18 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // if using block pruning, then disable txindex
     // also disable the wallet (for now, until SPV support is implemented in wallet)
-    if (GetArg("-prune", 0)) {
-        if (GetBoolArg("-txindex", false))
-            return InitError(_("Prune mode is incompatible with -txindex."));
-#ifdef ENABLE_WALLET
-        if (!GetBoolArg("-disablewallet", false)) {
-            if (SoftSetBoolArg("-disablewallet", true))
-                LogPrintf("%s : parameter interaction: -prune -> setting -disablewallet=1\n", __func__);
-            else
-                return InitError(_("Can't run with a wallet in prune mode."));
-        }
-#endif
-    }
+//     if (GetArg("-prune", 0)) {
+//         if (GetBoolArg("-txindex", true))
+//             return InitError(_("Prune mode is incompatible with -txindex."));
+// #ifdef ENABLE_WALLET
+//         if (!GetBoolArg("-disablewallet", false)) {
+//             if (SoftSetBoolArg("-disablewallet", true))
+//                 LogPrintf("%s : parameter interaction: -prune -> setting -disablewallet=1\n", __func__);
+//             else
+//                 return InitError(_("Can't run with a wallet in prune mode."));
+//         }
+// #endif
+//     }
 
     // ********************************************************* Step 3: parameter-to-internal-flags
 
@@ -1033,18 +1030,18 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     fServer = GetBoolArg("-server", false);
 
     // block pruning; get the amount of disk space (in MB) to allot for block & undo files
-    int64_t nSignedPruneTarget = GetArg("-prune", 0) * 1024 * 1024;
-    if (nSignedPruneTarget < 0) {
-        return InitError(_("Prune cannot be configured with a negative value."));
-    }
-    nPruneTarget = (uint64_t) nSignedPruneTarget;
-    if (nPruneTarget) {
-        if (nPruneTarget < MIN_DISK_SPACE_FOR_BLOCK_FILES) {
-            return InitError(strprintf(_("Prune configured below the minimum of %d MB.  Please use a higher number."), MIN_DISK_SPACE_FOR_BLOCK_FILES / 1024 / 1024));
-        }
-        LogPrintf("Prune configured to target %uMiB on disk for block and undo files.\n", nPruneTarget / 1024 / 1024);
-        fPruneMode = true;
-    }
+    // int64_t nSignedPruneTarget = GetArg("-prune", 0) * 1024 * 1024;
+    // if (nSignedPruneTarget < 0) {
+    //     return InitError(_("Prune cannot be configured with a negative value."));
+    // }
+    // nPruneTarget = (uint64_t) nSignedPruneTarget;
+    // if (nPruneTarget) {
+    //     if (nPruneTarget < MIN_DISK_SPACE_FOR_BLOCK_FILES) {
+    //         return InitError(strprintf(_("Prune configured below the minimum of %d MB.  Please use a higher number."), MIN_DISK_SPACE_FOR_BLOCK_FILES / 1024 / 1024));
+    //     }
+    //     LogPrintf("Prune configured to target %uMiB on disk for block and undo files.\n", nPruneTarget / 1024 / 1024);
+    //     fPruneMode = true;
+    // }
 
     RegisterAllCoreRPCCommands(tableRPC);
 #ifdef ENABLE_WALLET
@@ -1497,14 +1494,14 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     nTotalCache = std::max(nTotalCache, nMinDbCache << 20); // total cache cannot be less than nMinDbCache
     nTotalCache = std::min(nTotalCache, nMaxDbCache << 20); // total cache cannot be greated than nMaxDbcache
     int64_t nBlockTreeDBCache = nTotalCache / 8;
-    if (nBlockTreeDBCache > (1 << 21) && !GetBoolArg("-txindex", false))
-        nBlockTreeDBCache = (1 << 21); // block tree db cache shouldn't be larger than 2 MiB
+    // if (nBlockTreeDBCache > (1 << 21) && !GetBoolArg("-txindex", false))
+    //     nBlockTreeDBCache = (1 << 21); // block tree db cache shouldn't be larger than 2 MiB
 
     // https://github.com/bitpay/bitcoin/commit/c91d78b578a8700a45be936cb5bb0931df8f4b87#diff-c865a8939105e6350a50af02766291b7R1233
     if (GetBoolArg("-insightexplorer", false)) {
-        if (!GetBoolArg("-txindex", false)) {
-            return InitError(_("-insightexplorer requires -txindex."));
-        }
+        // if (!GetBoolArg("-txindex", false)) {
+        //     return InitError(_("-insightexplorer requires -txindex."));
+        // }
         // increase cache if additional indices are needed
         nBlockTreeDBCache = nTotalCache * 3 / 4;
     }
@@ -1516,6 +1513,59 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("* Using %.1fMiB for block index database\n", nBlockTreeDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for chain state database\n", nCoinDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for in-memory UTXO set\n", nCoinCacheUsage * (1.0 / 1024 / 1024));
+
+    if ( fReindex == 0 ){
+
+        bool checkval;
+        pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
+
+        //One time reindex to enable transaction archiving.
+        pblocktree->ReadFlag("archiverule", checkval);
+        if (checkval != fArchive)
+        {
+            pblocktree->WriteFlag("archiverule", fArchive);
+            LogPrintf("Transaction archive not set, will reindex. could take a while.\n");
+            fReindex = true;
+        }
+
+        //Check txindex
+        pblocktree->ReadFlag("txindex", checkval);
+        if ( checkval != fTxIndex)
+        {
+            pblocktree->WriteFlag("txindex", fTxIndex);
+            LogPrintf("set txindex, will reindex. could take a while.\n");
+            fReindex = true;
+        }
+
+        //Check prune mode
+        pblocktree->ReadFlag("prunedblockfiles", checkval);
+        if ( checkval != fPruneMode)
+        {
+            pblocktree->WriteFlag("prunedblockfiles", fPruneMode);
+            LogPrintf("set prunemode, will reindex. could take a while.\n");
+            fReindex = true;
+        }
+
+        //Check Insight Index
+        fInsightExplorer = GetBoolArg("-insightexplorer", false);
+        pblocktree->ReadFlag("insightexplorer", checkval);
+        if ( checkval != fInsightExplorer )
+        {
+            pblocktree->WriteFlag("insightexplorer", fInsightExplorer);
+            LogPrintf("set insightexplorer, will reindex. could take a while.\n");
+            fReindex = true;
+        }
+
+        //Check Insight Index
+        fZindex = GetBoolArg("-zindex", DEFAULT_SHIELDEDINDEX);
+        pblocktree->ReadFlag("zindex", checkval);
+        if ( checkval != fZindex )
+        {
+            pblocktree->WriteFlag("zindex", fZindex);
+            LogPrintf("set zindex, will reindex. could take a while.\n");
+            fReindex = true;
+        }
+    }
 
     bool clearWitnessCaches = false;
 
@@ -1570,28 +1620,28 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 }
 
                 // Check for changed -txindex state
-                if (fTxIndex != GetBoolArg("-txindex", false)) {
-                    strLoadError = _("You need to rebuild the database using -reindex to change -txindex");
-                    break;
-                }
+                // if (fTxIndex != GetBoolArg("-txindex", true)) {
+                //     strLoadError = _("You need to rebuild the database using -reindex to change -txindex");
+                //     break;
+                // }
 
                 // Check for changed -insightexplorer state
-                if (fInsightExplorer != GetBoolArg("-insightexplorer", false)) {
-                    strLoadError = _("You need to rebuild the database using -reindex to change -insightexplorer");
-                    break;
-                }
+                // if (fInsightExplorer != GetBoolArg("-insightexplorer", false)) {
+                //     strLoadError = _("You need to rebuild the database using -reindex to change -insightexplorer");
+                //     break;
+                // }
 
-                if (fZindex != GetBoolArg("-zindex", false)) {
-                    strLoadError = _("You need to rebuild the database using -reindex to change -zindex");
-                    break;
-                }
+                // if (fZindex != GetBoolArg("-zindex", false)) {
+                //     strLoadError = _("You need to rebuild the database using -reindex to change -zindex");
+                //     break;
+                // }
 
                 // Check for changed -prune state.  What we are concerned about is a user who has pruned blocks
                 // in the past, but is now trying to run unpruned.
-                if (fHavePruned && !fPruneMode) {
-                    strLoadError = _("You need to rebuild the database using -reindex to go back to unpruned mode.  This will redownload the entire blockchain");
-                    break;
-                }
+                // if (fHavePruned && !fPruneMode) {
+                //     strLoadError = _("You need to rebuild the database using -reindex to go back to unpruned mode.  This will redownload the entire blockchain");
+                //     break;
+                // }
 
                 if (!fReindex) {
                     uiInterface.InitMessage(_("Rewinding blocks if needed..."));
