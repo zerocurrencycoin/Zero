@@ -190,7 +190,7 @@ To see command line options (also available in zero.conf file)
 ./zerod -?
 ``` 
 Your wallet will be created (on first zerod run) in: ~/.zero/wallet.zero
-Please backup your wallet often and keep it safe.
+Please, [backup your wallet](https://github.com/zerocurrencycoin/Zero/wiki/Wallet-Backup) often and keep it safe and secret.
 
 The usage is currently very similar to Zcash. For more information see the [Zcash User Guide](https://github.com/zcash/zcash/wiki/1.0-User-Guide#running-zcash).
 
