@@ -133,25 +133,25 @@ On a typical laptop -j2 works fine, while retaining some UI interactivity
 mkdir -p ~/.zero
 echo "server=1" > ~/.zero/zero.conf
 ```
-To use the full node RPC interface
+### To use the full node RPC interface
 ```
 echo "rpcuser=<YOUR_USER_NAME>" > ~/.zero/zero.conf
 echo "rpcpassword=`head -c 32 /dev/urandom | base64`" >> ~/.zero/zero.conf
 echo "rpcport=23801" >> ~/.zero/zero.conf
 ```
 
-#### Enable CPU mining (optional)
+### Enable CPU mining (optional)
 ```
 echo 'gen=1' >> ~/.zero/zero.conf
 echo "genproclimit=1" >> ~/.zero/zero.conf
 echo 'equihashsolver=tromp' >> ~/.zero/zero.conf
 ```
 
-An earlier sample of zero.conf
+### An earlier sample of zero.conf
 ```
 ./contrib/zero.conf
 ```
-A sample demonstrating many command line options
+### A sample demonstrating many command line options
 ```
 ./contrib/debian/examples/zero.conf
 ```
