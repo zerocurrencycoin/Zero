@@ -55,13 +55,13 @@ Zero is a network operating by the three fundamental principles of technological
 
 ------------------------------------------
 
-![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/tech%20improv%20zero.jfif)
-
 [Zero](https://zero.directory/) is an implementation of the "Zerocash" protocol.
 Based on Bitcoin's code, Zero intends to offer a far higher standard of privacy
 through a sophisticated zero-knowledge proving scheme that preserves
 confidentiality of transaction metadata. More technical details are available
 in our [Protocol Specification](https://www.docdroid.net/KqvAhAj/zero-paper-z-paper-final-version-extended-zerocash-protocol-pdf).
+
+![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/tech%20improv%20zero.jfif)
 
 ![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/algo%20zer%20improv.jfif)
 
