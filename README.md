@@ -13,18 +13,10 @@ Download [ZERO - Latest Version - Draco:3.2.0](https://github.com/zerocurrencyco
 ❓ What is ZERO?
 --------------
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) is a revolutionary cryptocurrency and transaction platform based on Zcash.
-
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) offers total payment confidentiality, while still maintaining a decentralised network using a public blockchain.
-
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) combines Bitcoin’s security with Zcash’s anonymity and privacy.
-
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) stands out from the competition as a fully working product that has already
-implemented a set of special features not found in any other cryptocurrency.
-
-Our main focus as a team and community is to remain as transparent as we can possibly be and to maintain an interactive relationship with everyone involved. We are fully open about the project, listening to all suggestions from investors, miners and supporters.
+[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) Zero offers total payment confidentiality, while still maintaining a decentralized network using a public blockchain. Zero combines Bitcoin’s security with Zcash’s anonymity and privacy. Zero stands out from the competition as a fully working product that has already implemented a set of special features not found in any other cryptocurrency.
 
 This software is the [ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) node. It downloads and stores the entire history of ZERO's transactions, about 1.2GB at this point.
+
 Depending on the speed of your computer and network connection, the synchronization process could take several hours.
 
 ------------------------------------------
@@ -52,11 +44,11 @@ Depending on the speed of your computer and network connection, the synchronizat
 ### •LOW INFLATION
 
 
-Is Zero Legal?
+❓ Is Zero Legal?
 -------------------
 Zero is legal in most jurisdictions in the world but there are a small number of nation states that have banned its use, such as Ecuador. Wikipedia has a great guide on how Crypto is treated in all countries around the world and explains regulatory policies surrounding it. Regulations vary from one border to the next so you should always research your location’s laws before participating in the network.
 
-Why Trust Zero?
+❓ Why Trust Zero?
 -------------------
 Zero is a network operating by the three fundamental principles of technological freedom: Decentralization, Open Source code and true Peer-to-Peer technology. With Privacy being a fundamental human right. Zero’s trust is based on the subjective valuations of human faith in mathematical algorithms, encryption and numbers. With the three pillars of technological principles Zero’s Blockchain is a peer-reviewed system of integrity.
 
