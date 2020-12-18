@@ -1,4 +1,4 @@
-![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/zero%203d%20mountain.png?raw=true)
+![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/Zero%20Twitter.jpg?raw=true)
 
 [ZERO](https://zerocurrency.io) - [Draco:3.2.0](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0)
 
@@ -29,51 +29,37 @@ Depending on the speed of your computer and network connection, the synchronizat
 
 ------------------------------------------
 
-![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/zero-logo-shade-black_256x256.png)
+![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/Zero%20Full%20Circle%20Logo.png?raw=true)
 
 
 💫 ZERO CORE FEATURES
 -------------------
 
-||ZERO COST||
---------------
-Zero’s transaction fees are 0.0001 ZER, when the networks capacity is high. When Zero’s network is below full capacity the fee reduces to 0.
+FAST TX & ZERO TX COST
+-------------------
+NO ICO & NO PREMINE
+-------------------
+SECURE
+-------------------
+ASIC RESISTANT
+-------------------
+SHIELDED TRANSACTIONS
+-------------------
+UNIQUE ALGORITHM
+-------------------
+DECENTRALIZED PAYMENTS
+-------------------
+LOW INFLATION
+-------------------
 
+Is Zero Legal?
+-------------------
+Zero is legal in most jurisdictions in the world but there are a small number of nation states that have banned its use, such as Ecuador. Wikipedia has a great guide on how Crypto is treated in all countries around the world and explains regulatory policies surrounding it. Regulations vary from one border to the next so you should always research your location’s laws before participating in the network.
 
-||NO PREMINE||
---------------
-0% advantage for early adopters. No Pre-Mined Zero, therefore people that buy or mine today have no disadvantages.
+Why Trust Zero?
+-------------------
+Zero is a network operating by the three fundamental principles of technological freedom: Decentralization, Open Source code and true Peer-to-Peer technology. With Privacy being a fundamental human right. Zero’s trust is based on the subjective valuations of human faith in mathematical algorithms, encryption and numbers. With the three pillars of technological principles Zero’s Blockchain is a peer-reviewed system of integrity.
 
-
-||SECURE||
-----------------------------
-Zero implements zk-SNARKs, a state of the art privacy technology pioneered by cryptographers at Zcash, with substantial security guarantees, according to a consensus of a significant number of nonbiased experts in the field.
-
-
-||ASIC RESISTANT||
-----------------------------
-Zero is ASIC resistant due to increased difficulty settings (192/7) in its Equihash algorithm implementation, keeping specialized mining hardware away.
-
-
-||SHIELDED TRANSACTIONS||
-----------------------------
-Zero has a feature called shielded transactions that ensures full anonymity when sending funds.
-
-
-||HIGH MINING PROFITABILITY||
-------------------------------------------
-Zero uses an alternative set of parameters taken from the equihash algorithm, this needs atleast 4GB/8GB of RAM. Zero is one of the most profitable cryptocurrency’s to mine.
-
-
-||DECENTRALISED PAYMENTS||
-----------------------------
-Zero is founded on a decentralised platform, there are no borders. Zero facilitates lightning fast and anonymous money transfers worldwide, without any restrictions or interference from 3rd parties.
-
-
-||INFLATION||
---------------
-Zero has a low inflation that decreases over time, with a stable supply of 3888 ZER per day, after our first halving.
-Total supply of ZER will be a very low 17,000,000 coins.
 
 ------------------------------------------
 
