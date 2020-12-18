@@ -2,9 +2,9 @@
 
 [ZERO](https://zerocurrency.io) - [Draco:3.2.0](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0)
 
-||FAST|| ||DECENTRALISED|| ||ANONYMOUS|| ||SECURE|| ||ASIC RESISTANT|| ||SCARCE|| - LAUNCH DATE: 2017-02-19
+### •LAUNCH DATE: 2017-02-19
 
-GENESIS BLOCK - 19th Feb 2017 11:26:40 - 068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6
+### •GENESIS BLOCK - 19th Feb 2017 11:26:40 - 068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6
 
 Download [ZERO - Latest Version - Draco:3.2.0](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0)
 
@@ -35,22 +35,22 @@ Depending on the speed of your computer and network connection, the synchronizat
 💫 ZERO CORE FEATURES
 -------------------
 
-FAST TX & ZERO TX COST
--------------------
-NO ICO & NO PREMINE
--------------------
-SECURE
--------------------
-ASIC RESISTANT
--------------------
-SHIELDED TRANSACTIONS
--------------------
-UNIQUE ALGORITHM
--------------------
-DECENTRALIZED PAYMENTS
--------------------
-LOW INFLATION
--------------------
+### •FAST TX & ZERO TX COST
+
+### •NO ICO & NO PREMINE
+
+### •SECURE
+
+### •ASIC RESISTANT
+
+### •SHIELDED TRANSACTIONS
+
+### •UNIQUE ALGORITHM
+
+### •DECENTRALIZED PAYMENTS
+
+### •LOW INFLATION
+
 
 Is Zero Legal?
 -------------------
