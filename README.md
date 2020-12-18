@@ -21,7 +21,7 @@ Depending on the speed of your computer and network connection, the synchronizat
 
 ------------------------------------------
 
-![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/Zero%20Full%20Circle%20Logo.png?raw=true)
+![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/Zero%20Full%20Logo%20Long%20Black.png?raw=true)
 
 
 💫 ZERO CORE FEATURES
