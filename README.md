@@ -13,7 +13,7 @@ Download [ZERO - Latest Version - Draco:3.2.0](https://github.com/zerocurrencyco
 ❓ What is ZERO?
 --------------
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) Zero offers total payment confidentiality, while still maintaining a decentralized network using a public blockchain. Zero combines Bitcoin’s security with Zcash’s anonymity and privacy. Zero stands out from the competition as a fully working product that has already implemented a set of special features not found in any other cryptocurrency.
+[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) offers total payment confidentiality, while still maintaining a decentralized network using a public blockchain. Zero combines Bitcoin’s security with Zcash’s anonymity and privacy. Zero stands out from the competition as a fully working product that has already implemented a set of special features not found in any other cryptocurrency.
 
 This software is the [ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) node. It downloads and stores the entire history of ZERO's transactions, about 1.2GB at this point.
 
