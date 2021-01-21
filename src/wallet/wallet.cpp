@@ -683,6 +683,12 @@ void CWallet::RunSaplingConsolidation(int blockHeight) {
         return;
     }
 
+    if (nextConsolidation > blockHeight) {
+        return;
+    }
+
+    fConsolidationRunning = true;
+
     int consolidateInterval = rand() % 5 + 5;
     if (blockHeight % consolidateInterval == 0) {
         std::shared_ptr<AsyncRPCQueue> q = getAsyncRPCQueue();

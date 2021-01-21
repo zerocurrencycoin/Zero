@@ -884,6 +884,10 @@ public:
     int64_t nWitnessCacheSize;
     bool fSaplingMigrationEnabled = false;
     bool fSaplingConsolidationEnabled = false;
+    bool fConsolidationRunning = false;
+    int initializeConsolidationInterval = (Params().GetConsensus().nPreBlossomPowTargetSpacing/60) * 60 * 24 * 7; //Intialize 1 per week
+    int nextConsolidation = 0;
+    int targetConsolidationQty = 100;
 
     void ClearNoteWitnessCache();
 
