@@ -6,8 +6,6 @@
 
 ### •GENESIS BLOCK - 19th Feb 2017 11:26:40 - 068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6
 
-[ZERO - Latest Version - Draco:3.2.0](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0)
-
 ------------------------------------------
 
 ❓ What is ZERO?
