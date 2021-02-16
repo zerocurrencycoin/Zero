@@ -889,6 +889,13 @@ public:
     int nextConsolidation = 0;
     int targetConsolidationQty = 100;
 
+    bool fSaplingSweepEnabled = false;
+    bool fSweepRunning = false;
+    int sweepInterval = (Params().GetConsensus().nPreBlossomPowTargetSpacing/60) * 15; //Intialize every 15 minutes
+    int nextSweep = 0;
+    int targetSweepQty = 0;
+
+
     void ClearNoteWitnessCache();
 
     int64_t NullifierCount();
@@ -1364,8 +1371,9 @@ public:
     void ChainTip(const CBlockIndex *pindex, const CBlock *pblock, SproutMerkleTree sproutTree, SaplingMerkleTree saplingTree, bool added);
     void RunSaplingMigration(int blockHeight);
     void AddPendingSaplingMigrationTx(const CTransaction& tx);
+    void RunSaplingSweep(int blockHeight);
     void RunSaplingConsolidation(int blockHeight);
-    void CommitConsolidationTx(const CTransaction& tx);
+    void CommitAutomatedTx(const CTransaction& tx);
     /** Saves witness caches and best block locator to disk. */
     void SetBestChain(const CBlockLocator& loc);
     std::set<std::pair<libzcash::PaymentAddress, uint256>> GetNullifiersForAddresses(const std::set<libzcash::PaymentAddress> & addresses);

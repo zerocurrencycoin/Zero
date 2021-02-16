@@ -29,6 +29,7 @@
 #include "crypter.h"
 #include "wallet/asyncrpcoperation_saplingmigration.h"
 #include "wallet/asyncrpcoperation_saplingconsolidation.h"
+#include "wallet/asyncrpcoperation_sweeptoaddress.h"
 #include "zcash/address/zip32.h"
 
 #include <assert.h>
@@ -615,6 +616,7 @@ void CWallet::ChainTip(const CBlockIndex *pindex,
             BuildWitnessCache(pindex, false);
             RunSaplingMigration(pindex->nHeight);
             RunSaplingConsolidation(pindex->nHeight);
+            RunSaplingSweep(pindex->nHeight);
             DeleteWalletTransactions(pindex);
         } else {
             //Build intial witnesses on every block
@@ -680,6 +682,43 @@ void CWallet::AddPendingSaplingMigrationTx(const CTransaction& tx) {
     pendingSaplingMigrationTxs.push_back(tx);
 }
 
+void CWallet::RunSaplingSweep(int blockHeight) {
+    if (Params().GetConsensus().NetworkUpgradeActive(blockHeight, Consensus::UPGRADE_SAPLING)) {
+        return;
+    }
+    LOCK(cs_wallet);
+    if (!fSaplingSweepEnabled) {
+        return;
+    }
+
+    if (nextSweep > blockHeight) {
+        return;
+    }
+
+    //Don't Run if consolidation will run soon.
+    if (fSaplingConsolidationEnabled && nextConsolidation - 15 <= blockHeight) {
+        return;
+    }
+
+    //Don't Run While consolidation is running.
+    if (fConsolidationRunning) {
+        return;
+    }
+
+    fSweepRunning = true;
+
+    std::shared_ptr<AsyncRPCQueue> q = getAsyncRPCQueue();
+    std::shared_ptr<AsyncRPCOperation> lastOperation = q->getOperationForId(saplingSweepOperationId);
+    if (lastOperation != nullptr) {
+        lastOperation->cancel();
+    }
+    pendingSaplingSweepTxs.clear();
+    std::shared_ptr<AsyncRPCOperation> operation(new AsyncRPCOperation_sweeptoaddress(blockHeight + 5));
+    saplingSweepOperationId = operation->getId();
+    q->addOperation(operation);
+}
+
+
 void CWallet::RunSaplingConsolidation(int blockHeight) {
     if (!Params().GetConsensus().NetworkUpgradeActive(blockHeight, Consensus::UPGRADE_SAPLING)) {
         return;
@@ -690,6 +729,11 @@ void CWallet::RunSaplingConsolidation(int blockHeight) {
     }
 
     if (nextConsolidation > blockHeight) {
+        return;
+    }
+
+    //Don't Run While sweep is running.
+    if (fSweepRunning) {
         return;
     }
 
@@ -709,7 +753,7 @@ void CWallet::RunSaplingConsolidation(int blockHeight) {
     }
 }
 
-void CWallet::CommitConsolidationTx(const CTransaction& tx) {
+void CWallet::CommitAutomatedTx(const CTransaction& tx) {
   CWalletTx wtx(this, tx);
   CommitTransaction(wtx, boost::none);
 }
