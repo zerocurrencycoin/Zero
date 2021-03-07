@@ -85,6 +85,9 @@
 #include <openssl/crypto.h>
 #include <openssl/conf.h>
 
+// Application startup time (used for uptime calculation)
+const int64_t nStartupTime = GetTime();
+
 // Work around clang compilation problem in Boost 1.46:
 // /usr/include/boost/program_options/detail/config_file.hpp:163:17: error: call to function 'to_internal' that is neither visible in the template definition nor found by argument-dependent lookup
 // See also: http://stackoverflow.com/questions/10020179/compilation-fail-in-boost-librairies-program-options
@@ -411,6 +414,16 @@ bool GetBoolArg(const std::string& strArg, bool fDefault)
         return (atoi(mapArgs[strArg]) != 0);
     }
     return fDefault;
+}
+
+bool IsArgSet(const std::string& strArg)
+{
+    return mapArgs.count(strArg);
+}
+
+void OverrideSetArg(const std::string& strArg, const std::string& strValue)
+{
+    mapArgs[strArg] = strValue;
 }
 
 bool SoftSetArg(const std::string& strArg, const std::string& strValue)
@@ -948,3 +961,19 @@ int GetNumCores()
     return boost::thread::physical_concurrency();
 }
 
+std::string CopyrightHolders(const std::string& strPrefix)
+{
+    std::string strCopyrightHolders = strPrefix + strprintf(_(COPYRIGHT_HOLDERS), _(COPYRIGHT_HOLDERS_SUBSTITUTION));
+
+    // Check for untranslated substitution to make sure Zero Core copyright is not removed by accident
+    if (strprintf(COPYRIGHT_HOLDERS, COPYRIGHT_HOLDERS_SUBSTITUTION).find("Zero developers") == std::string::npos) {
+        strCopyrightHolders += "\n" + strPrefix + "Zero developers";
+    }
+    return strCopyrightHolders;
+}
+
+// Obtain the application startup time (used for uptime calculation)
+int64_t GetStartupTime()
+{
+    return nStartupTime;
+}

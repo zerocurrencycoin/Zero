@@ -62,18 +62,18 @@ UniValue ping(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 
-static void CopyNodeStats(std::vector<CNodeStats>& vstats)
-{
-    vstats.clear();
-
-    LOCK(cs_vNodes);
-    vstats.reserve(vNodes.size());
-    BOOST_FOREACH(CNode* pnode, vNodes) {
-        CNodeStats stats;
-        pnode->copyStats(stats);
-        vstats.push_back(stats);
-    }
-}
+// static void CopyNodeStats(std::vector<CNodeStats>& vstats)
+// {
+//     vstats.clear();
+//
+//     LOCK(cs_vNodes);
+//     vstats.reserve(vNodes.size());
+//     BOOST_FOREACH(CNode* pnode, vNodes) {
+//         CNodeStats stats;
+//         pnode->copyStats(stats);
+//         vstats.push_back(stats);
+//     }
+// }
 
 UniValue getpeerinfo(const UniValue& params, bool fHelp)
 {
@@ -542,7 +542,7 @@ UniValue setban(const UniValue& params, bool fHelp)
         if (params.size() == 4 && params[3].isTrue())
             absolute = true;
 
-        isSubnet ? CNode::Ban(subNet, banTime, absolute) : CNode::Ban(netAddr, banTime, absolute);
+        isSubnet ? CNode::Ban(subNet, BanReasonManuallyAdded, banTime, absolute) : CNode::Ban(netAddr, BanReasonManuallyAdded, banTime, absolute);
 
         //disconnect possible nodes
         while(CNode *bannedNode = (isSubnet ? FindNode(subNet) : FindNode(netAddr)))
@@ -568,15 +568,18 @@ UniValue listbanned(const UniValue& params, bool fHelp)
                             + HelpExampleRpc("listbanned", "")
                             );
 
-    std::map<CSubNet, int64_t> banMap;
-    CNode::GetBanned(banMap);
+    banmap_t banMap;
+    GetBanned(banMap);
 
     UniValue bannedAddresses(UniValue::VARR);
-    for (std::map<CSubNet, int64_t>::iterator it = banMap.begin(); it != banMap.end(); it++)
+    for (banmap_t::iterator it = banMap.begin(); it != banMap.end(); it++)
     {
+        CBanEntry banEntry = (*it).second;
         UniValue rec(UniValue::VOBJ);
         rec.push_back(Pair("address", (*it).first.ToString()));
-        rec.push_back(Pair("banned_until", (*it).second));
+        rec.push_back(Pair("banned_until", banEntry.nBanUntil));
+        rec.push_back(Pair("ban_created", banEntry.nCreateTime));
+        rec.push_back(Pair("ban_reason", banEntry.banReasonToString()));
         bannedAddresses.push_back(rec);
     }
 

@@ -65,7 +65,7 @@ std::string DecodeDumpString(const std::string &str) {
     for (unsigned int pos = 0; pos < str.length(); pos++) {
         unsigned char c = str[pos];
         if (c == '%' && pos+2 < str.length()) {
-            c = (((str[pos+1]>>6)*9+((str[pos+1]-'0')&15)) << 4) | 
+            c = (((str[pos+1]>>6)*9+((str[pos+1]-'0')&15)) << 4) |
                 ((str[pos+2]>>6)*9+((str[pos+2]-'0')&15));
             pos += 2;
         }
@@ -78,7 +78,7 @@ UniValue importprivkey(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() < 1 || params.size() > 3)
         throw runtime_error(
             "importprivkey \"zcashprivkey\" ( \"label\" rescan )\n"
@@ -148,7 +148,7 @@ UniValue importaddress(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() < 1 || params.size() > 3)
         throw runtime_error(
             "importaddress \"address\" ( \"label\" rescan )\n"
@@ -244,7 +244,7 @@ UniValue importwallet(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "importwallet \"filename\"\n"
@@ -376,7 +376,7 @@ UniValue dumpprivkey(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "dumpprivkey \"t-addr\"\n"
@@ -418,7 +418,7 @@ UniValue z_exportwallet(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
-    
+
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "z_exportwallet \"filename\"\n"
@@ -647,14 +647,19 @@ UniValue z_importkey(const UniValue& params, bool fHelp)
     if (addResult == KeyAlreadyExists && fIgnoreExistingKey) {
         return NullUniValue;
     }
+
     pwalletMain->MarkDirty();
     if (addResult == KeyNotAdded) {
         throw JSONRPCError(RPC_WALLET_ERROR, "Error adding spending key to wallet");
     }
-    
+
+    //Add to ZAddress book
+    auto zInfo = boost::apply_visitor(libzcash::AddressInfoFromSpendingKey{}, spendingkey);
+    pwalletMain->SetZAddressBook(zInfo.second, zInfo.first, "");
+
     // whenever a key is imported, we need to scan the whole chain
     pwalletMain->nTimeFirstKey = 1; // 0 would be considered 'no value'
-    
+
     // We want to scan for transactions and notes
     if (fRescan) {
         pwalletMain->ScanForWalletTransactions(chainActive[nRescanHeight], true, true);
@@ -748,6 +753,9 @@ UniValue z_importviewingkey(const UniValue& params, bool fHelp)
   if (addResult == KeyNotAdded) {
       throw JSONRPCError(RPC_WALLET_ERROR, "Error adding viewing key to wallet");
   }
+
+  //Add to ZAddress book
+  pwalletMain->SetZAddressBook(addrInfo.second, addrInfo.first, "");
 
   // whenever a key is imported, we need to scan the whole chain
   pwalletMain->nTimeFirstKey = 1; // 0 would be considered 'no value'

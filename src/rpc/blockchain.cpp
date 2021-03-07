@@ -1229,7 +1229,7 @@ inline CBlockIndex* LookupBlockIndex(const uint256& hash)
 
 UniValue getchaintxstats(const UniValue& params, bool fHelp)
 {
-    //THROW_IF_SYNCING(KOMODO_INSYNC);
+    //THROW_IF_SYNCING(ZERO_INSYNC);
 
     if (fHelp || params.size() > 2)
         throw runtime_error(

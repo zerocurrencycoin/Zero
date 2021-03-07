@@ -7,6 +7,10 @@ src/zero-cli
 src/zero-gtest
 src/zero-tx
 src/test/test_bitcoin
+src/qt/zero-qt
+zero-qt-linux
+zero-qt-win.exe
+zero-qt-mac
 
 *zcashTest.pk
 *zcashTest.vk
@@ -78,6 +82,12 @@ src/test/buildenv.py
 
 # Resources cpp
 qrc_*.cpp
+
+#QT Files
+src/qt/moc_*.cpp
+src/qt/locale/*.qm
+src/qt/*.moc
+src/qt/forms/ui_*.h
 
 # Mac specific
 .DS_Store

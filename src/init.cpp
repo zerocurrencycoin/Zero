@@ -19,6 +19,7 @@
 #include "httpserver.h"
 #include "httprpc.h"
 #include "key.h"
+#include "params.h"
 #ifdef ENABLE_MINING
 #include "key_io.h"
 #endif
@@ -355,6 +356,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-blocknotify=<cmd>", _("Execute command when the best block changes (%s in cmd is replaced by block hash)"));
     strUsage += HelpMessageOpt("-checkblocks=<n>", strprintf(_("How many blocks to check at startup (default: %u, 0 = all)"), 288));
     strUsage += HelpMessageOpt("-checklevel=<n>", strprintf(_("How thorough the block verification of -checkblocks is (0-4, default: %u)"), 3));
+    strUsage += HelpMessageOpt("-clientname=<SomeName>", _("Full node client name, default 'Draco'"));
     strUsage += HelpMessageOpt("-conf=<file>", strprintf(_("Specify configuration file (default: %s)"), "zero.conf"));
     if (mode == HMM_BITCOIND)
     {
@@ -376,6 +378,7 @@ std::string HelpMessage(HelpMessageMode mode)
     // strUsage += HelpMessageOpt("-prune=<n>", strprintf(_("Reduce storage requirements by pruning (deleting) old blocks. This mode disables wallet support and is incompatible with -txindex. "
     //         "Warning: Reverting this setting requires re-downloading the entire blockchain. "
     //         "(default: 0 = disable pruning blocks, >%u = target size in MiB to use for block files)"), MIN_DISK_SPACE_FOR_BLOCK_FILES / 1024 / 1024));
+    strUsage += HelpMessageOpt("-bootstrap", _("Download and install bootstrap on startup (1 to show GUI prompt, 2 to force download when using CLI)"));
     strUsage += HelpMessageOpt("-reindex", _("Rebuild block chain index from current blk000??.dat files on startup"));
 #if !defined(WIN32)
     strUsage += HelpMessageOpt("-sysperms", _("Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)"));
@@ -579,13 +582,18 @@ std::string HelpMessage(HelpMessageMode mode)
     return strUsage;
 }
 
-static void BlockNotifyCallback(const uint256& hashNewTip)
+static void BlockNotifyCallback(bool initialSync, const CBlockIndex *pBlockIndex)
 {
-    std::string strCmd = GetArg("-blocknotify", "");
+    if (initialSync || !pBlockIndex)
+        return;
 
-    boost::replace_all(strCmd, "%s", hashNewTip.GetHex());
-    boost::thread t(runCommand, strCmd); // thread runs free
+    std::string strCmd = GetArg("-blocknotify", "");
+    if (!strCmd.empty()) {
+        boost::replace_all(strCmd, "%s", pBlockIndex->GetBlockHash().GetHex());
+        boost::thread t(runCommand, strCmd); // thread runs free
+    }
 }
+
 
 struct CImportingNow
 {
@@ -736,7 +744,7 @@ bool InitSanityCheck(void)
 
 
 static void ZC_LoadParams(
-    const CChainParams& chainparams
+    const CChainParams& chainparams, bool verified
 )
 {
     struct timeval tv_start, tv_end;
@@ -746,19 +754,17 @@ static void ZC_LoadParams(
     boost::filesystem::path sapling_output = ZC_GetParamsDir() / "sapling-output.params";
     boost::filesystem::path sprout_groth16 = ZC_GetParamsDir() / "sprout-groth16.params";
 
-    if (!(
-        boost::filesystem::exists(sapling_spend) &&
-        boost::filesystem::exists(sapling_output) &&
-        boost::filesystem::exists(sprout_groth16)
-    )) {
-        uiInterface.ThreadSafeMessageBox(strprintf(
-            _("Cannot find the Zero network parameters in the following directory:\n"
-              "%s\n"
-              "Please run 'zero-fetch-params' or './zcutil/fetch-params.sh' and then restart."),
-                ZC_GetParamsDir()),
-            "", CClientUIInterface::MSG_ERROR);
-        StartShutdown();
-        return;
+    if (!verified) {
+        if (!checkParams()) {
+          uiInterface.ThreadSafeMessageBox(strprintf(
+              _("Network parameters checksums failed:\n"
+                "%s\n"
+                "Please restart the wallet to re-download."),
+                  ZC_GetParamsDir()),
+              "", CClientUIInterface::MSG_ERROR);
+          StartShutdown();
+          return;
+        }
     }
 
     pzcashParams = ZCJoinSplit::Prepared();
@@ -1290,7 +1296,26 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     uiInterface.InitMessage(_("Initializing..."));
 
     // Initialize Zcash circuit parameters
-    ZC_LoadParams(chainparams);
+    uiInterface.InitMessage(_("Verifying Params..."));
+    initalizeMapParam();
+    bool paramsVerified = checkParams();
+    if(!paramsVerified) {
+        downloadFiles("Network Params");
+    }
+    if (fRequestShutdown)
+    {
+        LogPrintf("Shutdown requested. Exiting.\n");
+        return false;
+    }
+
+    ZC_LoadParams(chainparams, paramsVerified);
+
+
+    if (fRequestShutdown)
+    {
+        LogPrintf("Shutdown requested. Exiting.\n");
+        return false;
+    }
 
     if (mapArgs.count("-sporkkey")) // spork priv key
     {
@@ -1465,6 +1490,59 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // ********************************************************* Step 7: load block chain
 
     fReindex = GetBoolArg("-reindex", false);
+
+    bool useBootstrap = false;
+    bool newInstall = GetBoolArg("-bootstrapinstall", false);
+    if (!boost::filesystem::exists(GetDataDir() / "blocks") || !boost::filesystem::exists(GetDataDir() / "chainstate"))
+        newInstall = true;
+
+    //Prompt on new install
+    if (newInstall && !GetBoolArg("-bootstrap", false)) {
+        bool fBoot = uiInterface.ThreadSafeMessageBox(
+            "\n\n" + _("New install detected.\n\nPress OK to download the blockchain bootstrap."),
+            "", CClientUIInterface::ICON_INFORMATION | CClientUIInterface::MSG_INFORMATION | CClientUIInterface::MODAL | CClientUIInterface::BTN_OK | CClientUIInterface::BTN_CANCEL);
+        if (fBoot) {
+            useBootstrap = true;
+        }
+    }
+
+    //Prompt GUI
+    if (GetBoolArg("-bootstrap", false) && GetArg("-bootstrap", "1") != "2" && !useBootstrap) {
+        bool fBoot = uiInterface.ThreadSafeMessageBox(
+            "\n\n" + _("Bootstrap option detected.\n\nPress OK to download the blockchain bootstrap."),
+            "", CClientUIInterface::ICON_INFORMATION | CClientUIInterface::MSG_INFORMATION | CClientUIInterface::MODAL | CClientUIInterface::BTN_OK | CClientUIInterface::BTN_CANCEL);
+        if (fBoot) {
+            useBootstrap = true;
+        }
+    }
+
+    //Force Download- used for CLI
+    if (GetBoolArg("-bootstrap", false) && GetArg("-bootstrap", "1") == "2") {
+        useBootstrap = true;
+    }
+
+    if (useBootstrap) {
+        fReindex = false;
+        //wipe transactions from wallet to create a clean slate
+        OverrideSetArg("-zappwallettxes","2");
+        boost::filesystem::remove_all(GetDataDir() / "blocks");
+        boost::filesystem::remove_all(GetDataDir() / "chainstate");
+        if (!getBootstrap() && !fRequestShutdown ) {
+            bool keepRunning = uiInterface.ThreadSafeMessageBox(
+                "\n\n" + _("Bootstrap download failed!!!\n\nPress OK to continue and sync from the network."),
+                "", CClientUIInterface::ICON_INFORMATION | CClientUIInterface::MSG_INFORMATION | CClientUIInterface::MODAL | CClientUIInterface::BTN_OK | CClientUIInterface::BTN_CANCEL);
+
+            if (!keepRunning) {
+                fRequestShutdown = true;
+            }
+        }
+    }
+
+    if (fRequestShutdown)
+    {
+        LogPrintf("Shutdown requested. Exiting.\n");
+        return false;
+    }
 
     // Upgrading to 0.8; hard-link the old blknnnn.dat files into /blocks/
     boost::filesystem::path blocksDir = GetDataDir() / "blocks";
@@ -1815,7 +1893,6 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
         }
 
-
         if (GetBoolArg("-upgradewallet", fFirstRun))
         {
             int nMaxVersion = GetArg("-upgradewallet", 0);
@@ -1839,6 +1916,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             if (!pwalletMain->IsCrypted()) {
                 // generate a new HD seed
                 pwalletMain->GenerateNewSeed();
+
+                // generate 1 address
+                auto zAddress = pwalletMain->GenerateNewSaplingZKey();
+                pwalletMain->SetZAddressBook(zAddress, "z-sapling", "");
             }
         }
 
@@ -1924,6 +2005,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
         if (fFirstRun)
         {
+            useBootstrap = false;
             // Create new keyUser and set as default key
             CPubKey newDefaultKey;
             if (pwalletMain->GetKeyFromPool(newDefaultKey)) {
@@ -1941,7 +2023,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         RegisterValidationInterface(pwalletMain);
 
         CBlockIndex *pindexRescan = chainActive.Tip();
-        if (clearWitnessCaches || GetBoolArg("-rescan", false) || !fInitializeArcTx)
+        if (clearWitnessCaches || GetBoolArg("-rescan", false) || !fInitializeArcTx || useBootstrap)
         {
             pwalletMain->ClearNoteWitnessCache();
             pindexRescan = chainActive.Genesis();
@@ -1991,6 +2073,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             }
         }
         pwalletMain->SetBroadcastTransactions(GetBoolArg("-walletbroadcast", true));
+
+        vpwallets.push_back(pwalletMain);
     } // (!fDisableWallet)
 #else // ENABLE_WALLET
     LogPrintf("No wallet support compiled in!\n");

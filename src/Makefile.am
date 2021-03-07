@@ -32,11 +32,12 @@ BITCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj $(BDB_CPPFLAGS) $(BOOST_CPPFLAG
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += -I$(srcdir)/univalue/include
 
-LIBBITCOIN_SERVER=libbitcoin_server.a
+LIBBITCOIN_SERVER=libbitcoin_server.a -lcurl -larchive
 LIBBITCOIN_COMMON=libbitcoin_common.a
 LIBBITCOIN_CLI=libbitcoin_cli.a
 LIBBITCOIN_UTIL=libbitcoin_util.a
 LIBBITCOIN_CRYPTO=crypto/libbitcoin_crypto.a
+LIBBITCOINQT=qt/libzeroqt.a
 LIBSECP256K1=secp256k1/libsecp256k1.la
 LIBUNIVALUE=univalue/libunivalue.la
 LIBZCASH=libzcash.a
@@ -107,6 +108,7 @@ BITCOIN_CORE_H = \
 	addressindex.h \
 	zeronode/activezeronode.h \
   addrman.h \
+	addrdb.h \
   alert.h \
   amount.h \
   amqp/amqpabstractnotifier.h \
@@ -141,6 +143,7 @@ BITCOIN_CORE_H = \
   core_io.h \
   core_memusage.h \
   deprecation.h \
+	fs.h \
   hash.h \
   httprpc.h \
   httpserver.h \
@@ -166,6 +169,7 @@ BITCOIN_CORE_H = \
   netbase.h \
   noui.h \
 	zeronode/obfuscation.h \
+	params.h \
   policy/fees.h \
   pow.h \
   prevector.h \
@@ -253,6 +257,7 @@ libbitcoin_server_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_server_a_SOURCES = \
   sendalert.cpp \
   addrman.cpp \
+	addrdb.cpp \
   alert.cpp \
   alertkeys.h \
   asyncrpcoperation.cpp \
@@ -260,6 +265,7 @@ libbitcoin_server_a_SOURCES = \
   bloom.cpp \
   chain.cpp \
   checkpoints.cpp \
+	fs.cpp \
   deprecation.cpp \
   httprpc.cpp \
   httpserver.cpp \
@@ -271,6 +277,7 @@ libbitcoin_server_a_SOURCES = \
   miner.cpp \
   net.cpp \
   noui.cpp \
+	params.cpp \
   policy/fees.cpp \
   pow.cpp \
   rest.cpp \
@@ -634,4 +641,8 @@ endif
 if ENABLE_TESTS
 include Makefile.test.include
 include Makefile.gtest.include
+endif
+
+if ENABLE_QT
+include Makefile.qt.include
 endif

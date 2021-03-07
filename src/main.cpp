@@ -3754,6 +3754,27 @@ static bool ActivateBestChainStep(CValidationState& state, const CChainParams& c
     return true;
 }
 
+static void NotifyHeaderTip() {
+    bool fNotify = false;
+    bool fInitialBlockDownload = false;
+    static CBlockIndex* pindexHeaderOld = nullptr;
+    CBlockIndex* pindexHeader = nullptr;
+    {
+        LOCK(cs_main);
+        pindexHeader = pindexBestHeader;
+
+        if (pindexHeader != pindexHeaderOld) {
+            fNotify = true;
+            fInitialBlockDownload = IsInitialBlockDownload(Params());
+            pindexHeaderOld = pindexHeader;
+        }
+    }
+    // Send block tip changed notifications without cs_main
+    if (fNotify) {
+        uiInterface.NotifyHeaderTip(fInitialBlockDownload, pindexHeader);
+    }
+}
+
 /**
  * Make the best chain active, in multiple steps. The result is either failure
  * or an activated best chain. pblock is either NULL or a pointer to a block
@@ -3766,9 +3787,16 @@ bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams,
     do {
         boost::this_thread::interruption_point();
 
+        if (ShutdownRequested())
+            break;
+
+        // const CBlockIndex *pindexFork;
+
         bool fInitialDownload;
         {
             LOCK(cs_main);
+            // CBlockIndex *pindexOldTip = chainActive.Tip();
+
             pindexMostWork = FindMostWorkChain();
 
             // Whether we have anything to do at all.
@@ -3784,7 +3812,7 @@ bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams,
         // When we reach this point, we switched to a new tip (stored in pindexNewTip).
 
         // Notifications/callbacks that can run without cs_main
-        if (!fInitialDownload) {
+        // if (!fInitialDownload) {
             uint256 hashNewTip = pindexNewTip->GetBlockHash();
             // Relay inventory, but don't relay old inventory during initial block download.
             int nBlockEstimate = 0;
@@ -3798,8 +3826,10 @@ bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams,
             }
             // Notify external listeners about the new tip.
             GetMainSignals().UpdatedBlockTip(pindexNewTip);
-            uiInterface.NotifyBlockTip(hashNewTip);
-        }
+            // if (pindexFork != pindexNewTip) {
+                uiInterface.NotifyBlockTip(fInitialDownload, pindexNewTip);
+            // }
+        // }
     } while(pindexMostWork != chainActive.Tip());
     CheckBlockIndex(chainparams.GetConsensus());
 
@@ -4675,6 +4705,8 @@ bool ProcessNewBlock(CValidationState& state, const CChainParams& chainparams, c
             budget.NewBlock();
         }
     }
+    NotifyHeaderTip();
+
     return true;
 }
 
@@ -4893,6 +4925,10 @@ bool static LoadBlockIndexDB()
         vSortedByHeight.push_back(make_pair(pindex->nHeight, pindex));
     }
     sort(vSortedByHeight.begin(), vSortedByHeight.end());
+
+    uiInterface.ShowProgress(_("Loading block index DB..."), 0, false);
+    int cur_height_num = 0;
+
     BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item, vSortedByHeight)
     {
         CBlockIndex* pindex = item.second;
@@ -4998,7 +5034,13 @@ bool static LoadBlockIndexDB()
             pindex->BuildSkip();
         if (pindex->IsValid(BLOCK_VALID_TREE) && (pindexBestHeader == NULL || CBlockIndexWorkComparator()(pindexBestHeader, pindex)))
             pindexBestHeader = pindex;
+
+        uiInterface.ShowProgress(_("Loading block index DB..."), (int)((double)(cur_height_num*100)/(double)(vSortedByHeight.size())), false);
+        cur_height_num++;
     }
+
+    uiInterface.ShowProgress("", 100, false);
+    //fprintf(stderr,"load blockindexDB chained %u\n",(uint32_t)time(NULL));
 
     // Load block file info
     pblocktree->ReadLastBlockFile(nLastBlockFile);
@@ -5027,13 +5069,27 @@ bool static LoadBlockIndexDB()
             setBlkDataFiles.insert(pindex->nFile);
         }
     }
+    //fprintf(stderr,"load blockindexDB %u\n",(uint32_t)time(NULL));
+
+    int64_t count = 0; int reportDone = 0;
+    uiInterface.ShowProgress(_("Checking all blk files are present..."), 0, false);
     for (std::set<int>::iterator it = setBlkDataFiles.begin(); it != setBlkDataFiles.end(); it++)
     {
         CDiskBlockPos pos(*it, 0);
         if (CAutoFile(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION).IsNull()) {
             return false;
         }
+        count++;
+        int percentageDone = (int)(count * 100.0 / setBlkDataFiles.size() + 0.5);
+        if (reportDone < percentageDone/10) {
+            // report max. every 10% step
+            LogPrintf("[%d%%]...", percentageDone); /* Continued */
+            uiInterface.ShowProgress(_("Checking all blk files are present..."), percentageDone, false);
+            reportDone = percentageDone/10;
+        }
     }
+    LogPrintf("[%s].\n", "DONE");
+    uiInterface.ShowProgress("", 100, false);
 
     // Check whether we have ever pruned block & undo files
     pblocktree->ReadFlag("prunedblockfiles", fHavePruned);
@@ -5097,12 +5153,12 @@ bool static LoadBlockIndexDB()
 
 CVerifyDB::CVerifyDB()
 {
-    uiInterface.ShowProgress(_("Verifying blocks..."), 0);
+    uiInterface.ShowProgress(_("Verifying blocks..."), 0, false);
 }
 
 CVerifyDB::~CVerifyDB()
 {
-    uiInterface.ShowProgress("", 100);
+    uiInterface.ShowProgress("", 100, false);
 }
 
 bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview, int nCheckLevel, int nCheckDepth)
@@ -5128,7 +5184,7 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
     for (CBlockIndex* pindex = chainActive.Tip(); pindex && pindex->pprev; pindex = pindex->pprev)
     {
         boost::this_thread::interruption_point();
-        uiInterface.ShowProgress(_("Verifying blocks..."), std::max(1, std::min(99, (int)(((double)(chainActive.Height() - pindex->nHeight)) / (double)nCheckDepth * (nCheckLevel >= 4 ? 50 : 100)))));
+        uiInterface.ShowProgress(_("Verifying blocks..."), std::max(1, std::min(99, (int)(((double)(chainActive.Height() - pindex->nHeight)) / (double)nCheckDepth * (nCheckLevel >= 4 ? 50 : 100)))), false);
         if (pindex->nHeight < chainActive.Height()-nCheckDepth)
             break;
         CBlock block;
@@ -5173,7 +5229,7 @@ bool CVerifyDB::VerifyDB(const CChainParams& chainparams, CCoinsView *coinsview,
         CBlockIndex *pindex = pindexState;
         while (pindex != chainActive.Tip()) {
             boost::this_thread::interruption_point();
-            uiInterface.ShowProgress(_("Verifying blocks..."), std::max(1, std::min(99, 100 - (int)(((double)(chainActive.Height() - pindex->nHeight)) / (double)nCheckDepth * 50))));
+            uiInterface.ShowProgress(_("Verifying blocks..."), std::max(1, std::min(99, 100 - (int)(((double)(chainActive.Height() - pindex->nHeight)) / (double)nCheckDepth * 50))), false);
             pindex = chainActive.Next(pindex);
             CBlock block;
             if (!ReadBlockFromDisk(block, pindex, chainparams.GetConsensus()))
@@ -5508,6 +5564,8 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                     LogPrintf("Block Import: already had block %s at height %d\n", hash.ToString(), mapBlockIndex[hash]->nHeight);
                 }
 
+                NotifyHeaderTip();
+
                 // Recursively process earlier encountered successors of this block
                 deque<uint256> queue;
                 queue.push_back(hash);
@@ -5530,6 +5588,7 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                         }
                         range.first++;
                         mapBlocksUnknownParent.erase(it);
+                        NotifyHeaderTip();
                     }
                 }
             } catch (const std::exception& e) {
@@ -5735,57 +5794,66 @@ void static CheckBlockIndex(const Consensus::Params& consensusParams)
 
 std::string GetWarnings(const std::string& strFor)
 {
-    int nPriority = 0;
-    string strStatusBar;
-    string strRPC;
+  int nPriority = 0;
+  string strStatusBar;
+  string strRPC;
+  string strGUI;
+  const std::string uiAlertSeperator = "<hr />";
 
-    if (!CLIENT_VERSION_IS_RELEASE)
-        strStatusBar = _("This is a pre-release test build - use at your own risk - do not use for mining or merchant applications");
+  if (!CLIENT_VERSION_IS_RELEASE) {
+      strStatusBar = _("This is a pre-release test build - use at your own risk - do not use for mining or merchant applications");
+      strGUI = _("This is a pre-release test build - use at your own risk - do not use for mining or merchant applications");
+  }
 
-    if (GetBoolArg("-testsafemode", false))
-        strStatusBar = strRPC = "testsafemode enabled";
+  if (GetBoolArg("-testsafemode", false))
+      strStatusBar = strRPC = "testsafemode enabled";
 
-    // Misc warnings like out of disk space and clock is wrong
-    if (strMiscWarning != "")
-    {
-        nPriority = 1000;
-        strStatusBar = strMiscWarning;
-    }
+  // Misc warnings like out of disk space and clock is wrong
+  if (strMiscWarning != "")
+  {
+      nPriority = 1000;
+      strStatusBar = strMiscWarning;
+      strGUI += (strGUI.empty() ? "" : uiAlertSeperator) + strMiscWarning;
+  }
 
-    if (fLargeWorkForkFound)
-    {
-        nPriority = 2000;
-        strStatusBar = strRPC = _("Warning: The network does not appear to fully agree! Some miners appear to be experiencing issues.");
-    }
-    else if (fLargeWorkInvalidChainFound)
-    {
-        nPriority = 2000;
-        strStatusBar = strRPC = _("Warning: We do not appear to fully agree with our peers! You may need to upgrade, or other nodes may need to upgrade.");
-    }
+  if (fLargeWorkForkFound)
+  {
+      nPriority = 2000;
+      strStatusBar = strRPC = _("Warning: The network does not appear to fully agree! Some miners appear to be experiencing issues.");
+      strGUI += (strGUI.empty() ? "" : uiAlertSeperator) + _("Warning: The network does not appear to fully agree! Some miners appear to be experiencing issues.");
+  }
+  else if (fLargeWorkInvalidChainFound)
+  {
+      nPriority = 2000;
+      strStatusBar = strRPC = _("Warning: We do not appear to fully agree with our peers! You may need to upgrade, or other nodes may need to upgrade.");
+      strGUI += (strGUI.empty() ? "" : uiAlertSeperator) + _("Warning: We do not appear to fully agree with our peers! You may need to upgrade, or other nodes may need to upgrade.");
+  }
 
-    // Alerts
-    {
-        LOCK(cs_mapAlerts);
-        BOOST_FOREACH(PAIRTYPE(const uint256, CAlert)& item, mapAlerts)
-        {
-            const CAlert& alert = item.second;
-            if (alert.AppliesToMe() && alert.nPriority > nPriority)
-            {
-                nPriority = alert.nPriority;
-                strStatusBar = alert.strStatusBar;
-                if (alert.nPriority >= ALERT_PRIORITY_SAFE_MODE) {
-                    strRPC = alert.strRPCError;
-                }
-            }
-        }
-    }
+  // Alerts
+  {
+      LOCK(cs_mapAlerts);
+      BOOST_FOREACH(PAIRTYPE(const uint256, CAlert)& item, mapAlerts)
+      {
+          const CAlert& alert = item.second;
+          if (alert.AppliesToMe() && alert.nPriority > nPriority)
+          {
+              nPriority = alert.nPriority;
+              strStatusBar = alert.strStatusBar;
+              if (alert.nPriority >= ALERT_PRIORITY_SAFE_MODE) {
+                  strRPC = alert.strRPCError;
+              }
+          }
+      }
+  }
 
-    if (strFor == "statusbar")
-        return strStatusBar;
-    else if (strFor == "rpc")
-        return strRPC;
-    assert(!"GetWarnings(): invalid parameter");
-    return "error";
+  if (strFor == "gui")
+      return strGUI;
+  else if (strFor == "statusbar")
+      return strStatusBar;
+  else if (strFor == "rpc")
+      return strRPC;
+  assert(!"GetWarnings(): invalid parameter");
+  return "error";
 }
 
 
@@ -7258,7 +7326,7 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
                     LogPrintf("Warning: not banning local peer %s!\n", pto->addr.ToString());
                 else
                 {
-                    CNode::Ban(pto->addr);
+                    CNode::Ban(pto->addr, BanReasonNodeMisbehaving);
                 }
             }
             state.fShouldBan = false;

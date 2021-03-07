@@ -13,6 +13,7 @@
 #include "streams.h"
 #include "uint256.h"
 #include "consensus/consensus.h"
+#include "version.h"
 
 #include <array>
 
@@ -26,6 +27,8 @@
 #define JOINSPLIT_SIZE GetSerializeSize(JSDescription(), SER_NETWORK, PROTOCOL_VERSION)
 #define OUTPUTDESCRIPTION_SIZE GetSerializeSize(OutputDescription(), SER_NETWORK, PROTOCOL_VERSION)
 #define SPENDDESCRIPTION_SIZE GetSerializeSize(SpendDescription(), SER_NETWORK, PROTOCOL_VERSION)
+
+static const int SERIALIZE_TRANSACTION_NO_WITNESS = 0x40000000;
 
 // Overwinter transaction version
 static const int32_t OVERWINTER_TX_VERSION = 3;

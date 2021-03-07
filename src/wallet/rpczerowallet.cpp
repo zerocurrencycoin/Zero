@@ -414,6 +414,7 @@ void getAllSaplingIVKs(vector<uint256> &ivks, bool fIncludeWatchonly) {
 
 void getRpcArcTx(uint256 &txid, RpcArcTransaction &arcTx, vector<uint256> &ivks, vector<uint256> &ovks, bool fIncludeWatchonly) {
 
+    arcTx.archiveType = ARCHIVED;
     arcTx.txid = txid;
 
     CTransaction tx;
@@ -490,6 +491,7 @@ void getRpcArcTx(uint256 &txid, RpcArcTransaction &arcTx, vector<uint256> &ivks,
 
 void getRpcArcTx(CWalletTx &tx, RpcArcTransaction &arcTx, vector<uint256> &ivks, vector<uint256> &ovks, bool fIncludeWatchonly) {
 
+    arcTx.archiveType = ACTIVE;
     arcTx.txid = tx.GetHash();
     arcTx.blockIndex = tx.nIndex;
     arcTx.blockHash = tx.hashBlock;
@@ -1102,6 +1104,10 @@ UniValue zs_gettransaction(const UniValue& params, bool fHelp)
     }
 
     UniValue txObj(UniValue::VOBJ);
+    if (arcTx.blockHash.IsNull() || mapBlockIndex[arcTx.blockHash] == nullptr) {
+        return txObj;
+    }
+    
     getRpcArcTxJSONHeader(arcTx, txObj);
 
     UniValue spends(UniValue::VARR);
@@ -1440,7 +1446,6 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
         "   \"blockhash\": \"hashvalue\",           (string)  The block hash containing the transaction\n"
         "   \"blockindex\": n,                    (numeric) The block index containing the transaction\n"
         "   \"blocktime\": n,                     (numeric) The block time in seconds of the block containing the transaction, 0 for unconfirmed transactions\n"
-        "   \"rawconfirmations\": n,              (numeric) The number of onchain confirmations for the transaction\n"
         "   \"confirmations\": n,                 (numeric) The number of dpow confirmations for the transaction\n"
         "   \"time\": xxx,                        (numeric) The transaction time in seconds of the transaction\n"
         "   \"expiryHeight\": n,                  (numeric) The expiry height of the transaction\n"

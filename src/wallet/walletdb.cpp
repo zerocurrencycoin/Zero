@@ -611,8 +611,9 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             ssKey >> vk;
             char fYes;
             ssValue >> fYes;
-            if (fYes == '1')
+            if (fYes == '1') {
                 pwallet->LoadSproutViewingKey(vk);
+            }
 
             // Viewing keys have no birthday information for now,
             // so set the wallet birthday to the beginning of time.
@@ -631,6 +632,9 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
                 return false;
             }
 
+            pwallet->mapZAddressBook[addr].name = "z-sprout";
+            pwallet->mapZAddressBook[addr].purpose = "unknown";
+
             wss.nZKeys++;
         }
         else if (strType == "sapzkey")
@@ -646,6 +650,9 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
                 return false;
             }
 
+            pwallet->mapZAddressBook[key.DefaultAddress()].name = "z-sapling";
+            pwallet->mapZAddressBook[key.DefaultAddress()].purpose = "unknown";
+
             //add checks for integrity
             wss.nZKeys++;
         }
@@ -657,7 +664,11 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             ssValue >> fYes;
             if (fYes == '1') {
                 pwallet->LoadSaplingFullViewingKey(extfvk);
+                pwallet->LoadSaplingWatchOnly(extfvk);
             }
+
+            pwallet->mapZAddressBook[extfvk.DefaultAddress()].name = "z-sapling";
+            pwallet->mapZAddressBook[extfvk.DefaultAddress()].purpose = "unknown";
 
             // Viewing keys have no birthday information for now,
             // so set the wallet birthday to the beginning of time.
@@ -775,6 +786,10 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
                 strErr = "Error reading wallet database: LoadCryptedZKey failed";
                 return false;
             }
+
+            pwallet->mapZAddressBook[addr].name = "z-sprout";
+            pwallet->mapZAddressBook[addr].purpose = "unknown";
+
             wss.fIsEncrypted = true;
         }
         else if (strType == "csapzkey")
@@ -792,6 +807,10 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
                 strErr = "Error reading wallet database: LoadCryptedSaplingZKey failed";
                 return false;
             }
+
+            pwallet->mapZAddressBook[extfvk.DefaultAddress()].name = "z-sapling";
+            pwallet->mapZAddressBook[extfvk.DefaultAddress()].purpose = "unknown";
+
             wss.fIsEncrypted = true;
         }
         else if (strType == "keymeta")
@@ -818,6 +837,9 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             wss.nZKeyMeta++;
 
             pwallet->LoadZKeyMetadata(addr, keyMeta);
+
+            pwallet->mapZAddressBook[addr].name = "z-sprout";
+            pwallet->mapZAddressBook[addr].purpose = "unknown";
 
             // ignore earliest key creation time as taddr will exist before any zaddr
         }
@@ -846,6 +868,9 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
                 strErr = "Error reading wallet database: LoadSaplingPaymentAddress failed";
                 return false;
             }
+
+            pwallet->mapZAddressBook[addr].name = "z-sapling";
+            pwallet->mapZAddressBook[addr].purpose = "unknown";
         }
         else if (strType == "defaultkey")
         {

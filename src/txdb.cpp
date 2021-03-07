@@ -11,6 +11,9 @@
 #include "pow.h"
 #include "uint256.h"
 
+#include "ui_interface.h"
+#include "init.h"
+
 #include <stdint.h>
 
 #include <boost/thread.hpp>
@@ -461,12 +464,29 @@ bool CBlockTreeDB::LoadBlockIndexGuts(boost::function<CBlockIndex*(const uint256
     boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
 
     pcursor->Seek(make_pair(DB_BLOCK_INDEX, uint256()));
+    int64_t count = 0; int reportDone = 0;
+    uiInterface.ShowProgress(_("Loading guts..."), 0, false);
 
     // Load mapBlockIndex
     while (pcursor->Valid()) {
         boost::this_thread::interruption_point();
+        if (ShutdownRequested()) return false;
+
         std::pair<char, uint256> key;
+
         if (pcursor->GetKey(key) && key.first == DB_BLOCK_INDEX) {
+
+            if (count++ % 256 == 0) {
+                uint32_t high = 0x100 * *key.second.begin() + *(key.second.begin() + 1);
+                int percentageDone = (int)(high * 100.0 / 65536.0 + 0.5);
+                uiInterface.ShowProgress(_("Loading guts..."), percentageDone, false);
+                if (reportDone < percentageDone/10) {
+                    // report max. every 10% step
+                    LogPrintf("[%d%%]...", percentageDone); /* Continued */
+                    reportDone = percentageDone/10;
+                }
+            }
+
             CDiskBlockIndex diskindex;
             if (pcursor->GetValue(diskindex)) {
                 // Construct block index object
@@ -506,6 +526,9 @@ bool CBlockTreeDB::LoadBlockIndexGuts(boost::function<CBlockIndex*(const uint256
             break;
         }
     }
+
+    uiInterface.ShowProgress("", 100, false);
+    LogPrintf("[%s].\n", ShutdownRequested() ? "CANCELLED" : "DONE");
 
     return true;
 }

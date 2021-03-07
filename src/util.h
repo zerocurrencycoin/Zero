@@ -29,6 +29,9 @@
 #include <boost/signals2/signal.hpp>
 #include <boost/thread/exceptions.hpp>
 
+// Application startup time (used for uptime calculation)
+int64_t GetStartupTime();
+
 static const bool DEFAULT_LOGTIMEMICROS = false;
 static const bool DEFAULT_LOGIPS        = false;
 static const bool DEFAULT_LOGTIMESTAMPS = true;
@@ -198,6 +201,22 @@ int64_t GetArg(const std::string& strArg, int64_t nDefault);
 bool GetBoolArg(const std::string& strArg, bool fDefault);
 
 /**
+ * Return true if the given argument has been manually set
+ *
+ * @param strArg Argument to get (e.g. "-foo")
+ * @return true if the argument has been set
+ */
+bool IsArgSet(const std::string& strArg);
+
+/**
+ * Set an argument even if it already has a value
+ *
+ * @param strArg Argument to set (e.g. "-foo")
+ * @param strValue Value (e.g. "1")
+ */
+void OverrideSetArg(const std::string& strArg, const std::string& strValue);
+
+/**
  * Set an argument if it doesn't already have a value
  *
  * @param strArg Argument to set (e.g. "-foo")
@@ -238,6 +257,8 @@ std::string HelpMessageOpt(const std::string& option, const std::string& message
  * when boost is newer than 1.56.
  */
 int GetNumCores();
+
+std::string CopyrightHolders(const std::string& strPrefix);
 
 void SetThreadPriority(int nPriority);
 void RenameThread(const char* name);

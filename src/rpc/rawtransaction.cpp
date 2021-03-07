@@ -1347,11 +1347,11 @@ UniValue z_buildrawtransaction(const UniValue& params, bool fHelp)
 
 }
 
-UniValue z_createbuildinstuctions(const UniValue& params, bool fHelp)
+UniValue z_createbuildinstructions(const UniValue& params, bool fHelp)
 {
   if (fHelp)
       throw runtime_error(
-          "z_createbuildinstuctions \n"
+          "z_createbuildinstructions \n"
           "\nExamples:\n"
 
           "\nArguments:\n"
@@ -1366,8 +1366,8 @@ UniValue z_createbuildinstuctions(const UniValue& params, bool fHelp)
           "2. \"outputs\"               (array, required) A json array of json output objects\n"
           "     [\n"
           "       {\n"
-          "         \"address\":address     (string, required) Pirate zaddr\n"
-          "         \"amount\":amount       (numeric, required) The numeric amount in ARRR\n"
+          "         \"address\":address     (string, required) Zero zaddr\n"
+          "         \"amount\":amount       (numeric, required) The numeric amount in ZER\n"
           "         \"memo\": \"string\"    (string, optional) String memo in UTF8 ro Hexidecimal format\n"
           "         ,...\n"
           "       }\n"
@@ -1378,7 +1378,7 @@ UniValue z_createbuildinstuctions(const UniValue& params, bool fHelp)
           "\"transaction\"            (string) hex string of the transaction\n"
 
 
-          + HelpExampleCli("z_createbuildinstuctions", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"index\\\":0\\\"type\\\":\\\"sapling\\\"},...]\"")
+          + HelpExampleCli("z_createbuildinstructions", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"index\\\":0\\\"type\\\":\\\"sapling\\\"},...]\"")
       );
 
     LOCK(cs_main);
@@ -1557,7 +1557,7 @@ static const CRPCCommand commands[] =
     { "rawtransactions",    "sendrawtransaction",       &sendrawtransaction,        false },
     { "rawtransactions",    "signrawtransaction",       &signrawtransaction,        false }, /* uses wallet if enabled */
 
-    { "rawtransactions",    "z_createbuildinstuctions", &z_createbuildinstuctions,  true  }, /* uses wallet if enabled */
+    { "rawtransactions",    "z_createbuildinstructions", &z_createbuildinstructions,  true  }, /* uses wallet if enabled */
     { "rawtransactions",    "z_buildrawtransaction",    &z_buildrawtransaction,     false }, /* uses wallet if enabled */
 
     { "blockchain",         "gettxoutproof",            &gettxoutproof,             true  },

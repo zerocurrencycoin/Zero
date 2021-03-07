@@ -159,6 +159,10 @@ bool AsyncRPCOperation_saplingconsolidation::main_impl() {
             if (fromNotes.size() < minQuantity)
               continue;
 
+            CAmount fee = fConsolidationTxFee;
+            if (amountToSend <= fConsolidationTxFee) {
+              fee = 0;
+            }
             amountConsolidated += amountToSend;
             auto builder = TransactionBuilder(consensusParams, targetHeight_, pwalletMain, pzcashParams, &coinsView, &cs_main);
             builder.SetExpiryHeight(targetHeight_ + CONSOLIDATION_EXPIRY_DELTA);
@@ -198,9 +202,9 @@ bool AsyncRPCOperation_saplingconsolidation::main_impl() {
                 break;
             }
 
-            pwalletMain->CommitConsolidationTx(tx);
+            pwalletMain->CommitAutomatedTx(tx);
             LogPrint("zrpcunsafe", "%s: Committed consolidation transaction with txid=%s\n", getId(), tx.GetHash().ToString());
-            amountConsolidated += amountToSend - fConsolidationTxFee;
+            amountConsolidated += amountToSend - fee;
             consolidationTxIds.push_back(tx.GetHash().ToString());
 
         }
