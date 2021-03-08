@@ -714,6 +714,8 @@ QVariant TransactionTableModel::data(const QModelIndex &index, int role) const
             return formatTxDate(rec);
         case Type:
             return formatTxType(rec);
+        case FromAddress:
+            return QString::fromStdString(rec->spentFrom);
         case ToAddress:
             return formatTxToAddress(rec, false);
         case Amount:

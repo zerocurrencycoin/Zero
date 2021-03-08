@@ -37,6 +37,18 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
 
     std::string spendingAddress = "";
 
+    for (int i = 0; i < arcTx.vTSpend.size(); i++) {
+        spendingAddress = arcTx.vTSpend[i].encodedAddress;
+    }
+
+    for (int i = 0; i < arcTx.vZcSpend.size(); i++) {
+        spendingAddress = arcTx.vZcSpend[i].encodedAddress;
+    }
+
+    for (int i = 0; i < arcTx.vZsSpend.size(); i++) {
+        spendingAddress = arcTx.vZsSpend[i].encodedAddress;
+    }
+
     if (arcTx.spentFrom.size() > 0) {
 
         for (int i = 0; i < arcTx.vTSend.size(); i++) {
@@ -44,10 +56,9 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
             tx.archiveType = arcTx.archiveType;
             tx.hash = arcTx.txid;
             tx.time = arcTx.nTime;
-            tx.spentFrom = arcTx.vTSend[i].encodedAddress;
-            spendingAddress = arcTx.vTSend[i].encodedAddress;
+            tx.spentFrom = spendingAddress;
             tx.address = arcTx.vTSend[i].encodedAddress;
-            tx.debit = arcTx.vTSend[i].amount;
+            tx.debit = -arcTx.vTSend[i].amount;
             tx.idx = arcTx.vTSend[i].vout;
 
             bool change = arcTx.spentFrom.size() > 0 && arcTx.spentFrom.find(arcTx.vTSend[i].encodedAddress) != arcTx.spentFrom.end();
@@ -68,7 +79,6 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
             tx.archiveType = arcTx.archiveType;
             tx.hash = arcTx.txid;
             tx.time = arcTx.nTime;
-            tx.spentFrom = spendingAddress;
             tx.address = arcTx.vZcReceived[i].encodedAddress;
             tx.credit = -arcTx.vZcReceived[i].amount;
             tx.idx = arcTx.vZcReceived[i].jsOutIndex;
@@ -90,7 +100,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
             tx.time = arcTx.nTime;
             tx.spentFrom = spendingAddress;
             tx.address = "Private Sprout Address";
-            tx.credit = -arcTx.sproutValue - arcTx.sproutValueSpent;
+            tx.debit = -(arcTx.sproutValue - arcTx.sproutValueSpent);
             tx.type = TransactionRecord::SendToAddress;
             parts.append(tx);
         }
@@ -102,7 +112,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
             tx.time = arcTx.nTime;
             tx.spentFrom = spendingAddress;
             tx.address = arcTx.vZsSend[i].encodedAddress;
-            tx.credit = -arcTx.vZsSend[i].amount;
+            tx.debit = -arcTx.vZsSend[i].amount;
             tx.idx = arcTx.vZsSend[i].shieldedOutputIndex;
             if (arcTx.vZsSend[i].memoStr.length() != 0) {
                 tx.memo = arcTx.vZsSend[i].memoStr;
