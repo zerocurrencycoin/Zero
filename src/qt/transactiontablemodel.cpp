@@ -167,7 +167,7 @@ public:
 
                 cachedWallet.append(TransactionRecord::decomposeTransaction(arcTx));
 
-                if (cachedWallet.size() >= 50000) break;
+                // if (cachedWallet.size() >= 50000) break;
             }
         }
     }
