@@ -118,6 +118,7 @@ public:
     uint256 hash;
     qint64 time;
     Type type;
+    CAmount txFee;
     std::string spentFrom;
     std::string address;
     CAmount debit;

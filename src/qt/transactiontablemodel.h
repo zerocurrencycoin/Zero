@@ -57,6 +57,8 @@ public:
         FromAddressRole,
         /** Address of transaction */
         AddressRole,
+        /** Transaction Fee **/
+        FeeRole,
         /** Label of address related to transaction */
         LabelRole,
         /** Net amount of transaction */

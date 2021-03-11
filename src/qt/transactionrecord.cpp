@@ -37,6 +37,10 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
 
     std::string spendingAddress = "";
 
+    CAmount txFee = 0;
+    if (!arcTx.coinbase)
+        txFee = arcTx.transparentValue + arcTx.sproutValue + arcTx.saplingValue;
+
     for (int i = 0; i < arcTx.vTSpend.size(); i++) {
         spendingAddress = arcTx.vTSpend[i].encodedAddress;
     }
@@ -60,6 +64,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
             tx.address = arcTx.vTSend[i].encodedAddress;
             tx.debit = -arcTx.vTSend[i].amount;
             tx.idx = arcTx.vTSend[i].vout;
+            tx.txFee = txFee;
 
             bool change = arcTx.spentFrom.size() > 0 && arcTx.spentFrom.find(arcTx.vTSend[i].encodedAddress) != arcTx.spentFrom.end();
             if (change) {
@@ -82,6 +87,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
             tx.address = arcTx.vZcReceived[i].encodedAddress;
             tx.credit = -arcTx.vZcReceived[i].amount;
             tx.idx = arcTx.vZcReceived[i].jsOutIndex;
+            tx.txFee = txFee;
 
             bool change = arcTx.spentFrom.size() > 0 && arcTx.spentFrom.find(arcTx.vZcReceived[i].encodedAddress) != arcTx.spentFrom.end();
             if (change) {
@@ -102,6 +108,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
             tx.address = "Private Sprout Address";
             tx.debit = -(arcTx.sproutValue - arcTx.sproutValueSpent);
             tx.type = TransactionRecord::SendToAddress;
+            tx.txFee = txFee;
             parts.append(tx);
         }
 
@@ -114,6 +121,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
             tx.address = arcTx.vZsSend[i].encodedAddress;
             tx.debit = -arcTx.vZsSend[i].amount;
             tx.idx = arcTx.vZsSend[i].shieldedOutputIndex;
+            tx.txFee = txFee;
             if (arcTx.vZsSend[i].memoStr.length() != 0) {
                 tx.memo = arcTx.vZsSend[i].memoStr;
             }
@@ -147,6 +155,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
         tx.address = arcTx.vTReceived[i].encodedAddress;
         tx.debit = arcTx.vTReceived[i].amount;
         tx.idx = arcTx.vTReceived[i].vout;
+        tx.txFee = txFee;
 
         bool change = arcTx.spentFrom.size() > 0 && arcTx.spentFrom.find(arcTx.vTReceived[i].encodedAddress) != arcTx.spentFrom.end();
         if (change) {
@@ -172,6 +181,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
         tx.address = arcTx.vZcReceived[i].encodedAddress;
         tx.debit = arcTx.vZcReceived[i].amount;
         tx.idx = arcTx.vZcReceived[i].jsOutIndex;
+        tx.txFee = txFee;
 
         bool change = arcTx.spentFrom.size() > 0 && arcTx.spentFrom.find(arcTx.vZcReceived[i].encodedAddress) != arcTx.spentFrom.end();
         if (change) {
@@ -192,6 +202,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const RpcArcTra
         tx.address = arcTx.vZsReceived[i].encodedAddress;
         tx.debit = arcTx.vZsReceived[i].amount;
         tx.idx = arcTx.vZsReceived[i].shieldedOutputIndex;
+        tx.txFee = txFee;
         if (arcTx.vZsReceived[i].memoStr.length() != 0) {
             tx.memo = arcTx.vZsReceived[i].memoStr;
         }

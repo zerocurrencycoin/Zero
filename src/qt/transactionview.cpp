@@ -371,6 +371,7 @@ void TransactionView::exportClicked()
     writer.addColumn(tr("Spent From"), 0, TransactionTableModel::FromAddressRole);
     writer.addColumn(tr("Address"), 0, TransactionTableModel::AddressRole);
     writer.addColumn(ZeroUnits::getAmountColumnTitle(model->getOptionsModel()->getDisplayUnit()), 0, TransactionTableModel::FormattedAmountRole);
+    writer.addColumn(tr("Fee"), 0, TransactionTableModel::FeeRole);
     writer.addColumn(tr("ID"), 0, TransactionTableModel::TxIDRole);
 
     if(!writer.write()) {
