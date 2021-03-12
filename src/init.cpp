@@ -1649,6 +1649,9 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         }
     }
 
+    chainMaxHeight = GetArg("-maxheight", 0);
+
+
     bool clearWitnessCaches = false;
 
     bool fLoaded = false;

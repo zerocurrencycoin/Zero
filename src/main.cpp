@@ -70,6 +70,7 @@ static int64_t nTimeBestReceived = 0;
 CWaitableCriticalSection csBestBlock;
 CConditionVariable cvBlockChange;
 int nScriptCheckThreads = 0;
+int chainMaxHeight = 0;
 bool fExperimentalMode = false;
 bool fImporting = false;
 bool fReindex = false;
@@ -4454,6 +4455,12 @@ bool ContextualCheckBlockHeader(
     assert(pindexPrev);
 
     int nHeight = pindexPrev->nHeight+1;
+
+    //Only Sync to max height if set
+    if (chainMaxHeight > 0 && nHeight > chainMaxHeight) {
+        return state.DoS(100, error("%s: Max Height reached", __func__),
+                       REJECT_INVALID, "max-height");
+    }
 
     // Check proof of work
     if (block.nBits != GetNextWorkRequired(pindexPrev, &block, consensusParams))
