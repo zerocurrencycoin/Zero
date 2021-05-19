@@ -4,7 +4,7 @@
 
 ### •LAUNCH DATE: 2017-02-19
 
-### •GENESIS BLOCK - 19th Feb 2017 11:26:40 - 068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6
+#### •GENESIS BLOCK - 19th Feb 2017 11:26:40 - 068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6
 
 ------------------------------------------
 
@@ -13,7 +13,7 @@
 
 [ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) offers total payment confidentiality, while still maintaining a decentralized network using a public blockchain. Zero combines Bitcoin’s security with Zcash’s anonymity and privacy. Zero stands out from the competition as a fully working product that has already implemented a set of special features not found in any other cryptocurrency.
 
-This software is the [ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) node. It downloads and stores the entire history of ZERO's transactions, about 1.2GB at this point.
+This software is the [ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) node. It downloads and stores the entire history of ZERO's transactions, about 2.5GB at this point.
 
 Depending on the speed of your computer and network connection, the synchronization process could take several hours.
 
