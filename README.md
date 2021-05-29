@@ -1,30 +1,28 @@
 ![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/zero%203d%20mountain.png?raw=true)
 
-[ZERO](https://zerocurrency.io) - [Draco:3.2.0](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0)
+[ZERO](https://zerocurrency.io) - [Latest Release](https://github.com/zerocurrencycoin/Zero/releases/)
 
 ||FAST|| ||DECENTRALISED|| ||ANONYMOUS|| ||SECURE|| ||ASIC RESISTANT||  - LAUNCE DATE: 2017-02-19
 
 GENESIS BLOCK - 19th Feb 2017 11:26:40 - 068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6
-
-Download the latest version here - [ZERO - Latest Version - Draco:3.2.0](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0)
 
 ------------------------------------------
 
 ❓ What is ZERO?
 --------------
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) is a revolutionary cryptocurrency and transaction platform based on Zcash.
+[ZERO](https://github.com/zerocurrencycoin/Zero/releases/) is a revolutionary cryptocurrency and transaction platform based on Zcash.
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) offers total payment confidentiality, while still maintaining a decentralised network using a public blockchain.
+[ZERO](https://github.com/zerocurrencycoin/Zero/releases/) offers total payment confidentiality, while still maintaining a decentralised network using a public blockchain.
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) combines Bitcoin’s security with Zcash’s anonymity and privacy.
+[ZERO](https://github.com/zerocurrencycoin/Zero/releases/) combines Bitcoin’s security with Zcash’s anonymity and privacy.
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) stands out from the competition as a fully working product that has already
+[ZERO](https://github.com/zerocurrencycoin/Zero/releases/) stands out from the competition as a fully working product that has already
 implemented a set of special features not found in any other cryptocurrency.
 
 Our main focus as a team and community is to remain as transparent as we can possibly be and to maintain an interactive relationship with everyone involved. We are fully open about the project, listening to all suggestions from investors, miners and supporters.
 
-This software is the [ZERO](https://github.com/zerocurrencycoin/Zero/releases/tag/v3.2.0) node. It downloads and stores the entire history of ZERO's transactions, about 1.2GB at this point.
+This software is the [ZERO](https://github.com/zerocurrencycoin/Zero/releases/) node. It downloads and stores the entire history of ZERO's transactions, about 1.2GB at this point.
 Depending on the speed of your computer and network connection, the synchronization process could take several hours.
 
 ------------------------------------------
@@ -62,7 +60,7 @@ Zero has a feature called shielded transactions that ensures full anonymity when
 
 ||VERY HIGH MINING PROFITABILITY||
 ------------------------------------------
-Zero uses an alternative set of parameters taken from the equihash algorithm, this needs atleast 4GB/8GB of RAM. Zero is one of the most profitable cryptocurrency’s to mine.
+Zero uses an alternative set of parameters for the Equihash algorithm, which require a GPU with 8GB of RAM. Zero is often one of the most profitable cryptocurrencies to mine.
 
 
 ||DECENTRALISED PAYMENTS||
@@ -72,7 +70,7 @@ Zero is founded on a decentralised platform, there are no borders. Zero facilita
 
 ||INFLATION||
 --------------
-Zero has a small inflation that degrades over time. With a stable supply of 7776 Zero per day.
+Zero has a low emission and the inflation degrades over time quickly. Stable supply is 3888 ZER, after first halfing.
 
 ------------------------------------------
 
@@ -82,14 +80,14 @@ Zero has a small inflation that degrades over time. With a stable supply of 7776
 Based on Bitcoin's code, Zero intends to offer a far higher standard of privacy
 through a sophisticated zero-knowledge proving scheme that preserves
 confidentiality of transaction metadata. More technical details are available
-in our [Protocol Specification](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf).
+in the [Protocol Specification](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf).
 
 ![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/algo%20zer%20improv.jfif)
 
 ------------------------------------------
 
 
-🔢 Development Fund Breakdown (Per Block)
+🔢 Development Fund Breakdown (Per Block Pre-Halfing)
 ------------------------------------------
 Development Fund Details 0.81 ZER / Block (~7.5%)
 
@@ -106,11 +104,10 @@ Development Fund Total - 0.81 ZER / Block
 Total ZER per day = 583.2
 
 
-📄 White Paper - Extended
+📄 White Paper
 -----------------------
 
-http://docdro.id/n9j4sJr
-
+**** Under Construction
 
 📣 Announcements
 -----------------
@@ -128,7 +125,7 @@ See important security warnings on the
 
 📒 Deprecation Policy
 ------------------
-Disabledeprecation flag has been removed. Old nodes will automatically be shut down and must be upgraded upon reaching the deprecation block height, which will occur approximately 26 weeks (6/26/2021) from the release of v3.2.0.
+Disabledeprecation flag has been removed. Old nodes will automatically be shut down and must be upgraded upon reaching the deprecation block height, which will occur approximately 52 weeks (6/23/2022) from the release of v3.3.0.
 
 
 🔧 Building
