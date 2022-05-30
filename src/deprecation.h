@@ -6,11 +6,11 @@
 #define ZCASH_DEPRECATION_H
 
 // Deprecation policy:
-// * Shut down 52 weeks' worth of blocks after the estimated release block height.
+// * Shut down 520 weeks' worth of blocks after the estimated release block height.
 // * A warning is shown during the 4 weeks' worth of blocks prior to shut down.
-static const int APPROX_RELEASE_HEIGHT = 1130000;
-static const int WEEKS_UNTIL_DEPRECATION = 52;
-//Fixing zero day size
+static const int APPROX_RELEASE_HEIGHT = 1385000;
+static const int WEEKS_UNTIL_DEPRECATION = 520;
+//Fixing zero day size - was 1,392,080
 static const int DEPRECATION_HEIGHT = APPROX_RELEASE_HEIGHT + (WEEKS_UNTIL_DEPRECATION * 7 * 24 * 30);
 
 // Number of blocks before deprecation to warn users
