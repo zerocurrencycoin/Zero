@@ -103,7 +103,7 @@ See important security warnings on the
 
 📒 Deprecation Policy
 ------------------
-Disabledeprecation flag has been removed. Old nodes will automatically be shut down and must be upgraded upon reaching the deprecation block height, which will occur approximately 52 weeks (6/23/2022) from the release of v3.3.0.
+Disabledeprecation flag has been removed. Nodes running release 3.3.1 will automatically shut down in ten years (June 2032).
 
 
 🔧 Building
