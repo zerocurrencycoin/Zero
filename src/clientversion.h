@@ -15,11 +15,11 @@
  */
 
 //! These need to be macros, as clientversion.cpp's and bitcoin*-res.rc's voodoo requires it
-// Actually set in configure.ac; set here unlikely and easy to notice values
-#define CLIENT_VERSION_MAJOR 9
+// Values actually set in configure.ac; set here to unlikely and easy to notice values
+#define CLIENT_VERSION_MAJOR 8
 #define CLIENT_VERSION_MINOR 8
-#define CLIENT_VERSION_REVISION 7
-#define CLIENT_VERSION_BUILD 6
+#define CLIENT_VERSION_REVISION 8
+#define CLIENT_VERSION_BUILD 8
 
 //! Set to true for release, false for prerelease or test build
 #define CLIENT_VERSION_IS_RELEASE false
@@ -28,7 +28,7 @@
  * Copyright year (2009-this)
  * Todo: update this when changing our copyright comments in the source
  */
-#define COPYRIGHT_YEAR 2021
+#define COPYRIGHT_YEAR 2022
 
 #endif //HAVE_CONFIG_H
 
