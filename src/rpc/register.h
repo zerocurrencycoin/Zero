@@ -21,14 +21,24 @@ void RegisterMiningRPCCommands(CRPCTable &tableRPC);
 void RegisterRawTransactionRPCCommands(CRPCTable &tableRPC);
 /**Register Zeronode Commands */
 void RegisterZeronodeRPCCommands(CRPCTable &tableRPC);
+/** Register Wallet RPC commands */
+#ifdef ENABLE_WALLET
+void RegisterWalletRPCCommands(CRPCTable &tableRPC);
+#else
+inline void RegisterWalletRPCCommands(CRPCTable &tableRPC) {}
+#endif
 /**Register Budget Commands */
 void RegisterBudgetRPCCommands(CRPCTable &tableRPC);
 /** Register Spork RPC commands */
 void RegisterSporkRPCCommands(CRPCTable &tableRPC);
 /** Register Experimental RPC commands */
+#ifdef ENABLE_WALLET
 void RegisterZeroExclusiveRPCCommands(CRPCTable &tableRPC);
-
 void RegisterZeroExperimentalRPCCommands(CRPCTable &tableRPC);
+#else
+inline void RegisterZeroExclusiveRPCCommands(CRPCTable &tableRPC) {}
+inline void RegisterZeroExperimentalRPCCommands(CRPCTable &tableRPC) {}
+#endif
 
 static inline void RegisterAllCoreRPCCommands(CRPCTable &tableRPC)
 {
@@ -40,8 +50,10 @@ static inline void RegisterAllCoreRPCCommands(CRPCTable &tableRPC)
     RegisterZeronodeRPCCommands(tableRPC);
     //RegisterBudgetRPCCommands(tableRPC); //Disabled for now
     RegisterSporkRPCCommands(tableRPC);
+#ifdef ENABLE_WALLET
     RegisterZeroExclusiveRPCCommands(tableRPC);
     RegisterZeroExperimentalRPCCommands(tableRPC);
+#endif
 }
 
 #endif

@@ -400,7 +400,7 @@ bool CZeronodeBroadcast::Create(std::string strService, std::string strKeyZerono
         return false;
     }
 
-    if (!pwalletMain->GetZeronodeVinAndKeys(txin, pubKeyCollateralAddressNew, keyCollateralAddressNew, strTxHash, strOutputIndex)) {
+    if (!g_zeronodeWallet || !g_zeronodeWallet->GetZeronodeVinAndKeys(txin, pubKeyCollateralAddressNew, keyCollateralAddressNew, strTxHash, strOutputIndex)) {
         strErrorRet = strprintf("Could not allocate txin %s:%s for zeronode %s", strTxHash, strOutputIndex, strService);
         LogPrint("zeronode","CZeronodeBroadcast::Create -- %s\n", strErrorRet);
         return false;

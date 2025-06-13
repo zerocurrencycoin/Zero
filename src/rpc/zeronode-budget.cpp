@@ -12,6 +12,7 @@
 #include "zeronode/payments.h"
 #include "zeronode/zeronodeconfig.h"
 #include "zeronode/zeronodeman.h"
+#include "zeronode/zeronode-wallet-interface.h"
 #include "rpc/server.h"
 #include "utilmoneystr.h"
 
@@ -73,7 +74,7 @@ UniValue preparebudget(const UniValue& params, bool fHelp)
             HelpExampleCli("preparebudget", "\"test-proposal\" \"https://forum.zero.org/t/test-proposal\" 2 820800 \"D9oc6C3dttUbv8zd7zGNq1qKBGf4ZQ1XEE\" 500") +
             HelpExampleRpc("preparebudget", "\"test-proposal\" \"https://forum.zero.org/t/test-proposal\" 2 820800 \"D9oc6C3dttUbv8zd7zGNq1qKBGf4ZQ1XEE\" 500"));
 
-    if (pwalletMain->IsLocked())
+    if (!g_zeronodeWallet || !g_zeronodeWallet->IsAvailable() || g_zeronodeWallet->IsLocked())
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
 
     std::string strProposalName = SanitizeString(params[0].get_str());
@@ -130,14 +131,19 @@ UniValue preparebudget(const UniValue& params, bool fHelp)
     // }
 
     CWalletTx wtx;
-    if (!pwalletMain->GetBudgetSystemCollateralTX(wtx, budgetProposalBroadcast.GetHash(), useIX)) {
+    if (!g_zeronodeWallet->GetBudgetSystemCollateralTX(wtx, budgetProposalBroadcast.GetHash(), useIX)) {
         throw runtime_error("Error making collateral transaction for proposal. Please check your wallet balance.");
     }
 
     // make our change address
+#ifdef ENABLE_WALLET
     CReserveKey reservekey(pwalletMain);
     //send the tx to the network
-    pwalletMain->CommitTransaction(wtx, reservekey, useIX ? "ix" : "tx");
+    g_zeronodeWallet->CommitTransaction(wtx, &reservekey, useIX ? "ix" : "tx");
+#else
+    //send the tx to the network
+    g_zeronodeWallet->CommitTransaction(wtx, nullptr, useIX ? "ix" : "tx");
+#endif
 
     return wtx.GetHash().ToString();
 }
