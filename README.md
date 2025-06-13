@@ -108,15 +108,29 @@ Disabledeprecation flag has been removed. Nodes running release 3.3.1 will autom
 
 🔧 Building
 --------
-Currently only Linux build is officially supported.  8GB RAM is recommended.
 
-### Install packages (needs to be done only once)
-```
+### **📚 Build Documentation**
+
+For comprehensive build instructions, see our detailed documentation:
+
+- **[BUILD.md](BUILD.md)** - Complete build guide for all platforms (Linux, macOS, Windows)
+- **[BUILD_COMPATIBILITY.md](BUILD_COMPATIBILITY.md)** - GCC compatibility notes and fixes
+- **[TODO.md](TODO.md)** - Implementation status and architectural improvements  
+- **[ZERONODE_WALLET_INTERFACE.md](ZERONODE_WALLET_INTERFACE.md)** - Architecture documentation
+
+### **⚡ Quick Start (Linux)**
+
+**System Requirements:** 8GB RAM recommended, GCC 7.0+
+
+**Install packages (one-time setup):**
+```bash
 sudo apt-get install \
       build-essential pkg-config libc6-dev m4 g++-multilib \
-      autoconf libtool ncurses-dev unzip git python python-zmq \
+      autoconf libtool ncurses-dev unzip git python3 python3-zmq \
       zlib1g-dev wget bsdmainutils automake cmake curl
 ```
+
+**Note:** For detailed instructions including Windows builds, GPU dependencies, and troubleshooting, see **[BUILD.md](BUILD.md)**.
 
 ### Obtain the ZERO software from GitHub
 ```
