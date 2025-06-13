@@ -16,6 +16,7 @@
 #include <functional>
 #include <memory>
 #include <set>
+#include <stdexcept>
 #include <vector>
 
 #include <boost/static_assert.hpp>
