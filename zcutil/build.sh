@@ -18,6 +18,34 @@ function gprefix() {
 gprefix READLINK readlink
 cd "$(dirname "$("$READLINK" -f "$0")")/.."
 
+# Prefer GCC-11 if available for compatibility with older Boost
+if [[ -z "${CC-}" ]]; then
+    if type -p "gcc-11" > /dev/null; then
+        CC=gcc-11
+        echo "✅ Using GCC-11 for optimal compatibility"
+    else
+        CC=gcc
+        echo ""
+        echo "⚠️  WARNING: GCC-11 not found!"
+        echo "   The build may fail with newer GCC versions due to Boost 1.70.0 compatibility."
+        echo "   Install GCC-11 for best results:"
+        echo "   sudo apt-get install gcc-11 g++-11"
+        echo ""
+        echo "   Continuing with system GCC ($(gcc --version | head -1))..."
+        echo ""
+    fi
+fi
+
+if [[ -z "${CXX-}" ]]; then
+    if type -p "g++-11" > /dev/null; then
+        CXX=g++-11
+    else
+        CXX=g++
+    fi
+fi
+
+export CC CXX
+
 # Allow user overrides to $MAKE. Typical usage for users who need it:
 #   MAKE=gmake ./zcutil/build.sh -j$(nproc)
 if [[ -z "${MAKE-}" ]]; then
