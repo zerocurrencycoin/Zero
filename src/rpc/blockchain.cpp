@@ -18,7 +18,7 @@
 #include "streams.h"
 #include "sync.h"
 #include "util.h"
-#include "wallet/wallet.h"
+#include "zeronode/zeronode-wallet-interface.h"
 
 #include <stdint.h>
 
@@ -1344,7 +1344,7 @@ UniValue getchaintxstats(const UniValue& params, bool fHelp)
         ret.push_back(Pair("deshielding_payments", (int64_t)pindex->nChainDeshieldingPayments));
         ret.push_back(Pair("shielding_payments", (int64_t)pindex->nChainShieldingPayments));
 
-        int64_t nullifierCount = pwalletMain->NullifierCount();
+        int64_t nullifierCount = g_zeronodeWallet ? g_zeronodeWallet->NullifierCount() : 0;
         ret.push_back(Pair("nullifiers", (int64_t)nullifierCount));
         ret.push_back(Pair("shielded_pool_size", (int64_t)pindex->nChainShieldedOutputs - nullifierCount));
         ret.push_back(Pair("shielded_outputs", (int64_t)pindex->nChainShieldedOutputs));

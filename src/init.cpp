@@ -10,6 +10,7 @@
 #include "init.h"
 #include "crypto/common.h"
 #include "zeronode/activezeronode.h"
+#include "zeronode/zeronode-wallet-interface.h"
 #include "addrman.h"
 #include "amount.h"
 #include "checkpoints.h"
@@ -435,18 +436,24 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-keeptxnum", strprintf(_("Keep the last <n> transactions (default: %i)"), DEFAULT_TX_RETENTION_LASTTX));
     strUsage += HelpMessageOpt("-keeptxfornblocks", strprintf(_("Keep transactions for at least <n> blocks (default: %i)"), DEFAULT_TX_RETENTION_BLOCKS));
     if (showDebug)
+#ifdef ENABLE_WALLET
         strUsage += HelpMessageOpt("-mintxfee=<amt>", strprintf("Fees (in %s/kB) smaller than this are considered zero fee for transaction creation (default: %s)",
             CURRENCY_UNIT, FormatMoney(CWallet::minTxFee.GetFeePerK())));
+#endif
+#ifdef ENABLE_WALLET
     strUsage += HelpMessageOpt("-paytxfee=<amt>", strprintf(_("Fee (in %s/kB) to add to transactions you send (default: %s)"),
         CURRENCY_UNIT, FormatMoney(payTxFee.GetFeePerK())));
+#endif
     strUsage += HelpMessageOpt("-rescan", _("Rescan the block chain for missing wallet transactions") + " " + _("on startup"));
     strUsage += HelpMessageOpt("-salvagewallet", _("Attempt to recover private keys from a corrupt wallet.dat") + " " + _("on startup"));
     strUsage += HelpMessageOpt("-sendfreetransactions", strprintf(_("Send transactions as zero-fee transactions if possible (default: %u)"), 0));
     strUsage += HelpMessageOpt("-spendzeroconfchange", strprintf(_("Spend unconfirmed change when sending transactions (default: %u)"), 1));
     strUsage += HelpMessageOpt("-txconfirmtarget=<n>", strprintf(_("If paytxfee is not set, include enough fee so transactions begin confirmation on average within n blocks (default: %u)"), DEFAULT_TX_CONFIRM_TARGET));
     strUsage += HelpMessageOpt("-txexpirydelta", strprintf(_("Set the number of blocks after which a transaction that has not been mined will become invalid (min: %u, default: %u (pre-Blossom) or %u (post-Blossom))"), TX_EXPIRING_SOON_THRESHOLD + 1, DEFAULT_PRE_BLOSSOM_TX_EXPIRY_DELTA, DEFAULT_POST_BLOSSOM_TX_EXPIRY_DELTA));
+#ifdef ENABLE_WALLET
     strUsage += HelpMessageOpt("-maxtxfee=<amt>", strprintf(_("Maximum total fees (in %s) to use in a single wallet transaction; setting this too low may abort large transactions (default: %s)"),
         CURRENCY_UNIT, FormatMoney(maxTxFee)));
+#endif
     strUsage += HelpMessageOpt("-upgradewallet", _("Upgrade wallet to latest format") + " " + _("on startup"));
     strUsage += HelpMessageOpt("-wallet=<file>", _("Specify wallet file (within data directory)") + " " + strprintf(_("(default: %s)"), "wallet.zero"));
     strUsage += HelpMessageOpt("-walletbroadcast", _("Make the wallet broadcast transactions") + " " + strprintf(_("(default: %u)"), true));
@@ -1092,6 +1099,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                                        mapArgs["-paytxfee"], ::minRelayTxFee.ToString()));
         }
     }
+#ifdef ENABLE_WALLET
     if (mapArgs.count("-maxtxfee"))
     {
         CAmount nMaxFee = 0;
@@ -1106,7 +1114,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                                        mapArgs["-maxtxfee"], ::minRelayTxFee.ToString()));
         }
     }
+#endif
+#ifdef ENABLE_WALLET
     nTxConfirmTarget = GetArg("-txconfirmtarget", DEFAULT_TX_CONFIRM_TARGET);
+#endif
     if (mapArgs.count("-txexpirydelta")) {
         int64_t expiryDelta = atoi64(mapArgs["-txexpirydelta"]);
         uint32_t minExpiryDelta = TX_EXPIRING_SOON_THRESHOLD + 1;
@@ -1115,8 +1126,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         }
         expiryDeltaArg = expiryDelta;
     }
+#ifdef ENABLE_WALLET
     bSpendZeroConfChange = GetBoolArg("-spendzeroconfchange", true);
     fSendFreeTransactions = GetBoolArg("-sendfreetransactions", false);
+#endif
 
     std::string strWalletFile = GetArg("-wallet", "wallet.zero");
     // Check Sapling migration address if set and is a valid Sapling address
@@ -2089,6 +2102,9 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     //lite mode disables all Zeronode and Obfuscation related functionality
     fLiteMode = GetBoolArg("-litemode", false);
+
+    // Initialize zeronode wallet interface
+    InitZeronodeWalletInterface();
     if (fZeroNode && fLiteMode) {
         return InitError("You can not start a zeronode in litemode");
     }

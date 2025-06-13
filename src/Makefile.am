@@ -7,7 +7,7 @@
 DIST_SUBDIRS = secp256k1 univalue
 
 AM_LDFLAGS = $(PTHREAD_CFLAGS) $(LIBTOOL_LDFLAGS) $(SAN_LDFLAGS) $(HARDENED_LDFLAGS)
-AM_CXXFLAGS = $(SAN_CXXFLAGS) $(HARDENED_CXXFLAGS) $(ERROR_CXXFLAGS)
+AM_CXXFLAGS = $(SAN_CXXFLAGS) $(HARDENED_CXXFLAGS) $(ERROR_CXXFLAGS) -Wno-deprecated-declarations -Wno-nonnull
 AM_CPPFLAGS = $(HARDENED_CPPFLAGS)
 EXTRA_LIBRARIES =
 
@@ -157,6 +157,7 @@ BITCOIN_CORE_H = \
   zeronode/zeronode-sync.h \
   zeronode/zeronodeman.h \
   zeronode/zeronodeconfig.h \
+  zeronode/zeronode-wallet-interface.h \
   memusage.h \
   merkleblock.h \
   metrics.h \
@@ -284,6 +285,16 @@ libbitcoin_server_a_SOURCES = \
 	rpc/spork.cpp \
   script/sigcache.cpp \
 	zeronode/sporkdb.cpp \
+  zeronode/zeronode.cpp \
+  zeronode/budget.cpp \
+  zeronode/payments.cpp \
+  zeronode/zeronode-sync.cpp \
+  zeronode/zeronodeman.cpp \
+  zeronode/spork.cpp \
+  zeronode/obfuscation.cpp \
+  zeronode/activezeronode.cpp \
+  zeronode/swifttx.cpp \
+  zeronode/zeronodeconfig.cpp \
   timedata.cpp \
   torcontrol.cpp \
   txdb.cpp \
@@ -315,8 +326,6 @@ endif
 libbitcoin_wallet_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libbitcoin_wallet_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_wallet_a_SOURCES = \
-	zeronode/activezeronode.cpp \
-	zeronode/obfuscation.cpp \
   utiltest.cpp \
   utiltest.h \
   zcbenchmarks.cpp \
@@ -330,13 +339,7 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/crypter.cpp \
   wallet/db.cpp \
   wallet/paymentdisclosure.cpp \
-	zeronode/swifttx.cpp \
-  zeronode/zeronode.cpp \
-  zeronode/budget.cpp \
-  zeronode/payments.cpp \
-  zeronode/zeronode-sync.cpp \
-  zeronode/zeronodeconfig.cpp \
-  zeronode/zeronodeman.cpp \
+  zeronode/zeronode-wallet-interface.cpp \
   wallet/paymentdisclosuredb.cpp \
   wallet/rpcdisclosure.cpp \
   wallet/rpcdump.cpp \
@@ -413,7 +416,6 @@ libbitcoin_common_a_SOURCES = \
   script/script_error.cpp \
   script/sign.cpp \
   script/standard.cpp \
-	zeronode/spork.cpp \
 	zeronode/sporkdb.cpp \
   transaction_builder.cpp \
   utiltest.cpp \
@@ -470,6 +472,7 @@ zerod_SOURCES += bitcoind-res.rc
 endif
 
 zerod_LDADD = \
+  $(LIBBITCOIN_SERVER) \
   $(LIBBITCOIN_SERVER) \
   $(LIBBITCOIN_WALLET) \
   $(LIBBITCOIN_COMMON) \

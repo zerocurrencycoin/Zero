@@ -15,7 +15,10 @@
 #include "zeronode/zeronode-sync.h"
 #include "rpc/server.h"
 #include "utilmoneystr.h"
+#include "zeronode/zeronode-wallet-interface.h"
+#ifdef ENABLE_WALLET
 #include "wallet/rpczerowallet.h"
+#endif
 
 #include <boost/tokenizer.hpp>
 
@@ -344,22 +347,31 @@ UniValue startzeronode (const UniValue& params, bool fHelp)
     if (strCommand == "local") {
         if (!fZeroNode) throw runtime_error("you must set zeronode=1 in the configuration\n");
 
-        if (pwalletMain->IsLocked())
+#ifdef ENABLE_WALLET
+        if (!g_zeronodeWallet || !g_zeronodeWallet->IsAvailable() || g_zeronodeWallet->IsLocked())
             throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
+#endif
 
         if (activeZeronode.status != ACTIVE_ZERONODE_STARTED) {
             activeZeronode.status = ACTIVE_ZERONODE_INITIAL; // TODO: consider better way
             activeZeronode.ManageStatus();
-            if (fLock)
-                pwalletMain->Lock();
+            if (fLock) {
+                #ifdef ENABLE_WALLET
+                if (g_zeronodeWallet && g_zeronodeWallet->IsAvailable()) {
+                    g_zeronodeWallet->Lock();
+                }
+                #endif
+            }
         }
 
         return activeZeronode.GetStatus();
     }
 
     if (strCommand == "all" || strCommand == "many" || strCommand == "missing" || strCommand == "disabled") {
-        if (pwalletMain->IsLocked())
+#ifdef ENABLE_WALLET
+        if (!g_zeronodeWallet || !g_zeronodeWallet->IsAvailable() || g_zeronodeWallet->IsLocked())
             throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
+#endif
 
         if ((strCommand == "missing" || strCommand == "disabled") &&
             (zeronodeSync.RequestedZeronodeAssets <= ZERONODE_SYNC_LIST ||
@@ -404,8 +416,13 @@ UniValue startzeronode (const UniValue& params, bool fHelp)
 
             resultsObj.push_back(statusObj);
         }
-        if (fLock)
-            pwalletMain->Lock();
+        if (fLock) {
+            #ifdef ENABLE_WALLET
+            if (g_zeronodeWallet && g_zeronodeWallet->IsAvailable()) {
+                g_zeronodeWallet->Lock();
+            }
+            #endif
+        }
 
         UniValue returnObj(UniValue::VOBJ);
         returnObj.push_back(Pair("overall", strprintf("Successfully started %d zeronodes, failed to start %d, total %d", successful, failed, successful + failed)));
@@ -417,8 +434,10 @@ UniValue startzeronode (const UniValue& params, bool fHelp)
     if (strCommand == "alias") {
         std::string alias = params[2].get_str();
 
-        if (pwalletMain->IsLocked())
+#ifdef ENABLE_WALLET
+        if (!g_zeronodeWallet || !g_zeronodeWallet->IsAvailable() || g_zeronodeWallet->IsLocked())
             throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
+#endif
 
         bool found = false;
         int successful = 0;
@@ -456,8 +475,13 @@ UniValue startzeronode (const UniValue& params, bool fHelp)
 
         resultsObj.push_back(statusObj);
 
-        if (fLock)
-            pwalletMain->Lock();
+        if (fLock) {
+            #ifdef ENABLE_WALLET
+            if (g_zeronodeWallet && g_zeronodeWallet->IsAvailable()) {
+                g_zeronodeWallet->Lock();
+            }
+            #endif
+        }
 
         UniValue returnObj(UniValue::VOBJ);
         returnObj.push_back(Pair("overall", strprintf("Successfully started %d zeronodes, failed to start %d, total %d", successful, failed, successful + failed)));
@@ -1037,7 +1061,12 @@ UniValue zeronodestats(const UniValue& params, bool fHelp)
           UniValue ret(UniValue::VOBJ);
           UniValue newParams(UniValue::VARR);
           UniValue ct = getzeronodecount(newParams, false);
+#ifdef ENABLE_WALLET
           UniValue supply = getsupply(newParams, false);
+#else
+          UniValue supply(UniValue::VOBJ);
+          supply.push_back(Pair("supplyzats", (int64_t)0));
+#endif
 
           int nHeight = 0;
           CAmount blockValue = 0;
