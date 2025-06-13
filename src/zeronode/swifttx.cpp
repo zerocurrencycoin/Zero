@@ -338,8 +338,8 @@ bool ProcessConsensusVote(CNode* pnode, CConsensusVote& ctx)
 #ifdef ENABLE_WALLET
         if (pwalletMain) {
             //when we get back signatures, we'll count them as requests. Otherwise the client will think it didn't propagate.
-            if (pwalletMain->mapRequestCount.count(ctx.txHash))
-                pwalletMain->mapRequestCount[ctx.txHash]++;
+            if (g_zeronodeWallet && g_zeronodeWallet->GetRequestCount(ctx.txHash) > 0)
+                g_zeronodeWallet->IncrementRequestCount(ctx.txHash);
         }
 #endif
 
@@ -351,8 +351,8 @@ bool ProcessConsensusVote(CNode* pnode, CConsensusVote& ctx)
             CTransaction& tx = mapTxLockReq[ctx.txHash];
             if (!CheckForConflictingLocks(tx)) {
 #ifdef ENABLE_WALLET
-                if (pwalletMain) {
-                    if (pwalletMain->UpdatedTransaction((*i).second.txHash)) {
+                if (g_zeronodeWallet && g_zeronodeWallet->IsAvailable()) {
+                    if (g_zeronodeWallet->UpdatedTransaction((*i).second.txHash)) {
                         nCompleteTXLocks++;
                     }
                 }

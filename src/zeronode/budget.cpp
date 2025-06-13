@@ -13,6 +13,7 @@
 #include "zeronode/zeronode.h"
 #include "zeronode/zeronodeman.h"
 #include "zeronode/obfuscation.h"
+#include "zeronode/zeronode-wallet-interface.h"
 #include "util.h"
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
@@ -182,16 +183,25 @@ void CBudgetManager::SubmitFinalBudget()
     uint256 txidCollateral;
 
     if (!mapCollateralTxids.count(tempBudget.GetHash())) {
+        if (!g_zeronodeWallet || !g_zeronodeWallet->IsAvailable()) {
+            LogPrint("zeronode","CBudgetManager::SubmitFinalBudget - Wallet not available\n");
+            return;
+        }
+        
         CWalletTx wtx;
-        if (!pwalletMain->GetBudgetSystemCollateralTX(wtx, tempBudget.GetHash(), false)) {
+        if (!g_zeronodeWallet->GetBudgetSystemCollateralTX(wtx, tempBudget.GetHash(), false)) {
             LogPrint("zeronode","CBudgetManager::SubmitFinalBudget - Can't make collateral transaction\n");
             return;
         }
 
+#ifdef ENABLE_WALLET
         // Get our change address
         CReserveKey reservekey(pwalletMain);
         // Send the tx to the network. Do NOT use SwiftTx, locking might need too much time to propagate, especially for testnet
-        pwalletMain->CommitTransaction(wtx, reservekey, "NO-ix");
+        g_zeronodeWallet->CommitTransaction(wtx, &reservekey, "NO-ix");
+#else
+        g_zeronodeWallet->CommitTransaction(wtx, nullptr, "NO-ix");
+#endif
         tx = (CTransaction)wtx;
         txidCollateral = tx.GetHash();
         mapCollateralTxids.insert(make_pair(tempBudget.GetHash(), txidCollateral));
