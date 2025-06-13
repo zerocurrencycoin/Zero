@@ -2073,6 +2073,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     //get the mode of budget voting for this zeronode
     strBudgetMode = GetArg("-budgetvotemode", "auto");
 
+#ifdef ENABLE_WALLET
     if (GetBoolArg("-znconflock", true) && pwalletMain) {
         LOCK(pwalletMain->cs_wallet);
         LogPrintf("Locking Zeronodes:\n");
@@ -2084,6 +2085,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             pwalletMain->LockCoin(outpoint);
         }
     }
+#endif
 
     //lite mode disables all Zeronode and Obfuscation related functionality
     fLiteMode = GetBoolArg("-litemode", false);
