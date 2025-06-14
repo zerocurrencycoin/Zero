@@ -12,8 +12,8 @@
 #include "zeronode/zeronode.h"
 #include "net.h"
 #include "zeronode/obfuscation.h"
+#include "zeronode/zeronode-wallet-interface.h"
 #include "sync.h"
-#include "wallet/wallet.h"
 
 #define ACTIVE_ZERONODE_INITIAL 0 // initial state
 #define ACTIVE_ZERONODE_SYNC_IN_PROCESS 1
