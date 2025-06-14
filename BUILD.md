@@ -1,13 +1,20 @@
 # Zero Currency Build Guide
 
-This document provides comprehensive instructions for building Zero Currency (zerod) and Zero Wallet (zerowallet) from source.
+This document provides instructions for building Zero Currency (zerod) and Zero Wallet (zerowallet) from source.
+
+## Related Documentation
+
+- **[BUILD_C11.md](BUILD_C11.md)** - GCC/C++11 compatibility and compiler-specific setup
+- **[BUILD_COMPARISON.md](BUILD_COMPARISON.md)** - Build system comparison with other projects
 
 ## Table of Contents
 - [System Requirements](#system-requirements)
 - [GNU Toolchain Setup](#gnu-toolchain-setup)
 - [C++11 Configuration](#c11-configuration)
 - [Package Dependencies](#package-dependencies)
+- [Linux Quick Start](#linux-quick-start)
 - [Build Process](#build-process)
+- [Windows-Specific Build Instructions](#windows-specific-build-instructions)
 - [Troubleshooting](#troubleshooting)
 - [Build Configuration Options](#build-configuration-options)
 
@@ -148,53 +155,14 @@ libtool --version     # Should be 2.4+
 
 ## C++11 Configuration
 
-Zero Currency requires C++11 standard support for modern C++ features.
+Zero Currency requires C++11 standard support. For detailed GCC compatibility information and compiler-specific setup, see **[BUILD_C11.md](BUILD_C11.md)**.
 
-### **1. Verify C++11 Support**
-
+**Quick verification:**
 ```bash
-# Test C++11 compiler support
-echo '#include <iostream>
-#include <memory>
-int main() {
-    auto ptr = std::make_unique<int>(42);
-    std::cout << "C++11 support: " << *ptr << std::endl;
-    return 0;
-}' > test_cpp11.cpp
-
-# Compile with C++11 standard
-g++ -std=c++11 test_cpp11.cpp -o test_cpp11
-
-# Run test
-./test_cpp11
-# Expected output: C++11 support: 42
-
-# Clean up
-rm test_cpp11.cpp test_cpp11
+# Test C++11 support
+g++ -std=c++11 --version
 ```
 
-### **2. Configure C++11 Build Environment**
-
-```bash
-# Set C++11 as default standard
-export CXXFLAGS="$CXXFLAGS -std=c++11"
-
-# Alternative: Set specific C++ standard (C++14/17 also supported)
-export CXXFLAGS="$CXXFLAGS -std=c++14"
-
-# Verify configuration
-echo $CXXFLAGS
-```
-
-### **3. GCC C++11 Feature Support**
-
-Zero Currency uses these C++11 features:
-- **Auto keyword**: Automatic type deduction
-- **Lambda expressions**: Anonymous functions
-- **Smart pointers**: `std::unique_ptr`, `std::shared_ptr`
-- **Range-based for loops**: Simplified iteration
-- **Move semantics**: Efficient object transfers
-- **Thread support**: `std::thread`, `std::mutex`
 
 ---
 
@@ -368,6 +336,36 @@ fi
 
 echo "=== Dependency verification complete ==="
 ```
+
+---
+
+## Linux Quick Start
+
+For experienced Linux users, the essential build steps:
+
+```bash
+# 1. Install packages (Ubuntu/Debian)
+sudo apt-get install \
+      build-essential pkg-config libc6-dev m4 g++-multilib \
+      autoconf libtool ncurses-dev unzip git python3 python3-zmq \
+      zlib1g-dev wget bsdmainutils automake cmake curl
+
+# 2. Clone repository  
+git clone https://github.com/zerocurrencycoin/zero.git
+cd zero
+git checkout master
+
+# 3. Download cryptographic keys (one-time)
+./zcutil/fetch-params.sh
+
+# 4. Build binaries
+./zcutil/build.sh -j$(nproc)
+```
+
+**Note:** On typical laptops, `-j2` works better than `-j$(nproc)` for maintaining UI responsiveness.
+
+**For GCC compatibility issues:** See [BUILD_C11.md](BUILD_C11.md)  
+**For detailed instructions:** Continue with Build Process section below
 
 ---
 
