@@ -53,6 +53,7 @@
 #endif
 #include <stdint.h>
 #include <stdio.h>
+#include <thread>
 
 #ifndef WIN32
 #include <signal.h>
