@@ -20,7 +20,6 @@
 #include "key_io.h"
 #include "main.h"
 #include "metrics.h"
-#include "zeronode/zeronode-sync.h"
 #include "net.h"
 #include "pow.h"
 #include "primitives/transaction.h"
