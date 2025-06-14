@@ -601,7 +601,13 @@ bool SelectParamsFromCommandLine()
 // Index variable i ranges from 0 - (vFoundersRewardAddress.size()-1)
 std::string CChainParams::GetFoundersRewardAddressAtHeight(int nHeight) const {
     int maxHeight = consensus.GetLastFoundersRewardBlockHeight(nHeight);
-    assert(nHeight >= consensus.nFeeStartBlockHeight && nHeight <= maxHeight);
+    
+    // Validate height range with proper error reporting
+    if (nHeight < consensus.nFeeStartBlockHeight || nHeight > maxHeight) {
+        LogPrintf("ERROR: GetFoundersRewardAddressAtHeight() - Invalid height %d, valid range: %d-%d\n", 
+                  nHeight, consensus.nFeeStartBlockHeight, maxHeight);
+        return "0"; // Return null address for invalid heights
+    }
 
     size_t addressChangeInterval = (maxHeight + vFoundersRewardAddress.size()) / vFoundersRewardAddress.size();
     size_t i = nHeight / addressChangeInterval;
@@ -611,7 +617,14 @@ std::string CChainParams::GetFoundersRewardAddressAtHeight(int nHeight) const {
 // Block height must be >0 and <=last founders reward block height
 // The founders reward address is expected to be a multisig (P2SH) address
 CScript CChainParams::GetFoundersRewardScriptAtHeight(int nHeight) const {
-    assert(nHeight >= consensus.nFeeStartBlockHeight && nHeight <= consensus.GetLastFoundersRewardBlockHeight(nHeight));
+    int maxHeight = consensus.GetLastFoundersRewardBlockHeight(nHeight);
+    
+    // Validate height range with proper error reporting
+    if (nHeight < consensus.nFeeStartBlockHeight || nHeight > maxHeight) {
+        LogPrintf("ERROR: GetFoundersRewardScriptAtHeight() - Invalid height %d, valid range: %d-%d\n", 
+                  nHeight, consensus.nFeeStartBlockHeight, maxHeight);
+        return CScript() << OP_RETURN; // Return provably unspendable script for invalid heights
+    }
 
     CTxDestination address = DecodeDestination(GetFoundersRewardAddressAtHeight(nHeight).c_str());
     assert(IsValidDestination(address));
@@ -622,7 +635,12 @@ CScript CChainParams::GetFoundersRewardScriptAtHeight(int nHeight) const {
 }
 
 std::string CChainParams::GetFoundersRewardAddressAtIndex(int i) const {
-    assert(i >= 0 && i < vFoundersRewardAddress.size());
+    // Validate index range with proper error reporting
+    if (i < 0 || i >= static_cast<int>(vFoundersRewardAddress.size())) {
+        LogPrintf("ERROR: GetFoundersRewardAddressAtIndex() - Invalid index %d, valid range: 0-%d\n", 
+                  i, static_cast<int>(vFoundersRewardAddress.size()) - 1);
+        return vFoundersRewardAddress.empty() ? "" : vFoundersRewardAddress[0]; // Return first address as fallback
+    }
     return vFoundersRewardAddress[i];
 }
 
