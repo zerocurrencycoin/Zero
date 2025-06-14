@@ -126,6 +126,7 @@ void CBudgetManager::CheckOrphanVotes()
     LogPrint("zeronode","CBudgetManager::CheckOrphanVotes - Done\n");
 }
 
+#ifdef ENABLE_WALLET
 void CBudgetManager::SubmitFinalBudget()
 {
     static int nSubmittedHeight = 0; // height at which final budget was submitted last time
@@ -253,6 +254,7 @@ void CBudgetManager::SubmitFinalBudget()
     nSubmittedHeight = nCurrentHeight;
     LogPrint("zeronode","CBudgetManager::SubmitFinalBudget - Done! %s\n", finalizedBudgetBroadcast.GetHash().ToString());
 }
+#endif
 
 //
 // CBudgetDB
@@ -856,7 +858,9 @@ void CBudgetManager::NewBlock()
     if (zeronodeSync.RequestedZeronodeAssets <= ZERONODE_SYNC_BUDGET) return;
 
     if (strBudgetMode == "suggest") { //suggest the budget we see
+#ifdef ENABLE_WALLET
         SubmitFinalBudget();
+#endif
     }
 
     //this function should be called 1/14 blocks, allowing up to 100 votes per day on all proposals

@@ -229,7 +229,9 @@ public:
     bool IsBudgetPaymentBlock(int nBlockHeight);
     bool AddProposal(CBudgetProposal& budgetProposal);
     bool AddFinalizedBudget(CFinalizedBudget& finalizedBudget);
+#ifdef ENABLE_WALLET
     void SubmitFinalBudget();
+#endif
 
     bool UpdateProposal(CBudgetVote& vote, CNode* pfrom, std::string& strError);
     bool UpdateFinalizedBudget(CFinalizedBudgetVote& vote, CNode* pfrom, std::string& strError);
