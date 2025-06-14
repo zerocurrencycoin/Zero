@@ -7,6 +7,7 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/thread.hpp>
+#include <univalue.h>
 
 /** Basic testing setup.
  * This just configures logging and chain parameters.
@@ -70,5 +71,8 @@ struct TestMemPoolEntryHelper
 };
 
 void CheckRPCThrows(std::string rpcString, std::string expectedErrorMessage);
+
+// JSON test helper function for unit tests
+UniValue read_json(const std::string& jsondata);
 
 #endif
