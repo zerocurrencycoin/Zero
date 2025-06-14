@@ -113,42 +113,20 @@ Disabledeprecation flag has been removed. Nodes running release 3.3.1 will autom
 
 For comprehensive build instructions, see our detailed documentation:
 
-- **[BUILD.md](BUILD.md)** - Complete build guide for all platforms (Linux, macOS, Windows)
-- **[BUILD_COMPATIBILITY.md](BUILD_COMPATIBILITY.md)** - GCC compatibility notes and fixes
+- **[BUILD.md](BUILD.md)** - Build guide for Linux, macOS, Windows
+- **[BUILD_C11.md](BUILD_C11.md)** - GCC/C++11 compatibility and compiler setup
 - **[TODO.md](TODO.md)** - Implementation status and architectural improvements  
 - **[ZERONODE_WALLET_INTERFACE.md](ZERONODE_WALLET_INTERFACE.md)** - Architecture documentation
 
-### **⚡ Quick Start (Linux)**
+### **⚡ Quick Start**
 
-**System Requirements:** 8GB RAM recommended, GCC 7.0+
+See **[BUILD.md](BUILD.md)** for detailed build instructions covering:
+- Linux, macOS, and Windows platforms
+- Package dependencies and system requirements  
+- GNU toolchain and C++11 setup
+- Configuration options and troubleshooting
 
-**Install packages (one-time setup):**
-```bash
-sudo apt-get install \
-      build-essential pkg-config libc6-dev m4 g++-multilib \
-      autoconf libtool ncurses-dev unzip git python3 python3-zmq \
-      zlib1g-dev wget bsdmainutils automake cmake curl
-```
-
-**Note:** For detailed instructions including Windows builds, GPU dependencies, and troubleshooting, see **[BUILD.md](BUILD.md)**.
-
-### Obtain the ZERO software from GitHub
-```
-git clone https://github.com/zerocurrencycoin/zero.git
-cd zero
-git checkout master
-```
-
-### Download cryptographic keys (needs to be done only once)
-```
-./zcutil/fetch-params.sh
-```
-
-### Build the source code to produce binary executables:
-```
-./zcutil/build.sh -j$(nproc)
-```
-On a typical laptop -j2 works fine, while retaining some UI interactivity
+**Linux users:** Basic build steps are in BUILD.md sections 4-5.
 
 ### Create a Zero configuration file
 ```
