@@ -163,3 +163,14 @@ bool ShutdownRequested()
 {
   return false;
 }
+
+UniValue read_json(const std::string& jsondata)
+{
+    UniValue v;
+    
+    if (!(v.read(jsondata) && v.isArray()))
+    {
+        throw std::runtime_error("JSON test data parsing failed");
+    }
+    return v.get_array();
+}
