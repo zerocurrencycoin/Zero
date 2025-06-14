@@ -50,6 +50,7 @@ void budgetToJSON(CBudgetProposal* pbudgetProposal, UniValue& bObj)
 
 
 
+#ifdef ENABLE_WALLET
 UniValue preparebudget(const UniValue& params, bool fHelp)
 {
     int nBlockMin = 0;
@@ -147,6 +148,7 @@ UniValue preparebudget(const UniValue& params, bool fHelp)
 
     return wtx.GetHash().ToString();
 }
+#endif
 
 UniValue submitbudget(const UniValue& params, bool fHelp)
 {
@@ -991,7 +993,11 @@ UniValue znbudget(const UniValue& params, bool fHelp)
         for (unsigned int i = 1; i < params.size(); i++) {
             newParams.push_back(params[i]);
         }
+#ifdef ENABLE_WALLET
         return preparebudget(newParams, fHelp);
+#else
+        throw runtime_error("Wallet functionality disabled");
+#endif
     }
 
     if (strCommand == "submit") {
@@ -1052,8 +1058,10 @@ static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
     { "zeronode-budget",             "znbudget",               &znbudget,               true  },
+#ifdef ENABLE_WALLET
     { "zeronode-budget",             "preparebudget",          &preparebudget,          true  },
     { "zeronode-budget",             "submitbudget",           &submitbudget,           true  },
+#endif
     { "zeronode-budget",             "znbudgetvote",           &znbudgetvote,           true  },
     { "zeronode-budget",             "getbudgetvotes",         &getbudgetvotes,         true  },
     { "zeronode-budget",             "getnextsuperblock",      &getnextsuperblock,      true  },

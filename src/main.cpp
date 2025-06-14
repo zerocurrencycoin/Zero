@@ -35,12 +35,19 @@
 #include "util.h"
 #include "utilmoneystr.h"
 #include "validationinterface.h"
+#ifdef ENABLE_WALLET
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
+#endif
 
 #include <algorithm>
 #include <atomic>
 #include <sstream>
+
+#ifndef ENABLE_WALLET
+// Define constant used for JoinSplit fee validation when wallet is disabled
+#define ASYNC_RPC_OPERATION_DEFAULT_MINERS_FEE   10000
+#endif
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>

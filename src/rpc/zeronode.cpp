@@ -510,6 +510,7 @@ UniValue createzeronodekey (const UniValue& params, bool fHelp)
     return EncodeSecret(secret);
 }
 
+#ifdef ENABLE_WALLET
 UniValue getzeronodeoutputs (const UniValue& params, bool fHelp)
 {
     if (fHelp || (params.size() != 0))
@@ -542,6 +543,7 @@ UniValue getzeronodeoutputs (const UniValue& params, bool fHelp)
 
     return ret;
 }
+#endif
 
 UniValue listzeronodeconf (const UniValue& params, bool fHelp)
 {
@@ -968,11 +970,15 @@ UniValue zeronode(const UniValue& params, bool fHelp)
     }
 
     if (strCommand == "outputs") {
+#ifdef ENABLE_WALLET
         UniValue newParams(UniValue::VARR);
         for (unsigned int i = 1; i < params.size(); i++) {
             newParams.push_back(params[i]);
         }
         return getzeronodeoutputs(newParams, fHelp);
+#else
+        throw runtime_error("Wallet functionality disabled");
+#endif
     }
 
     if (strCommand == "status") {
@@ -1138,7 +1144,9 @@ static const CRPCCommand commands[] =
   {"zeronode",            "zeronodecurrent",        &zeronodecurrent,     true},
   {"zeronode",            "zeronodedebug",          &zeronodedebug,       true},
   {"zeronode",            "createzeronodekey",      &createzeronodekey,   true},
+#ifdef ENABLE_WALLET
   {"zeronode",            "getzeronodeoutputs",     &getzeronodeoutputs,  true},
+#endif
   {"zeronode",            "startzeronode",          &startzeronode,       true},
   {"zeronode",            "startalias",             &startalias,          true},
   {"zeronode",            "getzeronodestatus",      &getzeronodestatus,   true},
