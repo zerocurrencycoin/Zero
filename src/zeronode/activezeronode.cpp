@@ -46,13 +46,19 @@ void CActiveZeronode::ManageStatus()
         status = ACTIVE_ZERONODE_NOT_CAPABLE;
         notCapableReason = "";
 
-        if (pwalletMain->IsLocked()) {
+        if (!g_zeronodeWallet || !g_zeronodeWallet->IsAvailable()) {
+            notCapableReason = "Wallet not available.";
+            LogPrintf("CActiveZeronode::ManageStatus() - not capable: %s\n", notCapableReason);
+            return;
+        }
+
+        if (g_zeronodeWallet->IsLocked()) {
             notCapableReason = "Wallet is locked.";
             LogPrintf("CActiveZeronode::ManageStatus() - not capable: %s\n", notCapableReason);
             return;
         }
 
-        if (pwalletMain->GetBalance() == 0) {
+        if (g_zeronodeWallet->GetBalance() == 0) {
             notCapableReason = "Hot node, waiting for remote activation.";
             LogPrintf("CActiveZeronode::ManageStatus() - not capable: %s\n", notCapableReason);
             return;
@@ -102,8 +108,8 @@ void CActiveZeronode::ManageStatus()
                 return;
             }
 
-            LOCK(pwalletMain->cs_wallet);
-            pwalletMain->LockCoin(vin.prevout);
+            LOCK(g_zeronodeWallet->GetCS());
+            g_zeronodeWallet->LockCoin(vin.prevout);
 
             // send to all nodes
             CPubKey pubKeyZeronode;
@@ -297,7 +303,8 @@ bool CActiveZeronode::GetZeroNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKe
 bool CActiveZeronode::GetZeroNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey, std::string strTxHash, std::string strOutputIndex)
 {
     // Find possible candidates
-    TRY_LOCK(pwalletMain->cs_wallet, fWallet);
+    if (!g_zeronodeWallet || !g_zeronodeWallet->IsAvailable()) return false;
+    TRY_LOCK(g_zeronodeWallet->GetCS(), fWallet);
     if (!fWallet) return false;
 
     vector<COutput> possibleCoins = SelectCoinsZeronode();
@@ -358,7 +365,7 @@ bool CActiveZeronode::GetVinFromOutput(COutput out, CTxIn& vin, CPubKey& pubkey,
         return false;
     }
 
-    if (!pwalletMain->GetKey(*keyID, secretKey)) {
+    if (!g_zeronodeWallet->GetKey(*keyID, secretKey)) {
         LogPrintf("CActiveZeronode::GetZeroNodeVin - Private key for address is not known\n");
         return false;
     }
@@ -372,6 +379,7 @@ vector<COutput> CActiveZeronode::SelectCoinsZeronode()
 {
     vector<COutput> vCoins;
     vector<COutput> filteredCoins;
+#ifdef ENABLE_WALLET
     vector<COutPoint> confLockedCoins;
 
     // Temporary unlock ZN coins from zeronode.conf
@@ -386,17 +394,17 @@ vector<COutput> CActiveZeronode::SelectCoinsZeronode()
 
             COutPoint outpoint = COutPoint(znTxHash, nIndex);
             confLockedCoins.push_back(outpoint);
-            pwalletMain->UnlockCoin(outpoint);
+            g_zeronodeWallet->UnlockCoin(outpoint);
         }
     }
 
     // Retrieve all possible outputs
-    pwalletMain->AvailableCoins(vCoins);
+    g_zeronodeWallet->AvailableCoins(vCoins);
 
     // Lock ZN coins from zeronode.conf back if they where temporary unlocked
     if (!confLockedCoins.empty()) {
         BOOST_FOREACH (COutPoint outpoint, confLockedCoins)
-            pwalletMain->LockCoin(outpoint);
+            g_zeronodeWallet->LockCoin(outpoint);
     }
 
     // Filter
@@ -405,6 +413,7 @@ vector<COutput> CActiveZeronode::SelectCoinsZeronode()
             filteredCoins.push_back(out);
         }
     }
+#endif // ENABLE_WALLET
     return filteredCoins;
 }
 
