@@ -1,10 +1,10 @@
 # Zero Currency Build Guide
 
-This document provides instructions for building Zero Currency (zerod) and Zero Wallet (zerowallet) from source.
+This document provides instructions for building Zero Currency node (zerod) from source.
 
 ## Related Documentation
 
-- **[BUILD_C11.md](BUILD_C11.md)** - GCC/C++11 compatibility and compiler-specific setup
+- **[BUILD_C11.md](BUILD_C11.md)** - GCC/C++11 compatibility issues
 - **[BUILD_COMPARISON.md](BUILD_COMPARISON.md)** - Build system comparison with other projects
 
 ## Table of Contents
@@ -29,14 +29,14 @@ This document provides instructions for building Zero Currency (zerod) and Zero 
 ## System Requirements
 
 ### **Supported Platforms**
-- **Linux**: Ubuntu 20.04+, Debian 9+, CentOS 7+, Fedora 28+
-- **macOS**: 10.14+ (Mojave and later)
-- **Windows**: Windows 11 (MinGW cross-compilation or WSL2)
+- **Linux**: Ubuntu 20.04+
+- ?? **Windows**: Windows 11 (MinGW cross-compilation or WSL2)
+- ?? **macOS**: 10.14+ (Mojave and later)
 
 ### **Minimum Hardware**
 - **RAM**: 4GB (8GB recommended for parallel builds)
 - **Storage**: 10GB free space for full build
-- **CPU**: Multi-core processor (build time scales with cores)
+- **CPU**: Multi-core processor (build time may scale with number of cores)
 
 ### **Software Requirements**
 - **GCC**: 7.0+ (supports C++11/14/17)
@@ -44,8 +44,25 @@ This document provides instructions for building Zero Currency (zerod) and Zero 
 - **Python**: 3.6+
 - **Git**: 2.0+
 
-Last tested with Ubuntu 24.04, WSL 2.2.4.0, gcc 13.3, gmake 4.3, Python 3.12, git 2.43
+## Quick Ubuntu Build
+Tested with Ubuntu 24.04 VPS or WSL 2.2.4.0, gcc 13.3, gmake 4.3, Python 3.12, git 2.43
+
+```bash
+sudo apt install \
+    build-essential pkg-config libc6-dev m4 g++-multilib \
+    autoconf automake libtool-bin ncurses-dev python3 python3-zmq python3-websockets \
+    zlib1g-dev unzip git bsdmainutils cmake wget curl
+
+git clone https://github.com/zerocurrencycoin/zero.git
+cd Zero
+
+./zcutil/build.sh
+
+./src/zerod --version
+```
+
 ---
+# NOTES
 
 ## GNU Toolchain Setup
 
@@ -61,11 +78,9 @@ sudo apt install build-essential
 
 # Verify GCC version (should be 7.0 or higher)
 gcc --version
-g++ --version
 
 # Example output:
-# gcc (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0
-# g++ (Ubuntu 9.4.0-1ubuntu1~20.04.2) 9.4.0
+# gcc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0
 ```
 
 #### **CentOS/RHEL/Fedora:**
@@ -80,7 +95,6 @@ sudo dnf install gcc gcc-c++ make
 
 # Verify installation
 gcc --version
-g++ --version
 ```
 
 #### **macOS:**
@@ -93,7 +107,6 @@ brew install gcc
 
 # Verify installation
 gcc --version
-g++ --version
 ```
 
 ### **2. Configure GNU Environment Variables**
@@ -112,17 +125,11 @@ source ~/.bashrc
 
 #### **Multi-Core Build Configuration:**
 ```bash
-# Set parallel build jobs (adjust based on CPU cores)
+# Set parallel build jobs (adjust nproc based on CPU cores, say 2-4)
 export MAKEFLAGS="-j$(nproc)"
 
 # For macOS
 export MAKEFLAGS="-j$(sysctl -n hw.ncpu)"
-
-# For Windows (in WSL2)
-export MAKEFLAGS="-j$(nproc)"
-
-# Verify core count
-echo "Building with $(nproc) parallel jobs"
 ```
 
 #### **Windows Cross-Compilation Setup:**
@@ -156,13 +163,18 @@ brew install autoconf automake libtool
 autoconf --version    # Should be 2.69+
 automake --version    # Should be 1.15+
 libtool --version     # Should be 2.4+
+
+#Example output on Ubuntu 24.04:
+autoconf (GNU Autoconf) 2.71
+automake (GNU automake) 1.16.5
+libtool (GNU libtool) 2.4.7
 ```
 
 ---
 
 ## C++11 Configuration
 
-Zero Currency requires C++11 standard support. For detailed GCC compatibility information and compiler-specific setup, see **[BUILD_C11.md](BUILD_C11.md)**.
+Zero Currency requires C++11 support described in **[BUILD_C11.md](BUILD_C11.md)**.
 
 **Quick verification:**
 ```bash
@@ -170,14 +182,13 @@ Zero Currency requires C++11 standard support. For detailed GCC compatibility in
 g++ -std=c++11 --version
 ```
 
-
 ---
 
 ## Package Dependencies
 
 ### **Core Build Dependencies**
 
-Install all required packages:
+Install required packages:
 
 ```bash
 # Ubuntu/Debian - Complete package installation
@@ -264,7 +275,7 @@ sudo apt install -y \
     cmake \
     curl
 
-echo "✓ Core build dependencies installed"
+echo "Core build dependencies installed"
 
 # Optional GUI dependencies (for zerowallet)
 read -p "Install GUI dependencies for Zero Wallet? [y/N] " -n 1 -r
@@ -306,7 +317,7 @@ command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 not found"; exit 1;
 command -v cmake >/dev/null 2>&1 || { echo "ERROR: cmake not found"; exit 1; }
 command -v git >/dev/null 2>&1 || { echo "ERROR: git not found"; exit 1; }
 
-echo "✓ All required build tools found"
+echo "All required build tools found"
 
 # Check Python ZMQ support
 python3 -c "import zmq; print('✓ Python ZMQ support:', zmq.zmq_version())" 2>/dev/null || \
@@ -315,7 +326,7 @@ python3 -c "import zmq; print('✓ Python ZMQ support:', zmq.zmq_version())" 2>/
 # Check GCC version
 GCC_VERSION=$(gcc -dumpversion | cut -d. -f1)
 if [ "$GCC_VERSION" -ge 7 ]; then
-    echo "✓ GCC version: $(gcc --version | head -n1)"
+    echo "GCC version: $(gcc --version | head -n1)"
 else
     echo "ERROR: GCC version $GCC_VERSION too old (need 7.0+)"
     exit 1
@@ -323,7 +334,7 @@ fi
 
 # Check C++11 support
 if g++ -std=c++11 -dM -E - < /dev/null | grep -q __cplusplus; then
-    echo "✓ C++11 support confirmed"
+    echo "C++11 support confirmed"
 else
     echo "ERROR: C++11 support not available"
     exit 1
@@ -331,7 +342,7 @@ fi
 
 # Check Qt5 (optional for GUI)
 if command -v qmake >/dev/null 2>&1; then
-    echo "✓ Qt5 qmake found: $(qmake --version | grep -o 'Qt version [0-9.]*')"
+    echo "Qt5 qmake found: $(qmake --version | grep -o 'Qt version [0-9.]*')"
     
     # Check specific Qt5 components
     pkg-config --exists Qt5Core && echo "✓ Qt5Core available" || echo "WARNING: Qt5Core not found"
@@ -346,35 +357,6 @@ echo "=== Dependency verification complete ==="
 
 ---
 
-## Linux Quick Start
-
-For experienced Linux users, the essential build steps:
-
-```bash
-# 1. Install packages (Ubuntu/Debian)
-sudo apt-get install \
-      build-essential pkg-config libc6-dev m4 g++-multilib \
-      autoconf libtool ncurses-dev unzip git python3 python3-zmq \
-      zlib1g-dev wget bsdmainutils automake cmake curl
-
-# 2. Clone repository  
-git clone https://github.com/zerocurrencycoin/zero.git
-cd zero
-git checkout master
-
-# 3. Download cryptographic keys (one-time)
-./zcutil/fetch-params.sh
-
-# 4. Build binaries
-./zcutil/build.sh -j$(nproc)
-```
-
-**Note:** On a typical laptop, `-j2` works while maintaining UI responsiveness.
-
-**For GCC compatibility issues:** See [BUILD_C11.md](BUILD_C11.md)  
-**For detailed instructions:** Continue with Build Process section below
-
----
 
 ## Build Process
 
@@ -383,7 +365,7 @@ git checkout master
 ```bash
 # Clone Zero Currency source code
 git clone https://github.com/zerocurrencycoin/zero.git
-cd zero
+cd Zero
 
 # Check current branch and latest commits
 git branch -v
@@ -1138,7 +1120,7 @@ ls -la src/qt/zerowallet
 ./src/zerod --version
 ./src/zero-cli --version
 
-echo "✓ Zero Currency build completed successfully!"
+echo "Zero Currency build completed successfully!"
 ```
 
 ### **Complete Build Verification Checklist**
@@ -1170,30 +1152,30 @@ DAEMON_PID=$!
 sleep 5
 
 if ps -p $DAEMON_PID > /dev/null; then
-    echo "✓ zerod starts successfully"
+    echo "zerod starts successfully"
     kill $DAEMON_PID 2>/dev/null
 else
-    echo "⚠️ zerod startup needs verification"
+    echo "zerod startup needs verification"
 fi
 
 # 5. Test suite verification  
 echo -e "\nTest suite status:"
 if test -x src/zero-gtest; then
-    echo "✓ Google Test suite available"
+    echo "Google Test suite available"
     echo "  Run: ./src/zero-gtest"
 else
-    echo "⚠️ Google Test suite not built"
+    echo "Google Test suite not built"
 fi
 
 if test -x src/test/test_bitcoin; then
-    echo "✓ Boost Test suite available" 
+    echo "Boost Test suite available" 
     echo "  Run: ./src/test/test_bitcoin"
 else
-    echo "⚠️ Boost Test suite not built"
+    echo "Boost Test suite not built"
 fi
 
 echo -e "\n=== Build Verification Complete ==="
-echo "✓ Zero Currency is ready for use!"
+echo "Zero Currency is ready for use!"
 ```
 
 ---
