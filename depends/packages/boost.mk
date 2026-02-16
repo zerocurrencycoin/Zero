@@ -1,6 +1,6 @@
 package=boost
 $(package)_version=1_70_0
-$(package)_download_path=https://dl.bintray.com/boostorg/release/1.70.0/source
+$(package)_download_path=https://archives.boost.io/release/1.70.0/source
 $(package)_file_name=$(package)_$($(package)_version).tar.bz2
 $(package)_sha256_hash=430ae8354789de4fd19ee52f3b1f739e1fba576f0aded0897c3c2bc00fb38778
 $(package)_patches=pthread_stack_min_fix.patch
@@ -11,20 +11,21 @@ $(package)_config_opts_debug=variant=debug
 $(package)_config_opts=--layout=system
 $(package)_config_opts+=threading=multi link=static -sNO_BZIP2=1 -sNO_ZLIB=1
 $(package)_config_opts_linux=threadapi=pthread runtime-link=shared
-$(package)_config_opts_darwin=--toolset=darwin-4.2.1 runtime-link=shared
+$(package)_config_opts_darwin=--toolset=clang runtime-link=shared
 $(package)_config_opts_mingw32=binary-format=pe target-os=windows threadapi=win32 runtime-link=static
 $(package)_config_opts_x86_64_mingw32=address-model=64
 $(package)_config_opts_i686_mingw32=address-model=32
 $(package)_config_opts_i686_linux=address-model=32 architecture=x86
 $(package)_toolset_$(host_os)=gcc
 $(package)_archiver_$(host_os)=$($(package)_ar)
-$(package)_toolset_darwin=darwin
-$(package)_archiver_darwin=$($(package)_libtool)
+$(package)_toolset_darwin=clang
+$(package)_archiver_darwin=$($(package)_ar)
 $(package)_config_libraries=chrono,filesystem,program_options,system,thread,test
 $(package)_cxxflags=-std=c++11 -fvisibility=hidden -Wno-nonnull -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-error -Wno-deprecated-declarations
 $(package)_cppflags+=-DPTHREAD_STACK_MIN=16384
 $(package)_cxxflags_linux=-fPIC
 $(package)_cxxflags_freebsd=-fPIC
+$(package)_cxxflags_darwin=-Wno-enum-constexpr-conversion
 endef
 
 define $(package)_preprocess_cmds
@@ -32,7 +33,7 @@ endef
 
 define $(package)_config_cmds
   ./bootstrap.sh --without-icu --with-toolset=$($(package)_toolset_$(host_os)) --with-libraries=$($(package)_config_libraries) && \
-  sed -i -e "s|using gcc ;|using $(boost_toolset_$(host_os)) : : $($(package)_cxx) : <cxxflags>\"$($(package)_cxxflags) $($(package)_cppflags)\" <linkflags>\"$($(package)_ldflags)\" <archiver>\"$(boost_archiver_$(host_os))\" <striper>\"$(host_STRIP)\"  <ranlib>\"$(host_RANLIB)\" <rc>\"$(host_WINDRES)\" : ;|" project-config.jam
+  sed -i.old "s|using [a-z]* ;|using $(boost_toolset_$(host_os)) : : $($(package)_cxx) : <cxxflags>\"$($(package)_cxxflags) $($(package)_cppflags)\" <linkflags>\"$($(package)_ldflags)\" <archiver>\"$(boost_archiver_$(host_os))\" <striper>\"$(host_STRIP)\"  <ranlib>\"$(host_RANLIB)\" <rc>\"$(host_WINDRES)\" : ;|" project-config.jam
 endef
 
 define $(package)_build_cmds

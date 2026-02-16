@@ -1,4 +1,35 @@
 package=rust
+
+# Detect Apple Silicon native build to use system Rust
+# (Rust 1.32.0 has no aarch64-apple-darwin binaries)
+rust_system_rust :=
+ifeq ($(build_os),darwin)
+ifneq (,$(findstring aarch64,$(build)))
+ifeq ($(canonical_host),$(build))
+rust_system_rust := yes
+endif
+endif
+endif
+
+ifeq ($(rust_system_rust),yes)
+
+# Use system Rust for Apple Silicon Mac native builds
+$(package)_version=system
+
+define $(package)_fetch_cmds
+endef
+
+define $(package)_extract_cmds
+endef
+
+define $(package)_stage_cmds
+  mkdir -p $($(package)_staging_dir)$(host_prefix)/native/bin && \
+  ln -sf $(shell which cargo) $($(package)_staging_dir)$(host_prefix)/native/bin/cargo && \
+  ln -sf $(shell which rustc) $($(package)_staging_dir)$(host_prefix)/native/bin/rustc
+endef
+
+else
+
 $(package)_version=1.32.0
 $(package)_download_path=https://static.rust-lang.org/dist
 $(package)_file_name_linux=rust-$($(package)_version)-x86_64-unknown-linux-gnu.tar.gz
@@ -48,4 +79,6 @@ else
 define $(package)_stage_cmds
   bash ./install.sh --destdir=$($(package)_staging_dir) --prefix=$(host_prefix)/native --disable-ldconfig
 endef
+endif
+
 endif

@@ -907,8 +907,8 @@ protected:
     /**
      * pindex is the new tip being connected.
      */
-     int VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessOnly);
-     void BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly);
+     int VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessOnly, const CBlock* pblockIn = nullptr);
+     void BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, const CBlock* pblockIn = nullptr);
     /**
      * pindex is the old tip being disconnected.
      */

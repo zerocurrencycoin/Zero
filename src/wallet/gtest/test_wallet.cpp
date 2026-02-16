@@ -51,8 +51,8 @@ public:
         return CCryptoKeyStore::Unlock(vMasterKeyIn);
     }
 
-    void BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly) {
-        CWallet::BuildWitnessCache(pindex, witnessOnly);
+    void BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, const CBlock* pblockIn = nullptr) {
+        CWallet::BuildWitnessCache(pindex, witnessOnly, pblockIn);
     }
     void DecrementNoteWitnesses(const CBlockIndex* pindex) {
         CWallet::DecrementNoteWitnesses(pindex);
@@ -110,7 +110,7 @@ std::vector<SaplingOutPoint> SetSaplingNoteData(CWalletTx& wtx) {
 
 std::pair<JSOutPoint, SaplingOutPoint> CreateValidBlock(TestWallet& wallet,
                             const libzcash::SproutSpendingKey& sk,
-                            const CBlockIndex& index,
+                            CBlockIndex& index,
                             CBlock& block,
                             SproutMerkleTree& sproutTree,
                             SaplingMerkleTree& saplingTree) {
@@ -124,10 +124,18 @@ std::pair<JSOutPoint, SaplingOutPoint> CreateValidBlock(TestWallet& wallet,
     noteData[jsoutpt] = nd;
     wtx.SetSproutNoteData(noteData);
     auto saplingNotes = SetSaplingNoteData(wtx);
-    wallet.AddToWallet(wtx, true, NULL);
 
     block.vtx.push_back(wtx);
-    wallet.BuildWitnessCache(&index, false);
+    block.hashMerkleRoot = block.BuildMerkleTree();
+    auto blockHash = block.GetHash();
+    auto it = mapBlockIndex.insert(std::make_pair(blockHash, &index));
+    index.phashBlock = &(it.first->first);
+    chainActive.SetTip(&index);
+
+    wtx.SetMerkleBranch(block);
+    wallet.AddToWallet(wtx, true, NULL);
+
+    wallet.BuildWitnessCache(&index, false, &block);
 
     return std::make_pair(jsoutpt, saplingNotes[0]);
 }
@@ -678,12 +686,35 @@ TEST(WalletTests, GetConflictedSaplingNotes) {
     wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
 
-    // Simulate receiving new block and ChainTip signal
-    wallet.BuildWitnessCache(&fakeIndex, false);
+    // Build witness for note B manually. BuildWitnessCache cannot reconstruct
+    // the correct Sapling tree here because note A is synthetic (not from any
+    // block) and pprev is null, so the internal tree would start empty.
+    uint256 hash = wtx.GetHash();
+    for (uint32_t i = 0; i < wtx.vShieldedOutput.size(); i++) {
+        saplingTree.append(wtx.vShieldedOutput[i].cm);
+    }
+    SaplingOutPoint sop0(hash, 0);
+    {
+        // Rebuild the tree to capture witness at the right position
+        SaplingMerkleTree witTree;
+        auto cmA = note.cm().get();
+        witTree.append(cmA);
+        SaplingWitness noteWitness;
+        for (uint32_t i = 0; i < wtx.vShieldedOutput.size(); i++) {
+            witTree.append(wtx.vShieldedOutput[i].cm);
+            if (i == 0) {
+                noteWitness = witTree.witness();
+            }
+        }
+        for (uint32_t i = 1; i < wtx.vShieldedOutput.size(); i++) {
+            noteWitness.append(wtx.vShieldedOutput[i].cm);
+        }
+        wallet.mapWallet[hash].mapSaplingNoteData[sop0].witnesses.push_front(noteWitness);
+        wallet.mapWallet[hash].mapSaplingNoteData[sop0].witnessHeight = 0;
+    }
     wallet.UpdateNullifierNoteMapForBlock(&block);
 
     // Retrieve the updated wtx from wallet
-    uint256 hash = wtx.GetHash();
     wtx = wallet.mapWallet[hash];
 
     // Decrypt output note B
@@ -697,8 +728,7 @@ TEST(WalletTests, GetConflictedSaplingNotes) {
     ASSERT_EQ(static_cast<bool>(maybe_note), true);
     auto note2 = maybe_note.get();
 
-    SaplingOutPoint sop0(wtx.GetHash(), 0);
-    auto spend_note_witness =  wtx.mapSaplingNoteData[sop0].witnesses.front();
+    auto spend_note_witness = wtx.mapSaplingNoteData[sop0].witnesses.front();
     auto maybe_nf = note2.nullifier(extfvk.fvk, spend_note_witness.position());
     ASSERT_EQ(static_cast<bool>(maybe_nf), true);
     auto nullifier2 = maybe_nf.get();
@@ -932,7 +962,7 @@ TEST(WalletTests, NavigateFromSaplingNullifierToNote) {
     }
 
     // Simulate receiving new block and ChainTip signal
-    wallet.BuildWitnessCache(&fakeIndex, false);
+    wallet.BuildWitnessCache(&fakeIndex, false, &block);
     wallet.UpdateNullifierNoteMapForBlock(&block);
 
     // Retrieve the updated wtx from wallet
@@ -1039,14 +1069,30 @@ TEST(WalletTests, SpentSaplingNoteIsFromMe) {
     wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
 
-    // Simulate receiving new block and ChainTip signal.
-    // This triggers calculation of nullifiers for notes belonging to this wallet
-    // in the output descriptions of wtx.
-    wallet.BuildWitnessCache(&fakeIndex, false);
+    // Build witness for note B manually — note A is synthetic, not from any block.
+    auto wtxHash = wtx.GetHash();
+    for (uint32_t i = 0; i < wtx.vShieldedOutput.size(); i++) {
+        saplingTree.append(wtx.vShieldedOutput[i].cm);
+    }
+    SaplingOutPoint sop0(wtxHash, 0);
+    {
+        SaplingMerkleTree witTree;
+        witTree.append(cm);
+        SaplingWitness noteWitness;
+        for (uint32_t i = 0; i < wtx.vShieldedOutput.size(); i++) {
+            witTree.append(wtx.vShieldedOutput[i].cm);
+            if (i == 0) noteWitness = witTree.witness();
+        }
+        for (uint32_t i = 1; i < wtx.vShieldedOutput.size(); i++) {
+            noteWitness.append(wtx.vShieldedOutput[i].cm);
+        }
+        wallet.mapWallet[wtxHash].mapSaplingNoteData[sop0].witnesses.push_front(noteWitness);
+        wallet.mapWallet[wtxHash].mapSaplingNoteData[sop0].witnessHeight = 0;
+    }
     wallet.UpdateNullifierNoteMapForBlock(&block);
 
     // Retrieve the updated wtx from wallet
-    wtx = wallet.mapWallet[wtx.GetHash()];
+    wtx = wallet.mapWallet[wtxHash];
 
     // The test wallet never received the fake note which is being spent, so there
     // is no mapping from nullifier to notedata stored in mapSaplingNullifiersToNotes.
@@ -1070,8 +1116,7 @@ TEST(WalletTests, SpentSaplingNoteIsFromMe) {
     auto note2 = maybe_note.get();
 
     // Get witness to retrieve position of note B we want to spend
-    SaplingOutPoint sop0(wtx.GetHash(), 0);
-    auto spend_note_witness =  wtx.mapSaplingNoteData[sop0].witnesses.front();
+    auto spend_note_witness = wtx.mapSaplingNoteData[sop0].witnesses.front();
     auto maybe_nf = note2.nullifier(extfvk.fvk, spend_note_witness.position());
     ASSERT_EQ(static_cast<bool>(maybe_nf), true);
     auto nullifier2 = maybe_nf.get();
@@ -1163,6 +1208,16 @@ TEST(WalletTests, CachedWitnessesEmptyChain) {
     EXPECT_FALSE((bool) sproutWitnesses[1]);
     EXPECT_FALSE((bool) saplingWitnesses[0]);
 
+    CBlock block;
+    block.vtx.push_back(wtx);
+    block.hashMerkleRoot = block.BuildMerkleTree();
+    auto blockHash = block.GetHash();
+    CBlockIndex index(block);
+    auto it = mapBlockIndex.insert(std::make_pair(blockHash, &index));
+    index.phashBlock = &(it.first->first);
+    chainActive.SetTip(&index);
+
+    wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
 
     ::GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses, saplingWitnesses);
@@ -1171,12 +1226,9 @@ TEST(WalletTests, CachedWitnessesEmptyChain) {
     EXPECT_FALSE((bool) sproutWitnesses[1]);
     EXPECT_FALSE((bool) saplingWitnesses[0]);
 
-    CBlock block;
-    block.vtx.push_back(wtx);
-    CBlockIndex index(block);
     SproutMerkleTree sproutTree;
     SaplingMerkleTree saplingTree;
-    wallet.BuildWitnessCache(&index, false);
+    wallet.BuildWitnessCache(&index, false, &block);
 
     ::GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses, saplingWitnesses);
 
@@ -1187,6 +1239,10 @@ TEST(WalletTests, CachedWitnessesEmptyChain) {
     // Until #1302 is implemented, this should triggger an assertion
     EXPECT_DEATH(wallet.DecrementNoteWitnesses(&index),
                  ".*nWitnessCacheSize > 0.*");
+
+    // Tear down
+    chainActive.SetTip(NULL);
+    mapBlockIndex.erase(blockHash);
 }
 
 TEST(WalletTests, CachedWitnessesChainTip) {
@@ -1246,7 +1302,7 @@ TEST(WalletTests, CachedWitnessesChainTip) {
         index2.nHeight = 2;
         SproutMerkleTree sproutTree2 {sproutTree};
         SaplingMerkleTree saplingTree2 {saplingTree};
-        wallet.BuildWitnessCache(&index2, false);
+        wallet.BuildWitnessCache(&index2, false, &block2);
 
         auto anchors2 = GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses, saplingWitnesses);
         EXPECT_NE(anchors2.first, anchors2.second);
@@ -1267,7 +1323,7 @@ TEST(WalletTests, CachedWitnessesChainTip) {
         EXPECT_NE(anchors1.second, anchors3.second);
 
         // Re-incrementing with the same block should give the same result
-        wallet.BuildWitnessCache(&index2, false);
+        wallet.BuildWitnessCache(&index2, false, &block2);
         auto anchors4 = GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses, saplingWitnesses);
         EXPECT_NE(anchors4.first, anchors4.second);
 
@@ -1277,7 +1333,7 @@ TEST(WalletTests, CachedWitnessesChainTip) {
         EXPECT_EQ(anchors2.second, anchors4.second);
 
         // Incrementing with the same block again should not change the cache
-        wallet.BuildWitnessCache(&index2, false);
+        wallet.BuildWitnessCache(&index2, false, &block2);
         std::vector<boost::optional<SproutWitness>> sproutWitnesses5;
         std::vector<boost::optional<SaplingWitness>> saplingWitnesses5;
 
@@ -1360,7 +1416,7 @@ TEST(WalletTests, CachedWitnessesDecrementFirst) {
         EXPECT_NE(anchors2.second, anchors4.second);
 
         // Re-incrementing with the same block should give the same result
-        wallet.BuildWitnessCache(&index2, false);
+        wallet.BuildWitnessCache(&index2, false, &block2);
 
         auto anchors5 = GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses, saplingWitnesses);
 
@@ -1417,7 +1473,7 @@ TEST(WalletTests, CachedWitnessesCleanIndex) {
     for (size_t i = 0; i < numBlocks; i++) {
         SproutMerkleTree sproutRiPrevTree {sproutRiTree};
         SaplingMerkleTree saplingRiPrevTree {saplingRiTree};
-        wallet.BuildWitnessCache(&indices[i], false);
+        wallet.BuildWitnessCache(&indices[i], false, &blocks[i]);
 
         auto anchors = GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses, saplingWitnesses);
         for (size_t j = 0; j < numBlocks; j++) {
@@ -1444,7 +1500,7 @@ TEST(WalletTests, CachedWitnessesCleanIndex) {
             }
 
             {
-                wallet.BuildWitnessCache(&indices[i], false);
+                wallet.BuildWitnessCache(&indices[i], false, &blocks[i]);
                 auto anchors = GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses, saplingWitnesses);
                 for (size_t j = 0; j < numBlocks; j++) {
                     EXPECT_TRUE((bool) sproutWitnesses[j]);
@@ -1818,7 +1874,7 @@ TEST(WalletTests, UpdatedSaplingNoteData) {
     wallet.AddToWallet(wtx, true, NULL);
 
     // Simulate receiving new block and ChainTip signal
-    wallet.BuildWitnessCache(&fakeIndex, false);
+    wallet.BuildWitnessCache(&fakeIndex, false, &block);
     wallet.UpdateNullifierNoteMapForBlock(&block);
 
     // Retrieve the updated wtx from wallet
@@ -1962,12 +2018,22 @@ TEST(WalletTests, MarkAffectedSaplingTransactionsDirty) {
     wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
 
-    // Simulate receiving new block and ChainTip signal
-    wallet.BuildWitnessCache(&fakeIndex, false);
+    // Build witness manually — no synthetic note; tree starts empty, append block outputs.
+    uint256 hash = wtx.GetHash();
+    SaplingWitness noteBWitness;
+    for (uint32_t i = 0; i < tx1.vShieldedOutput.size(); i++) {
+        saplingTree.append(tx1.vShieldedOutput[i].cm);
+        if (i == 0) noteBWitness = saplingTree.witness();
+    }
+    for (uint32_t i = 1; i < tx1.vShieldedOutput.size(); i++) {
+        noteBWitness.append(tx1.vShieldedOutput[i].cm);
+    }
+    SaplingOutPoint sop0(hash, 0);
+    wallet.mapWallet[hash].mapSaplingNoteData[sop0].witnesses.push_front(noteBWitness);
+    wallet.mapWallet[hash].mapSaplingNoteData[sop0].witnessHeight = 0;
     wallet.UpdateNullifierNoteMapForBlock(&block);
 
     // Retrieve the updated wtx from wallet
-    uint256 hash = wtx.GetHash();
     wtx = wallet.mapWallet[hash];
 
     // Prepare to spend the note that was just created
@@ -1978,7 +2044,7 @@ TEST(WalletTests, MarkAffectedSaplingTransactionsDirty) {
     ASSERT_EQ(static_cast<bool>(maybe_note), true);
     auto note = maybe_note.get();
     auto anchor = saplingTree.root();
-    auto witness = saplingTree.witness();
+    auto witness = noteBWitness;
 
     // Create a Sapling-only transaction
     // 0.0004 z-ZEC in, 0.00025 z-ZEC out, 0.0001 t-ZEC fee, 0.00005 z-ZEC change

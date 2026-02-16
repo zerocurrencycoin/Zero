@@ -86,6 +86,12 @@ TEST(PoW, DifficultyAveragingBlossom) {
 TEST(PoW, MinDifficultyRules) {
     SelectParams(CBaseChainParams::TESTNET);
     const Consensus::Params& params = Params().GetConsensus();
+
+    // Zero's testnet sets nPowAllowMinDifficultyBlocksAfterHeight to boost::none
+    if (!params.nPowAllowMinDifficultyBlocksAfterHeight) {
+        return;
+    }
+
     size_t lastBlk = 2*params.nPowAveragingWindow;
     size_t firstBlk = lastBlk - params.nPowAveragingWindow;
 

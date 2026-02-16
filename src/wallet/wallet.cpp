@@ -1241,6 +1241,7 @@ void CWallet::ClearNoteWitnessCache()
             item.second.witnessHeight = -1;
         }
     }
+    nWitnessCacheSize = 0;
 }
 
 void CWallet::DecrementNoteWitnesses(const CBlockIndex* pindex)
@@ -1304,9 +1305,13 @@ int CWallet::SaplingWitnessMinimumHeight(const uint256& nullifier, int nWitnessH
     return nMinimumHeight;
 }
 
-int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessOnly)
+int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessOnly, const CBlock* pblockIn)
 {
   LOCK2(cs_main, cs_wallet);
+
+  if (!pcoinsTip && !pblockIn) {
+    return pindex->nHeight;
+  }
 
   int nWitnessTxIncrement = 0;
   int nWitnessTotalTxCount = mapWallet.size();
@@ -1371,16 +1376,20 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
         LogPrintf("Setting Inital Sprout Witness for tx %s, %i of %i\n", wtxHash.ToString(), nWitnessTxIncrement, nWitnessTotalTxCount);
 
         SproutMerkleTree sproutTree;
-        blockRoot = pblockindex->pprev->hashFinalSproutRoot;
-        pcoinsTip->GetSproutAnchorAt(blockRoot, sproutTree);
+        if (pblockindex->pprev && pcoinsTip) {
+          blockRoot = pblockindex->pprev->hashFinalSproutRoot;
+          pcoinsTip->GetSproutAnchorAt(blockRoot, sproutTree);
+        }
 
         //Cycle through blocks and transactions building sprout tree until the commitment needed is reached
-        const CBlock* pblock;
+        const CBlock* pblock = pblockIn;
         CBlock block;
-        ReadBlockFromDisk(block, pblockindex, Params().GetConsensus());
-        pblock = &block;
+        if (!pblock) {
+          ReadBlockFromDisk(block, pblockindex, Params().GetConsensus());
+          pblock = &block;
+        }
 
-        for (const CTransaction& tx : block.vtx) {
+        for (const CTransaction& tx : pblock->vtx) {
           auto hash = tx.GetHash();
 
           for (size_t i = 0; i < tx.vJoinSplit.size(); i++) {
@@ -1411,7 +1420,9 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
 
         nd->witnessHeight = pblockindex->nHeight;
         UpdateSproutNullifierNoteMapWithTx(wtxItem.second);
-        nMinimumHeight = SproutWitnessMinimumHeight(*item.second.nullifier, nd->witnessHeight, nMinimumHeight);
+        if (item.second.nullifier) {
+          nMinimumHeight = SproutWitnessMinimumHeight(*item.second.nullifier, nd->witnessHeight, nMinimumHeight);
+        }
       }
 
       for (mapSaplingNoteData_t::value_type& item : wtxItem.second.mapSaplingNoteData) {
@@ -1461,16 +1472,20 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
         LogPrintf("Setting Inital Sapling Witness for tx %s, %i of %i\n", wtxHash.ToString(), nWitnessTxIncrement, nWitnessTotalTxCount);
 
         SaplingMerkleTree saplingTree;
-        blockRoot = pblockindex->pprev->hashFinalSaplingRoot;
-        pcoinsTip->GetSaplingAnchorAt(blockRoot, saplingTree);
+        if (pblockindex->pprev && pcoinsTip) {
+          blockRoot = pblockindex->pprev->hashFinalSaplingRoot;
+          pcoinsTip->GetSaplingAnchorAt(blockRoot, saplingTree);
+        }
 
         //Cycle through blocks and transactions building sapling tree until the commitment needed is reached
-        const CBlock* pblock;
+        const CBlock* pblock = pblockIn;
         CBlock block;
-        ReadBlockFromDisk(block, pblockindex, Params().GetConsensus());
-        pblock = &block;
+        if (!pblock) {
+          ReadBlockFromDisk(block, pblockindex, Params().GetConsensus());
+          pblock = &block;
+        }
 
-        for (const CTransaction& tx : block.vtx) {
+        for (const CTransaction& tx : pblock->vtx) {
           auto hash = tx.GetHash();
 
           // Sapling
@@ -1498,7 +1513,9 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
         }
         nd->witnessHeight = pblockindex->nHeight;
         UpdateSaplingNullifierNoteMapWithTx(wtxItem.second);
-        nMinimumHeight = SaplingWitnessMinimumHeight(*item.second.nullifier, nd->witnessHeight, nMinimumHeight);
+        if (item.second.nullifier) {
+          nMinimumHeight = SaplingWitnessMinimumHeight(*item.second.nullifier, nd->witnessHeight, nMinimumHeight);
+        }
       }
     }
   }
@@ -1509,12 +1526,12 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
   return nMinimumHeight;
 }
 
-void CWallet::BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly)
+void CWallet::BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, const CBlock* pblockIn)
 {
 
   LOCK2(cs_main, cs_wallet);
 
-  int startHeight = VerifyAndSetInitialWitness(pindex, witnessOnly) + 1;
+  int startHeight = VerifyAndSetInitialWitness(pindex, witnessOnly, pblockIn) + 1;
 
   if (startHeight > pindex->nHeight || witnessOnly) {
     return;
