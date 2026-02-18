@@ -66,6 +66,20 @@ if [[ -z "${CONFIGURE_FLAGS-}" ]]; then
     CONFIGURE_FLAGS=""
 fi
 
+# Cap -jN at 4. Detect CPU count: nproc (Linux), gnproc (Mac with coreutils), sysctl (Mac native).
+detect_jobs() {
+    local n=4
+    if command -v nproc &>/dev/null; then
+        n=$(nproc 2>/dev/null || echo 4)
+    elif command -v gnproc &>/dev/null; then
+        n=$(gnproc 2>/dev/null || echo 4)
+    elif [[ "$(uname -s)" == "Darwin" ]] && command -v sysctl &>/dev/null; then
+        n=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
+    fi
+    [[ "$n" -gt 4 ]] && n=4
+    echo "$n"
+}
+
 if [ "x$*" = 'x--help' ]
 then
     cat <<EOF
@@ -88,6 +102,9 @@ $0 [ --enable-lcov || --disable-tests ] [ --disable-mining ] [ --enable-proton ]
   If --enable-proton is passed, Zcash is configured to build the Apache Qpid Proton
   library required for AMQP support. This library is not built by default.
   It must be passed after the test/mining arguments, if present.
+
+  MAKEARGS: -jN is capped at 4. If omitted, -jN is added (N=min(CPUs,4)).
+  On macOS, use sysctl -n hw.ncpu or install coreutils for gnproc.
 EOF
     exit 0
 fi
@@ -125,11 +142,26 @@ then
     shift
 fi
 
+# Build MAKEARGS: cap -jN at 4, or add -j$(detect_jobs) if no -j given.
+MAKEARGS=()
+HAS_JOBS=0
+for arg in "$@"; do
+    if [[ "$arg" =~ ^-j([0-9]+)$ ]]; then
+        n="${BASH_REMATCH[1]}"
+        [[ "$n" -gt 4 ]] && n=4
+        MAKEARGS+=("-j$n")
+        HAS_JOBS=1
+    else
+        MAKEARGS+=("$arg")
+    fi
+done
+[[ $HAS_JOBS -eq 0 ]] && MAKEARGS=("-j$(detect_jobs)" "${MAKEARGS[@]}")
+
 eval "$MAKE" --version
 as --version
 ld -v
 
-HOST="$HOST" BUILD="$BUILD" NO_PROTON="$PROTON_ARG" "$MAKE" "$@" -C ./depends/ V=1
+HOST="$HOST" BUILD="$BUILD" NO_PROTON="$PROTON_ARG" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
 ./autogen.sh
 CONFIG_SITE="$PWD/depends/$HOST/share/config.site" ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" "$PROTON_ARG" $CONFIGURE_FLAGS CXXFLAGS='-g'
-"$MAKE" "$@" V=1
+"$MAKE" "${MAKEARGS[@]}" V=1

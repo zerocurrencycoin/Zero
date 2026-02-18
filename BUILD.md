@@ -30,8 +30,10 @@ This document provides instructions for building Zero Currency (zerod) and Zero 
 
 ### **Supported Platforms**
 - **Linux**: Ubuntu 20.04+, Debian 9+, CentOS 7+, Fedora 28+
-- **macOS**: 10.14+ (Mojave and later)
+- **macOS**: ARM64 (Apple Silicon) only. Compatibility defined by macOS 24.5.0 until further testing. ~~x86 (Intel): not supported; EOL, not verified to compile or run.~~
 - **Windows**: Windows 11 (MinGW cross-compilation or WSL2)
+
+**Note:** Library version upgrades (e.g. OpenSSL 1.1.1w, libsodium 1.0.20) are targets until compatibility is verified. Build with current versions first.
 
 ### **Minimum Hardware**
 - **RAM**: 4GB (8GB recommended for parallel builds)
@@ -206,6 +208,9 @@ sudo apt install \
 pkg-config --version
 python3 --version
 cmake --version
+
+# macOS (via Homebrew) - Core build dependencies
+brew install automake cmake pkg-config coreutils
 ```
 
 ### **Optional GUI Dependencies**
@@ -370,6 +375,8 @@ git checkout master
 ```
 
 **Note:** On a typical laptop, `-j2` works while maintaining UI responsiveness.
+Pass build flags (e.g. `--disable-mining`) before `-jN`; the script parses flags
+in order and passes only make args to make.
 
 **For GCC compatibility issues:** See [BUILD_C11.md](BUILD_C11.md)  
 **For detailed instructions:** Continue with Build Process section below

@@ -7,6 +7,7 @@ CURDIR=$(cd $(dirname "$0"); pwd)
 
 export BITCOINCLI=${BUILDDIR}/qa/pull-tester/run-bitcoin-cli
 export BITCOIND=${REAL_BITCOIND}
+export PYTHON
 
 #Run the tests
 
@@ -139,7 +140,7 @@ if [ "x${ENABLE_BITCOIND}${ENABLE_UTILS}${ENABLE_WALLET}" = "x111" ]; then
         then
             runTestScript \
                 "${testScripts[$i]}" \
-                "${BUILDDIR}/qa/rpc-tests/${testScripts[$i]}" \
+                "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${testScripts[$i]}" \
                 --srcdir "${BUILDDIR}/src" ${passOn}
         fi
     done
@@ -149,7 +150,7 @@ if [ "x${ENABLE_BITCOIND}${ENABLE_UTILS}${ENABLE_WALLET}" = "x111" ]; then
         then
             runTestScript \
                 "${testScriptsExt[$i]}" \
-                "${BUILDDIR}/qa/rpc-tests/${testScriptsExt[$i]}" \
+                "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${testScriptsExt[$i]}" \
                 --srcdir "${BUILDDIR}/src" ${passOn}
         fi
     done

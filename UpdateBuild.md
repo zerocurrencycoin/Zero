@@ -10,7 +10,42 @@ builds. Each library has a `.mk` recipe in `depends/packages/` specifying
 version, download URL, SHA256, and per-platform build options. GNU
 `config.guess` and `config.sub` detect the host triplet.
 
+Build tools that run on the build machine use the `build_` prefix (e.g.
+`build_SHA256SUM`, `build_DOWNLOAD`). These are defined in `depends/Makefile`
+and `depends/builders/*.mk`, with per-OS overrides where needed (e.g. Darwin
+uses `shasum -a 256` instead of `sha256sum`).
+
+### 1.1 Portable sed in-place
+
+BSD sed (macOS) and GNU sed (Linux, WSL) have incompatible `-i` syntax.
+BSD requires an explicit backup extension after `-i`; GNU treats it as
+optional. The GNU form `sed -i -e "s/foo/bar/" file` fails on macOS because
+BSD interprets `-e` as a separate option, not the backup suffix.
+
+A portable form is `sed -i.old "s/foo/bar/" file`. Both implementations
+accept it: GNU creates `file.old` as backup; BSD requires the extension.
+The `.old` backup files are left in the build tree and discarded when the
+extract dir is cleaned.
+
+To avoid repetition and platform-specific branches, a single variable
+`build_SED_INPLACE` is defined in `depends/Makefile` and used in all
+package preprocess steps:
+
+```
+# Portable sed in-place: works on Mac (BSD), Ubuntu, WSL (GNU sed).
+build_SED_INPLACE = sed -i.old
+# GNU native: sed -i -e
+```
+
+Used in: `boost.mk`, `openssl.mk`, `bdb.mk`. The `bdb.mk` previously had a
+redundant `sed -i -e` line (duplicate of an earlier replacement) that
+failed on macOS; it was removed.
+
 ## 2. Platform Setup
+
+**Version targets** (e.g. OpenSSL 1.1.1w, libsodium 1.0.20) are upgrade
+targets until compatibility is verified. Build with current library
+versions first; upgrade after validation.
 
 ### 2.1 Linux x86_64
 
@@ -26,12 +61,21 @@ to the Windows build path in this update. Regression testing required.
 
 ### 2.3 macOS ARM64
 
-New platform addition.
+New platform addition. **Compatibility defined by macOS 24.5.0 (darwin
+24.5.0) until further testing.**
 
 - Host triplet: `aarch64-apple-darwin24.5.0`
 - Compiler: Apple Clang 17.0
 - System Rust: 1.91.1
-- Homebrew prerequisites: `automake`, `cmake`, `pkg-config`
+
+**Homebrew prerequisites (install before build):**
+```bash
+brew install automake cmake pkg-config coreutils
+```
+- `automake` — autotools
+- `cmake` — build config (leveldb, etc.)
+- `pkg-config` — library detection
+- `coreutils` — `gnproc` (CPU count for parallel builds)
 
 Configure command:
 
@@ -47,6 +91,38 @@ CXXFLAGS="-g -Wno-enum-constexpr-conversion"
 Runtime prerequisite after a BDB mutex crash:
 `rm -rf "$HOME/Library/Application Support/zero/database"`
 
+### 2.4 macOS x86 (Intel)
+
+Not supported. EOL macOS version; not verified to compile or run.
+Strike for the time being.
+
+### 2.5 Build Script (zcutil/build.sh)
+
+**Argument order:** Flags must come before make arguments. The script parses
+only the first positional argument for each flag.
+
+```
+./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ MAKEARGS... ]
+```
+
+Examples:
+- `./zcutil/build.sh --disable-mining -j4` (correct)
+- `./zcutil/build.sh -j4 --disable-mining` (wrong: --disable-mining passed to make)
+
+**Parallel jobs (-j):** On Linux use `nproc`; on macOS `nproc` is not standard.
+Use `sysctl -n hw.ncpu` or install GNU coreutils (`brew install coreutils`) for
+`gnproc`. The script caps `-jN` at 4 by default.
+
+**gnproc on Mac:** Homebrew coreutils installs GNU utils with a `g` prefix
+(e.g. `gnproc`, `gmake`). Add `$(brew --prefix coreutils)/libexec/gnubin` to
+PATH to use un-prefixed names, or call `gnproc` explicitly.
+
+**CONFIGURE_FLAGS:** Passed unquoted to `./configure`; the shell splits on
+spaces. Values with spaces (e.g. `CXXFLAGS="-g -Wno-..."`) break. Workaround:
+escape spaces, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-deprecated-builtins\ -Wno-enum-constexpr-conversion'`.
+Same behavior on Linux. Zcash and similar projects use CONFIGURE_FLAGS for
+single-token overrides; multi-word values need escaping.
+
 ## 3. Depends Changes
 
 ### 3.1 boost.mk
@@ -56,7 +132,7 @@ Boost 1.70.0. Five changes:
 1. **Download URL**: `dl.bintray.com` to `archives.boost.io`. Bintray shut down 2021.
 2. **Toolset**: `--toolset=darwin-4.2.1` to `--toolset=clang`. Old darwin toolset injects `-fcoalesce-templates`, unsupported by modern Clang.
 3. **Toolset/archiver variables**: `$(package)_toolset_darwin=clang` and `$(package)_archiver_darwin=$($(package)_ar)` for consistency with toolset change.
-4. **sed portability**: `sed -i -e` to `sed -i.old`. BSD sed on macOS requires backup extension. Pattern broadened from `using gcc ;` to `using [a-z]* ;` to match whatever toolset bootstrap selects.
+4. **sed portability**: Uses `$(build_SED_INPLACE)`. See section 1.1. Pattern broadened from `using gcc ;` to `using [a-z]* ;` to match whatever toolset bootstrap selects.
 5. **CXXFLAGS**: Added `-Wno-enum-constexpr-conversion` for Darwin. Boost 1.70 headers trigger a hard error in Clang 17.
 
 Alternatives for the sed approach:
@@ -68,6 +144,7 @@ Alternatives for the sed approach:
 
 OpenSSL 1.1.1a to 1.1.1w.
 
+- Preprocess steps use `$(build_SED_INPLACE)`. See section 1.1.
 - 1.1.1a (2018) has no `darwin64-arm64-cc` target.
 - 1.1.1w is the final 1.1.1 LTS release (Sep 2023). Updated download URL (GitHub releases) and SHA256.
 - Added `$(package)_config_opts_aarch64_darwin=darwin64-arm64-cc`.
@@ -89,14 +166,18 @@ Alternatives:
 
 ### 3.4 bdb.mk
 
-BerkeleyDB 6.2.23. One line added:
+BerkeleyDB 6.2.23. Two changes:
 
-`$(package)_config_opts_aarch64_darwin=--with-mutex=POSIX/pthreads/library`
+1. **ARM64 mutex**: Added
+   `$(package)_config_opts_aarch64_darwin=--with-mutex=POSIX/pthreads/library`.
+   BDB 6.2.23 default mutex selection fails at runtime on ARM64 macOS with
+   `DB_LOCK_NOTGRANTED`. This supplements the existing generic
+   `$(package)_config_opts_aarch64=--disable-atomicsupport`.
+   Becomes unnecessary after BDB 6.2.32 upgrade (section 6.1).
 
-BDB 6.2.23 default mutex selection fails at runtime on ARM64 macOS with
-`DB_LOCK_NOTGRANTED`. This supplements the existing generic
-`$(package)_config_opts_aarch64=--disable-atomicsupport`.
-Becomes unnecessary after BDB 6.2.32 upgrade (section 6.1).
+2. **sed portability**: Preprocess steps now use `$(build_SED_INPLACE)`.
+   Removed redundant `sed -i -e` line that duplicated the WinIoCtl.h
+   replacement and failed on macOS. See section 1.1.
 
 ### 3.5 libsodium.mk
 
@@ -120,6 +201,97 @@ The `<48,5>` variants already had this guard. The member functions are
 guarded in the header; the `.cpp` instantiations must match. Without this,
 builds with `--enable-mining=no` fail to link.
 
+### 4.2 hash.h (CHash256, CHash160)
+
+**Issue:** `unsigned char buf[sha.OUTPUT_SIZE]` triggered Clang VLA warning
+(`variable length arrays in C++ are a Clang extension`).
+
+**Type:** `OUTPUT_SIZE` is `static const size_t` in `CSHA256` (32) and
+`CRIPEMD160` (20). `sha.OUTPUT_SIZE` and `CSHA256::OUTPUT_SIZE` are the same
+value, but the compiler treats `sha.OUTPUT_SIZE` in an array bound as
+potentially non-constant (member access).
+
+**Macro:** None; no preprocessor macros involved.
+
+**Override:** `config.site` or `CXXFLAGS` could add `-Wno-vla-cxx-extension` to
+suppress the warning, but that hides the issue.
+
+**Fix:** Use `CSHA256::OUTPUT_SIZE` instead of `sha.OUTPUT_SIZE` for the
+intermediate buffer. Both CHash256 and CHash160 use a 32-byte SHA-256
+intermediate; the size is a compile-time constant.
+
+**Comparison:** Zcash and Bitcoin use `buf[CSHA256::OUTPUT_SIZE]`. Pirate uses
+`sha.OUTPUT_SIZE` in the legacy `Finalize(unsigned char*)` overload but
+`CSHA256::OUTPUT_SIZE` in the `Finalize(Span)` overload.
+
+**Pirate Span output:** Pirate adds `Finalize(Span<unsigned char> output)` (or
+`std::span`). The caller passes a non-owning view of the output buffer; the
+function writes the hash into that span. Benefits: (1) caller controls storage
+(stack, vector, array); (2) no pointer+length pair; (3) span carries size, so
+`assert(output.size() == OUTPUT_SIZE)` enforces bounds. The span is the output
+parameter; internally Pirate still uses `buf[CSHA256::OUTPUT_SIZE]` for the
+intermediate SHA-256 result, then copies to `output.data()`.
+
+### 4.3 Build Warnings (non-fatal)
+
+**Definitions override:** Automake pre-defines variables and targets. When
+`Makefile.am` assigns to the same name, the user definition overrides the
+built-in. The last definition wins.
+
+**Overridden variables in `Makefile.am`:**
+
+| Variable/target | User value | Purpose |
+|-----------------|------------|---------|
+| `GZIP_ENV` | `"-9n"` | Gzip flags for `make dist` (max compression, no name). |
+| `distcleancheck` | `@:` (no-op) | See below. |
+
+**distcleancheck:** Automake's default `distcleancheck` runs during `make
+distcheck`. It verifies the source tree is clean after extracting the tarball,
+configuring, building, and running `make distclean`—i.e. no leftover generated
+files. Zero overrides it with `@:` (no-op) so the check is skipped. Common
+reasons: vendored subdirs (leveldb, secp256k1) or custom dist-hooks leave
+artifacts; the project uses `distcheck-hook` for leveldb instead.
+
+**Comparison (Pirate, Zcash):**
+
+| Variable/target | Zero | Pirate | Zcash |
+|-----------------|------|--------|-------|
+| `GZIP_ENV` | `"-9n"` | `"-9n"` | not set |
+| `distcleancheck` | `@:` | `@:` | not set |
+| `dist-hook` | leveldb clean, secp256k1 distclean, git archive | same | git archive only |
+| `distcheck-hook` | leveldb copy + clean | same | not present |
+
+Pirate matches Zero. Zcash has simplified: no GZIP_ENV or distcleancheck
+override; dist-hook only archives clientversion; no distcheck-hook (leveldb
+handled differently or no longer vendored).
+
+Override is intentional. The warning appears because Automake detects the
+name collision.
+
+| Warning | Status | Fix |
+|---------|--------|-----|
+| **libzcash_a_LDFLAGS** | Fixed | Removed. Static libs (`.a`) do not use LDFLAGS; variable was unused. |
+| **AC_PROG_CC_C89 obsolete** | Fixed | Replaced with `AC_PROG_CC` in `src/secp256k1/configure.ac`. |
+| **ignoring duplicate libraries: '-lc++'** | Open | Libtool adds `-lc++`; `-stdlib=libc++` (Darwin) also pulls it in. Harmless. |
+| **GZIP_ENV / distcleancheck override** | Intentional | User definitions override Automake defaults. See above. |
+
+### 4.4 test_miner and --disable-mining
+
+When `--enable-mining=no`, `GetScriptForMinerAddress` is not compiled (miner.cpp
+wrapped in `#ifdef ENABLE_MINING`). `test_miner.cpp` still references it and
+fails to link.
+
+**Solution:** Conditionally exclude `test_miner.cpp` from the GTest build.
+
+In `src/Makefile.gtest.include`, remove `gtest/test_miner.cpp` from the main
+`zero_gtest_SOURCES` block and add:
+
+```
+if ENABLE_MINING
+zero_gtest_SOURCES += gtest/test_miner.cpp
+endif
+```
+
 ## 5. Library Versions
 
 ### 5.1 Core Libraries
@@ -128,7 +300,7 @@ builds with `--enable-mining=no` fail to link.
 |---------|---------|----------|---------------|----------|-----|------|-------|
 | Boost | 1.70.0 | Jun 2019 | 1.90.0 | 2025 | ~6y | High | 20 minor versions behind |
 | OpenSSL | 1.1.1w | Sep 2023 | 3.6.1 | Jan 2026 | EOL | High | Series end-of-life |
-| libsodium | 1.0.15 | Oct 2017 | 1.0.21 | Jan 2025 | ~7y | Low | Stable ABI |
+| libsodium | 1.0.15 | Oct 2017 | 1.0.21 | Jan 2025 | ~7y | Low | Stable ABI; target 1.0.21 |
 | libevent | 2.1.8 | Jan 2017 | 2.1.12 | Jul 2020 | ~3y | Low | Patch-level |
 | BerkeleyDB | 6.2.23 | Mar 2016 | 6.2.32 | Apr 2017 | 1y | Low | Same format/license |
 | ZeroMQ | 4.3.1 | Jan 2019 | 4.3.5 | Oct 2023 | ~4y | Low | Patch-level |
@@ -192,9 +364,9 @@ BDB version and license context:
 | 6.2.32 (target) | AGPLv3 | 6.2 | Fixed | Drop-in upgrade. |
 | 18.1.40 (latest) | AGPLv3 | 6.2-compat | Full | Unnecessary version jump. |
 
-### 6.2 libsodium 1.0.15 to 1.0.20
+### 6.2 libsodium 1.0.15 to 1.0.21
 
-Confirmed. Low risk. Stable ABI, backward-compatible API. Matches Zcash v6.11.0.
+Confirmed. Low risk. Stable ABI, backward-compatible API. Target latest stable (1.0.21).
 
 ### 6.3 libevent 2.1.8 to 2.1.12
 
@@ -204,29 +376,25 @@ Confirmed. Low risk. Patch-level bump. Matches Zcash, Bitcoin, Pirate, Fluxd.
 
 Confirmed. Low risk. Patch-level bump. Matches Zcash, Bitcoin.
 
-### 6.5 ccache 3.3.1 to 4.11.3
+### 6.5 ccache 3.3.1 to 4.12.2
 
 Confirmed. Low risk. Build tool only, not linked. Better Clang support.
-Matches Zcash v6.11.0.
+Target latest stable (4.12.2).
 
 ### 6.6 Boost 1.70.0
 
-TBD. High risk. Major version jump.
+**Postponed.** High risk. Major version jump.
 
 Zcash v6.11.0 uses 1.83.0. Bitcoin Core v30.2 uses 1.88.0. Latest is
-1.90.0. Target likely 1.83.0 (Zcash-validated) but Bitcoin's 1.88.0 is
-also production-tested. Upgrading eliminates the
-`-Wno-enum-constexpr-conversion` hack and sed toolset workarounds.
-Reference Zcash `boost.mk` for the upgrade path.
+1.90.0. Upgrade deferred; keep 1.70.0 for now. When ready: target
+1.83.0 (Zcash-validated) or 1.88.0 (Bitcoin). Reference Zcash `boost.mk`.
 
-### 6.7 Rust 1.32.0
+### 6.7 Rust 1.32.0 to 1.93.1
 
-TBD. Medium risk.
+Confirmed. Medium risk. Target latest stable (1.93.1).
 
-Zcash v6.11.0 uses 1.81.0. Latest stable is 1.93.1. librustzcash at
-commit `06da3b9` is edition-2015 code and compiles with any modern Rust.
-Target likely 1.81.0 (Zcash-validated); latest is also viable since the
-Rust crate code is simple and edition-2015 compatible.
+librustzcash at commit `06da3b9` is edition-2015 code and compiles with
+any modern Rust. No edition-specific features exercised.
 
 Action: rewrite `rust.mk` to download pinned version with
 `aarch64-apple-darwin` hashes. Reference Zcash `native_rust.mk`.
@@ -272,17 +440,16 @@ Google Test is tracked separately in UpdateTests.md section 1.1.
 | Library | Zero | Zcash | Horizen | Pirate | Fluxd | Zclassic | HUSH | Bitcoin | Latest | Target |
 |---------|------|-------|---------|--------|-------|----------|------|---------|--------|--------|
 | BerkeleyDB | 6.2.23 | 6.2.23 | 6.2.23 | 6.2.32 | 6.2.23 | 6.2.23 | 6.2.23 | (removed) | 6.2.32 | **6.2.32** |
-| libsodium | 1.0.15 | 1.0.20 | 1.0.18 | 1.0.18 | 1.0.15 | 1.0.15 | 1.0.18 | — | 1.0.21 | **1.0.20** |
+| libsodium | 1.0.15 | 1.0.20 | 1.0.18 | 1.0.18 | 1.0.15 | 1.0.15 | 1.0.18 | — | 1.0.21 | **1.0.21** |
 | libevent | 2.1.8 | 2.1.12 | 2.1.8 | 2.1.12 | 2.1.12 | 2.1.8 | 2.1.8 | 2.1.12 | 2.1.12 | **2.1.12** |
 | ZeroMQ | 4.3.1 | 4.3.5 | 4.3.4 | 4.3.1 | 4.3.1 | 4.3.1 | (removed) | 4.3.5 | 4.3.5 | **4.3.5** |
-| ccache | 3.3.1 | 4.11.3 | 3.3.1 | — | 3.3.1 | 3.3.1 | 3.3.1 | — | 4.12.2 | **4.11.3** |
-| Boost | 1.70.0 | 1.83.0 | 1.82.0 | 1.83.0 | 1.70.0 | 1.80.0 | 1.72.0 | 1.88.0 | 1.90.0 | TBD |
-| Rust | 1.32.0 | 1.81.0 | 1.70.0 | 1.69.0 | 1.32.0 | 1.32.0 | 1.32.0 | — | 1.93.1 | TBD |
+| ccache | 3.3.1 | 4.11.3 | 3.3.1 | — | 3.3.1 | 3.3.1 | 3.3.1 | — | 4.12.2 | **4.12.2** |
+| Boost | 1.70.0 | 1.83.0 | 1.82.0 | 1.83.0 | 1.70.0 | 1.80.0 | 1.72.0 | 1.88.0 | 1.90.0 | Postponed |
+| Rust | 1.32.0 | 1.81.0 | 1.70.0 | 1.69.0 | 1.32.0 | 1.32.0 | 1.32.0 | — | 1.93.1 | **1.93.1** |
 | OpenSSL | 1.1.1w | (removed) | 1.1.1w | — | 1.1.1a | 1.1.1a | (none) | (removed) | 3.6.1 | TBD |
 
-Bold targets are confirmed. TBD targets have options discussed in
-section 6. Confirmed targets match the highest version proven in
-production among Zcash v6.11.0 and Bitcoin Core v30.2.
+Bold targets are confirmed. Postponed (Boost) deferred. All targets
+remain subject to compatibility verification before adoption.
 
 ### 7.1 BerkeleyDB
 
@@ -308,11 +475,9 @@ upgrade path for 1.83.0.
 
 ### 7.3 Rust
 
-Zcash uses 1.81.0. Zero's librustzcash is edition-2015 code that
-compiles with any modern Rust. Matching Zcash at 1.81.0 is the
-conservative choice; latest (1.93.1) is also viable since no
-edition-specific features are exercised. Pinning to a specific version
-with download hashes replaces the current system-Rust symlink.
+Target: 1.93.1 (latest). Zero's librustzcash is edition-2015 code that
+compiles with any modern Rust. Pinning to a specific version with
+download hashes replaces the current system-Rust symlink.
 
 ### 7.4 OpenSSL
 

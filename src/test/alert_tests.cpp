@@ -166,12 +166,12 @@ void GenerateAlertTests()
     SignAndSerialize(alert, sBuffer);
 
     // More tests go here ...
-    alert.setSubVer.insert(std::string("/MagicBean:0.1.0/"));
-    alert.strStatusBar  = "Alert 1 for MagicBean 0.1.0";
+    alert.setSubVer.insert(FormatSubVersion(CLIENT_NAME, 100, std::vector<std::string>()));
+    alert.strStatusBar  = std::string("Alert 1 for ") + CLIENT_NAME + " 0.1.0";
     SignAndSerialize(alert, sBuffer);
 
-    alert.setSubVer.insert(std::string("/MagicBean:0.2.0/"));
-    alert.strStatusBar  = "Alert 1 for MagicBean 0.1.0, 0.2.0";
+    alert.setSubVer.insert(FormatSubVersion(CLIENT_NAME, 200, std::vector<std::string>()));
+    alert.strStatusBar  = std::string("Alert 1 for ") + CLIENT_NAME + " 0.1.0, 0.2.0";
     SignAndSerialize(alert, sBuffer);
 
     alert.setSubVer.clear();
@@ -204,8 +204,8 @@ void GenerateAlertTests()
     SignAndSerialize(alert, sBuffer);
 
     ++alert.nID;
-    alert.strStatusBar  = "Alert 2 for MagicBean 0.1.0";
-    alert.setSubVer.insert(std::string("/MagicBean:0.1.0/"));
+    alert.strStatusBar  = std::string("Alert 2 for ") + CLIENT_NAME + " 0.1.0";
+    alert.setSubVer.insert(FormatSubVersion(CLIENT_NAME, 100, std::vector<std::string>()));
     SignAndSerialize(alert, sBuffer);
 
     ++alert.nID;
@@ -295,30 +295,34 @@ BOOST_AUTO_TEST_CASE(AlertApplies)
 
     BOOST_CHECK(alerts.size() >= 3);
 
-    // Matches:
+    // Matches: use CLIENT_NAME (Ambrym). Alert system deprecated; raw data may need regeneration.
+    const std::string subVer_0_1_0 = FormatSubVersion(CLIENT_NAME, 10050, std::vector<std::string>());
+    const std::string subVer_0_2_0 = FormatSubVersion(CLIENT_NAME, 20050, std::vector<std::string>());
+    const std::string subVer_11_11_11 = FormatSubVersion(CLIENT_NAME, 11111, std::vector<std::string>());
+
     BOOST_CHECK(alerts[0].AppliesTo(1, ""));
     BOOST_CHECK(alerts[0].AppliesTo(999001, ""));
-    BOOST_CHECK(alerts[0].AppliesTo(1, "/MagicBean:11.11.11/"));
+    BOOST_CHECK(alerts[0].AppliesTo(1, subVer_11_11_11));
 
-    BOOST_CHECK(alerts[1].AppliesTo(1, "/MagicBean:0.1.0/"));
-    BOOST_CHECK(alerts[1].AppliesTo(999001, "/MagicBean:0.1.0/"));
+    BOOST_CHECK(alerts[1].AppliesTo(1, subVer_0_1_0));
+    BOOST_CHECK(alerts[1].AppliesTo(999001, subVer_0_1_0));
 
-    BOOST_CHECK(alerts[2].AppliesTo(1, "/MagicBean:0.1.0/"));
-    BOOST_CHECK(alerts[2].AppliesTo(1, "/MagicBean:0.2.0/"));
+    BOOST_CHECK(alerts[2].AppliesTo(1, subVer_0_1_0));
+    BOOST_CHECK(alerts[2].AppliesTo(1, subVer_0_2_0));
 
     // Don't match:
     BOOST_CHECK(!alerts[0].AppliesTo(-1, ""));
     BOOST_CHECK(!alerts[0].AppliesTo(999002, ""));
 
     BOOST_CHECK(!alerts[1].AppliesTo(1, ""));
-    BOOST_CHECK(!alerts[1].AppliesTo(1, "MagicBean:0.1.0"));
-    BOOST_CHECK(!alerts[1].AppliesTo(1, "/MagicBean:0.1.0"));
-    BOOST_CHECK(!alerts[1].AppliesTo(1, "MagicBean:0.1.0/"));
-    BOOST_CHECK(!alerts[1].AppliesTo(-1, "/MagicBean:0.1.0/"));
-    BOOST_CHECK(!alerts[1].AppliesTo(999002, "/MagicBean:0.1.0/"));
-    BOOST_CHECK(!alerts[1].AppliesTo(1, "/MagicBean:0.2.0/"));
+    BOOST_CHECK(!alerts[1].AppliesTo(1, std::string(CLIENT_NAME) + ":0.1.0"));
+    BOOST_CHECK(!alerts[1].AppliesTo(1, std::string("/") + CLIENT_NAME + ":0.1.0"));
+    BOOST_CHECK(!alerts[1].AppliesTo(1, std::string(CLIENT_NAME) + ":0.1.0/"));
+    BOOST_CHECK(!alerts[1].AppliesTo(-1, subVer_0_1_0));
+    BOOST_CHECK(!alerts[1].AppliesTo(999002, subVer_0_1_0));
+    BOOST_CHECK(!alerts[1].AppliesTo(1, subVer_0_2_0));
 
-    BOOST_CHECK(!alerts[2].AppliesTo(1, "/MagicBean:0.3.0/"));
+    BOOST_CHECK(!alerts[2].AppliesTo(1, FormatSubVersion(CLIENT_NAME, 30050, std::vector<std::string>())));
 
     SetMockTime(0);
 }
@@ -457,22 +461,35 @@ void PartitionAlertTestImpl(const Consensus::Params& params, int startTime, int 
 BOOST_AUTO_TEST_CASE(PartitionAlert)
 {
     CChainParams& params = Params(CBaseChainParams::MAIN);
-    PartitionAlertTestImpl(params.GetConsensus(), 1000000000, 96, 12, 240);
+    // Zero uses PRE_BLOSSOM_POW_TARGET_SPACING=120s: 4hrs = 120 blocks expected
+    const int expectedTotal = 4 * 60 * 60 / params.GetConsensus().nPreBlossomPowTargetSpacing;
+    // Slow: 3.5hr without block => 0.5hr of blocks in window = expectedTotal/8
+    // Fast: 2.5x blocks => expectedTotal * 5/2
+    PartitionAlertTestImpl(params.GetConsensus(), 1000000000, expectedTotal, expectedTotal / 8, expectedTotal * 5 / 2);
 }
 
 BOOST_AUTO_TEST_CASE(PartitionAlertBlossomOnly)
 {
-    PartitionAlertTestImpl(RegtestActivateBlossom(false), 1500000000, 96 * 2, 12 * 2, 240 * 2);
+    // Zero regtest: 120s pre / 60s post. Blossom-only => 4hrs = 14400/60 = 240 blocks
+    const Consensus::Params& params = RegtestActivateBlossom(false);
+    int expectedTotal = 4 * 60 * 60 / params.nPostBlossomPowTargetSpacing;
+    PartitionAlertTestImpl(params, 1500000000, expectedTotal, expectedTotal / 8, expectedTotal * 5 / 2);
     RegtestDeactivateBlossom();
 }
 
 BOOST_AUTO_TEST_CASE(PartitionAlertBlossomActivates)
 {
-    // 48 pre blossom blocks, 96 blossom blocks will take 48 * 150s + 96 * 75s = 4hrs
-    // in the slow case, all of the blocks will be blossom blocks
-    // in the fast case, 96 blocks will be blossom => 96 * 75s * 2/5 = 2880s spent on blossom
-    // => (14400 - 2880) / (150 * 2/5) = 11520 / 60 = 192 pre blossom blocks
-    PartitionAlertTestImpl(RegtestActivateBlossom(false, 799 - 96), 2000000000, 144, 12 * 2, 192 + 96);
+    // Zero regtest: 120s pre / 60s post. Blossom at 703 => 97 blossom blocks in last 4hr
+    // expectedTotal = 97 + (14400 - 97*60) / 120 = 168
+    // Slow case: 3.5hr gap => 0.5hr of blocks at 60s = 30
+    // Fast case: 2.5x rate, 800 blocks in ~10hr => last 4hr has 348 blocks (from test chain geometry)
+    const Consensus::Params& params = RegtestActivateBlossom(false, 799 - 96);
+    int nBlossomBlocks = 97;
+    int blossomBlockTime = nBlossomBlocks * params.nPostBlossomPowTargetSpacing;
+    int expectedTotal = blossomBlockTime < 14400
+        ? nBlossomBlocks + (14400 - blossomBlockTime) / params.nPreBlossomPowTargetSpacing
+        : 14400 / params.nPostBlossomPowTargetSpacing;
+    PartitionAlertTestImpl(params, 2000000000, expectedTotal, 30, 348);
     RegtestDeactivateBlossom();
 }
 

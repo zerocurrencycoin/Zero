@@ -226,7 +226,7 @@ public:
     inline uint64_t SliceHash(uint256& hash, int slice)
     {
         uint64_t n = 0;
-        memcpy(&n, &hash + slice * 64, 64);
+        memcpy(&n, (char*)&hash + slice * 8, 8);
         return n;
     }
 

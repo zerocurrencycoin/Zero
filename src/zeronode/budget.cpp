@@ -15,6 +15,7 @@
 #include "zeronode/obfuscation.h"
 #include "zeronode/zeronode-wallet-interface.h"
 #include "util.h"
+#include <climits>
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 
@@ -32,7 +33,7 @@ int nSubmittedFinalBudget;
 int GetBudgetPaymentCycleBlocks()
 {
     // Amount of blocks in a months period of time (using 1 minutes per block) = (60*24*30)
-    if (NetworkIdFromCommandLine() == CBaseChainParams::MAIN) return 4070908800; //OFF in mainnet
+    if (NetworkIdFromCommandLine() == CBaseChainParams::MAIN) return INT_MAX; // OFF in mainnet (sentinel: no block height % cycle == 0)
     //for testing purposes
 
     return 144; //ten times per day

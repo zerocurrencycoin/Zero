@@ -26,6 +26,9 @@ or cross-platform implications go in UpdateFeatures.
 - Modified files: 14 (7 depends, 1 source build fix, 3 gtest fixes, 3 wallet)
 - Untracked: documentation files, configure backups
 
+**Workflow:** Do not push or merge to upstream `origin/main` or `origin/zeronode_wallet`.
+Commit only to `arm-mac-build` (or a fork).
+
 ## 3. Status Summary
 
 ### 3.1 Build
@@ -34,11 +37,14 @@ or cross-platform implications go in UpdateFeatures.
 |----------|--------|-------|
 | Linux x86_64 | Untested with current changes | Base branch builds on Linux. Primary dev and validation platform. |
 | Windows | Untested | Primary user deployment platform. |
-| macOS ARM64 | Working | All binaries produced. New platform addition. |
+| macOS ARM64 | Working | All binaries produced. Compatibility defined by macOS 24.5.0 until further testing. |
+| ~~macOS x86~~ | Not supported | EOL; not verified to compile or run. |
 
 Build changes target ARM Mac enablement but touch shared infrastructure
-(download URLs, sed portability). Linux and Windows regression testing
-required before merge. See UpdateBuild.md sections 2 and 3.
+(download URLs, sed portability). Library version upgrades (e.g. 1.1.1w,
+libsodium 1.0.20) are targets until compatibility verified. Linux and
+Windows regression testing required before merge. See UpdateBuild.md
+sections 2 and 3.
 
 ### 3.2 Tests
 
@@ -103,6 +109,11 @@ See UpdateFeatures.md section 1.
 8. **OpenSSL evaluation** — remove or migrate to 3.5.x LTS
 9. **Rust version pinning** — replace system symlink with pinned download for CI
 10. **Witness architecture evaluation** — assess `BuildWitnessCache` vs upstream `IncrementNoteWitnesses`. See UpdateFeatures.md section 1.6
+
+### 5.4 Deferred (from TODO.md)
+
+11. **Zeronode test suite** — Zero-specific features (zeronode, budget, SwiftTX) have 0% test coverage. Phase 5 in TODO.md. High impact; not part of current port.
+12. **Enhanced error handling** — Replace boolean returns in zeronode wallet interface with detailed error reporting (ZeronodeWalletError, ZeronodeWalletResult). Phase 3 in TODO.md. Optional enhancement.
 
 ## 6. Direction
 

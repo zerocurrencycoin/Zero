@@ -6,12 +6,15 @@
 ```bash
 # Dependencies
 cd depends && make -j$(nproc)
-# Configure  
+# Configure (Linux)
 ./configure --prefix=$(pwd)/depends/x86_64-unknown-linux-gnu
+# Configure (macOS ARM64)
+CONFIG_SITE=$PWD/depends/aarch64-apple-darwin24.5.0/share/config.site \
+./configure --prefix=$(pwd)/depends/aarch64-apple-darwin24.5.0 --enable-proton=no \
+CXXFLAGS="-g -Wno-enum-constexpr-conversion"
 # Build
 make -j$(nproc) zerod
 ```
-**Source**: BUILD.md:376-392, 410-425, 442-458
 
 ### Bitcoin Core  
 ```bash
@@ -62,10 +65,7 @@ cmake --build build --target deploy
 **Status**: Visual Studio build documented separately (not fetched)
 
 ### Zero - Windows Support
-**Ubuntu Linux**: BUILD.md:18-21 lists "Windows 10+ (WSL2 recommended)"
-**Cross-compilation**: Not documented
-**Native Windows**: Not documented  
-**Available**: No Windows-specific build instructions found
+**Status**: Work in progress. MinGW cross-compile targets exist in depends.
 
 ### Zcash - Windows Support
 **Documentation**: "Currently, Zcash is only officially supported on Debian and Ubuntu"  
@@ -110,25 +110,24 @@ zlib1g-dev curl bsdmainutils automake libtinfo5
 
 ## Cross-Platform Build Matrix
 
-| Project | Mingw Cross-compile | Windows Native | Documentation |
-|---------|-------------------|----------------|---------------|
-| Zero | Not documented | Not documented | BUILD.md (Linux only) |
-| Bitcoin | ✓ Full support | ✓ VS support | doc/build-windows.md |  
-| Zcash | Not supported | Not supported | Linux only |
-| Pirate | Not documented | Not documented | Experimental |
-| Horizen | Not documented | Not documented | Limited docs |
+| Project | Mingw Cross-compile | Windows Native | macOS |
+|---------|-------------------|----------------|-------|
+| Zero | WIP | — | ARM64 WIP |
+| Bitcoin | ✓ Full support | ✓ VS support | ✓ |
+| Zcash | Not supported | Not supported | — |
+| Pirate | Not documented | Not documented | — |
+| Horizen | Not documented | Not documented | — |
 
 ## Depends System Details
 
-### Zero (depends/README.md:1-28)
+### Zero
 ```bash
 # Cross-compile targets
 make HOST=x86_64-w64-mingw32 -j4    # Win64
 make HOST=i686-w64-mingw32           # Win32  
-make HOST=x86_64-apple-darwin11      # MacOSX
-make HOST=arm-linux-gnueabihf        # ARM
+make HOST=aarch64-apple-darwin24     # macOS ARM64
+make HOST=arm-linux-gnueabihf        # ARM Linux
 ```
-**Note**: Zero includes Windows cross-compile targets but no build documentation
 
 ### Bitcoin Cross-compile hosts (standard)
 - `i686-w64-mingw32` for Win32
@@ -138,15 +137,9 @@ make HOST=arm-linux-gnueabihf        # ARM
 
 ## Testing Infrastructure Status
 
-### Zero (BUILD.md:746-801)
-**Unit Tests**: Broken - linking errors identified
-```
-undefined reference to `IsMine(CKeyStore const&, CScript const&)'
-undefined reference to `zeronodeConfig'  
-undefined reference to `RegisterZeroExclusiveRPCCommands(CRPCTable&)'
-undefined reference to `bitdb'
-```
-**Functional Tests**: Working (qa/rpc-tests/)
+### Zero
+**Unit Tests**: Work in progress.
+**Functional Tests**: qa/rpc-tests/
 
 ### Bitcoin (BTESTS.md)
 **Unit Tests**: Working (src/test/)  
@@ -162,7 +155,7 @@ undefined reference to `bitdb'
 
 ## Library Version Requirements
 
-**Zero**: C++11 minimum (BUILD.md:133-183)
+**Zero**: C++11 minimum. Boost 1.70.0, OpenSSL 1.1.1w, BDB 6.2.23, libsodium 1.0.15. macOS uses Clang (C11/C17).
 **Bitcoin**: Modern C++ (CMake managed)
 **Zcash**: Modern C++ 
 **Pirate**: Boost 1.83.0, Berkeley DB 6.2.32

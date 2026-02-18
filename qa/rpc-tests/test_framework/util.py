@@ -107,8 +107,8 @@ def initialize_chain(test_dir):
             datadir=initialize_datadir("cache", i)
             args = [ os.getenv("BITCOIND", "bitcoind"), "-keypool=1", "-datadir="+datadir, "-discover=0" ]
             args.extend([
-                '-nuparams=5ba81b19:1', # Overwinter
-                '-nuparams=76b809bb:1', # Sapling
+                '-nuparams=6f76727a:1', # Overwinter (Zero branch ID)
+                '-nuparams=7361707a:1', # Sapling (Zero branch ID)
             ])
             if i > 0:
                 args.append("-connect=127.0.0.1:"+str(p2p_port(0)))
@@ -197,8 +197,8 @@ def start_node(i, dirname, extra_args=None, rpchost=None, timewait=None, binary=
         binary = os.getenv("BITCOIND", "bitcoind")
     args = [ binary, "-datadir="+datadir, "-keypool=1", "-discover=0", "-rest" ]
     args.extend([
-        '-nuparams=5ba81b19:1', # Overwinter
-        '-nuparams=76b809bb:1', # Sapling
+        '-nuparams=6f76727a:1', # Overwinter (Zero branch ID)
+        '-nuparams=7361707a:1', # Sapling (Zero branch ID)
     ])
     if extra_args is not None: args.extend(extra_args)
     bitcoind_processes[i] = subprocess.Popen(args)

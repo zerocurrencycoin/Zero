@@ -1,23 +1,27 @@
 package=native_ccache
-$(package)_version=3.3.1
-$(package)_download_path=https://www.samba.org/ftp/ccache
-$(package)_file_name=ccache-$($(package)_version).tar.bz2
-$(package)_sha256_hash=cb6e4bafbb19ba0a2ec43386b123a5f92a20e1e3384c071d5d13e0cb3c84bf73
+$(package)_version=4.12.2
+$(package)_download_path=https://github.com/ccache/ccache/releases/download/v$($(package)_version)/
+$(package)_file_name=ccache-$($(package)_version).tar.gz
+$(package)_sha256_hash=2a087efb66b62d4c66d4eb276748bbfa797ff3bde20adf44c53e5a8b9f3679af
 
-define $(package)_set_vars
-$(package)_config_opts=
+define $(package)_preprocess_cmds
+  mkdir -p build
 endef
 
 define $(package)_config_cmds
-  $($(package)_autoconf)
+  cd build && cmake .. -DCMAKE_INSTALL_PREFIX=$($(package)_staging_prefix_dir) \
+    -DDEPS=DOWNLOAD \
+    -DREDIS_STORAGE_BACKEND=OFF \
+    -DHTTP_STORAGE_BACKEND=OFF \
+    -DENABLE_TESTING=OFF
 endef
 
 define $(package)_build_cmds
-  $(MAKE)
+  cd build && $(MAKE)
 endef
 
 define $(package)_stage_cmds
-  $(MAKE) DESTDIR=$($(package)_staging_dir) install
+  cd build && $(MAKE) install
 endef
 
 define $(package)_postprocess_cmds

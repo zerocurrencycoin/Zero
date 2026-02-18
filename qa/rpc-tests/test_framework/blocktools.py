@@ -43,26 +43,31 @@ def serialize_script_num(value):
     return r
 
 counter=1
+# Zero regtest: 10 ZER base, halving every 150 blocks, 7.5% founder from block 5000
+COIN = 100000000
+ZERO_REGTEST_FEE_START = 5000
+ZERO_REGTEST_HALVING = 150
+
 # Create an anyone-can-spend coinbase transaction, assuming no miner fees
 def create_coinbase(heightAdjust = 0):
     global counter
+    height = counter + heightAdjust
     coinbase = CTransaction()
     coinbase.vin.append(CTxIn(COutPoint(0, 0xffffffff), 
-                CScript([counter+heightAdjust, OP_0]), 0xffffffff))
+                CScript([height, OP_0]), 0xffffffff))
     counter += 1
     coinbaseoutput = CTxOut()
-    coinbaseoutput.nValue = int(12.5*100000000)
-    halvings = int((counter+heightAdjust)/150) # regtest
-    coinbaseoutput.nValue >>= halvings
+    nSubsidy = int(10 * COIN)  # Zero: 10 ZER pre-fee
+    halvings = int(height / ZERO_REGTEST_HALVING)
+    coinbaseoutput.nValue = nSubsidy >> halvings
     coinbaseoutput.scriptPubKey = ""
     coinbase.vout = [ coinbaseoutput ]
-    if halvings == 0: # regtest
+    if height >= ZERO_REGTEST_FEE_START and halvings < 64:
         froutput = CTxOut()
-        froutput.nValue = coinbaseoutput.nValue / 5
-        # regtest
+        froutput.nValue = int(coinbaseoutput.nValue * 7.5 / 100)  # 7.5% founder
         fraddr = bytearray([0x67, 0x08, 0xe6, 0x67, 0x0d, 0xb0, 0xb9, 0x50,
                             0xda, 0xc6, 0x80, 0x31, 0x02, 0x5c, 0xc5, 0xb6,
-                            0x32, 0x13, 0xa4, 0x91])
+                            0x32, 0x13, 0xa4, 0x91])  # regtest founder t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg
         froutput.scriptPubKey = CScript([OP_HASH160, fraddr, OP_EQUAL])
         coinbaseoutput.nValue -= froutput.nValue
         coinbase.vout = [ coinbaseoutput, froutput ]

@@ -33,7 +33,7 @@ endef
 
 define $(package)_config_cmds
   ./bootstrap.sh --without-icu --with-toolset=$($(package)_toolset_$(host_os)) --with-libraries=$($(package)_config_libraries) && \
-  sed -i.old "s|using [a-z]* ;|using $(boost_toolset_$(host_os)) : : $($(package)_cxx) : <cxxflags>\"$($(package)_cxxflags) $($(package)_cppflags)\" <linkflags>\"$($(package)_ldflags)\" <archiver>\"$(boost_archiver_$(host_os))\" <striper>\"$(host_STRIP)\"  <ranlib>\"$(host_RANLIB)\" <rc>\"$(host_WINDRES)\" : ;|" project-config.jam
+  $(build_SED_INPLACE) "s|using [a-z]* ;|using $(boost_toolset_$(host_os)) : : $($(package)_cxx) : <cxxflags>\"$($(package)_cxxflags) $($(package)_cppflags)\" <linkflags>\"$($(package)_ldflags)\" <archiver>\"$(boost_archiver_$(host_os))\" <striper>\"$(host_STRIP)\"  <ranlib>\"$(host_RANLIB)\" <rc>\"$(host_WINDRES)\" : ;|" project-config.jam
 endef
 
 define $(package)_build_cmds

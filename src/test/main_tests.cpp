@@ -13,7 +13,40 @@
 
 BOOST_FIXTURE_TEST_SUITE(main_tests, TestingSetup)
 
-const CAmount INITIAL_SUBSIDY = 12.5 * COIN;
+// 12.5 * COIN: subsidy at end of slow-start in upstream (Bitcoin/Zcash) model
+const CAmount REFERENCE_INITIAL_SUBSIDY = 12.5 * COIN;
+
+// Zero uses 10/10.8 ZER, no slow-start; runs Zero-specific tests instead of reference tests
+static bool UsesReferenceSubsidyModel(const Consensus::Params& p) {
+    return GetBlockSubsidy(p.nSubsidySlowStartInterval ? p.nSubsidySlowStartInterval : 1, p) == REFERENCE_INITIAL_SUBSIDY;
+}
+
+// Zero subsidy: 10 ZER pre-fee, 10.8 ZER post-fee, halving every 800k blocks, no slow-start
+static void TestBlockSubsidyHalvingsZero(const Consensus::Params& consensusParams) {
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(0, consensusParams), 10 * COIN);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(consensusParams.nFeeStartBlockHeight - 1, consensusParams), 10 * COIN);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(consensusParams.nFeeStartBlockHeight, consensusParams), 10.8 * COIN);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(800000 - 1, consensusParams), 10.8 * COIN);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(800000, consensusParams), 5.4 * COIN);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(1600000, consensusParams), 2.7 * COIN);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(2400000, consensusParams), 1.35 * COIN);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(800000 * 64 - 1, consensusParams), 0);
+}
+
+static void TestSubsidyLimitZero(const Consensus::Params& consensusParams) {
+    // Zero supply (~25.6M ZER) exceeds MAX_MONEY; validate each subsidy is in range
+    int nHeight = 0;
+    for (; nHeight < consensusParams.nFeeStartBlockHeight; nHeight++) {
+        CAmount nSubsidy = GetBlockSubsidy(nHeight, consensusParams);
+        BOOST_CHECK(MoneyRange(nSubsidy));
+    }
+    CAmount nSubsidy;
+    do {
+        nSubsidy = GetBlockSubsidy(nHeight, consensusParams);
+        BOOST_CHECK(MoneyRange(nSubsidy));
+        ++nHeight;
+    } while (nSubsidy > 0);
+}
 
 static int GetTotalHalvings(const Consensus::Params& consensusParams) {
     // This assumes that BLOSSOM_POW_TARGET_SPACING_RATIO == 2
@@ -26,8 +59,8 @@ static void TestBlockSubsidyHalvings(const Consensus::Params& consensusParams)
     bool blossomActive = false;
     int blossomActivationHeight = consensusParams.vUpgrades[Consensus::UPGRADE_BLOSSOM].nActivationHeight;
     int nHeight = consensusParams.nSubsidySlowStartInterval;
-    BOOST_CHECK_EQUAL(GetBlockSubsidy(nHeight, consensusParams), INITIAL_SUBSIDY);
-    CAmount nPreviousSubsidy = INITIAL_SUBSIDY;
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(nHeight, consensusParams), REFERENCE_INITIAL_SUBSIDY);
+    CAmount nPreviousSubsidy = REFERENCE_INITIAL_SUBSIDY;
     for (int nHalvings = 1; nHalvings < GetTotalHalvings(consensusParams); nHalvings++) {
         if (blossomActive) {
             if (nHeight == blossomActivationHeight) {
@@ -45,7 +78,7 @@ static void TestBlockSubsidyHalvings(const Consensus::Params& consensusParams)
         }
         BOOST_CHECK_EQUAL(GetBlockSubsidy(nHeight - 1, consensusParams), nPreviousSubsidy);
         CAmount nSubsidy = GetBlockSubsidy(nHeight, consensusParams);
-        BOOST_CHECK(nSubsidy <= INITIAL_SUBSIDY);
+        BOOST_CHECK(nSubsidy <= REFERENCE_INITIAL_SUBSIDY);
         BOOST_CHECK_EQUAL(nSubsidy, nPreviousSubsidy / 2);
         nPreviousSubsidy = nSubsidy;
     }
@@ -64,23 +97,32 @@ static void TestBlockSubsidyHalvings(int nSubsidySlowStartInterval, int nPreBlos
 
 BOOST_AUTO_TEST_CASE(block_subsidy_test)
 {
-    TestBlockSubsidyHalvings(Params(CBaseChainParams::MAIN).GetConsensus()); // As in main
+    const Consensus::Params& mainParams = Params(CBaseChainParams::MAIN).GetConsensus();
+    if (UsesReferenceSubsidyModel(mainParams)) {
+        TestBlockSubsidyHalvings(mainParams); // As in main
     TestBlockSubsidyHalvings(20000, Consensus::PRE_BLOSSOM_HALVING_INTERVAL, Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT); // Pre-Blossom
     TestBlockSubsidyHalvings(50, 150, 80); // As in regtest
     TestBlockSubsidyHalvings(500, 1000, 900); // Just another interval
     TestBlockSubsidyHalvings(500, 1000, 3000); // Multiple halvings before Blossom activation
+    } else {
+        TestBlockSubsidyHalvingsZero(mainParams); // Zero: 10/10.8 ZER, 800k halving
+    }
 }
 
 BOOST_AUTO_TEST_CASE(subsidy_limit_test)
 {
     const Consensus::Params& consensusParams = Params(CBaseChainParams::MAIN).GetConsensus();
+    if (!UsesReferenceSubsidyModel(consensusParams)) {
+        TestSubsidyLimitZero(consensusParams); // Zero: validate MoneyRange over full supply
+        return;
+    }
 
     CAmount nSum = 0;
     int nHeight = 0;
     // Mining slow start
     for (; nHeight < consensusParams.nSubsidySlowStartInterval; nHeight++) {
         CAmount nSubsidy = GetBlockSubsidy(nHeight, consensusParams);
-        BOOST_CHECK(nSubsidy <= INITIAL_SUBSIDY);
+        BOOST_CHECK(nSubsidy <= REFERENCE_INITIAL_SUBSIDY);
         nSum += nSubsidy;
         BOOST_CHECK(MoneyRange(nSum));
     }
@@ -90,7 +132,7 @@ BOOST_AUTO_TEST_CASE(subsidy_limit_test)
     CAmount nSubsidy;
     do {
         nSubsidy = GetBlockSubsidy(nHeight, consensusParams);
-        BOOST_CHECK(nSubsidy <= INITIAL_SUBSIDY);
+        BOOST_CHECK(nSubsidy <= REFERENCE_INITIAL_SUBSIDY);
         nSum += nSubsidy;
         BOOST_ASSERT(MoneyRange(nSum));
         ++nHeight;

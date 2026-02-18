@@ -1,8 +1,18 @@
 # Build Compatibility Notes
 
+## GCC and Clang
+
+**GCC** (Linux, Windows): This document focuses on GCC compatibility.
+
+**Clang** (macOS ARM64): Apple Clang provides C11 and C17 support. ARM Mac
+builds use Apple Clang, not GCC. The Boost 1.70 / Clang 17 workaround
+(`-Wno-enum-constexpr-conversion`) for Boost/Clang compatibility.
+
 ## GCC Version Compatibility
 
-This Zero node implementation includes modifications to support building with newer GCC versions while maintaining compatibility with the older Boost 1.70.0 library.
+This Zero node implementation includes modifications to support building
+with newer GCC versions while maintaining compatibility with the older
+Boost 1.70.0 library.
 
 ### Changes Made
 

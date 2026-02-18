@@ -660,6 +660,15 @@ fi
 
 if test x$use_boost = xyes; then
 BOOST_LIBS="$BOOST_LDFLAGS $BOOST_SYSTEM_LIB $BOOST_FILESYSTEM_LIB $BOOST_PROGRAM_OPTIONS_LIB $BOOST_THREAD_LIB $BOOST_CHRONO_LIB"
+dnl AX_BOOST_THREAD can fail on darwin with newer Clang (deprecated warnings). If we have boost from depends, add -lboost_thread.
+if test x"$BOOST_THREAD_LIB" = x; then
+  boost_libdir=`echo "$BOOST_LDFLAGS" | sed 's/.*-L//;s/ .*//'`
+  if test -n "$boost_libdir" && test -f "${boost_libdir}/libboost_thread.a" 2>/dev/null; then
+    BOOST_THREAD_LIB="-lboost_thread"
+    AC_SUBST(BOOST_THREAD_LIB)
+    BOOST_LIBS="$BOOST_LDFLAGS $BOOST_SYSTEM_LIB $BOOST_FILESYSTEM_LIB $BOOST_PROGRAM_OPTIONS_LIB $BOOST_THREAD_LIB $BOOST_CHRONO_LIB"
+  fi
+fi
 fi
 
 if test x$use_pkgconfig = xyes; then

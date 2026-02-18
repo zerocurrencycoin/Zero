@@ -37,6 +37,7 @@ src/config/bitcoin-config.h.in
 src/config/stamp-h1
 share/setup.nsi
 
+build-logs/
 cache/
 venv-mnf/
 src/univalue/gen

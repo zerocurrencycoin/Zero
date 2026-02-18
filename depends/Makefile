@@ -9,6 +9,10 @@ PRIORITY_DOWNLOAD_PATH ?= https://download.z.cash/depends-sources
 BUILD ?= $(shell ./config.guess)
 HOST ?= $(BUILD)
 PATCHES_PATH = $(BASEDIR)/patches
+
+# Portable sed in-place: works on Mac (BSD), Ubuntu, WSL (GNU sed).
+build_SED_INPLACE = sed -i.old
+# GNU native: sed -i -e
 BASEDIR = $(CURDIR)
 HASH_LENGTH:=11
 DOWNLOAD_CONNECT_TIMEOUT:=10
