@@ -275,7 +275,7 @@ name collision.
 |---------|--------|-----|
 | **libzcash_a_LDFLAGS** | Fixed | Removed. Static libs (`.a`) do not use LDFLAGS; variable was unused. |
 | **AC_PROG_CC_C89 obsolete** | Fixed | Replaced with `AC_PROG_CC` in `src/secp256k1/configure.ac`. |
-| **ignoring duplicate libraries: '-lc++'** | Open | Libtool adds `-lc++`; `-stdlib=libc++` (Darwin) also pulls it in. Harmless. |
+| **ignoring duplicate libraries: '-lc++'** | Fixed | libzmq.pc Libs.private adds `-lstdc++`; `-stdlib=libc++` (Darwin) adds `-lc++`. Stripped from ZMQ_LIBS in configure.ac for darwin. |
 | **GZIP_ENV / distcleancheck override** | Intentional | User definitions override Automake defaults. See above. |
 
 ### 4.4 test_miner and --disable-mining

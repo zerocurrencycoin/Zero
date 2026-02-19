@@ -738,6 +738,16 @@ else
   fi
 fi
 
+dnl On Darwin with -stdlib=libc++, the compiler adds -lc++ implicitly.
+dnl libzmq.pc Libs.private adds -lstdc++, causing duplicate -lc++ warning.
+if test "x$use_zmq" = "xyes"; then
+  case $host in
+    *darwin*)
+      ZMQ_LIBS=`echo " $ZMQ_LIBS " | sed 's/ -lstdc++ / /g'`
+    ;;
+  esac
+fi
+
 RUST_LIBS="-lrustzcash"
 case $host in
   *mingw*)
