@@ -3,6 +3,8 @@
 Architecture changes, production code fixes, cross-fork analysis, and
 design decisions for the Zero node.
 
+**Cross-references**: UpdateZero.md §1.1 (document index). Related: UpdateBuild.md §4 (BDB, OpenSSL), UpdateTests.md §3.5, §8 (witness tests).
+
 ## 1. Witness Cache Architecture
 
 ### 1.1 Background
@@ -104,7 +106,7 @@ infrastructure was not updated to provide the needed state. This caused
 latent failures.
 
 Four `CachedWitnesses*` tests and `UpdatedSaplingNoteData` remain
-failing. See UpdateTests.md section 4.
+failing. See UpdateTests.md §6.2.
 
 ### 1.6 Cross-Fork Comparison
 
@@ -190,29 +192,21 @@ build-level details are in UpdateBuild.md.
 
 ### 4.1 BerkeleyDB and Wallet Compatibility
 
-BDB version determines wallet file format and storage behavior. All
-Zcash-family projects use BDB 6.2.x (AGPLv3). Wallet files created
-with 6.2.23 are compatible with 6.2.32 (same on-disk format). The
-BDB mutex fix on ARM64 directly affects wallet reliability at runtime.
+Implementation and backwards compatibility. BDB version determines wallet file format and storage behavior. All Zcash-family projects use BDB 6.2.x (AGPLv3). Wallet files created with 6.2.23 are compatible with 6.2.32 (same on-disk format). The BDB mutex fix on ARM64 directly affects wallet reliability at runtime.
 
-The BDB 6.2.32 upgrade may also resolve the `WriteCryptedSaplingZkeyDirectToDb`
-test hang caused by BDB mutex/atomic issues. See UpdateBuild.md section 6.1.
-
-Bitcoin Core has migrated entirely from BDB to SQLite-backed descriptor
-wallets. No Zcash-family project has followed this path.
-See UpdateBuild.md section 7.1.
+Bitcoin Core has migrated entirely from BDB to SQLite-backed descriptor wallets. No Zcash-family project has followed this path. See UpdateBuild.md §7.1.
 
 ### 4.2 OpenSSL and TLS
 
-Zero uses OpenSSL for RPC TLS and some legacy crypto paths. Zcash and
-Bitcoin Core have removed OpenSSL entirely, using libsodium and bundled
-libsecp256k1 instead. The decision to keep, upgrade, or remove OpenSSL
-affects RPC security, the cryptographic dependency surface, and
-compatibility with deployment environments that require TLS.
+**Postponed.** Separate effort. Requires detailed validation strategy.
 
-Current version (1.1.1w) is EOL. Options range from staying on 1.1.1w,
-migrating to 3.5.x LTS, or removing OpenSSL entirely.
-See UpdateBuild.md section 7.4.
+**Current understanding:**
+- Zero uses OpenSSL for RPC TLS and legacy crypto paths.
+- 1.1.1w is EOL (Sep 2023); no further security fixes.
+- Zcash, Bitcoin: removed. HUSH: WolfSSL. Zero, Horizen, Fluxd, Zclassic: still carry 1.1.1x.
+- Options: keep 1.1.1w; remove (audit call sites, libsodium+libsecp256k1); migrate to 3.5.x LTS.
+
+**Before proceeding:** Audit all OpenSSL call sites; document TLS/crypto usage; define validation strategy (unit tests, integration tests, TLS handshake verification). Do not mix with Boost or other upgrades. See UpdateBuild.md §6.8.
 
 ## 5. Identified Requirements
 
@@ -227,7 +221,7 @@ required.
 
 The manual witness building pattern used in three tests should be
 extracted to a shared helper. The `CreateValidBlock` helper needs
-consistent teardown. See UpdateTests.md section 5.
+consistent teardown. See UpdateTests.md §8.1, §8.2.
 
 ### 5.3 Documentation
 

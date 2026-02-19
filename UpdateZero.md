@@ -19,6 +19,24 @@ production code are placed case-by-case: small fixes tied to a specific
 test failure go in UpdateTests; changes with broader architectural scope
 or cross-platform implications go in UpdateFeatures.
 
+### 1.1 Cross-Reference Index
+
+| Topic | UpdateZero | UpdateBuild | UpdateTests | UpdateFeatures |
+|-------|------------|-------------|-------------|----------------|
+| Build/platform setup | §3.1, §4.1 | §1–4 | — | — |
+| Depends changes | §4.1 | §3 | — | — |
+| Library versions, upgrade plan | §6.2 | §5–7 | — | — |
+| BDB, wallet | — | §6.1, §7.1 | §6.2 | §4.1 |
+| Test results, fixes | §3.2, §4.2 | — | §1–3 | — |
+| Test prioritization | §5 | — | §5 | — |
+| Open test failures | §5.1 | — | §4, §6 | — |
+| Witness architecture | §5.3, §6.3 | — | §3.5, §8.2 | §1 |
+| z_getnewaddress, RPC | — | — | §4.1, §5.2 | — |
+| GTest version | — | §5.3, §7 | §1.1 | — |
+| OpenSSL, TLS | §5.2 | §6.8, §7.4 | — | §4.2 |
+
+**Cross-check**: Each Update*.md header lists related docs. UpdateTests §7.1 references UpdateBuild (GZIP_ENV). UpdateBuild §6.1, §7.4 reference UpdateFeatures. UpdateFeatures §1.5, §5.2 reference UpdateTests.
+
 ## 2. Branch
 
 - Branch: `arm-mac-build` based on `origin/zeronode_wallet` (HEAD: `2b260530e`)
@@ -55,7 +73,7 @@ sections 2 and 3.
 
 GTest: 4 fixes applied, 4 pre-existing failures excluded, 1 hang excluded.
 Boost: cascade failure from 2-3 root causes; most of the 249 are not
-independent bugs. See UpdateTests.md sections 3 and 4.
+independent bugs. See UpdateTests.md §3 (fixes), §4 (deep-dive), §6 (open failures).
 
 ### 3.3 Features
 
@@ -91,29 +109,23 @@ See UpdateFeatures.md section 1.
 
 ## 5. Open Items
 
-### 5.1 High Priority
+### 5.1 Immediate
 
 1. **Linux regression test** — verify all changes build and pass on Linux x86_64
-2. **BDB 6.2.32 upgrade** — fixes ARM64 mutex natively, removes workaround, same DB format and license. See UpdateBuild.md section 6.1
-3. **Boost test cascade** — isolate root-cause crashes in `subsidy_limit_test` and `Alert_tests`; most of 249 failures should collapse to 2-3 real issues. See UpdateTests.md section 4.1
+2. **Fix-now test items** (mandatory before Boost) — UpdateTests §5.2
 
-### 5.2 Medium Priority
+### 5.2 Delayed
 
-4. **CachedWitnesses tests** (4 tests) — pre-existing failures from witness API mismatch. Options: restore `IncrementNoteWitnesses` for test use or adapt test infrastructure. See UpdateFeatures.md section 1.5
-5. **WriteCryptedSaplingZkeyDirectToDb hang** — BDB mutex issue; may resolve with 6.2.32 upgrade
-6. **Low-risk dependency upgrades** — libsodium, libevent, ZeroMQ, ccache to Zcash-matching versions. See UpdateBuild.md section 6
+3. **Boost 1.83** — UpdateBuild §6.6
+4. **OpenSSL** — UpdateBuild §6.8, UpdateFeatures §4.2
+5. **Rust version pinning** — replace system symlink with pinned download for CI
+6. **Failing tests** — UpdateTests §5.2, §6.2
 
 ### 5.3 Deferred
 
-7. **Boost 1.83** — major jump, high risk, reference Zcash v6.11.0
-8. **OpenSSL evaluation** — remove or migrate to 3.5.x LTS
-9. **Rust version pinning** — replace system symlink with pinned download for CI
-10. **Witness architecture evaluation** — assess `BuildWitnessCache` vs upstream `IncrementNoteWitnesses`. See UpdateFeatures.md section 1.6
-
-### 5.4 Deferred (from TODO.md)
-
-11. **Zeronode test suite** — Zero-specific features (zeronode, budget, SwiftTX) have 0% test coverage. Phase 5 in TODO.md. High impact; not part of current port.
-12. **Enhanced error handling** — Replace boolean returns in zeronode wallet interface with detailed error reporting (ZeronodeWalletError, ZeronodeWalletResult). Phase 3 in TODO.md. Optional enhancement.
+7. **Zeronode test suite** — Zero-specific features (zeronode, budget, SwiftTX) have 0% test coverage. High impact; not part of current port.
+8. **Enhanced error handling** — Replace boolean returns in zeronode wallet interface with detailed error reporting. Optional enhancement.
+9. **Witness architecture evaluation** — Architecture/design (BuildWitnessCache vs IncrementNoteWitnesses); distinct from Witness-related test failures in §6. UpdateFeatures §1.6
 
 ## 6. Direction
 

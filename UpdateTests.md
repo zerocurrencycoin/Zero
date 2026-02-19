@@ -3,6 +3,8 @@
 Test suite results, fixes, open failures, and testing procedures for the
 Zero node.
 
+**Cross-references**: UpdateZero.md §1.1 (document index). Related: UpdateFeatures.md §1 (witness architecture), UpdateBuild.md §6.1 (BDB, WriteCryptedSaplingZkeyDirectToDb), Subsidy.md §11.2 (Python RPC amounts).
+
 ## 1. Test Framework
 
 Zero has two test suites:
@@ -54,12 +56,12 @@ Outcomes below verified Feb 2026.
 
 ### 2.2 Boost Test Summary
 
-260 test cases. **Verified**: 280 failures.
+260 test cases. **Verified Feb 2026**: 277 failures (down from 280 after RPC fixes).
 
 | Result | Count | Details |
 |--------|-------|---------|
-| Passed | ~10 | Early tests before cascade |
-| Failed | 280 | alert_tests (MagicBean, PartitionAlert), equihash (96,5 vectors), main_tests (block_subsidy, subsidy_limit), rpc_wallet_tests (founders %, z_getnewaddress) |
+| Passed | ~15 | Early tests + rpc_insightexplorer, rpc_z_mergetoaddress_parameters (after zcash-cli→zero-cli fix) |
+| Failed | 277 | alert_tests (MagicBean, PartitionAlert), equihash (96,5 vectors), miner_tests (invalid-solution), pow_tests (target spacing 120 vs 150), main_tests (block_subsidy, subsidy_limit), rpc_wallet_tests (founders %, z_getnewaddress) |
 
 **Run**: `./src/test/test_bitcoin`
 
@@ -74,6 +76,14 @@ Outcomes below verified Feb 2026.
 | Config | — | Zero branch IDs in util.py; tests with `extra_args` still use Zcash IDs |
 
 **Run**: `./qa/pull-tester/rpc-tests.sh blockchain`. Python 2.7 via `tests-config.sh` (pyenv 2.7.18 or `python2`).
+
+### 2.4 bitcoin-util-test, secp256k1, univalue
+
+| Suite | Result | Run |
+|-------|--------|-----|
+| bitcoin-util-test.py | PASS | `cd src && srcdir=$(pwd) PYTHONPATH=$(pwd)/test python3 test/bitcoin-util-test.py` |
+| secp256k1 check | PASS (2/2) | `make -C src secp256k1 check` |
+| univalue check | PASS (2/2) | `make -C src univalue check` |
 
 ## 3. Fixes Applied
 
@@ -111,9 +121,7 @@ behavior.
 
 ### 3.4 WriteCryptedSaplingZkeyDirectToDb
 
-**Problem**: Test hung due to BDB deadlock. Two `CWallet` instances opened the same file; `CDB::Rewrite()` waits for `mapFileUseCount == 0`, which never occurs.
-
-**Fix**: Add `wallet.Flush()` before creating `wallet2`, mirroring Zcash 4.5.0. Ensures first wallet commits to disk before second opens the file.
+**Fix applied**: `wallet.Flush()` before creating `wallet2` (Zcash 4.5.0). Still hangs; test excluded. See §6.2.
 
 **File**: `src/wallet/gtest/test_wallet_zkeys.cpp`
 
@@ -159,7 +167,23 @@ reset `nWitnessCacheSize` to 0. Test expected 0, got previous value.
 
 **File**: `src/wallet/wallet.cpp` (production fix, test-motivated).
 
-### 3.6 Python RPC Tests (Zero subsidy and config)
+### 3.6 RPC Error Messages (zcash-cli → zero-cli)
+
+**Problem**: RPC error strings referenced `zcash-cli`; Zero uses `zero-cli`. Tests in `rpc_insightexplorer` and `rpc_z_mergetoaddress_parameters` failed on `expectedErrorMessage == e.what()`.
+
+**Fix**: Replaced `zcash-cli` with `zero-cli` in RPC handler error messages.
+
+**Files**: `src/rpc/misc.cpp`, `src/rpc/blockchain.cpp`, `src/wallet/rpcwallet.cpp`
+
+### 3.7 rpc_tests signrawtransaction and getblockdeltas
+
+**Problem**: `rpc_rawparams` used Zcash Sapling branch ID `5ba81b19` (invalid for Zero); `rpc_insightexplorer` used Zcash genesis block hash for `getblockdeltas`.
+
+**Fix**: Use Zero branch ID `7361707a` in signrawtransaction test; use Zero mainnet genesis `068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6` for getblockdeltas.
+
+**File**: `src/test/rpc_tests.cpp`
+
+### 3.8 Python RPC Tests (Zero subsidy and config)
 
 **Problem**: RPC tests assumed Zcash subsidy (12.5 ZEC), Zcash branch IDs, and Zcash founder reward (20%). Zero uses 10/10.8 ZER, 7.5% founder from block 5000, and different upgrade branch IDs.
 
@@ -178,180 +202,249 @@ reset `nWitnessCacheSize` to 0. Test expected 0, got previous value.
 
 **Open**: Tests using `initialize_chain_clean` (e.g. `wallet.py`) still expect Zcash amounts; need Zero-specific expected values.
 
-## 4. Open Failures
+## 4. Deep-Dive Analyses
 
-### 4.1 Boost Test Cascade
+### 4.1 z_getnewaddress Implementation and Failures
 
-~249 of 260 Boost test cases fail. The root causes are:
+**Location**: `src/wallet/rpcwallet.cpp:3151`
 
-1. **`main_tests/subsidy_limit_test`**: Fixed. Zero runs `TestSubsidyLimitZero` (validates each block subsidy with `MoneyRange`; total supply ~25.6M ZER exceeds `MAX_MONEY`). See Subsidy.md §11.
+**Root cause**: Zero's `z_getnewaddress` rejects any arguments:
+```cpp
+if (fHelp || params.size() > 0)
+    throw runtime_error("z_getnewaddress\n\nReturns a new shielded address...");
+```
+Calling `z_getnewaddress sprout` or `z_getnewaddress sapling` triggers the help path because `params.size() > 0`.
 
-2. **`Alert_tests`**: Crash due to hardcoded alert key signatures that
-   don't match Zero's keys.
+**Zcash behavior**: Accepts optional type (`sprout` | `sapling`) and returns the appropriate address. Zero only generates Sapling (`GenerateNewSaplingZKey()`); no Sprout support in this RPC.
 
-3. **Cascade effect**: A crash in any early test fixture corrupts shared
-   state (ECC context, chain state). All subsequent tests in that fixture
-   abort with `SIGABRT`. The ~249 failures are mostly downstream
-   consequences of 2-3 real bugs.
+**Affected**:
+- **Boost rpc_wallet_tests**: `CallRPC("z_getnewaddress sprout")` at lines 643, 1504; expects string, gets help text → "JSON value is not a string as expected"
+- **Python RPC tests**: `nodes[0].z_getnewaddress('sprout')` in paymentdisclosure, wallet_treestate, wallet_anchorfork, etc. → JSONRPCException with help text
 
-**Action**: Isolate and fix `subsidy_limit_test` and `Alert_tests`. Most
-failures should resolve automatically.
+**Fix options**:
+1. Accept `sprout`/`sapling` params; for `sapling` or no-arg return Sapling; for `sprout` either return error "Sprout deprecated" or implement Sprout keygen if Zero supports it
+2. Accept params but ignore (return Sapling for any valid call) — breaks tests expecting Sprout
+3. Update tests to call `z_getnewaddress` with no args — tests that need Sprout would still fail
 
-**Root cause analysis** (from `./src/test/test_bitcoin` run):
+### 4.2 pyblake2 in Other Projects
 
-1. **alert_tests**: Deprecated. Assertions use `CLIENT_NAME` (Ambrym). Raw data in `alertTests.raw.h` may still contain MagicBean; regenerate with `GENERATE_ALERTS_FLAG` if needed.
-   - **Diagnostic**: `AlertApplies` fails on `AppliesTo(1, "/MagicBean:...")`—subversion string mismatch.
-   - **Tentative fix**: Regenerate `alertTests.raw.h` with Zero alert key and Ambrym subver; or update test to use `CLIENT_NAME` in `AppliesTo` checks.
+**Usage**: `qa/rpc-tests/test_framework/mininode.py` imports `pyblake2.blake2b` for Equihash block validation (person strings, digest sizes).
 
-2. **main_tests/block_subsidy_test**: Tests expect `INITIAL_SUBSIDY = 12.5 * COIN` (1.25e9 zatoshi). Zero's `GetBlockSubsidy` uses 10 ZER and 10.8 ZER (main.cpp:2111–2115), not the Zcash/Bitcoin schedule.
-   - **Diagnostic**: `GetBlockSubsidy(nHeight) == INITIAL_SUBSIDY` fails (1000000000 != 1250000000).
-   - **Tentative fix**: Ensure `UsesReferenceSubsidyModel()` returns false for Zero; or add Zero-specific branch in `block_subsidy_test`.
+**Alternatives**:
+- **Python 3.6+**: `hashlib.blake2b` is built-in. Zcash RPC tests target Python 2.7.
+- **Other forks**: Pirate, HUSH, Zclassic use same mininode; typically `pip install pyblake2` in Python 2.7 env.
+- **Migration**: Replace with `hashlib.blake2b` and require Python 3.6+ for RPC tests (breaking change).
 
-3. **equihash_tests/solver_testvectors, validator_testvectors**: Tests use Equihash(96,5) with Zcash test vectors. Zero mainnet uses Equihash(192,7) (chainparams.cpp:93–95).
-   - **Diagnostic**: `ret == solns` fails; solution count or format differs. Vectors for (96,5) may be endianness-dependent.
-   - **Tentative fix**: Skip (96,5) vectors if Zero never uses that config; add (192,7) or (48,5) vectors for Zero.
+**Quick fix**: `pip install pyblake2` in the Python 2.7 environment used by tests.
 
-4. **PartitionAlert**: Expected block counts (96, 120, etc.) assume Zcash target spacing. Zero uses `PRE_BLOSSOM_POW_TARGET_SPACING = 120`, `POST_BLOSSOM = 60`.
-   - **Diagnostic**: `expectedSlowErr == strMiscWarning` fails; e.g. "15 blocks" vs "12 expected" (Zero 120s vs Zcash 150s).
-   - **Tentative fix**: Update `PartitionAlertTestImpl` expected values for Zero: expectedSlow=15, expectedFast=300 (pre-Blossom); see §4.4.
+### 4.3 Network Upgrade Actuals (Zero vs Zcash)
 
-5. **rpc_wallet_tests**: Founders % and `z_getnewaddress` format.
-   - **Diagnostic**: `find_value(obj, "founders").get_real() == 0.4` fails (0.405 vs 0.4)—Zero 7.5% vs Zcash 20%. `z_getnewaddress` returns help text instead of address (RPC response format).
-   - **Tentative fix**: Update expected founders/miner for 7.5%. Fix `CallRPC`/test—ensure request does not trigger help (e.g. correct arg count).
+| Upgrade | Zero nBranchId | Zcash nBranchId | Hex (Zero) | Hex (Zcash) |
+|---------|----------------|-----------------|------------|-------------|
+| Overwinter | 0x6f76727a | 0x5BA81B19 | 6f76727a | 5ba81b19 |
+| Sapling | 0x7361707a | 0x76B809BB | 7361707a | 76b809bb |
+| Blossom | 0x2bb40e60 | 0x2BB40E60 | 2bb40e60 | 2bb40e60 |
 
-### 4.2 CachedWitnesses Tests
+**Python tests with wrong IDs**: `wallet_changeaddresses.py` (5ba81b19, 76b809bb), `shorter_block_times.py`, `rewind_index.py`, `p2p_nu_peer_management.py`, `wallet_overwintertx.py` (asserts chaintip 76b809bb). `mininode.py` has `OVERWINTER_BRANCH_ID = 0x5BA81B19`, `SAPLING_BRANCH_ID = 0x76B809BB` — used for Equihash person strings in block validation.
 
-Four tests: `CachedWitnessesEmptyChain`, `CachedWitnessesChainTip`,
-`CachedWitnessesDecrementFirst`, `CachedWitnessesCleanIndex`.
+### 4.4 Python Tests: Why So Long, How to Run All
 
-These tests were written for Zcash's `IncrementNoteWitnesses` API, which
-processes one block at a time with caller-provided Merkle trees. Zero
-replaced this with `BuildWitnessCache` / `VerifyAndSetInitialWitness`,
-which requires `pcoinsTip` and reads blocks from disk. The tests do not
-set up this infrastructure.
+**Why long**: Each test (1) starts zerod, (2) mines 200 blocks or uses cached chain, (3) runs RPCs. ~70 tests × 30–120s each = 35 min–2+ hours. No parallelization; tests run sequentially. Failing tests still consume startup/mining time before failing.
 
-Current workaround: excluded via `--gtest_filter`.
+**Run all at least once**:
+```bash
+PYTHON=$(pyenv root)/versions/2.7.18/bin/python ./qa/pull-tester/rpc-tests.sh
+```
+No filter = all tests. Add `timeout 60` per test in the script to cap hangs:
+```bash
+timeout 60 "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${testScripts[$i]}" ...
+```
 
-**Diagnostic**: Tests call `IncrementNoteWitnesses`-style API; Zero uses `BuildWitnessCache` which needs `pcoinsTip`, `ReadBlockFromDisk`, `mapBlockIndex`/`chainActive`. Without these, `GetDepthInMainChain()` returns 0 and witness logic fails.
+**Run single test**: `./qa/pull-tester/rpc-tests.sh blockchain`
 
-**Debug notes**: Add stub `IncrementNoteWitnesses` that delegates to manual tree append; or in test, populate `mapBlockIndex`/`chainActive`/`pcoinsTip` before `BuildWitnessCache`. `CachedWitnessesEmptyChain` has teardown pattern.
+**Faster iteration**: Run tests that don't need pyblake2 first (blockchain, disablewallet, httpbasics, keypool, reindex).
 
-**Tentative fix**: Restore `IncrementNoteWitnesses` as test-only helper; or rewrite to set up minimal chain state (single block in `mapBlockIndex`).
+### 4.5 Alert Testing Structure
 
-**Options**:
-- Restore `IncrementNoteWitnesses` as a secondary function for test use.
-- Rewrite tests to set up full chain state.
-- Accept as known limitation and document.
+**Location**: `src/test/alert_tests.cpp`
 
-See UpdateFeatures.md section 1.5.
+**Structure**:
+- `ReadAlerts` fixture: loads `alertTests.raw` (binary alert data)
+- `AlertApplies`: checks `AppliesTo(version, subver)` for match/don't-match
+- `AlertNotify`: processes alerts, checks `-alertnotify` script output (mostly disabled)
+- `AlertDisablesRPC`: checks RPC disable/re-enable
+- `PartitionAlertTestImpl`: tests `PartitionCheck` with fake chain
 
-### 4.3 block_subsidy_test and subsidy_limit_test (explained)
+**Deprecation**: Alert system is deprecated. Signature checks disabled (placeholder key "73B0"). Raw data in `alertTests.raw` may be MagicBean/Zcash-specific.
 
-**block_subsidy_test** verifies the halving schedule for chains that use the upstream subsidy model:
-- Slow-start ramp (nSubsidySlowStartInterval blocks) then 12.5 COIN at first halving height
-- Subsidy halves every nPreBlossomSubsidyHalvingInterval (800k for main)
-- Blossom halves spacing (2.5 min → 1.25 min) and adjusts halving interval
-- Walks halving heights and checks `GetBlockSubsidy` halves correctly until 0
+**Failure modes**:
+- `AlertApplies`: `AppliesTo(1, "/MagicBean:...")` fails — subver string expects CLIENT_NAME (Ambrym); raw data may have different client
+- `AlertDisablesRPC`: expects `strRPCError == "RPC disabled"` — may fail if alert processing disabled
+- `PartitionAlertTestImpl`: expects `expectedSlow`/`expectedFast` based on `PoWTargetSpacing`; Zero uses 120s (pre-Blossom) vs Zcash 150s → wrong expected block counts
 
-**subsidy_limit_test** verifies total supply and `MoneyRange`:
-- Reference chains: sums subsidy over slow-start, then regular mining until subsidy reaches 0
-- Zero: `TestSubsidyLimitZero` validates each block subsidy with `MoneyRange(nSubsidy)` (total ~25.6M ZER exceeds `MAX_MONEY`; see Subsidy.md §11)
+### 4.6 Expected vs Actual Mismatches (Catalog)
 
-**Skip logic**: `UsesReferenceSubsidyModel()` checks `GetBlockSubsidy(1) == 12.5*COIN`. Zero returns 10*COIN, so both tests skip.
+| Test/Suite | Expected | Actual | Cause |
+|------------|----------|--------|-------|
+| rpc_wallet rpc_wallet | miner 10, founders 0.8 | 9.99, 0.81 | Zero 7.5% founder, 10 ZER base |
+| rpc_wallet z_getnewaddress | string (address) | help text | params.size()>0 triggers help |
+| pow_tests | PoWTargetSpacing 150 | 120 | Zero pre-Blossom spacing |
+| equihash_tests | (96,5) vectors | solver mismatch | Zero uses (192,7) |
+| alert_tests | AppliesTo subver | mismatch | MagicBean vs Ambrym |
+| main_tests block_subsidy | 12.5 COIN | 10 COIN | Zero subsidy |
+| wallet_changeaddresses | nuparams 5ba81b19 | Invalid | Zero uses 6f76727a |
 
-### 4.4 PartitionAlert expectedSlow (explained)
+### 4.7 test_bitcoin: Run Individually or in Groups
 
-`PartitionCheck` (main.cpp:2848) counts blocks in the last 4 hours and compares to `BLOCKS_EXPECTED = 14400 / PoWTargetSpacing`. If count is far from expected (Poisson), it sets `strMiscWarning`.
+**By suite** (Boost.Test):
+```bash
+./src/test/test_bitcoin -t Alert_tests
+./src/test/test_bitcoin -t rpc_tests
+./src/test/test_bitcoin -t rpc_wallet_tests
+```
+List suites: `./src/test/test_bitcoin --list_content`
 
-**Test setup**: Fake chain of 800 blocks, then advance "now" by 3.5 hours with no new blocks. The 4‑hour window is `[now-4hr, now]`; the last block is 3.5 hr old, so only blocks from the last 0.5 hr are in the window.
+**By test case**:
+```bash
+./src/test/test_bitcoin -t rpc_tests/rpc_insightexplorer
+```
 
-**expectedSlow** = blocks in 0.5 hr = `(0.5 * 3600) / targetSpacing`. For 120 s (Zero): 1800/120 = 15. For 150 s (Zcash): 1800/150 = 12.
+**Coverage**: 260 test cases across ~50+ BOOST_AUTO_TEST_CASE names. Early failures (alert, equihash) cascade via shared state; running later suites in isolation may show different results.
 
-**Comparison**: Pirate uses `PartitionCheck` with `nPowTargetSpacing` argument but no `expectedSlow` string check—only `BOOST_CHECK(!strMiscWarning.empty())`. Bitcoin does not use this partition alert pattern. Zero and Zcash use `PartitionAlertTestImpl` with explicit `expectedSlow`/`expectedFast`.
+### 4.8 zero-gtest Hang and Fail
 
-**expectedFast** = 2.5× expected blocks (chain with blocks every spacing×2/5). For 120 s: 120 × 2.5 = 300.
+See §6.2.
 
-### 4.5 UpdatedSaplingNoteData (1 fail)
+## 5. Prioritization: Fix Now vs Later vs Set Aside
 
-**Test**: `WalletTests.UpdatedSaplingNoteData`  
-**Cause**: Sapling witness tree mismatch. `CreateValidBlock` builds witnesses with an empty tree (no `pprev`), but the test expects witnesses matching a tree with prior state. Pre-existing incompatibility with Zero's witness model.
+**Purpose**: Work planning. Organizes failures by when to address them (fix now / later / set aside) and by coverage/risk. §5 references §6 or §4 for technical detail; not the other way around.
 
-**Diagnostic**: `EXPECT_EQ(wtx.mapSaplingNoteData[sop1].witnesses.front(), testNote.tree.witness())` fails—witness bytes differ. Test at `test_wallet.cpp:1823`; manually pushes `testNote.tree.witness()` into `wtx2.mapSaplingNoteData[sop0].witnesses` (line 1894). `UpdatedNoteData` merges note data; the witness from the spend (sop0) may not match what the test expects after merge. Root cause: `BuildWitnessCache` / `CreateValidBlock` use an empty Merkle tree; the test’s manual witness does not align.
+### 5.1 Framework
 
-**Debug notes**: Set breakpoint at `test_wallet.cpp:1923`; compare witness hex. Check if `BuildWitnessCache` overwrites manual witness. sop0=spend, sop1=receive; merge order may matter.
+| Priority | Criteria | Action |
+|----------|----------|--------|
+| **Fix now** | Blocks CI, high-risk feature, low effort | Address before merge/release |
+| **Later** | Medium risk, moderate effort, or depends on other work | Schedule for next sprint |
+| **Set aside** | Deprecated feature, low risk, high effort, or upstream divergence | Document; exclude; revisit if feature revived |
 
-**Tentative fix**: Refactor to build witness manually with same tree as `testNote.tree`, or relax to assert `witnesses` non-empty only.
+**Feature importance** (from UpdateFeatures.md and consensus): Consensus > Wallet shielded > RPC/CLI > Mining > Alerts. **Risk**: incorrect spend proofs, double-spend, chain split > UX/format issues > cosmetic.
 
-### 4.6 WriteCryptedSaplingZkeyDirectToDb (1 hang)
+### 5.2 Fix Now
 
-**Test**: `wallet_zkeys_tests.WriteCryptedSaplingZkeyDirectToDb`  
-**Cause**: `CDB::Rewrite()` busy-waits for `mapFileUseCount == 0`. The test creates two `CWallet` instances on the same file (`wallet_crypted_sapling.dat`): `wallet` and `wallet2`. Both hold the file open; `Rewrite` never sees `mapFileUseCount == 0` → deadlock.
+Low-effort items; mandatory before Boost. See UpdateFeatures.md §1 for Witness context.
 
-**Fix applied**: Add `wallet.Flush()` before opening `wallet2`, mirroring Zcash 4.5.0. Still hangs on ARM64 macOS with BDB.
+| Item | Suite | Effort | Rationale |
+|------|-------|--------|------------|
+| **z_getnewaddress params** | Boost rpc_wallet, Python RPC | Low | Core shielded UX; fix RPC to accept/ignore params |
+| **pyblake2** | Python RPC (~40 tests) | Low | `pip install pyblake2` unblocks many tests |
+| **nuparams in Python tests** | wallet_changeaddresses, shorter_block_times, etc. | Low | Replace 5ba81b19/76b809bb with 6f76727a/7361707a |
+| **rpc_wallet founders %** | Boost rpc_wallet | Low | Update expected 9.99/0.81 for Zero 7.5% |
+| **block_subsidy / subsidy_limit skip** | main_tests | Low | Add Zero-specific skip or Zero-specific assertions |
 
-**Diagnostic**: `CDB::Rewrite` waits on `mapFileUseCount == 0`. Add `LogPrintf` before loop; inspect `mapFileUseCount`. BDB may hold internal reference. Run under `lldb`, break in `CDB::Rewrite`.
+### 5.3 Later
 
-**Debug notes**: Compare BDB version with Zcash 4.5.0. Try `wallet.Close()` or explicit destructor before `wallet2` if API allows.
+| Item | Suite | Effort | Rationale |
+|------|-------|--------|------------|
+| **UpdatedSaplingNoteData**, **CachedWitnesses*** | zero-gtest | Medium/High | See §6.2 |
+| **pow_tests target spacing** | pow_tests | Low | Update 150→120 for Zero |
+| **miner_tests invalid-solution** | miner_tests | Medium | Zero (192,7) vs test (96,5); may need new vectors |
+| **equihash (96,5) vectors** | equihash_tests | Medium | Zero uses (192,7); skip or add Zero vectors |
+| **getchaintips** | Python RPC | Low | Relax assertion or adjust expected count |
+| **Clean-chain amounts** | wallet.py, txn_doublespend | Low | Recompute for Zero subsidy |
 
-**Tentative fix**: Use separate temp file for `wallet2` (copy then verify), or skip `Rewrite` path in test.
+### 5.4 Set Aside (postponed)
 
-**File**: `src/wallet/gtest/test_wallet_zkeys.cpp`
+| Item | Suite | Rationale |
+|------|-------|------------|
+| **Alert_tests** (MagicBean, AppliesTo, PartitionAlert) | alert_tests | See §6.4 |
+| **WriteCryptedSaplingZkeyDirectToDb** | zero-gtest | See §6.2 |
+| **block_subsidy_test / subsidy_limit_test** | main_tests | See §6.3 |
 
-### 4.7 Excluded tests (Pirate/Zcash comparison)
+### 5.5 Coverage Picture: Tests × Feature × Risk
+
+| Layer | Suites | Feature Area | Risk if Broken | Status |
+|-------|--------|--------------|-----------------|--------|
+| **Consensus** | equihash, pow, main (block validation) | PoW, halving, chain rules | Chain split, invalid blocks | equihash/pow fail; main skips |
+| **Shielded** | zero-gtest (Sapling/Sprout), rpc_wallet z_* | Witness, spend proofs, addresses | Double-spend, lost funds | 200 pass, 1 fail, 5 excluded |
+| **RPC/CLI** | rpc_tests, rpc_wallet, Python RPC | API correctness | UX, integration failures | Partial pass after fixes |
+| **Mining** | miner_tests | Block construction | Orphan blocks | Fails (invalid-solution) |
+| **Alerts** | alert_tests | Partition warning | Low (deprecated) | Fails; set aside |
+
+**Combining for coverage**:
+- **GTest**: Run with exclusion filter → 200 tests cover shielded logic, consensus, crypto. One fail (UpdatedSaplingNoteData) is test harness, not production.
+- **Boost**: Run by suite (`-t rpc_tests`, `-t rpc_wallet_tests`) to isolate; early failures (alert, equihash) cascade. Fix z_getnewaddress + founders % → rpc_wallet improves.
+- **Python**: Fix pyblake2 + nuparams + z_getnewaddress → ~40+ tests unblocked. Remaining: clean-chain amounts, getchaintips.
+
+**Minimum viable coverage** (fix-now items): GTest 200 pass + rpc_tests + rpc_wallet (after z_getnewaddress/founders) + Python blockchain + 5–10 more Python tests = consensus, shielded, RPC, basic integration covered.
+
+## 6. Open Failures
+
+**Purpose**: Technical reference for each failure. Root cause, fix options, formulas. §5 points here for detail.
+
+### 6.1 Boost Test Cascade
+
+~249 of 260 Boost test cases fail. Root causes: Alert_tests, equihash (96,5) vectors, miner_tests (invalid-solution), pow_tests (target spacing), rpc_wallet_tests (founders %, z_getnewaddress). See §4.6 for expected/actual catalog.
+
+### 6.2 zero-gtest Failures (Witness, BDB)
+
+**CachedWitnesses*** (4 tests): Excluded. Zero's `BuildWitnessCache` assumes `pcoinsTip`, `ReadBlockFromDisk`, `mapBlockIndex`/`chainActive`; test harness does not provide. **Potential fixes**: Restore `IncrementNoteWitnesses` for test path; or adapt harness to populate chain state. See UpdateFeatures.md §1.5.
+
+**UpdatedSaplingNoteData** (1 fail): `CreateValidBlock` builds witnesses with empty tree; test expects witness matching `testNote.tree.witness()`. **Potential fixes**: Relax to assert `witnesses` non-empty; or refactor to build witness with same tree as `testNote.tree`.
+
+**WriteCryptedSaplingZkeyDirectToDb**: Excluded (hangs). Test opens two `CWallet` on same file; `CDB::Rewrite()` waits for `mapFileUseCount == 0`, which never occurs. Two CWallet on one file is test-only—unlikely in production (one process, one wallet). Not critical; investigation delayed. **Fix applied**: `wallet.Flush()` before opening `wallet2` (Zcash 4.5.0). Still hangs on ARM64 macOS. **Workaround**: Exclude via `--gtest_filter='-...WriteCryptedSaplingZkeyDirectToDb'`.
+
+### 6.3 block_subsidy_test and subsidy_limit_test (explained)
+
+**block_subsidy_test**: Verifies halving schedule for reference chains (slow-start, 12.5 COIN, 800k halving). **subsidy_limit_test**: Total supply and `MoneyRange`. Zero returns 10*COIN at height 1; `UsesReferenceSubsidyModel()` skips both.
+
+### 6.4 PartitionAlert expectedSlow (postponed)
+
+Alert system deprecated; raw data MagicBean-specific. `PartitionCheck` counts blocks in last 4 hours vs `BLOCKS_EXPECTED`. **expectedSlow** = (0.5×3600)/targetSpacing: Zero 120s → 15; Zcash 150s → 12. Set aside. See §4.5.
+
+### 6.5 Excluded tests (Pirate/Zcash comparison)
 
 | Test | Zero | Pirate | Zcash |
 |------|------|--------|-------|
-| `WalletTests.CachedWitnessesEmptyChain` | Excluded | Exists (commented out) | Exists |
-| `WalletTests.CachedWitnessesChainTip` | Excluded | Exists (commented out) | Exists |
-| `WalletTests.CachedWitnessesDecrementFirst` | Excluded | Exists (commented out) | Exists |
-| `WalletTests.CachedWitnessesCleanIndex` | Excluded | Exists (commented out) | Exists |
+| `WalletTests.CachedWitnesses*` | Excluded | Commented out | Exists |
 | `WalletTests.UpdatedSaplingNoteData` | Fails | Exists | Exists |
-| `wallet_zkeys_tests.WriteCryptedSaplingZkeyDirectToDb` | Excluded (Flush added, may still hang) | Exists | Exists (has Flush) |
+| `WriteCryptedSaplingZkeyDirectToDb` | Excluded (hangs) | Exists | Exists (has Flush) |
 
-**Exclusion filter**: `--gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkeyDirectToDb:WalletTests.CachedWitnesses*'`. To run `UpdatedSaplingNoteData` (will fail): omit from filter.
+**Exclusion filter**: `--gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkeyDirectToDb:WalletTests.CachedWitnesses*'`
 
-Pirate: `CachedWitnesses*` tests are commented out. Zcash: all five exist; Zcash 4.5.0 adds `wallet.Flush()` before opening second wallet in `WriteCryptedSaplingZkeyDirectToDb`.
+## 7. Build Log Review
 
-## 5. Build Log Review
-
-### 5.1 autogen (zero-config-autogen.log)
+### 7.1 autogen (zero-config-autogen.log)
 
 - **GZIP_ENV, distcleancheck**: User variable/target overrides (Makefile.am). Known; documented in UpdateBuild.md.
 - **$as_echo obsolete**: Autoconf 2.70+ deprecation; harmless.
 
-### 5.2 configure (zero-config-configure.log)
+### 7.2 configure (zero-config-configure.log)
 
 - **checking for brew... no**: Homebrew not in PATH during configure. Optional; depends provides openssl/bdb via config.site.
 - **-single_module is obsolete**: Darwin ld; harmless.
 - **static flag... no**: Expected on Darwin (no static linking).
 
-### 5.3 depends (zero-depends.log)
+### 7.3 depends (zero-depends.log)
 
 - **Checksum missing or mismatched for rust source. Forcing re-download**: rust.mk uses system Rust symlink; checksum may not match. Triggers full depends repack. One-time or when rust package changes.
 
-### 5.4 compile (zero-compile.log)
+### 7.4 compile (zero-compile.log)
 
 - **zeronode.h:229 memcpy -Wfortify-source**: Fixed. Original `memcpy(&n, &hash + slice * 64, 64)` had two bugs: (1) pointer arithmetic `&hash + slice*64` on `uint256*` adds `slice*64*32` bytes; (2) copying 64 bytes into 8-byte `uint64_t` overflows. Correct: `memcpy(&n, (char*)&hash + slice * 8, 8)` for slicing uint256 into 8-byte chunks.
 
 **Why it "worked" before**: `SliceHash` is never called anywhere in the codebase. It is dead code; the buggy path was never executed.
 
-### 5.5 budget.cpp:35
+### 7.5 budget.cpp:35
 
 - **Implicit conversion 4070908800 → int**: `GetBudgetPaymentCycleBlocks()` returns `4070908800` on mainnet as a sentinel meaning "OFF" (budget disabled). The value exceeds INT_MAX (2^31−1), so it overflows to `-224058496`. The intent: `nHeight % cycle` for real block heights never equals 0, so no superblock ever triggers. The overflow is intentional; the negative value still produces the desired modulo behavior. Fix: use `INT_MAX` or `static_cast<int>(0x7FFFFFFF)` to silence the warning without changing semantics.
 
-## 6. Test Infrastructure Notes
+## 8. Test Infrastructure Notes
 
-### 6.1 Global State in GTest
+### 8.1 Global State in GTest
 
-Google Test runs all tests in a single process. Tests that modify global
-state (`mapBlockIndex`, `chainActive`, `pcoinsTip`, ECC context) can
-contaminate subsequent tests. Teardown of global state is critical.
+The `CreateValidBlock` helper now inserts into `mapBlockIndex` and `chainActive`. Callers must clean up (see `CachedWitnessesEmptyChain` for the teardown pattern).
 
-The `CreateValidBlock` helper now inserts into `mapBlockIndex` and
-`chainActive`. Callers must clean up (see `CachedWitnessesEmptyChain`
-for the teardown pattern).
-
-### 6.2 Manual Witness Building Pattern
+### 8.2 Manual Witness Building Pattern
 
 For tests with synthetic Sapling notes not from real blocks, the pattern is:
 
@@ -360,23 +453,22 @@ For tests with synthetic Sapling notes not from real blocks, the pattern is:
 3. Append subsequent commitments to the witness.
 4. Store witness directly in `mapSaplingNoteData`.
 
-This bypasses `BuildWitnessCache` entirely. Used in three tests currently;
-could be extracted to a helper function.
+This bypasses `BuildWitnessCache` entirely. Used in three tests currently; could be extracted to a helper function.
 
-### 6.3 Test Execution
+### 8.3 Test Execution
 
 ```
 # GTest (200 pass, 1 fail)
 ./src/zero-gtest --gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkeyDirectToDb:WalletTests.CachedWitnessesEmptyChain:WalletTests.CachedWitnessesChainTip:WalletTests.CachedWitnessesDecrementFirst:WalletTests.CachedWitnessesCleanIndex'
 
-# Boost tests (280 failures)
+# Boost tests (277 failures)
 ./src/test/test_bitcoin
 
 # Python RPC (blockchain passes)
 ./qa/pull-tester/rpc-tests.sh blockchain
 ```
 
-### 6.4 Python RPC Tests (qa/rpc-tests/)
+### 8.4 Python RPC Tests (qa/rpc-tests/)
 
 **Overview**: Python tests (~100) spawn `zerod` with `-regtest`, build a 200-block chain (or use `initialize_chain_clean`), and exercise RPC via `zero-cli`. Require Python 2.7.
 
@@ -411,7 +503,7 @@ Options: `--nocleanup`, `--noshutdown`, `--srcdir=SRCDIR`, `--tmpdir=TMPDIR`, `-
 
 **Subsidy documentation**: See `Subsidy.md` §11.2 for RPC test details and Zero's halving algorithm.
 
-### 6.5 zerod manual testing
+### 8.5 zerod manual testing
 
 **zerod arguments**:
 

@@ -3,6 +3,8 @@
 Build system changes, dependency management, platform setup, and library
 upgrade planning for the Zero node.
 
+**Cross-references**: UpdateZero.md §1.1 (document index). Related: UpdateFeatures.md §4 (BDB, OpenSSL), UpdateTests.md §1.1 (GTest), §6.2 (WriteCryptedSaplingZkeyDirectToDb).
+
 ## 1. Build System Overview
 
 Zero uses autotools with a `depends/` system for deterministic dependency
@@ -134,6 +136,7 @@ Boost 1.70.0. Five changes:
 3. **Toolset/archiver variables**: `$(package)_toolset_darwin=clang` and `$(package)_archiver_darwin=$($(package)_ar)` for consistency with toolset change.
 4. **sed portability**: Uses `$(build_SED_INPLACE)`. See section 1.1. Pattern broadened from `using gcc ;` to `using [a-z]* ;` to match whatever toolset bootstrap selects.
 5. **CXXFLAGS**: Added `-Wno-enum-constexpr-conversion` for Darwin. Boost 1.70 headers trigger a hard error in Clang 17.
+6. **configure.ac**: Fallback when `AX_BOOST_THREAD` fails (darwin + Clang 17). If `BOOST_THREAD_LIB` is empty but `libboost_thread.a` exists in the Boost lib dir, add `-lboost_thread` explicitly. Uses `sed 's/.*-L//;s/ .*//'` to extract lib path from `BOOST_LDFLAGS`.
 
 Alternatives for the sed approach:
 - Write `project-config.jam` directly (what Bitcoin Core does).
@@ -296,29 +299,29 @@ endif
 
 ### 5.1 Core Libraries
 
-| Package | Current | Released | Latest Stable | Released | Gap | Risk | Notes |
-|---------|---------|----------|---------------|----------|-----|------|-------|
-| Boost | 1.70.0 | Jun 2019 | 1.90.0 | 2025 | ~6y | High | 20 minor versions behind |
-| OpenSSL | 1.1.1w | Sep 2023 | 3.6.1 | Jan 2026 | EOL | High | Series end-of-life |
-| libsodium | 1.0.15 | Oct 2017 | 1.0.21 | Jan 2025 | ~7y | Low | Stable ABI; target 1.0.21 |
-| libevent | 2.1.8 | Jan 2017 | 2.1.12 | Jul 2020 | ~3y | Low | Patch-level |
-| BerkeleyDB | 6.2.23 | Mar 2016 | 6.2.32 | Apr 2017 | 1y | Low | Same format/license |
-| ZeroMQ | 4.3.1 | Jan 2019 | 4.3.5 | Oct 2023 | ~4y | Low | Patch-level |
+| Package | Current | Target | Status |
+|---------|---------|--------|--------|
+| BerkeleyDB | 6.2.32 | 6.2.32 | ✓ At target |
+| libsodium | 1.0.21 | 1.0.21 | ✓ At target |
+| libevent | 2.1.12 | 2.1.12 | ✓ At target |
+| ZeroMQ | 4.3.5 | 4.3.5 | ✓ At target |
+| Boost | 1.70.0 | Postponed | Intentionally not upgraded |
+| OpenSSL | 1.1.1w | TBD | EOL; keep for now |
 
 ### 5.2 Rust Toolchain
 
-| Package | Current | Latest Stable | Gap | Risk | Notes |
-|---------|---------|---------------|-----|------|-------|
-| Rust (in rust.mk) | 1.32.0 pinned | 1.93.1 | ~7y | Med | Using system 1.91.1 on ARM Mac |
-| librustzcash | 0.1 (06da3b9) | Monorepo (2024+) | ~5y | High | Tied to protocol version |
+| Package | Current | Target | Status |
+|---------|---------|--------|--------|
+| Rust (in rust.mk) | 1.32.0 / system | 1.93.1 | Not upgraded; ARM Mac uses system 1.91.1 |
+| librustzcash | 0.1 (06da3b9) | Deferred | Tied to protocol version |
 
 ### 5.3 Build Tools
 
-| Package | Current | Latest Stable | Gap | Risk | Notes |
-|---------|---------|---------------|-----|------|-------|
-| ccache | 3.3.1 | 4.12.2 | ~9y | Low | Build tool only |
-| utfcpp | 3.1 | 4.0.9 | ~7y | Low | Header-only |
-| Qpid Proton | 0.26.0 | 0.39.0 | ~5y | N/A | Currently disabled |
+| Package | Current | Target | Status |
+|---------|---------|--------|--------|
+| ccache | 4.12.2 | 4.12.2 | ✓ At target |
+| utfcpp | 3.1 | 4.0.9 | Deferred |
+| Qpid Proton | 0.26.0 | 0.39.0 | Disabled |
 
 Google Test version tracking is in UpdateTests.md section 1.1.
 
@@ -343,17 +346,9 @@ Prioritized by risk. Target baseline: Zcash v6.11.0 or Bitcoin Core v30.2,
 whichever is higher and applicable. See section 7 for cross-project
 version comparison.
 
-### 6.1 BerkeleyDB 6.2.23 to 6.2.32
+### 6.1 BerkeleyDB 6.2.23 → 6.2.32
 
-Confirmed. Low risk.
-
-Same AGPLv3 license, same DB file format, same ABI. Fixes ARM64
-mutex/atomic issues natively. Removes `--with-mutex` workaround in
-`bdb.mk`. May also fix `WriteCryptedSaplingZkeyDirectToDb` test hang.
-Validated by Pirate v5.9.0. Zcash upstream issue #6977 confirms.
-See UpdateFeatures.md section 4.1 for wallet compatibility implications.
-
-Action: update version + SHA256 in `bdb.mk`, remove `--with-mutex` line.
+**Done.** `bdb.mk` at 6.2.32. ARM64 mutex fixed natively; `--with-mutex` workaround removed. See UpdateFeatures.md §4.1 for wallet compatibility.
 
 BDB version and license context:
 
@@ -364,30 +359,49 @@ BDB version and license context:
 | 6.2.32 (target) | AGPLv3 | 6.2 | Fixed | Drop-in upgrade. |
 | 18.1.40 (latest) | AGPLv3 | 6.2-compat | Full | Unnecessary version jump. |
 
-### 6.2 libsodium 1.0.15 to 1.0.21
+### 6.2 libsodium 1.0.15 → 1.0.21
 
-Confirmed. Low risk. Stable ABI, backward-compatible API. Target latest stable (1.0.21).
+**Done.** `libsodium.mk` at 1.0.21.
 
-### 6.3 libevent 2.1.8 to 2.1.12
+### 6.3 libevent 2.1.8 → 2.1.12
 
-Confirmed. Low risk. Patch-level bump. Matches Zcash, Bitcoin, Pirate, Fluxd.
+**Done.** `libevent.mk` at 2.1.12.
 
-### 6.4 ZeroMQ 4.3.1 to 4.3.5
+### 6.4 ZeroMQ 4.3.1 → 4.3.5
 
-Confirmed. Low risk. Patch-level bump. Matches Zcash, Bitcoin.
+**Done.** `zeromq.mk` at 4.3.5.
 
-### 6.5 ccache 3.3.1 to 4.12.2
+### 6.5 ccache 3.3.1 → 4.12.2
 
-Confirmed. Low risk. Build tool only, not linked. Better Clang support.
-Target latest stable (4.12.2).
+**Done.** `native_ccache.mk` at 4.12.2.
 
 ### 6.6 Boost 1.70.0
 
 **Postponed.** High risk. Major version jump.
 
-Zcash v6.11.0 uses 1.83.0. Bitcoin Core v30.2 uses 1.88.0. Latest is
-1.90.0. Upgrade deferred; keep 1.70.0 for now. When ready: target
-1.83.0 (Zcash-validated) or 1.88.0 (Bitcoin). Reference Zcash `boost.mk`.
+**Zero starting point:** 1.70.0 (Jun 2019). ~6 years, 13+ minor versions behind Zcash.
+
+**Boost support among projects:**
+
+| Version | Projects |
+|---------|----------|
+| 1.70.0 | Zero, Fluxd |
+| 1.72.0 | HUSH |
+| 1.80.0 | Zclassic |
+| 1.82.0 | Horizen |
+| 1.83.0 | Zcash v6.11.0, Pirate |
+| 1.88.0 | Bitcoin Core v30.2 |
+| 1.90.0 | Latest |
+
+**Upgrade choices when ready:**
+
+| Version | Validated by | Notes |
+|---------|--------------|-------|
+| 1.83.0 | Zcash, Pirate | Zcash `boost.mk` provides tested path. API changes in Filesystem, Thread, Test. |
+| 1.88.0 | Bitcoin Core | Bitcoin `depends/packages/boost.mk` reference. |
+| 1.90.0 | Latest | Newest; least upstream validation. |
+
+**Recommendation:** Target 1.83.0 (Zcash-validated) for lowest risk. Keep 1.70.0 until upgrade is scheduled.
 
 ### 6.7 Rust 1.32.0 to 1.93.1
 
@@ -402,20 +416,15 @@ Replaces system symlink approach with deterministic pinned download.
 
 ### 6.8 OpenSSL
 
-TBD. See UpdateFeatures.md section 4.2 for feature implications.
+**Postponed.** Separate effort. Requires detailed validation strategy before proceeding.
 
-Zcash and Bitcoin Core dropped OpenSSL entirely. Zero still uses it for
-RPC TLS and legacy crypto paths. Options:
+**Current understanding** (see UpdateFeatures.md §4.2):
+- Zero uses OpenSSL for RPC TLS and legacy crypto paths.
+- 1.1.1w is EOL (final 1.1.1 release, Sep 2023); no further security fixes.
+- Zcash and Bitcoin Core removed OpenSSL; Zero, Horizen, Fluxd, Zclassic still carry it.
+- Options: (1) Keep 1.1.1w short-term; (2) Remove (audit call sites, use libsodium+libsecp256k1); (3) Migrate to 3.5.x LTS (API migration).
 
-1. **Keep 1.1.1w** — current version, final 1.1.1 release, EOL. No code
-   changes needed. Acceptable short-term.
-2. **Remove** — follow Zcash. Requires auditing all OpenSSL call sites and
-   confirming libsodium + libsecp256k1 cover all crypto needs.
-3. **Migrate to 3.5.x LTS** — supported to Apr 2030. Requires API
-   migration (providers model, deprecated low-level functions).
-
-Starting position: keep 1.1.1w. Evaluate removal or 3.5.x migration
-as a separate work item.
+**Before proceeding**: Audit all OpenSSL call sites; document TLS/crypto usage; define validation strategy (unit tests, integration tests, TLS handshake verification, deployment compatibility). Do not mix with Boost or other upgrades.
 
 ### 6.9 librustzcash
 
@@ -439,17 +448,16 @@ Google Test is tracked separately in UpdateTests.md section 1.1.
 
 | Library | Zero | Zcash | Horizen | Pirate | Fluxd | Zclassic | HUSH | Bitcoin | Latest | Target |
 |---------|------|-------|---------|--------|-------|----------|------|---------|--------|--------|
-| BerkeleyDB | 6.2.23 | 6.2.23 | 6.2.23 | 6.2.32 | 6.2.23 | 6.2.23 | 6.2.23 | (removed) | 6.2.32 | **6.2.32** |
-| libsodium | 1.0.15 | 1.0.20 | 1.0.18 | 1.0.18 | 1.0.15 | 1.0.15 | 1.0.18 | — | 1.0.21 | **1.0.21** |
-| libevent | 2.1.8 | 2.1.12 | 2.1.8 | 2.1.12 | 2.1.12 | 2.1.8 | 2.1.8 | 2.1.12 | 2.1.12 | **2.1.12** |
-| ZeroMQ | 4.3.1 | 4.3.5 | 4.3.4 | 4.3.1 | 4.3.1 | 4.3.1 | (removed) | 4.3.5 | 4.3.5 | **4.3.5** |
-| ccache | 3.3.1 | 4.11.3 | 3.3.1 | — | 3.3.1 | 3.3.1 | 3.3.1 | — | 4.12.2 | **4.12.2** |
+| BerkeleyDB | 6.2.32 | 6.2.23 | 6.2.23 | 6.2.32 | 6.2.23 | 6.2.23 | 6.2.23 | (removed) | 6.2.32 | ✓ |
+| libsodium | 1.0.21 | 1.0.20 | 1.0.18 | 1.0.18 | 1.0.15 | 1.0.15 | 1.0.18 | — | 1.0.21 | ✓ |
+| libevent | 2.1.12 | 2.1.12 | 2.1.8 | 2.1.12 | 2.1.12 | 2.1.8 | 2.1.8 | 2.1.12 | 2.1.12 | ✓ |
+| ZeroMQ | 4.3.5 | 4.3.5 | 4.3.4 | 4.3.1 | 4.3.1 | 4.3.1 | (removed) | 4.3.5 | 4.3.5 | ✓ |
+| ccache | 4.12.2 | 4.11.3 | 3.3.1 | — | 3.3.1 | 3.3.1 | 3.3.1 | — | 4.12.2 | ✓ |
 | Boost | 1.70.0 | 1.83.0 | 1.82.0 | 1.83.0 | 1.70.0 | 1.80.0 | 1.72.0 | 1.88.0 | 1.90.0 | Postponed |
 | Rust | 1.32.0 | 1.81.0 | 1.70.0 | 1.69.0 | 1.32.0 | 1.32.0 | 1.32.0 | — | 1.93.1 | **1.93.1** |
 | OpenSSL | 1.1.1w | (removed) | 1.1.1w | — | 1.1.1a | 1.1.1a | (none) | (removed) | 3.6.1 | TBD |
 
-Bold targets are confirmed. Postponed (Boost) deferred. All targets
-remain subject to compatibility verification before adoption.
+Zero at target for BDB, libsodium, libevent, ZeroMQ, ccache. Boost postponed. Rust and OpenSSL not upgraded.
 
 ### 7.1 BerkeleyDB
 
@@ -467,11 +475,12 @@ No Zcash-family project has implemented this migration.
 
 ### 7.2 Boost
 
-Zcash validates 1.83.0, Bitcoin Core validates 1.88.0, latest is 1.90.0.
-Zero and Fluxd share the oldest version (1.70.0). The jump from 1.70 to
-1.83 spans ~6 years and 13 minor versions, with API changes in
-Filesystem, Thread, and Test. Zcash `boost.mk` provides a tested
-upgrade path for 1.83.0.
+**Choices:** 1.83.0 (Zcash), 1.88.0 (Bitcoin Core), 1.90.0 (latest).
+
+Zero and Fluxd use 1.70.0. The jump to 1.83 spans ~6 years and 13 minor
+versions, with API changes in Filesystem, Thread, and Test. Zcash
+`boost.mk` provides a tested upgrade path for 1.83.0. Prefer 1.83.0 when
+upgrading.
 
 ### 7.3 Rust
 
@@ -481,19 +490,9 @@ download hashes replaces the current system-Rust symlink.
 
 ### 7.4 OpenSSL
 
-Projects showing "(removed)" or "(none)" handle TLS/crypto differently:
+**Postponed.** Separate effort. See §6.8 and UpdateFeatures.md §4.2.
 
-- **Zcash**: dropped OpenSSL. Uses libsodium for crypto, bundled libsecp256k1 for ECDSA.
-- **Bitcoin**: dropped OpenSSL. Uses in-tree libsecp256k1.
-- **Pirate**: Komodo-based. Never had OpenSSL in depends.
-- **HUSH**: replaced OpenSSL with WolfSSL 4.8.1.
-- **Zero, Horizen, Fluxd, Zclassic**: still carry OpenSSL for RPC TLS and legacy crypto paths.
-
-OpenSSL 1.1.1w is the final release of the 1.1.1 series (Sep 2023).
-There is no newer 1.1.1 patch. The series is EOL with no further
-security fixes. Starting position is to keep 1.1.1w; removal or
-migration to 3.5.x LTS is a separate evaluation.
-See UpdateFeatures.md section 4.2.
+Projects: Zcash, Bitcoin (removed); HUSH (WolfSSL); Zero, Horizen, Fluxd, Zclassic (1.1.1x). Zero on 1.1.1w (EOL). Requires call-site audit and validation strategy before any change.
 
 ## 8. Reference Repositories
 

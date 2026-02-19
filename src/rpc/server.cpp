@@ -18,8 +18,10 @@
 
 #include <univalue.h>
 
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/filesystem.hpp>
+
+using namespace boost::placeholders;
 #include <boost/foreach.hpp>
 #include <boost/iostreams/concepts.hpp>
 #include <boost/iostreams/stream.hpp>

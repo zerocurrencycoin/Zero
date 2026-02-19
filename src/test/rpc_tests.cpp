@@ -106,7 +106,7 @@ BOOST_AUTO_TEST_CASE(rpc_rawparams)
     BOOST_CHECK_NO_THROW(CallRPC(string("signrawtransaction ")+rawtx+" null null NONE|ANYONECANPAY"));
     BOOST_CHECK_NO_THROW(CallRPC(string("signrawtransaction ")+rawtx+" [] [] NONE|ANYONECANPAY"));
     BOOST_CHECK_THROW(CallRPC(string("signrawtransaction ")+rawtx+" null null badenum"), runtime_error);
-    BOOST_CHECK_NO_THROW(CallRPC(string("signrawtransaction ")+rawtx+" [] [] NONE|ANYONECANPAY 5ba81b19"));
+    BOOST_CHECK_NO_THROW(CallRPC(string("signrawtransaction ")+rawtx+" [] [] NONE|ANYONECANPAY 7361707a"));
     BOOST_CHECK_THROW(CallRPC(string("signrawtransaction ")+rawtx+" [] [] ALL NONE|ANYONECANPAY 123abc"), runtime_error);
 
     // Only check failure cases for sendrawtransaction, there's no network to send to...
@@ -366,28 +366,28 @@ BOOST_AUTO_TEST_CASE(rpc_insightexplorer)
 {
     CheckRPCThrows("getaddressmempool \"a\"",
         "Error: getaddressmempool is disabled. "
-        "Run './zcash-cli help getaddressmempool' for instructions on how to enable this feature.");
+        "Run './zero-cli help getaddressmempool' for instructions on how to enable this feature.");
     CheckRPCThrows("getaddressutxos \"a\"",
         "Error: getaddressutxos is disabled. "
-        "Run './zcash-cli help getaddressutxos' for instructions on how to enable this feature.");
+        "Run './zero-cli help getaddressutxos' for instructions on how to enable this feature.");
     CheckRPCThrows("getaddressdeltas \"a\"",
         "Error: getaddressdeltas is disabled. "
-        "Run './zcash-cli help getaddressdeltas' for instructions on how to enable this feature.");
+        "Run './zero-cli help getaddressdeltas' for instructions on how to enable this feature.");
     CheckRPCThrows("getaddressbalance \"a\"",
         "Error: getaddressbalance is disabled. "
-        "Run './zcash-cli help getaddressbalance' for instructions on how to enable this feature.");
+        "Run './zero-cli help getaddressbalance' for instructions on how to enable this feature.");
     CheckRPCThrows("getaddresstxids \"a\"",
         "Error: getaddresstxids is disabled. "
-        "Run './zcash-cli help getaddresstxids' for instructions on how to enable this feature.");
+        "Run './zero-cli help getaddresstxids' for instructions on how to enable this feature.");
     CheckRPCThrows("getspentinfo {\"a\":1}",
         "Error: getspentinfo is disabled. "
-        "Run './zcash-cli help getspentinfo' for instructions on how to enable this feature.");
+        "Run './zero-cli help getspentinfo' for instructions on how to enable this feature.");
     CheckRPCThrows("getblockdeltas \"a\"",
         "Error: getblockdeltas is disabled. "
-        "Run './zcash-cli help getblockdeltas' for instructions on how to enable this feature.");
+        "Run './zero-cli help getblockdeltas' for instructions on how to enable this feature.");
     CheckRPCThrows("getblockhashes 0 0",
         "Error: getblockhashes is disabled. "
-        "Run './zcash-cli help getblockhashes' for instructions on how to enable this feature.");
+        "Run './zero-cli help getblockhashes' for instructions on how to enable this feature.");
 
     // During startup of the real system, fInsightExplorer ("-insightexplorer")
     // automatically enables the next three, but not here, must explicitly enable.
@@ -440,9 +440,9 @@ BOOST_AUTO_TEST_CASE(rpc_insightexplorer)
         "txid must be hexadecimal string (not 'hello')");
 
     // only the mainnet genesis block exists
-    BOOST_CHECK_NO_THROW(CallRPC("getblockdeltas \"00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08\""));
+    BOOST_CHECK_NO_THROW(CallRPC("getblockdeltas \"068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6\""));
     // damage the block hash (change last digit)
-    CheckRPCThrows("getblockdeltas \"00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce09\"",
+    CheckRPCThrows("getblockdeltas \"068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c9\"",
         "Block not found");
 
     BOOST_CHECK_NO_THROW(CallRPC("getblockhashes 1477641360 1477641360"));

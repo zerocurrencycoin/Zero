@@ -532,7 +532,7 @@ UniValue getblockhashes(const UniValue& params, bool fHelp)
 
     if (!fEnableGetBlockHashes) {
         throw JSONRPCError(RPC_MISC_ERROR, "Error: getblockhashes is disabled. "
-            "Run './zcash-cli help getblockhashes' for instructions on how to enable this feature.");
+            "Run './zero-cli help getblockhashes' for instructions on how to enable this feature.");
     }
 
     unsigned int high = params[0].get_int();

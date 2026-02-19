@@ -270,23 +270,24 @@ BOOST_AUTO_TEST_CASE(rpc_wallet)
      */
     BOOST_CHECK_THROW(CallRPC("getblocksubsidy too many args"), runtime_error);
     BOOST_CHECK_THROW(CallRPC("getblocksubsidy -1"), runtime_error);
+    // Zero: 10.8 base subsidy, 7.5% founders (vs Zcash 12.5/20%)
     BOOST_CHECK_NO_THROW(retValue = CallRPC("getblocksubsidy 415000"));
     UniValue obj = retValue.get_obj();
-    BOOST_CHECK_EQUAL(find_value(obj, "miner").get_real(), 10.0);
-    BOOST_CHECK_EQUAL(find_value(obj, "founders").get_real(), 0.8);
+    BOOST_CHECK_EQUAL(find_value(obj, "miner").get_real(), 9.99);
+    BOOST_CHECK_EQUAL(find_value(obj, "founders").get_real(), 0.81);
     BOOST_CHECK_NO_THROW(retValue = CallRPC("getblocksubsidy 1000000"));
     obj = retValue.get_obj();
-    BOOST_CHECK_EQUAL(find_value(obj, "miner").get_real(), 5.0);
-    BOOST_CHECK_EQUAL(find_value(obj, "founders").get_real(), 0.4);
+    BOOST_CHECK_EQUAL(find_value(obj, "miner").get_real(), 4.995);
+    BOOST_CHECK_EQUAL(find_value(obj, "founders").get_real(), 0.405);
     BOOST_CHECK_NO_THROW(retValue = CallRPC("getblocksubsidy 2000000"));
     obj = retValue.get_obj();
-    BOOST_CHECK_EQUAL(find_value(obj, "miner").get_real(), 2.5);
-    BOOST_CHECK_EQUAL(find_value(obj, "founders").get_real(), 0.2);
+    BOOST_CHECK_EQUAL(find_value(obj, "miner").get_real(), 2.4975);
+    BOOST_CHECK_EQUAL(find_value(obj, "founders").get_real(), 0.2025);
 
     BOOST_CHECK_NO_THROW(retValue = CallRPC("getblocksubsidy 2726400"));
     obj = retValue.get_obj();
-    BOOST_CHECK_EQUAL(find_value(obj, "miner").get_real(), 1.5625);
-    BOOST_CHECK_EQUAL(find_value(obj, "founders").get_real(), 0.0);
+    BOOST_CHECK_EQUAL(find_value(obj, "miner").get_real(), 1.24875);
+    BOOST_CHECK_EQUAL(find_value(obj, "founders").get_real(), 0.10125);
 
     /*
      * getblock
@@ -1669,7 +1670,7 @@ BOOST_AUTO_TEST_CASE(rpc_z_mergetoaddress_parameters)
     LOCK(pwalletMain->cs_wallet);
 
     CheckRPCThrows("z_mergetoaddress 1 2",
-        "Error: z_mergetoaddress is disabled. Run './zcash-cli help z_mergetoaddress' for instructions on how to enable this feature.");
+        "Error: z_mergetoaddress is disabled. Run './zero-cli help z_mergetoaddress' for instructions on how to enable this feature.");
 
     // Set global state required for z_mergetoaddress
     fExperimentalMode = true;

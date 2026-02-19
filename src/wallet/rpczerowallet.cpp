@@ -2171,7 +2171,7 @@ UniValue getalldata(const UniValue& params, bool fHelp)
                               wtx.vShieldedOutput[op.n].encCiphertext,ivk,wtx.vShieldedOutput[op.n].ephemeralKey,wtx.vShieldedOutput[op.n].cm);
 
                           if (txType == 0 && pwalletMain->IsLockedNote(op))
-                              txType == 3;
+                              txType = 3;
 
                           if (pt) {
                               auto note = pt.get();

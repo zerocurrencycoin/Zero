@@ -3153,12 +3153,12 @@ UniValue z_getnewaddress(const UniValue& params, bool fHelp)
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
-    std::string defaultType = ADDR_TYPE_SAPLING;
-
-    if (fHelp || params.size() > 0)
+    if (fHelp)
         throw runtime_error(
-            "z_getnewaddress\n"
+            "z_getnewaddress ( \"sprout\"|\"sapling\" )\n"
             "\nReturns a new shielded address for receiving payments.\n"
+            "\nArguments:\n"
+            "1. \"type\"    (string, optional) \"sprout\" or \"sapling\" (default: \"sapling\")\n"
             "\nResult:\n"
             "\"zcashaddress\"    (string) The new shielded address.\n"
         );
@@ -3167,8 +3167,16 @@ UniValue z_getnewaddress(const UniValue& params, bool fHelp)
 
     EnsureWalletIsUnlocked();
 
-    return EncodePaymentAddress(pwalletMain->GenerateNewSaplingZKey());
+    std::string addrType = ADDR_TYPE_SAPLING;
+    if (params.size() > 0) {
+        addrType = params[0].get_str();
+        if (addrType != ADDR_TYPE_SPROUT && addrType != ADDR_TYPE_SAPLING)
+            throw runtime_error("Invalid address type. Use \"sprout\" or \"sapling\".");
+    }
 
+    if (addrType == ADDR_TYPE_SPROUT)
+        return UniValue(EncodePaymentAddress(pwalletMain->GenerateNewSproutZKey()));
+    return UniValue(EncodePaymentAddress(pwalletMain->GenerateNewSaplingZKey()));
 }
 
 
@@ -4552,7 +4560,7 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp)
         );
 
     if (!fEnableMergeToAddress) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Error: z_mergetoaddress is disabled. Run './zcash-cli help z_mergetoaddress' for instructions on how to enable this feature.");
+        throw JSONRPCError(RPC_WALLET_ERROR, "Error: z_mergetoaddress is disabled. Run './zero-cli help z_mergetoaddress' for instructions on how to enable this feature.");
     }
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
