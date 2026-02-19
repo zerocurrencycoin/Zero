@@ -154,18 +154,10 @@ for full analysis.
    `ReadBlockFromDisk`.
 
 **Production-side fixes** (documented in UpdateFeatures.md section 1.4):
-Null guards and `pblockIn` parameter in `wallet.cpp`/`wallet.h`.
+Null guards and `pblockIn` parameter in `wallet.cpp`/`wallet.h`. Also
+`ClearNoteWitnessCache`: added `nWitnessCacheSize = 0;` (production fix, test-motivated).
 
-**File**: `src/wallet/gtest/test_wallet.cpp`
-
-### 3.5 ClearNoteWitnessCache
-
-**Problem**: `ClearNoteWitnessCache` cleared all witness data but did not
-reset `nWitnessCacheSize` to 0. Test expected 0, got previous value.
-
-**Fix**: Added `nWitnessCacheSize = 0;` at end of function.
-
-**File**: `src/wallet/wallet.cpp` (production fix, test-motivated).
+**File**: `src/wallet/gtest/test_wallet.cpp`, `src/wallet/wallet.cpp`
 
 ### 3.6 RPC Error Messages (zcash-cli → zero-cli)
 

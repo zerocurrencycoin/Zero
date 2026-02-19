@@ -88,7 +88,7 @@ CXXFLAGS="-g -Wno-enum-constexpr-conversion"
 ```
 
 - `--enable-proton=no`: Qpid Proton CMakeLists.txt incompatible with CMake 4.x. Optional AMQP component.
-- `-Wno-enum-constexpr-conversion`: Suppresses Boost 1.70 / Clang 17 incompatibility.
+- `-Wno-enum-constexpr-conversion`: Suppresses Boost/Clang 17 incompatibility.
 
 Runtime prerequisite after a BDB mutex crash:
 `rm -rf "$HOME/Library/Application Support/zero/database"`
@@ -129,19 +129,13 @@ single-token overrides; multi-word values need escaping.
 
 ### 3.1 boost.mk
 
-Boost 1.70.0. Five changes:
+Boost 1.83.0 (upgraded from 1.70.0). Zcash-validated path.
 
-1. **Download URL**: `dl.bintray.com` to `archives.boost.io`. Bintray shut down 2021.
-2. **Toolset**: `--toolset=darwin-4.2.1` to `--toolset=clang`. Old darwin toolset injects `-fcoalesce-templates`, unsupported by modern Clang.
-3. **Toolset/archiver variables**: `$(package)_toolset_darwin=clang` and `$(package)_archiver_darwin=$($(package)_ar)` for consistency with toolset change.
-4. **sed portability**: Uses `$(build_SED_INPLACE)`. See section 1.1. Pattern broadened from `using gcc ;` to `using [a-z]* ;` to match whatever toolset bootstrap selects.
-5. **CXXFLAGS**: Added `-Wno-enum-constexpr-conversion` for Darwin. Boost 1.70 headers trigger a hard error in Clang 17.
-6. **configure.ac**: Fallback when `AX_BOOST_THREAD` fails (darwin + Clang 17). If `BOOST_THREAD_LIB` is empty but `libboost_thread.a` exists in the Boost lib dir, add `-lboost_thread` explicitly. Uses `sed 's/.*-L//;s/ .*//'` to extract lib path from `BOOST_LDFLAGS`.
-
-Alternatives for the sed approach:
-- Write `project-config.jam` directly (what Bitcoin Core does).
-- Use `user-config.jam` override file.
-- Current approach is adequate while Boost stays at 1.70.
+1. **Version/URL**: 1.70.0 → 1.83.0; `archives.boost.io/release/1.83.0/source`
+2. **Toolset**: `--toolset=clang` for Darwin (old darwin-4.2.1 injects `-fcoalesce-templates`, unsupported by Clang 17)
+3. **sed portability**: Uses `$(build_SED_INPLACE)`. Pattern `using [a-z]* ;` matches bootstrap-selected toolset
+4. **CXXFLAGS**: `-Wno-enum-constexpr-conversion` for Darwin
+5. **configure.ac**: Fallback when `AX_BOOST_THREAD` fails (darwin + Clang 17); add `-lboost_thread` if `libboost_thread.a` exists
 
 ### 3.2 openssl.mk
 
@@ -169,23 +163,16 @@ Alternatives:
 
 ### 3.4 bdb.mk
 
-BerkeleyDB 6.2.23. Two changes:
+BerkeleyDB 6.2.32. Two changes:
 
-1. **ARM64 mutex**: Added
-   `$(package)_config_opts_aarch64_darwin=--with-mutex=POSIX/pthreads/library`.
-   BDB 6.2.23 default mutex selection fails at runtime on ARM64 macOS with
-   `DB_LOCK_NOTGRANTED`. This supplements the existing generic
-   `$(package)_config_opts_aarch64=--disable-atomicsupport`.
-   Becomes unnecessary after BDB 6.2.32 upgrade (section 6.1).
+1. **Upgrade 6.2.23 → 6.2.32**: Native ARM64 mutex fix; POSIX workaround no longer needed.
 
-2. **sed portability**: Preprocess steps now use `$(build_SED_INPLACE)`.
-   Removed redundant `sed -i -e` line that duplicated the WinIoCtl.h
-   replacement and failed on macOS. See section 1.1.
+2. **sed portability**: Preprocess steps use `$(build_SED_INPLACE)`.
+   Removed redundant `sed -i -e` line that failed on macOS. See section 1.1.
 
 ### 3.5 libsodium.mk
 
-URL fix only. Old download path at `download.libsodium.org` returned 404.
-Updated to GitHub releases. Same version (1.0.15), same SHA256.
+1.0.15 → 1.0.21. URL fix (old path 404); updated to GitHub releases.
 
 ### 3.6 config.guess and config.sub
 
@@ -305,7 +292,7 @@ endif
 | libsodium | 1.0.21 | 1.0.21 | ✓ At target |
 | libevent | 2.1.12 | 2.1.12 | ✓ At target |
 | ZeroMQ | 4.3.5 | 4.3.5 | ✓ At target |
-| Boost | 1.70.0 | Postponed | Intentionally not upgraded |
+| Boost | 1.83.0 | 1.83.0 | ✓ At target |
 | OpenSSL | 1.1.1w | TBD | EOL; keep for now |
 
 ### 5.2 Rust Toolchain
@@ -348,15 +335,15 @@ version comparison.
 
 ### 6.1 BerkeleyDB 6.2.23 → 6.2.32
 
-**Done.** `bdb.mk` at 6.2.32. ARM64 mutex fixed natively; `--with-mutex` workaround removed. See UpdateFeatures.md §4.1 for wallet compatibility.
+**Done.** `bdb.mk` at 6.2.32. ARM64 mutex fixed natively. See UpdateFeatures.md §4.1 for wallet compatibility.
 
 BDB version and license context:
 
 | Version | License | DB Format | ARM64 | Notes |
 |---------|---------|-----------|-------|-------|
 | 5.3.28 | Sleepycat | 5.x | — | Last non-AGPL. Incompatible wallet format. |
-| 6.2.23 (current) | AGPLv3 | 6.2 | Broken mutex | Needs workaround. |
-| 6.2.32 (target) | AGPLv3 | 6.2 | Fixed | Drop-in upgrade. |
+| 6.2.23 | AGPLv3 | 6.2 | Broken mutex | Needs workaround. |
+| 6.2.32 (current) | AGPLv3 | 6.2 | Fixed | Drop-in upgrade. |
 | 18.1.40 (latest) | AGPLv3 | 6.2-compat | Full | Unnecessary version jump. |
 
 ### 6.2 libsodium 1.0.15 → 1.0.21
@@ -375,33 +362,9 @@ BDB version and license context:
 
 **Done.** `native_ccache.mk` at 4.12.2.
 
-### 6.6 Boost 1.70.0
+### 6.6 Boost 1.70.0 → 1.83.0
 
-**Postponed.** High risk. Major version jump.
-
-**Zero starting point:** 1.70.0 (Jun 2019). ~6 years, 13+ minor versions behind Zcash.
-
-**Boost support among projects:**
-
-| Version | Projects |
-|---------|----------|
-| 1.70.0 | Zero, Fluxd |
-| 1.72.0 | HUSH |
-| 1.80.0 | Zclassic |
-| 1.82.0 | Horizen |
-| 1.83.0 | Zcash v6.11.0, Pirate |
-| 1.88.0 | Bitcoin Core v30.2 |
-| 1.90.0 | Latest |
-
-**Upgrade choices when ready:**
-
-| Version | Validated by | Notes |
-|---------|--------------|-------|
-| 1.83.0 | Zcash, Pirate | Zcash `boost.mk` provides tested path. API changes in Filesystem, Thread, Test. |
-| 1.88.0 | Bitcoin Core | Bitcoin `depends/packages/boost.mk` reference. |
-| 1.90.0 | Latest | Newest; least upstream validation. |
-
-**Recommendation:** Target 1.83.0 (Zcash-validated) for lowest risk. Keep 1.70.0 until upgrade is scheduled.
+**Done.** Upgraded to 1.83.0 (Zcash-validated). API changes in Filesystem, Thread, Test addressed.
 
 ### 6.7 Rust 1.32.0 to 1.93.1
 
@@ -453,11 +416,11 @@ Google Test is tracked separately in UpdateTests.md section 1.1.
 | libevent | 2.1.12 | 2.1.12 | 2.1.8 | 2.1.12 | 2.1.12 | 2.1.8 | 2.1.8 | 2.1.12 | 2.1.12 | ✓ |
 | ZeroMQ | 4.3.5 | 4.3.5 | 4.3.4 | 4.3.1 | 4.3.1 | 4.3.1 | (removed) | 4.3.5 | 4.3.5 | ✓ |
 | ccache | 4.12.2 | 4.11.3 | 3.3.1 | — | 3.3.1 | 3.3.1 | 3.3.1 | — | 4.12.2 | ✓ |
-| Boost | 1.70.0 | 1.83.0 | 1.82.0 | 1.83.0 | 1.70.0 | 1.80.0 | 1.72.0 | 1.88.0 | 1.90.0 | Postponed |
-| Rust | 1.32.0 | 1.81.0 | 1.70.0 | 1.69.0 | 1.32.0 | 1.32.0 | 1.32.0 | — | 1.93.1 | **1.93.1** |
+| Boost | 1.83.0 | 1.83.0 | 1.82.0 | 1.83.0 | 1.70.0 | 1.80.0 | 1.72.0 | 1.88.0 | 1.90.0 | ✓ |
+| Rust | 1.32.0 | 1.81.0 | 1.70.0 | 1.69.0 | 1.32.0 | 1.32.0 | 1.32.0 | — | 1.93.1 | 1.93.1 |
 | OpenSSL | 1.1.1w | (removed) | 1.1.1w | — | 1.1.1a | 1.1.1a | (none) | (removed) | 3.6.1 | TBD |
 
-Zero at target for BDB, libsodium, libevent, ZeroMQ, ccache. Boost postponed. Rust and OpenSSL not upgraded.
+Zero at target for BDB, libsodium, libevent, ZeroMQ, ccache, Boost. Rust and OpenSSL not upgraded.
 
 ### 7.1 BerkeleyDB
 
@@ -475,12 +438,7 @@ No Zcash-family project has implemented this migration.
 
 ### 7.2 Boost
 
-**Choices:** 1.83.0 (Zcash), 1.88.0 (Bitcoin Core), 1.90.0 (latest).
-
-Zero and Fluxd use 1.70.0. The jump to 1.83 spans ~6 years and 13 minor
-versions, with API changes in Filesystem, Thread, and Test. Zcash
-`boost.mk` provides a tested upgrade path for 1.83.0. Prefer 1.83.0 when
-upgrading.
+Zero at 1.83.0 (Zcash-validated). Fluxd remains at 1.70.0.
 
 ### 7.3 Rust
 

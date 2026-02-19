@@ -39,10 +39,9 @@ or cross-platform implications go in UpdateFeatures.
 
 ## 2. Branch
 
-- Branch: `arm-mac-build` based on `origin/zeronode_wallet` (HEAD: `2b260530e`)
+- Branch: `arm-mac-build` based on `origin/zeronode_wallet`
 - Remote: `https://github.com/zerocurrencycoin/Zero`
-- Modified files: 14 (7 depends, 1 source build fix, 3 gtest fixes, 3 wallet)
-- Untracked: documentation files, configure backups
+- Recent: Boost 1.83, BDB 6.2.32, libsodium 1.0.21, duplicate -lc++ fix
 
 **Workflow:** Do not push or merge to upstream `origin/main` or `origin/zeronode_wallet`.
 Commit only to `arm-mac-build` (or a fork).
@@ -59,10 +58,9 @@ Commit only to `arm-mac-build` (or a fork).
 | ~~macOS x86~~ | Not supported | EOL; not verified to compile or run. |
 
 Build changes target ARM Mac enablement but touch shared infrastructure
-(download URLs, sed portability). Library version upgrades (e.g. 1.1.1w,
-libsodium 1.0.20) are targets until compatibility verified. Linux and
-Windows regression testing required before merge. See UpdateBuild.md
-sections 2 and 3.
+(download URLs, sed portability). BDB 6.2.32, libsodium 1.0.21, Boost 1.83,
+OpenSSL 1.1.1w, duplicate -lc++ fix verified on macOS ARM64. Linux and
+Windows regression testing required before merge. See UpdateBuild.md §2–3.
 
 ### 3.2 Tests
 
@@ -86,13 +84,14 @@ See UpdateFeatures.md section 1.
 
 ### 4.1 Build System
 
-1. Boost 1.70 download URL, toolset, sed portability, Clang 17 compatibility
-2. OpenSSL 1.1.1a to 1.1.1w for ARM64 target support
+1. Boost 1.70 → 1.83.0 (Zcash-validated) for Clang 17 compatibility
+2. OpenSSL 1.1.1a → 1.1.1w for ARM64 target support
 3. Rust depends: system Rust symlink for ARM Mac (1.32.0 has no ARM binaries)
-4. BerkeleyDB: POSIX mutex override for ARM64 macOS
-5. libsodium: download URL fix (old path 404)
+4. BerkeleyDB 6.2.23 → 6.2.32 (native ARM64 mutex; workaround removed)
+5. libsodium 1.0.15 → 1.0.21, download URL fix (old path 404)
 6. config.guess/config.sub: 2015 to 2025 (ARM Mac identification)
 7. equihash.cpp: `ENABLE_MINING` guard on explicit template instantiations
+8. configure.ac: strip -lstdc++ from ZMQ_LIBS on Darwin (duplicate -lc++ fix)
 
 ### 4.2 Test Fixes
 
@@ -112,20 +111,19 @@ See UpdateFeatures.md section 1.
 ### 5.1 Immediate
 
 1. **Linux regression test** — verify all changes build and pass on Linux x86_64
-2. **Fix-now test items** (mandatory before Boost) — UpdateTests §5.2
+2. **Fix-now test items** — UpdateTests §5.2 (z_getnewaddress, pyblake2, nuparams, rpc_wallet founders %, block_subsidy)
 
 ### 5.2 Delayed
 
-3. **Boost 1.83** — UpdateBuild §6.6
-4. **OpenSSL** — UpdateBuild §6.8, UpdateFeatures §4.2
-5. **Rust version pinning** — replace system symlink with pinned download for CI
-6. **Failing tests** — UpdateTests §5.2, §6.2
+3. **OpenSSL** — UpdateBuild §6.8, UpdateFeatures §4.2
+4. **Rust version pinning** — replace system symlink with pinned download for CI
+5. **Failing tests** — UpdateTests §5.2, §6.2
 
 ### 5.3 Deferred
 
-7. **Zeronode test suite** — Zero-specific features (zeronode, budget, SwiftTX) have 0% test coverage. High impact; not part of current port.
-8. **Enhanced error handling** — Replace boolean returns in zeronode wallet interface with detailed error reporting. Optional enhancement.
-9. **Witness architecture evaluation** — Architecture/design (BuildWitnessCache vs IncrementNoteWitnesses); distinct from Witness-related test failures in §6. UpdateFeatures §1.6
+6. **Zeronode test suite** — Zero-specific features (zeronode, budget, SwiftTX) have 0% test coverage. High impact; not part of current port.
+7. **Enhanced error handling** — Replace boolean returns in zeronode wallet interface with detailed error reporting. Optional enhancement.
+8. **Witness architecture evaluation** — Architecture/design (BuildWitnessCache vs IncrementNoteWitnesses); distinct from Witness-related test failures in §6. UpdateFeatures §1.6
 
 ## 6. Direction
 
