@@ -57,11 +57,31 @@ def test_fortify_source(filename):
         print('FAIL: %s is missing FORTIFY_SOURCE.' % filename)
         return False
 
+def _env_for_make():
+    """Return env with python in PATH so security-check.py (shebang: python) can run."""
+    env = os.environ.copy()
+    python_dir = None
+    py = os.environ.get('PYTHON')
+    if py and os.path.isabs(py) and os.path.isfile(py):
+        python_dir = os.path.dirname(py)
+    elif os.path.isfile(os.path.expanduser('~/.pyenv/versions/2.7.18/bin/python')):
+        python_dir = os.path.expanduser('~/.pyenv/versions/2.7.18/bin')
+    elif sys.executable:
+        python_dir = os.path.dirname(os.path.abspath(sys.executable))
+    if python_dir:
+        env['PATH'] = python_dir + os.pathsep + env.get('PATH', '')
+    return env
+
+
 def check_security_hardening():
     ret = True
 
     # PIE, RELRO, Canary, and NX are tested by make check-security.
-    ret &= subprocess.call(['make', '-C', repofile('src'), 'check-security']) == 0
+    # security-check.py uses shebang #!/usr/bin/env python; ensure python in PATH.
+    ret &= subprocess.call(
+        ['make', '-C', repofile('src'), 'check-security'],
+        env=_env_for_make()
+    ) == 0
 
     # The remaining checks are only for ELF binaries
     # Assume that if zerod is an ELF binary, they all are

@@ -97,10 +97,10 @@ Outcomes below verified Feb 2026.
 | 2 | **secp256k1** | src/secp256k1 | `make -C src/secp256k1 check` | Autotools TESTS: tests (src/tests.c), exhaustive_tests (src/tests_exhaustive.c). Elliptic-curve secp256k1 (Bitcoin curve). run-tests uses `src/secp256k1` not `make -C src secp256k1 check` to avoid recursive make invoking full test_bitcoin. ~8s. |
 | 3 | **univalue** | src/univalue | `make -C src/univalue check` | Autotools TESTS: test/unitester (test/unitester.cpp), test/no_nul (test/no_nul.cpp). JSON library. Same recursion fix as secp256k1. ~0.5s. |
 | 4 | **zero-gtest** | src/zero-gtest | `./src/zero-gtest [--gtest_filter=...]` | Google Test 1.8.0. 206 tests in 32 cases. Sources: src/gtest/*.cpp, src/wallet/gtest/*.cpp. Consensus, wallet, equihash, Sapling/Sprout, deprecation. run-tests excludes `-wallet_zkeys_tests.WriteCryptedSaplingZkeyDirectToDb:WalletTests.CachedWitnesses*`. --all: no filter (may hang). ~45s. |
-| 5 | **test_bitcoin** | src/test/test_bitcoin | `./src/test/test_bitcoin [--run_test=...]` | Boost.Test. 260 cases in 50 suites. Sources: src/test/*.cpp, wallet/test/*.cpp. run-tests pass-only: `--run_test='!Alert_tests:!equihash_tests:!miner_tests:!main_tests'`. --fail/--all: no exclusion. ~15 min full. |
+| 5 | **test_bitcoin** | src/test/test_bitcoin | `./src/test/test_bitcoin [--run_test=...]` | Boost.Test. 260 cases in 49 suites. Sources: src/test/*.cpp, wallet/test/*.cpp. run-tests pass-only: `--run_test='!Alert_tests'` (Alert deprecated, ignored). --fail/--all: no exclusion. ~15 min full. |
 | 6 | **Python RPC** | qa/rpc-tests/*.py | `qa/pull-tester/rpc-tests.sh [name\|-extended]` | Python 2.7. tests-config.sh sets BUILDDIR, PYTHON, REAL_BITCOIND (zerod), BITCOINCLI (run-bitcoin-cli). Spawns zerod -regtest. test_framework: util.py (get_coinbase_address, initialize_chain_clean), mininode.py (pyblake2), blocktools.py. run-tests pass-only: 16 verified scripts. --fail/--all: -extended (~100). Prereq: pip install pyblake2. |
 
-**run-boost-individual.sh** (variant of test_bitcoin): contrib/run-boost-individual.sh. Runs each of 50 Boost suites with `--run_test=SUITE`. Default excludes: Alert_tests, equihash_tests, miner_tests, main_tests, Checkpoints_tests. Per-suite isolation. ~3 min (excl. 5); rpc_wallet_tests ~10 min.
+**run-boost-individual.sh** (variant of test_bitcoin): contrib/run-boost-individual.sh. Runs each of 49 Boost suites with `--run_test=SUITE`. Default excludes: Alert_tests (deprecated). Per-suite isolation. ~3 min (excl. Alert); rpc_wallet_tests ~10 min.
 
 **Six excluded environments** (not in run-tests):
 
@@ -108,8 +108,8 @@ Outcomes below verified Feb 2026.
 |---|-------------|----------|------------|--------------|----------------|
 | 1 | **full_test_suite** | qa/zcash/full_test_suite.py | `python2 qa/zcash/full_test_suite.py [stage...]` | Overlaps run-tests; adds sec-hard, no-dot-so. | Stages: btest (test_bitcoin -p), gtest (zero-gtest), sec-hard (check_security_hardening), no-dot-so (ensure_no_dot_so_in_depends), util-test, secp256k1, univalue, rpc. sec-hard: make check-security + checksec RPATH/FORTIFY on zerod, zero-cli, zero-gtest, zero-tx, test_bitcoin. ELF-only: if zerod not ELF (macOS), skips RPATH/FORTIFY. no-dot-so: checks depends/x86_64-*/lib for .so; fails if found; exit 2 if arch dir missing. Python 2. |
 | 2 | **make check** | src/ | `make -C src check` | Recursion: `make -C src secp256k1 check` triggers check-recursive, runs full test_bitcoin. | Autotools recursive check. TESTS in src/Makefile.am include test_bitcoin. Subdirs secp256k1, univalue have own check. Top-level `make check` recurses; `make -C src secp256k1 check` from parent can invoke check-am which runs all TESTS. Run-tests avoids by calling `make -C src/secp256k1 check` (direct subdir). |
-| 3 | **check-symbols, check-security** | contrib/devtools/ | `make -C src check-symbols`, `make check-security` | Build-time; not test execution. | symbol-check.py: ELF symbol versions (GCC 4.4.0, GLIBC 2.11, GLIBCXX 3.4.13, CXXABI 1.3.3); readelf. security-check.py: ELF PIE, NX, RELRO; PE HIGH_ENTROPY_VA, NX, DYNAMIC_BASE; readelf/objdump. full_test_suite invokes check-security. |
-| 4 | **checksec** | qa/zcash/checksec.sh | full_test_suite only | ELF-only; run-tests cross-platform. | checksec.sh v1.5 (Tobias Klein). --file: RPATH/RUNPATH. --fortify-file: FORTIFY_SOURCE. full_test_suite calls for zerod, zero-cli, zero-gtest, zero-tx, test_bitcoin. Skips on macOS (not ELF). |
+| 3 | **check-symbols, check-security** | contrib/devtools/ | `make -C src check-symbols`, `make -C src check-security` | Build-time; not test execution. | symbol-check.py: ELF symbol versions (GCC 4.4.0, GLIBC 2.11, GLIBCXX 3.4.13, CXXABI 1.3.3); readelf. security-check.py: ELF PIE, NX, RELRO; readelf/objdump. Both use shebang `#!/usr/bin/env python`; require `python` in PATH. full_test_suite invokes check-security with PATH set. See §4.10, §4.11. |
+| 4 | **checksec** | qa/zcash/checksec.sh | full_test_suite only | ELF-only; run-tests cross-platform. | checksec.sh v1.5 (Tobias Klein). --file: RPATH/RUNPATH. --fortify-file: FORTIFY_SOURCE. full_test_suite calls for zerod, zero-cli, zero-gtest, zero-tx, test_bitcoin. Skips on macOS (not ELF). See §4.10 (FORTIFY unchecked calls), §4.11 (check-symbols). |
 | 5 | **Coverage** | Makefile | `make cov` / `make cov-zcash` | Separate lcov workflow; run-tests does not instrument. | cov: test_bitcoin.coverage + zero-gtest.coverage + total.coverage. Requires CFLAGS --coverage, lcov, genhtml. test_bitcoin.info from bitcoin_test_check; zero-gtest.info from zero-gtest_check. GENHTML produces HTML in *.coverage/. |
 | 6 | **leveldb, libsnark** | src/leveldb, src/snark | (no top-level target) | Internal; not wired to make check. | leveldb: testharness.h/cc, testutil.h/cc; 20+ tests (db/db_test.cc, util/*_test.cc, etc.). libsnark: test_bigint.cpp in algebra/fields/tests/. Zero may not build/run these. |
 
@@ -241,6 +241,14 @@ Null guards and `pblockIn` parameter in `wallet.cpp`/`wallet.h`. Also
 
 **Files**: `src/wallet/rpcwallet.cpp`, `src/test/rpc_wallet_tests.cpp`
 
+### 3.10 rpc_wallet_z_importexport iteration count
+
+**Problem**: Test used n1=1000, n2=1000 (2000 RPC calls); ~7.6 s, ~25% of rpc_wallet_tests time.
+
+**Fix**: Reduced to n1=100, n2=100 for faster CI. Still exercises z_importkey/z_exportkey/z_listaddresses for Sprout and Sapling.
+
+**File**: `src/test/rpc_wallet_tests.cpp`
+
 ## 4. Deep-Dive Analyses
 
 ### 4.1 z_getnewaddress Implementation and Failures
@@ -333,6 +341,28 @@ timeout 60 "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${testScripts[$i]}" ...
 | **equihash (96,5)** | Zero uses (192,7); tests use (96,5) vectors | Add `#ifdef` or runtime check: skip (96,5) vectors when `EQUIHASH_N!=96`; add Zero (192,7) vectors |
 | **Cascade isolation** | Run suites in isolation: `./src/test/test_bitcoin -t rpc_tests` | Run `-t rpc_tests`, `-t rpc_wallet_tests` separately to verify which suites pass when run alone |
 | **Capture output** | `./src/test/test_bitcoin --log_level=test_suite 2>&1 \| tee test-logs/test_bitcoin.log` | Use `contrib/run-tests.sh` or manual tee for reproducible logs |
+
+### 4.10 FORTIFY_SOURCE and Unchecked Calls
+
+**What checksec --fortify-file reports**: The binary is compiled with `_FORTIFY_SOURCE=2` (HARDENED_CPPFLAGS). Some libc calls (e.g. `read`, `recv`) appear as "unchecked" — the executable references the unchecked symbol (e.g. `read`) instead of the fortified variant (`__read_chk`).
+
+**Why unchecked calls exist**: They come from dependencies (leveldb, libsnark, OpenSSL, etc.) or system libraries that were built without FORTIFY or with different compiler flags. Zero's own code uses the hardened flags; linked-in object files from deps may not. `checksec.sh --fortify-file` scans the entire binary, so it reports any unchecked usage.
+
+**Implication**: The binary has FORTIFY enabled for Zero-compiled code. The unchecked calls are in third-party code; fixing them would require rebuilding deps with `-D_FORTIFY_SOURCE=2` or patching upstream. full_test_suite's `test_fortify_source` only verifies that FORTIFY is available and used (first two lines of checksec output); it does not fail on unchecked calls. See qa/zcash/full_test_suite.py issue #915 note.
+
+**Typical counts** (Feb 2026): zerod 4 unchecked (recv×2, read×2); zero-cli, zero-tx 2 each (read×2).
+
+### 4.11 check-symbols and symbol versions
+
+**Purpose**: `symbol-check.py` verifies ELF binaries (1) use only allowed symbol versions (glibc, libstdc++), (2) do not export symbols beyond IGNORE_EXPORTS.
+
+**Target**: Ubuntu 24.04 LTS (glibc 2.39, GLIBCXX 3.4.33, CXXABI 1.3.15). MAX_VERSIONS in symbol-check.py set accordingly.
+
+**When it runs**: `make -C src check-symbols` runs on Linux (TARGET_LINUX). No longer requires `--enable-glibc-back-compat`.
+
+**Export check**: The script rejects exported symbols not in IGNORE_EXPORTS. Builds without `--enable-reduce-exports` export many symbols (vtables, std::cout, etc.) and will fail the export check. To pass: `./configure --enable-reduce-exports`. The symbol version check (imports) passes with default Ubuntu 24 builds.
+
+**Manual run**: `python contrib/devtools/symbol-check.py src/zerod src/zero-cli src/zero-tx`
 
 ### 4.7 test_bitcoin: Run Individually or in Groups
 
@@ -574,21 +604,21 @@ timeout 3600 ./qa/pull-tester/rpc-tests.sh -extended
 | Command | Scope |
 |---------|-------|
 | `./src/test/test_bitcoin` | All tests |
-| `./src/test/test_bitcoin --run_test='!Alert_tests:!equihash_tests:!miner_tests:!main_tests'` | Pass-only suites |
+| `./src/test/test_bitcoin --run_test='!Alert_tests'` | Pass-only (Alert deprecated, ignored) |
 | `./src/test/test_bitcoin -t <suite>` | Single suite |
 | `./src/test/test_bitcoin --list_content` | List all suites and cases |
 | `./contrib/run-boost-individual.sh` | Run each suite individually; reports pass/fail per suite |
-| `./contrib/run-boost-individual.sh` | Default excludes Alert, equihash, miner, main, Checkpoints_tests |
+| `./contrib/run-boost-individual.sh` | Default excludes Alert_tests (deprecated) |
 | `./contrib/run-boost-individual.sh --exclude=Alert_tests,...` | Override exclude list |
 
 **Boost individual run** (run each suite in isolation; avoids cascade):
 
 ```bash
-./contrib/run-boost-individual.sh   # Default excludes Alert, equihash, miner, main, Checkpoints_tests
+./contrib/run-boost-individual.sh   # Default excludes Alert_tests (deprecated)
 ./contrib/run-boost-individual.sh --exclude=Alert_tests,...   # Override
 ```
 
-Runs 50 suites one-by-one. ~3 min for 46 suites (excl. 4); rpc_wallet_tests adds ~10 min. Per-suite isolation shows which pass/fail without cascade. Verified: pow_tests, rpc_tests pass individually. Checkpoints_tests: empty suite (all cases commented out); exits non-zero.
+Runs 49 suites one-by-one. ~3 min (excl. Alert); rpc_wallet_tests adds ~10 min. Per-suite isolation. Checkpoints_tests removed (was empty).
 
 ### 8.6 Automation Script (contrib/run-tests.sh)
 
@@ -599,6 +629,7 @@ Single script. **Default**: pass-only. **--fail**: pass + fail (exclude hang/cra
 |--------|--------|
 | --quick | Skip zero-gtest and test_bitcoin; run only bitcoin-util-test, secp256k1, univalue |
 | --no-python | Skip Python RPC tests (qa/rpc-tests) |
+| --build-checks | Run `make -C src check-security` (ELF PIE, NX, RELRO). Requires `python` in PATH; uses PYTHON or pyenv 2.7.18 if set. See §4.10, §4.11. |
 | --fail | Pass + fail; exclude only hang/crash |
 | --all | Everything including hang/crash (GTest may hang on WriteCryptedSaplingZkeyDirectToDb) |
 
@@ -610,7 +641,7 @@ Single script. **Default**: pass-only. **--fail**: pass + fail (exclude hang/cra
 ./contrib/run-tests.sh --quick --no-python
 ```
 
-**Environment:** Set `PYTHON` for Python 2.7 RPC tests. Set `LOG_DIR` to override (default: `test-logs/`).
+**Environment:** Set `PYTHON` for Python 2.7 RPC tests and for `--build-checks` (check-security). Set `LOG_DIR` to override (default: `test-logs/`). For standalone `make -C src check-security`, ensure `python` in PATH, e.g. `PATH="$HOME/.pyenv/versions/2.7.18/bin:$PATH" make -C src check-security`.
 
 **Output:** Logs in `test-logs/<YYYYMMDD_HHMMSS>-<suite>.log`.
 

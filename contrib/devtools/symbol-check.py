@@ -4,13 +4,13 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 '''
-A script to check that the (Linux) executables produced by gitian only contain
-allowed gcc, glibc and libstdc++ version symbols.  This makes sure they are
-still compatible with the minimum supported Linux distribution versions.
+A script to check that the (Linux) executables only contain allowed gcc, glibc
+and libstdc++ version symbols.  This makes sure they are compatible with the
+minimum supported Linux distribution versions.
 
 Example usage:
 
-    find ../gitian-builder/build -type f -executable | xargs python contrib/devtools/symbol-check.py
+    python contrib/devtools/symbol-check.py src/zerod src/zero-cli src/zero-tx
 '''
 from __future__ import division, print_function
 import subprocess
@@ -18,30 +18,14 @@ import re
 import sys
 import os
 
-# Debian 6.0.9 (Squeeze) has:
-#
-# - g++ version 4.4.5 (https://packages.debian.org/search?suite=default&section=all&arch=any&searchon=names&keywords=g%2B%2B)
-# - libc version 2.11.3 (https://packages.debian.org/search?suite=default&section=all&arch=any&searchon=names&keywords=libc6)
-# - libstdc++ version 4.4.5 (https://packages.debian.org/search?suite=default&section=all&arch=any&searchon=names&keywords=libstdc%2B%2B6)
-#
-# Ubuntu 10.04.4 (Lucid Lynx) has:
-#
-# - g++ version 4.4.3 (http://packages.ubuntu.com/search?keywords=g%2B%2B&searchon=names&suite=lucid&section=all)
-# - libc version 2.11.1 (http://packages.ubuntu.com/search?keywords=libc6&searchon=names&suite=lucid&section=all)
-# - libstdc++ version 4.4.3 (http://packages.ubuntu.com/search?suite=lucid&section=all&arch=any&keywords=libstdc%2B%2B&searchon=names)
-#
-# Taking the minimum of these as our target.
-#
-# According to GNU ABI document (http://gcc.gnu.org/onlinedocs/libstdc++/manual/abi.html) this corresponds to:
-#   GCC 4.4.0: GCC_4.4.0
-#   GCC 4.4.2: GLIBCXX_3.4.13, CXXABI_1.3.3
-#   (glibc)    GLIBC_2_11
+# Ubuntu 24.04 LTS (Noble) target:
+#   glibc 2.39, libstdc++ (GCC 14) GLIBCXX 3.4.33, CXXABI 1.3.15
 #
 MAX_VERSIONS = {
-'GCC':     (4,4,0),
-'CXXABI':  (1,3,3),
-'GLIBCXX': (3,4,13),
-'GLIBC':   (2,11)
+    'GCC':     (4, 4, 0),
+    'CXXABI':  (1, 3, 15),
+    'GLIBCXX': (3, 4, 33),
+    'GLIBC':   (2, 39)
 }
 # See here for a description of _IO_stdin_used:
 # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=634261#109
