@@ -4,11 +4,12 @@
 #   --fail: pass + fail; excludes only hang/crash.
 #   --all: everything including hang/crash (no exclusions; GTest may hang on WriteCryptedSaplingZkeyDirectToDb).
 #
-# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--fail|--all]
-# --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue)
+# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--fail|--all|--full-suite|--full]
+# --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
 # --no-python: skip Python RPC tests (qa/rpc-tests)
 # --fail: pass + fail (exclude only hang/crash)
 # --all: everything including hang/crash (no exclusions)
+# --full-suite, --full: run qa/zcash/full_test_suite.py (btest, gtest, sec-hard, no-dot-so, util-test, secp256k1, univalue, rpc). On failure: report error and exit 1. Differs from --all: adds sec-hard, no-dot-so; uses full test_bitcoin -p, zero-gtest with no filter.
 
 set -e
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -42,12 +43,14 @@ find_python2() {
 MODE=passing
 QUICK=0
 NO_PYTHON=0
+FULL_SUITE=0
 for arg in "$@"; do
     case "$arg" in
         --quick) QUICK=1 ;;
         --no-python) NO_PYTHON=1 ;;
         --fail) MODE=fail ;;
         --all) MODE=all ;;
+        --full-suite|--full) FULL_SUITE=1 ;;
     esac
 done
 
@@ -74,12 +77,32 @@ run_bg() {
     echo $!
 }
 
+if [ "$FULL_SUITE" -eq 1 ]; then
+    PY2=$(find_python2)
+    if [ -z "$PY2" ]; then
+        echo "FAIL: Python 2.7 required for full_test_suite"
+        exit 1
+    fi
+    echo "--- full_test_suite ---"
+    if ! run_cmd "full_test_suite" "$PY2" "$REPO_ROOT/qa/zcash/full_test_suite.py"; then
+        echo "FAIL: full_test_suite exited with error"
+        exit 1
+    fi
+    echo "--- Done. Logs in $LOG_DIR ---"
+    exit 0
+fi
+
 echo "--- Quick tests ---"
 run_cmd "bitcoin-util-test" \
     bash -c "cd \"$REPO_ROOT/src\" && srcdir=\$(pwd) PYTHONPATH=\$(pwd)/test python3 test/bitcoin-util-test.py" || true
 
-run_cmd "secp256k1-check" make -C src/secp256k1 check || true
-run_cmd "univalue-check" make -C src/univalue check || true
+run_cmd "secp256k1-check" make -C src secp256k1-check || true
+run_cmd "univalue-check" make -C src univalue-check || true
+
+if [ -x "src/zerod" ]; then
+    run_cmd "check-symbols" make -C src check-symbols 2>/dev/null || true
+    run_cmd "check-security" make -C src check-security 2>/dev/null || true
+fi
 
 if [ "$QUICK" -eq 0 ]; then
     echo ""
@@ -89,9 +112,9 @@ if [ "$QUICK" -eq 0 ]; then
             echo "--- GTest (all; includes hang/crash) ---"
             GTEST_PID=$(run_bg "zero-gtest" ./src/zero-gtest 2>&1)
         else
-            echo "--- GTest (excludes hang/crash: WriteCryptedSaplingZkeyDirectToDb, CachedWitnesses*) ---"
+            echo "--- GTest (excludes hang/crash: WriteCryptedSaplingZkey*, CachedWitnesses*) ---"
             GTEST_PID=$(run_bg "zero-gtest" \
-                ./src/zero-gtest --gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkeyDirectToDb:WalletTests.CachedWitnesses*')
+                ./src/zero-gtest --gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkey*:WalletTests.CachedWitnesses*')
         fi
     fi
 

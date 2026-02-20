@@ -144,11 +144,17 @@ bitcoin_test_check: $(TEST_BINARY) FORCE
 bitcoin_test_clean : FORCE
 	rm -f $(CLEAN_BITCOIN_TEST) $(test_test_bitcoin_OBJECTS) $(TEST_BINARY)
 
+# Isolated check targets (avoid full check recursion)
+secp256k1-check:
+	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C secp256k1 check
+univalue-check:
+	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C univalue check
+
 check-local:
 	@echo "Running test/bitcoin-util-test.py..."
 	$(AM_V_at)srcdir=$(srcdir) PYTHONPATH=$(builddir)/test $(srcdir)/test/bitcoin-util-test.py
-	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C secp256k1 check
-	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C univalue check
+	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) secp256k1-check
+	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) univalue-check
 
 %.json.h: %.json
 	@$(MKDIR_P) $(@D)

@@ -413,61 +413,66 @@ TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDb) {
     mapArgs["-datadir"] = pathTemp.string();
 
     bool fFirstRun;
-    CWallet wallet("wallet_crypted_sapling.dat");
-    ASSERT_EQ(DB_LOAD_OK, wallet.LoadWallet(fFirstRun));
-
-     // No default CPubKey set
-    ASSERT_TRUE(fFirstRun);
-
-    ASSERT_FALSE(wallet.HaveHDSeed());
-    wallet.GenerateNewSeed();
-
-    // wallet should be empty
-    std::set<libzcash::SaplingPaymentAddress> addrs;
-    wallet.GetSaplingPaymentAddresses(addrs);
-    ASSERT_EQ(0, addrs.size());
-
-    // Add random key to the wallet
-    auto address = wallet.GenerateNewSaplingZKey();
-
-    // wallet should have one key
-    wallet.GetSaplingPaymentAddresses(addrs);
-    ASSERT_EQ(1, addrs.size());
-
-    // Generate a diversified address different to the default
-    // If we can't get an early diversified address, we are very unlucky
-    libzcash::SaplingExtendedSpendingKey extsk;
-    EXPECT_TRUE(wallet.GetSaplingExtendedSpendingKey(address, extsk));
-    blob88 diversifier;
-    diversifier.begin()[0] = 10;
-    auto dpa = extsk.ToXFVK().Address(diversifier).get().second;
-
-    // Add diversified address to the wallet
-    auto ivk = extsk.expsk.full_viewing_key().in_viewing_key();
-    EXPECT_TRUE(wallet.AddSaplingIncomingViewingKey(ivk, dpa));
-
-    // encrypt wallet
+    libzcash::SaplingPaymentAddress address, address2, dpa;
+    libzcash::SaplingIncomingViewingKey ivk;
     SecureString strWalletPass;
     strWalletPass.reserve(100);
     strWalletPass = "hello";
-    ASSERT_TRUE(wallet.EncryptWallet(strWalletPass));
+    std::set<libzcash::SaplingPaymentAddress> addrs;
 
-    // adding a new key will fail as the wallet is locked
-    EXPECT_ANY_THROW(wallet.GenerateNewSaplingZKey());
+    {
+        // Option a): Close first wallet (scope) before opening second
+        CWallet wallet("wallet_crypted_sapling.dat");
+        ASSERT_EQ(DB_LOAD_OK, wallet.LoadWallet(fFirstRun));
 
-    // unlock wallet and then add
-    wallet.Unlock(strWalletPass);
-    auto address2 = wallet.GenerateNewSaplingZKey();
+         // No default CPubKey set
+        ASSERT_TRUE(fFirstRun);
 
-    // flush the wallet to prevent race conditions
-    wallet.Flush();
+        ASSERT_FALSE(wallet.HaveHDSeed());
+        wallet.GenerateNewSeed();
 
-    // Create a new wallet from the existing wallet path
+        // wallet should be empty
+        std::set<libzcash::SaplingPaymentAddress> addrs;
+        wallet.GetSaplingPaymentAddresses(addrs);
+        ASSERT_EQ(0, addrs.size());
+
+        // Add random key to the wallet
+        address = wallet.GenerateNewSaplingZKey();
+
+        // wallet should have one key
+        wallet.GetSaplingPaymentAddresses(addrs);
+        ASSERT_EQ(1, addrs.size());
+
+        // Generate a diversified address different to the default
+        // If we can't get an early diversified address, we are very unlucky
+        libzcash::SaplingExtendedSpendingKey extsk;
+        EXPECT_TRUE(wallet.GetSaplingExtendedSpendingKey(address, extsk));
+        blob88 diversifier;
+        diversifier.begin()[0] = 10;
+        dpa = extsk.ToXFVK().Address(diversifier).get().second;
+
+        // Add diversified address to the wallet
+        ivk = extsk.expsk.full_viewing_key().in_viewing_key();
+        EXPECT_TRUE(wallet.AddSaplingIncomingViewingKey(ivk, dpa));
+
+        // encrypt wallet
+        ASSERT_TRUE(wallet.EncryptWallet(strWalletPass));
+
+        // adding a new key will fail as the wallet is locked
+        EXPECT_ANY_THROW(wallet.GenerateNewSaplingZKey());
+
+        // unlock wallet and then add
+        wallet.Unlock(strWalletPass);
+        address2 = wallet.GenerateNewSaplingZKey();
+
+        // flush and close (scope end destroys wallet, releasing DB file)
+        wallet.Flush();
+    }
+
+    // Create a new wallet from the existing wallet path (option a: first wallet closed)
     CWallet wallet2("wallet_crypted_sapling.dat");
     ASSERT_EQ(DB_LOAD_OK, wallet2.LoadWallet(fFirstRun));
 
-    // Confirm it's not the same as the other wallet
-    ASSERT_TRUE(&wallet != &wallet2);
     ASSERT_TRUE(wallet2.HaveHDSeed());
 
     // wallet should have three addresses
@@ -495,6 +500,86 @@ TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDb) {
     EXPECT_TRUE(wallet2.GetSaplingExtendedSpendingKey(address, keyOut));
     ASSERT_EQ(address, keyOut.DefaultAddress());
 
+    EXPECT_TRUE(wallet2.GetSaplingExtendedSpendingKey(address2, keyOut));
+    ASSERT_EQ(address2, keyOut.DefaultAddress());
+}
+
+
+/**
+ * Option b): Same as WriteCryptedSaplingZkeyDirectToDb but uses separate DB file
+ * (copy) for wallet2 to avoid mapFileUseCount conflict.
+ */
+TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDbSeparateFile) {
+    SelectParams(CBaseChainParams::TESTNET);
+
+    boost::filesystem::path pathTemp = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path();
+    boost::filesystem::create_directories(pathTemp);
+    mapArgs["-datadir"] = pathTemp.string();
+
+    bool fFirstRun;
+    libzcash::SaplingPaymentAddress address, address2, dpa;
+    libzcash::SaplingIncomingViewingKey ivk;
+    SecureString strWalletPass;
+    strWalletPass.reserve(100);
+    strWalletPass = "hello";
+
+    {
+        CWallet wallet("wallet_crypted_sapling.dat");
+        ASSERT_EQ(DB_LOAD_OK, wallet.LoadWallet(fFirstRun));
+        ASSERT_TRUE(fFirstRun);
+        ASSERT_FALSE(wallet.HaveHDSeed());
+        wallet.GenerateNewSeed();
+
+        std::set<libzcash::SaplingPaymentAddress> addrs;
+        wallet.GetSaplingPaymentAddresses(addrs);
+        ASSERT_EQ(0, addrs.size());
+
+        address = wallet.GenerateNewSaplingZKey();
+        wallet.GetSaplingPaymentAddresses(addrs);
+        ASSERT_EQ(1, addrs.size());
+
+        libzcash::SaplingExtendedSpendingKey extsk;
+        EXPECT_TRUE(wallet.GetSaplingExtendedSpendingKey(address, extsk));
+        blob88 diversifier;
+        diversifier.begin()[0] = 10;
+        dpa = extsk.ToXFVK().Address(diversifier).get().second;
+        ivk = extsk.expsk.full_viewing_key().in_viewing_key();
+        EXPECT_TRUE(wallet.AddSaplingIncomingViewingKey(ivk, dpa));
+
+        ASSERT_TRUE(wallet.EncryptWallet(strWalletPass));
+        EXPECT_ANY_THROW(wallet.GenerateNewSaplingZKey());
+        wallet.Unlock(strWalletPass);
+        address2 = wallet.GenerateNewSaplingZKey();
+        wallet.Flush();
+    }
+
+    // Option b): Copy to separate file so wallet2 uses its own DB
+    boost::filesystem::path pathSrc = pathTemp / "wallet_crypted_sapling.dat";
+    boost::filesystem::path pathDest = pathTemp / "wallet_crypted_sapling2.dat";
+    boost::filesystem::copy_file(pathSrc, pathDest);
+
+    CWallet wallet2("wallet_crypted_sapling2.dat");
+    ASSERT_EQ(DB_LOAD_OK, wallet2.LoadWallet(fFirstRun));
+    ASSERT_TRUE(wallet2.HaveHDSeed());
+
+    std::set<libzcash::SaplingPaymentAddress> addrs2;
+    wallet2.GetSaplingPaymentAddresses(addrs2);
+    ASSERT_EQ(3, addrs2.size());
+    ASSERT_TRUE(addrs2.count(address));
+    ASSERT_TRUE(addrs2.count(address2));
+    ASSERT_TRUE(addrs2.count(dpa));
+
+    libzcash::SaplingExtendedSpendingKey keyOut;
+    EXPECT_FALSE(wallet2.GetSaplingExtendedSpendingKey(address, keyOut));
+    ASSERT_FALSE(address == keyOut.DefaultAddress());
+
+    libzcash::SaplingIncomingViewingKey ivkOut;
+    EXPECT_TRUE(wallet2.GetSaplingIncomingViewingKey(dpa, ivkOut));
+    EXPECT_EQ(ivk, ivkOut);
+
+    wallet2.Unlock(strWalletPass);
+    EXPECT_TRUE(wallet2.GetSaplingExtendedSpendingKey(address, keyOut));
+    ASSERT_EQ(address, keyOut.DefaultAddress());
     EXPECT_TRUE(wallet2.GetSaplingExtendedSpendingKey(address2, keyOut));
     ASSERT_EQ(address2, keyOut.DefaultAddress());
 }

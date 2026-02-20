@@ -101,7 +101,7 @@ LIBZCASH_H = \
   zcash/Zcash.h \
   zcash/address/zip32.h
 
-.PHONY: FORCE check-symbols check-security
+.PHONY: FORCE check-symbols check-security secp256k1-check univalue-check
 # bitcoin core #
 BITCOIN_CORE_H = \
 	addressindex.h \

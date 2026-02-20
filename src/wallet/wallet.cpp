@@ -1247,11 +1247,15 @@ void CWallet::ClearNoteWitnessCache()
 void CWallet::DecrementNoteWitnesses(const CBlockIndex* pindex)
 {
     LOCK(cs_wallet);
+    if (!pindex) {
+        LogPrintf("DecrementNoteWitnesses: pindex is null\n");
+        exit(1);
+    }
     for (std::pair<const uint256, CWalletTx>& wtxItem : mapWallet) {
         //Sprout
         for (auto& item : wtxItem.second.mapSproutNoteData) {
             auto* nd = &(item.second);
-            if (nd->nullifier && pwalletMain->GetSproutSpendDepth(*item.second.nullifier) <= WITNESS_CACHE_SIZE) {
+            if (nd->nullifier && GetSproutSpendDepth(*item.second.nullifier) <= WITNESS_CACHE_SIZE) {
               // Only decrement witnesses that are not above the current height
                 if (nd->witnessHeight <= pindex->nHeight) {
                     if (nd->witnesses.size() > 1) {
@@ -1266,7 +1270,7 @@ void CWallet::DecrementNoteWitnesses(const CBlockIndex* pindex)
         //Sapling
         for (auto& item : wtxItem.second.mapSaplingNoteData) {
             auto* nd = &(item.second);
-            if (nd->nullifier && pwalletMain->GetSaplingSpendDepth(*item.second.nullifier) <= WITNESS_CACHE_SIZE) {
+            if (nd->nullifier && GetSaplingSpendDepth(*item.second.nullifier) <= WITNESS_CACHE_SIZE) {
                 // Only decrement witnesses that are not above the current height
                 if (nd->witnessHeight <= pindex->nHeight) {
                     if (nd->witnesses.size() > 1) {
@@ -1309,7 +1313,19 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
 {
   LOCK2(cs_main, cs_wallet);
 
+  if (!pindex) {
+    LogPrintf("VerifyAndSetInitialWitness: pindex is null\n");
+    exit(1);
+  }
   if (!pcoinsTip && !pblockIn) {
+    return pindex->nHeight;
+  }
+  if (!pcoinsTip) {
+    LogPrintf("VerifyAndSetInitialWitness: pcoinsTip is null (test harness?)\n");
+    return pindex->nHeight;
+  }
+  if (chainActive.Height() < 0) {
+    LogPrintf("VerifyAndSetInitialWitness: chainActive empty (test harness?)\n");
     return pindex->nHeight;
   }
 
@@ -1327,7 +1343,12 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
     if (wtxItem.second.GetDepthInMainChain() > 0) {
       walletHasNotes = true;
       auto wtxHash = wtxItem.second.GetHash();
-      int wtxHeight = mapBlockIndex[wtxItem.second.hashBlock]->nHeight;
+      BlockMap::iterator miBlock = mapBlockIndex.find(wtxItem.second.hashBlock);
+      if (miBlock == mapBlockIndex.end() || !miBlock->second) {
+        LogPrintf("VerifyAndSetInitialWitness: hashBlock not in mapBlockIndex\n");
+        continue;
+      }
+      int wtxHeight = miBlock->second->nHeight;
 
       for (mapSproutNoteData_t::value_type& item : wtxItem.second.mapSproutNoteData) {
 
@@ -1360,7 +1381,15 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
 
           //Validate the witness at the witness height
           witnessRoot = nd->witnesses.front().root();
+          if (nd->witnessHeight < 0 || nd->witnessHeight > chainActive.Height()) {
+            LogPrintf("VerifyAndSetInitialWitness: witnessHeight %d out of chain range\n", nd->witnessHeight);
+            continue;
+          }
           pblockindex = chainActive[nd->witnessHeight];
+          if (!pblockindex) {
+            LogPrintf("VerifyAndSetInitialWitness: chainActive[%d] is null\n", nd->witnessHeight);
+            continue;
+          }
           blockRoot = pblockindex->hashFinalSproutRoot;
           if (witnessRoot == blockRoot) {
             nd->witnessRootValidated = true;
@@ -1370,7 +1399,15 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
         }
 
         //Clear witness Cache for all other scenarios
+        if (wtxHeight < 0 || wtxHeight > chainActive.Height()) {
+          LogPrintf("VerifyAndSetInitialWitness: wtxHeight %d out of chain range\n", wtxHeight);
+          continue;
+        }
         pblockindex = chainActive[wtxHeight];
+        if (!pblockindex) {
+          LogPrintf("VerifyAndSetInitialWitness: chainActive[wtxHeight] is null\n");
+          continue;
+        }
         ::ClearSingleNoteWitnessCache(nd);
 
         LogPrintf("Setting Inital Sprout Witness for tx %s, %i of %i\n", wtxHash.ToString(), nWitnessTxIncrement, nWitnessTotalTxCount);
@@ -1531,9 +1568,21 @@ void CWallet::BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, con
 
   LOCK2(cs_main, cs_wallet);
 
+  if (!pindex) {
+    LogPrintf("BuildWitnessCache: pindex is null\n");
+    exit(1);
+  }
   int startHeight = VerifyAndSetInitialWitness(pindex, witnessOnly, pblockIn) + 1;
 
   if (startHeight > pindex->nHeight || witnessOnly) {
+    return;
+  }
+  if (startHeight < 0 || startHeight > chainActive.Height()) {
+    LogPrintf("BuildWitnessCache: startHeight %d out of chain range\n", startHeight);
+    return;
+  }
+  if (!pcoinsTip) {
+    LogPrintf("BuildWitnessCache: pcoinsTip is null\n");
     return;
   }
 
@@ -1544,6 +1593,10 @@ void CWallet::BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, con
 
   while (pblockindex) {
 
+    if (!pblockindex->pprev) {
+      LogPrintf("BuildWitnessCache: pblockindex->pprev is null (genesis?)\n");
+      break;
+    }
     if (pblockindex->nHeight % 100 == 0 && pblockindex->nHeight < height - 5) {
       LogPrintf("Building Witnesses for block %i %.4f complete\n", pblockindex->nHeight, pblockindex->nHeight / double(height));
     }

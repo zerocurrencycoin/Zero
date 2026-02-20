@@ -46,6 +46,7 @@ $(package)_rust_target_x86_64-apple-darwin20=x86_64-apple-darwin
 
 # Mapping from Rust targets to SHA-256 hashes
 $(package)_rust_std_sha256_hash_aarch64-unknown-linux-gnu=346efe3aef2aff7b71a611bf7661bcec5f9bc4025a599c2866ec5fd330247cb9
+$(package)_rust_std_sha256_hash_x86_64-apple-darwin=b736d035a97f830585360e54e3f8877b68c942211cf0a75e805f34bfb36103a6
 $(package)_rust_std_sha256_hash_x86_64-pc-windows-gnu=cad5f1454d591c13eeb3657f1c9dbfeb30e648f59680bd0765b94c63e7afc49e
 
 ifneq ($(canonical_host),$(build))

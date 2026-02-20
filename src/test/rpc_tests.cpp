@@ -15,6 +15,8 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/test/unit_test.hpp>
 
+#include <iostream>
+#include <typeinfo>
 #include <univalue.h>
 
 using namespace std;
@@ -183,7 +185,12 @@ BOOST_AUTO_TEST_CASE(rpc_parse_monetary_values)
     // Use try/catch for "should throw" cases. Catch any exception type.
     {
         bool threw = false;
-        try { AmountFromValue(ValueFromString("-0.00000001")); } catch (...) { threw = true; }
+        try { AmountFromValue(ValueFromString("-0.00000001")); }
+        catch (const std::exception& e) {
+            std::cerr << "rpc_parse_monetary_values (diagnostic): " << typeid(e).name() << " " << e.what() << std::endl;
+            threw = true;
+        }
+        catch (...) { threw = true; }
         BOOST_CHECK(threw);
     }
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("0")), 0LL);
