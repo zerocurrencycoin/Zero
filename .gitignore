@@ -90,6 +90,7 @@ build
 /*.info
 test_bitcoin.coverage/
 zero-gtest.coverage/
+test-logs/
 total.coverage/
 coverage_percent.txt
 

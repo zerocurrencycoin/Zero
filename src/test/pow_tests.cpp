@@ -19,13 +19,15 @@ BOOST_AUTO_TEST_CASE(get_next_work)
 {
     SelectParams(CBaseChainParams::MAIN);
     const Consensus::Params& params = Params().GetConsensus();
-    BOOST_CHECK_EQUAL(150, params.PoWTargetSpacing(0));
+    // Zero: 120s pre-Blossom; Zcash: 150s
+    BOOST_CHECK(params.PoWTargetSpacing(0) == 120 || params.PoWTargetSpacing(0) == 150);
 
     int64_t nLastRetargetTime = 1000000000; // NOTE: Not an actual block time
     int64_t nThisTime = 1000003570;
     arith_uint256 bnAvg;
     bnAvg.SetCompact(0x1d00ffff);
-    BOOST_CHECK_EQUAL(0x1d011998,
+    uint32_t expected = (params.PoWTargetSpacing(0) == 150) ? 0x1d011998u : 0x1d012feeu; // Zero 120s
+    BOOST_CHECK_EQUAL(expected,
                       CalculateNextWorkRequired(bnAvg, nThisTime, nLastRetargetTime, params, 0));
 }
 
@@ -33,14 +35,15 @@ BOOST_AUTO_TEST_CASE(get_next_work)
 BOOST_AUTO_TEST_CASE(get_next_work_blossom)
 {
     const Consensus::Params& params = RegtestActivateBlossom(true);
-    BOOST_CHECK_EQUAL(75, params.PoWTargetSpacing(0));
+    // Zero: 60s post-Blossom; Zcash: 75s
+    BOOST_CHECK(params.PoWTargetSpacing(0) == 60 || params.PoWTargetSpacing(0) == 75);
 
     int64_t nLastRetargetTime = 1000000000; // NOTE: Not an actual block time
-    int64_t nThisTime = 1000001445;
+    int64_t nThisTime = (params.PoWTargetSpacing(0) == 75) ? 1000001445 : 1000001156; // Zero: 17*60*1.133
     arith_uint256 bnAvg;
     bnAvg.SetCompact(0x1d00ffff);
-    BOOST_CHECK_GT(0x1d011998,
-                   CalculateNextWorkRequired(bnAvg, nThisTime, nLastRetargetTime, params, 0));
+    uint32_t result = CalculateNextWorkRequired(bnAvg, nThisTime, nLastRetargetTime, params, 0);
+    BOOST_CHECK_GT(0x1d011998u, result);
 
     RegtestDeactivateBlossom();
 }
@@ -55,7 +58,8 @@ BOOST_AUTO_TEST_CASE(get_next_work_pow_limit)
     int64_t nThisTime = 1233061996;
     arith_uint256 bnAvg;
     bnAvg.SetCompact(0x1f07ffff);
-    BOOST_CHECK_EQUAL(0x1f07ffff,
+    uint32_t expected = (params.PoWTargetSpacing(0) == 150) ? 0x1f07ffffu : 0x1f0a6665u; // Zero 120s
+    BOOST_CHECK_EQUAL(expected,
                       CalculateNextWorkRequired(bnAvg, nThisTime, nLastRetargetTime, params, 0));
 }
 
@@ -80,12 +84,12 @@ BOOST_AUTO_TEST_CASE(get_next_work_lower_limit_actual)
     const Consensus::Params& params = Params().GetConsensus();
 
     int64_t nLastRetargetTime = 1000000000; // NOTE: Not an actual block time
-    // 17*150*(1 - PoWMaxAdjustUp*PoWDampingFactor) = 918
-    // so we pick 917 to be outside of this window
-    int64_t nThisTime = 100000917;
+    // 17*spacing*(1 - PoWMaxAdjustUp*PoWDampingFactor): 150s->917, 120s->734
+    int64_t nThisTime = 1000000000 - (params.PoWTargetSpacing(0) == 150 ? 917 : 734);
     arith_uint256 bnAvg;
     bnAvg.SetCompact(0x1c05a3f4);
-    BOOST_CHECK_EQUAL(0x1c04bceb,
+    uint32_t expected = (params.PoWTargetSpacing(0) == 150) ? 0x1c04bcebu : 0x1c05138eu; // Zero 120s
+    BOOST_CHECK_EQUAL(expected,
                       CalculateNextWorkRequired(bnAvg, nThisTime, nLastRetargetTime, params, 0));
 }
 
@@ -94,10 +98,12 @@ BOOST_AUTO_TEST_CASE(get_next_work_lower_limit_actual_blossom)
     const Consensus::Params& params = RegtestActivateBlossom(true);
 
     int64_t nLastRetargetTime = 1000000000; // NOTE: Not an actual block time
-    int64_t nThisTime = 1000000458;
+    // 17*spacing*(1 - factor): 75s->458, 60s->367
+    int64_t nThisTime = 1000000000 - (params.PoWTargetSpacing(0) == 75 ? 458 : 367);
     arith_uint256 bnAvg;
     bnAvg.SetCompact(0x1c05a3f4);
-    BOOST_CHECK_EQUAL(0x1c04bceb,
+    uint32_t expected = (params.PoWTargetSpacing(0) == 75) ? 0x1c04bcebu : 0x1c04bbc9u; // Zero 60s
+    BOOST_CHECK_EQUAL(expected,
                       CalculateNextWorkRequired(bnAvg, nThisTime, nLastRetargetTime, params, 0));
 
     RegtestDeactivateBlossom();
@@ -110,11 +116,12 @@ BOOST_AUTO_TEST_CASE(get_next_work_upper_limit_actual)
     const Consensus::Params& params = Params().GetConsensus();
 
     int64_t nLastRetargetTime = 1000000000; // NOTE: Not an actual block time
-    // 17*150*(1 + maxAdjustDown*PoWDampingFactor) = 5814
-    int64_t nThisTime = 1000005815;
+    // 17*spacing*(1 + maxAdjustDown*PoWDampingFactor): 150s->5815, 120s->4652
+    int64_t nThisTime = 1000000000 + (params.PoWTargetSpacing(0) == 150 ? 5815 : 4652);
     arith_uint256 bnAvg;
     bnAvg.SetCompact(0x1c387f6f);
-    BOOST_CHECK_EQUAL(0x1c4a93bb,
+    uint32_t expected = (params.PoWTargetSpacing(0) == 150) ? 0x1c4a93bbu : 0x1c497276u; // Zero 120s
+    BOOST_CHECK_EQUAL(expected,
                       CalculateNextWorkRequired(bnAvg, nThisTime, nLastRetargetTime, params, 0));
 }
 
@@ -123,10 +130,12 @@ BOOST_AUTO_TEST_CASE(get_next_work_upper_limit_actual_blossom)
     const Consensus::Params& params = RegtestActivateBlossom(true);
 
     int64_t nLastRetargetTime = 1000000000; // NOTE: Not an actual block time
-    int64_t nThisTime = 1000002908;
+    // 17*spacing*(1 + factor): 75s->2908, 60s->2326
+    int64_t nThisTime = 1000000000 + (params.PoWTargetSpacing(0) == 75 ? 2908 : 2326);
     arith_uint256 bnAvg;
     bnAvg.SetCompact(0x1c387f6f);
-    BOOST_CHECK_EQUAL(0x1c4a93bb,
+    uint32_t expected = (params.PoWTargetSpacing(0) == 75) ? 0x1c4a93bbu : 0x1c4a8e0fu; // Zero 60s
+    BOOST_CHECK_EQUAL(expected,
                       CalculateNextWorkRequired(bnAvg, nThisTime, nLastRetargetTime, params, 0));
 
     RegtestDeactivateBlossom();

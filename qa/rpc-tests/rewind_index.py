@@ -11,8 +11,8 @@ from test_framework.util import assert_equal, initialize_chain_clean, \
 
 import time
 
-FAKE_SPROUT = ['-nuparams=5ba81b19:210', '-nuparams=76b809bb:220']
-FAKE_OVERWINTER = ['-nuparams=5ba81b19:10', '-nuparams=76b809bb:220']
+FAKE_SPROUT = ['-nuparams=6f76727a:210', '-nuparams=7361707a:220']  # Zero branch IDs
+FAKE_OVERWINTER = ['-nuparams=6f76727a:10', '-nuparams=7361707a:220']
 
 class RewindBlockIndexTest (BitcoinTestFramework):
 

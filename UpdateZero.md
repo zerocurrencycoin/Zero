@@ -27,7 +27,7 @@ or cross-platform implications go in UpdateFeatures.
 | Depends changes | §4.1 | §3 | — | — |
 | Library versions, upgrade plan | §6.2 | §5–7 | — | — |
 | BDB, wallet | — | §6.1, §7.1 | §6.2 | §4.1 |
-| Test results, fixes | §3.2, §4.2 | — | §1–3 | — |
+| Test results, fixes | §3.2, §4.2 | — | §1–3, §8.6 | — |
 | Test prioritization | §5 | — | §5 | — |
 | Open test failures | §5.1 | — | §4, §6 | — |
 | Witness architecture | §5.3, §6.3 | — | §3.5, §8.2 | §1 |
@@ -73,6 +73,8 @@ GTest: 4 fixes applied, 4 pre-existing failures excluded, 1 hang excluded.
 Boost: cascade failure from 2-3 root causes; most of the 249 are not
 independent bugs. See UpdateTests.md §3 (fixes), §4 (deep-dive), §6 (open failures).
 
+**Automation:** `contrib/run-tests.sh` runs test suites and captures logs to `test-logs/`. See UpdateTests.md §8.6.
+
 ### 3.3 Features
 
 Production code changes in `wallet.cpp` and `wallet.h` fix three
@@ -111,7 +113,7 @@ See UpdateFeatures.md section 1.
 ### 5.1 Immediate
 
 1. **Linux regression test** — verify all changes build and pass on Linux x86_64
-2. **Fix-now test items** — UpdateTests §5.2 (z_getnewaddress, pyblake2, nuparams, rpc_wallet founders %, block_subsidy)
+2. **Fix-now test items** — UpdateTests §5.2 (pyblake2, nuparams, rpc_wallet founders %, block_subsidy). z_getnewaddress extra-args fix applied.
 
 ### 5.2 Delayed
 
@@ -124,6 +126,17 @@ See UpdateFeatures.md section 1.
 6. **Zeronode test suite** — Zero-specific features (zeronode, budget, SwiftTX) have 0% test coverage. High impact; not part of current port.
 7. **Enhanced error handling** — Replace boolean returns in zeronode wallet interface with detailed error reporting. Optional enhancement.
 8. **Witness architecture evaluation** — Architecture/design (BuildWitnessCache vs IncrementNoteWitnesses); distinct from Witness-related test failures in §6. UpdateFeatures §1.6
+
+### 5.4 Open questions / Pending approvals
+
+| Item | Status | Notes |
+|------|--------|-------|
+| PYTHON detection in tests-config.sh | Done | tests-config.sh sets PYTHON from pyenv 2.7.18 or python2 if unset |
+| Regtest block count fix | Open | Test uses actual block count vs Zero -regtestblocktime; needs decision |
+| get_coinbase_address impl gap | Documented | Skip; fix would need Zero listunspent/generated behavior |
+| Python 3 migration | Planned | When feasible; hashlib.blake2b replaces pyblake2 |
+| GTest 1.12.1 upgrade | Pending | C++14 min; cross-fork validation |
+| Alert_tests | Set aside | Deprecated; raw data MagicBean-specific |
 
 ## 6. Direction
 

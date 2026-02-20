@@ -366,6 +366,12 @@ BDB version and license context:
 
 **Done.** Upgraded to 1.83.0 (Zcash-validated). API changes in Filesystem, Thread, Test addressed.
 
+**Version timeline:** 1.70 (Apr 2019) | 1.83 (Aug 2023) | 1.88 (Apr 2025) | 1.90 (Dec 2025)
+
+**1.88 compatibility:** Not drop-in. Boost 1.88 removed `filesystem::basename` and `filesystem::extension` (use `path::stem()` and `path::extension()`). Zero uses these in `init.cpp:1233`. One source fix required. `libboost_system` still present in 1.88 (removed in 1.89).
+
+**1.90 compatibility:** Requires C++14 (Boost.Math), filesystem API fix, and `ax_boost_system` fallback for header-only System. Not recommended without C++14 upgrade.
+
 ### 6.7 Rust 1.32.0 to 1.93.1
 
 Confirmed. Medium risk. Target latest stable (1.93.1).

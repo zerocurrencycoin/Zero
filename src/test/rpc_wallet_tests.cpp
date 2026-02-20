@@ -649,8 +649,10 @@ BOOST_AUTO_TEST_CASE(rpc_wallet_z_importexport)
     auto newAddr = boost::get<libzcash::SproutPaymentAddress>(address);
     BOOST_CHECK(pwalletMain->HaveSproutSpendingKey(newAddr));
 
-    // Check if too many args
+    // Check invalid type
     BOOST_CHECK_THROW(CallRPC("z_getnewaddress toomanyargs"), runtime_error);
+    // Check extra args
+    BOOST_CHECK_THROW(CallRPC("z_getnewaddress sprout extra"), runtime_error);
 }
 
 

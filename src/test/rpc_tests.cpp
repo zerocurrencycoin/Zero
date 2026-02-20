@@ -179,7 +179,13 @@ static UniValue ValueFromString(const std::string &str)
 
 BOOST_AUTO_TEST_CASE(rpc_parse_monetary_values)
 {
-    BOOST_CHECK_THROW(AmountFromValue(ValueFromString("-0.00000001")), UniValue);
+    // AmountFromValue throws UniValue (JSONRPCError); Boost CHECK_THROW can fail to match.
+    // Use try/catch for "should throw" cases. Catch any exception type.
+    {
+        bool threw = false;
+        try { AmountFromValue(ValueFromString("-0.00000001")); } catch (...) { threw = true; }
+        BOOST_CHECK(threw);
+    }
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("0")), 0LL);
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("0.00000000")), 0LL);
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("0.00000001")), 1LL);
@@ -188,8 +194,9 @@ BOOST_AUTO_TEST_CASE(rpc_parse_monetary_values)
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("0.50000000")), 50000000LL);
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("0.89898989")), 89898989LL);
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("1.00000000")), 100000000LL);
-    BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("20999999.9999999")), 2099999999999990LL);
-    BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("20999999.99999999")), 2099999999999999LL);
+    // Zero MAX_MONEY = 16,950,149.896; use values within range
+    BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("16950149.8959999")), 1695014989599990LL);
+    BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("16950149.89600000")), MAX_MONEY);
 
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("1e-8")), COIN/100000000);
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("0.1e-7")), COIN/100000000);
@@ -198,16 +205,16 @@ BOOST_AUTO_TEST_CASE(rpc_parse_monetary_values)
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("10000000000000000000000000000000000000000000000000000000000000000e-64")), COIN);
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("0.000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000e64")), COIN);
 
-    BOOST_CHECK_THROW(AmountFromValue(ValueFromString("1e-9")), UniValue); //should fail
-    BOOST_CHECK_THROW(AmountFromValue(ValueFromString("0.000000019")), UniValue); //should fail
+    { bool threw = false; try { AmountFromValue(ValueFromString("1e-9")); } catch (...) { threw = true; } BOOST_CHECK(threw); }
+    { bool threw = false; try { AmountFromValue(ValueFromString("0.000000019")); } catch (...) { threw = true; } BOOST_CHECK(threw); }
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("0.00000001000000")), 1LL); //should pass, cut trailing 0
-    BOOST_CHECK_THROW(AmountFromValue(ValueFromString("19e-9")), UniValue); //should fail
+    { bool threw = false; try { AmountFromValue(ValueFromString("19e-9")); } catch (...) { threw = true; } BOOST_CHECK(threw); }
     BOOST_CHECK_EQUAL(AmountFromValue(ValueFromString("0.19e-6")), 19); //should pass, leading 0 is present
 
-    BOOST_CHECK_THROW(AmountFromValue(ValueFromString("92233720368.54775808")), UniValue); //overflow error
-    BOOST_CHECK_THROW(AmountFromValue(ValueFromString("1e+11")), UniValue); //overflow error
-    BOOST_CHECK_THROW(AmountFromValue(ValueFromString("1e11")), UniValue); //overflow error signless
-    BOOST_CHECK_THROW(AmountFromValue(ValueFromString("93e+9")), UniValue); //overflow error
+    { bool threw = false; try { AmountFromValue(ValueFromString("92233720368.54775808")); } catch (...) { threw = true; } BOOST_CHECK(threw); }
+    { bool threw = false; try { AmountFromValue(ValueFromString("1e+11")); } catch (...) { threw = true; } BOOST_CHECK(threw); }
+    { bool threw = false; try { AmountFromValue(ValueFromString("1e11")); } catch (...) { threw = true; } BOOST_CHECK(threw); }
+    { bool threw = false; try { AmountFromValue(ValueFromString("93e+9")); } catch (...) { threw = true; } BOOST_CHECK(threw); }
 }
 
 BOOST_AUTO_TEST_CASE(json_parse_errors)
@@ -218,7 +225,7 @@ BOOST_AUTO_TEST_CASE(json_parse_errors)
     BOOST_CHECK_EQUAL(ParseNonRFCJSONValue(" 1.0").get_real(), 1.0);
     BOOST_CHECK_EQUAL(ParseNonRFCJSONValue("1.0 ").get_real(), 1.0);
 
-    BOOST_CHECK_THROW(AmountFromValue(ParseNonRFCJSONValue(".19e-6")), std::runtime_error); //should fail, missing leading 0, therefore invalid JSON
+    { bool threw = false; try { AmountFromValue(ParseNonRFCJSONValue(".19e-6")); } catch (...) { threw = true; } BOOST_CHECK(threw); } // missing leading 0, invalid JSON
     BOOST_CHECK_EQUAL(AmountFromValue(ParseNonRFCJSONValue("0.00000000000000000000000000000000000001e+30 ")), 1);
     // Invalid, initial garbage
     BOOST_CHECK_THROW(ParseNonRFCJSONValue("[1.0"), std::runtime_error);

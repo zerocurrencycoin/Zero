@@ -3153,7 +3153,7 @@ UniValue z_getnewaddress(const UniValue& params, bool fHelp)
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
-    if (fHelp)
+    if (fHelp || params.size() > 1)
         throw runtime_error(
             "z_getnewaddress ( \"sprout\"|\"sapling\" )\n"
             "\nReturns a new shielded address for receiving payments.\n"
