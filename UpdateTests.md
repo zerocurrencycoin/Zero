@@ -3,7 +3,7 @@
 Test suite results, fixes, open failures, and testing procedures for the
 Zero node.
 
-**Cross-references**: UpdateZero.md §1.1 (document index). Related: UpdateFeatures.md §1 (witness architecture), UpdateBuild.md §6.1 (BDB, WriteCryptedSaplingZkeyDirectToDb), Subsidy.md §11.2 (Python RPC amounts).
+**Cross-references**: UpdateZero.md §1.1 (document index). Related: UpdateFeatures.md §1 (witness architecture), UpdateBuild.md §6.1 (BDB, WriteCryptedSaplingZkeyDirectToDb), Subsidy.md §11.2 (Python RPC amounts). §10 RPC coverage; §11 suite segregation.
 
 ## 1. Test Framework
 
@@ -46,24 +46,24 @@ Outcomes below verified Feb 2026.
 
 | Result | Count | Details |
 |--------|-------|---------|
-| Passed | 199 | |
-| Failed | 2 | `WalletTests.UpdatedSaplingNoteData`, `WalletTests.NavigateFromSaplingNullifierToNote` |
+| Passed | 201 | |
+| Failed | 0 | |
 | Excluded | 5 | 4 `CachedWitnesses*` + 1 `WriteCryptedSaplingZkeyDirectToDb` |
 
-**SpentSaplingNoteIsFromMe** (was failing): Fixed. Root cause: test-order dependency — `chainActive.Height()` was 0 from prior test. Fix: `chainActive.SetTip(NULL)` after `RegtestActivateSapling()`.
+**Wallet fixes applied**: SpentSaplingNoteIsFromMe (test-order dependency), NavigateFromSaplingNullifierToNote (manual witness), UpdatedSaplingNoteData (manual witness for change output). All 201 run pass.
 
-**Run**: `./src/zero-gtest --gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkeyDirectToDb:WalletTests.CachedWitnesses*'`
+**Run**: `./src/zero-gtest --gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkey*:WalletTests.CachedWitnesses*'`
 
 ### 2.2 Boost Test Summary
 
-260 test cases. **Verified Feb 2026**: 277 failures (down from 280 after RPC fixes).
+260 test cases in 50 suites. **Pass-only** (excl Alert, equihash, miner): 46 suites, ~240 cases pass. **Full run** (no exclusion): cascade from early failures causes ~277 failures.
 
 | Result | Count | Details |
 |--------|-------|---------|
-| Passed | ~15 | Early tests + rpc_insightexplorer, rpc_z_mergetoaddress_parameters (after zcash-cli→zero-cli fix) |
-| Failed | 277 | alert_tests (MagicBean, PartitionAlert), equihash (96,5 vectors), miner_tests (invalid-solution), pow_tests (target spacing 120 vs 150), main_tests (block_subsidy, subsidy_limit), rpc_wallet_tests (founders %, z_getnewaddress) |
+| Pass-only (excl 4 suites) | 46 suites | main_tests included; excl Alert_tests, equihash_tests, miner_tests |
+| Full run | ~277 fail | Cascade from alert, equihash, miner; rpc_wallet (founders %, z_getnewaddress) |
 
-**Run**: `./src/test/test_bitcoin`
+**Run pass-only**: `./src/test/test_bitcoin --run_test='!Alert_tests:!equihash_tests:!miner_tests'`
 
 ### 2.3 Python RPC Test Summary
 
@@ -97,10 +97,10 @@ Outcomes below verified Feb 2026.
 | 2 | **secp256k1** | src/secp256k1 | `make -C src/secp256k1 check` | Autotools TESTS: tests (src/tests.c), exhaustive_tests (src/tests_exhaustive.c). Elliptic-curve secp256k1 (Bitcoin curve). run-tests uses `src/secp256k1` not `make -C src secp256k1 check` to avoid recursive make invoking full test_bitcoin. ~8s. |
 | 3 | **univalue** | src/univalue | `make -C src/univalue check` | Autotools TESTS: test/unitester (test/unitester.cpp), test/no_nul (test/no_nul.cpp). JSON library. Same recursion fix as secp256k1. ~0.5s. |
 | 4 | **zero-gtest** | src/zero-gtest | `./src/zero-gtest [--gtest_filter=...]` | Google Test 1.16.0. 206 tests in 32 cases. Sources: src/gtest/*.cpp, src/wallet/gtest/*.cpp. Consensus, wallet, equihash, Sapling/Sprout, deprecation. run-tests excludes `-wallet_zkeys_tests.WriteCryptedSaplingZkeyDirectToDb:WalletTests.CachedWitnesses*`. --all: no filter (may hang). ~45s. |
-| 5 | **test_bitcoin** | src/test/test_bitcoin | `./src/test/test_bitcoin [--run_test=...]` | Boost.Test. 260 cases in 50 suites. Sources: src/test/*.cpp, wallet/test/*.cpp. run-tests pass-only: `--run_test='!Alert_tests:!equihash_tests:!miner_tests:!main_tests'`. --fail/--all: no exclusion. ~15 min full. |
+| 5 | **test_bitcoin** | src/test/test_bitcoin | `./src/test/test_bitcoin [--run_test=...]` | Boost.Test. 260 cases in 50 suites. run-tests pass-only: `--run_test='!Alert_tests:!equihash_tests:!miner_tests'` (main_tests included). ~15 min full. |
 | 6 | **Python RPC** | qa/rpc-tests/*.py | `qa/pull-tester/rpc-tests.sh [name\|-extended]` | Python 2.7. tests-config.sh sets BUILDDIR, PYTHON, REAL_BITCOIND (zerod), BITCOINCLI (run-bitcoin-cli). Spawns zerod -regtest. test_framework: util.py (get_coinbase_address, initialize_chain_clean), mininode.py (pyblake2), blocktools.py. run-tests pass-only: 16 verified scripts. --fail/--all: -extended (~100). Prereq: `python2 -m pip install pyblake2`. |
 
-**run-boost-individual.sh** (variant of test_bitcoin): contrib/run-boost-individual.sh. Runs each of 50 Boost suites with `--run_test=SUITE`. Default excludes: Alert_tests, equihash_tests, miner_tests, main_tests, Checkpoints_tests. Per-suite isolation. ~3 min (excl. 5); rpc_wallet_tests ~10 min.
+**run-boost-individual.sh** (variant of test_bitcoin): contrib/run-boost-individual.sh. Runs each of 50 Boost suites with `--run_test=SUITE`. Default excludes: Alert_tests, equihash_tests, miner_tests, Checkpoints_tests. main_tests included. Per-suite isolation. ~3 min (excl. 4); rpc_wallet_tests ~10 min.
 
 **Six excluded environments** (not in run-tests):
 
@@ -164,7 +164,7 @@ Outcomes below verified Feb 2026.
 
 **no-dot-so** (full_test_suite stage): Ensures `depends/x86_64-*/lib` has no `.so` files (static libs only for deterministic build). FAIL if any `.so`; exit 2 if arch dir missing.
 
-**equihash_tests, miner_tests, main_tests standalone**: Still fail. Root causes: Zero uses Equihash (192,7), tests use (96,5); miner invalid-solution; main block_subsidy 10 vs 12.5. Running standalone does not fix mismatches.
+**equihash_tests, miner_tests standalone**: Skip when `nEquihashN!=96`; suite exits 0. **main_tests**: Passes; Zero-specific paths (TestBlockSubsidyHalvingsZero, TestSubsidyLimitZero) run when `!UsesReferenceSubsidyModel`. main_tests included in run-tests pass-only.
 
 ### 2.8 Numbered test list and runner contents
 
@@ -174,7 +174,7 @@ Outcomes below verified Feb 2026.
 2. secp256k1 — 2a tests, 2b exhaustive_tests
 3. univalue — 3a unitester, 3b no_nul
 4. zero-gtest (206 tests, 32 cases)
-5. test_bitcoin (50 suites, 260 cases) — 5a Alert_tests, 5b equihash_tests, 5c miner_tests, 5d main_tests, 5e–5z others
+5. test_bitcoin (50 suites, 260 cases) — 5a Alert_tests, 5b equihash_tests, 5c miner_tests (excl); 5d main_tests (incl); 5e–5z others
 6. Python RPC — 6a blockchain, 6b disablewallet, 6c httpbasics, … (16 pass-only; ~100 -extended)
 7. sec-hard (check-security + checksec RPATH/FORTIFY)
 8. no-dot-so
@@ -183,7 +183,7 @@ Outcomes below verified Feb 2026.
 
 | Runner | Contents |
 |--------|----------|
-| run-tests.sh (default) | 1, 2, 3, 4 (filtered), 5 (excl 5a,5b,5c,5d), 6a–6p |
+| run-tests.sh (default) | 1, 2, 3, 4 (filtered), 5 (excl 5a,5b,5c), 6a–6p |
 | run-tests.sh --fail | 1, 2, 3, 4 (filtered), 5 (all), 6 (all) |
 | run-tests.sh --all | 1, 2, 3, 4 (no filter), 5 (all), 6 (all); includes hang/crash |
 | run-tests.sh --full-suite, --full | full_test_suite.py: 1, 2, 3, 4 (no filter), 5 (all), 6 (all), 7, 8; exit 1 on failure |
@@ -645,7 +645,7 @@ This bypasses `BuildWitnessCache` entirely. Used in three tests currently; could
 
 | Suite | Tests | Behavior |
 |-------|-------|----------|
-| Boost | Alert_tests, equihash_tests, miner_tests, main_tests | Fail but complete |
+| Boost | Alert_tests, equihash_tests, miner_tests | Fail but complete; main_tests included, passes |
 | Python | Many (wallet.py, txn_doublespend, etc.) | Fail but complete |
 
 **Automation**:
@@ -676,7 +676,7 @@ make -j$(sysctl -n hw.ncpu)
 ./src/zero-gtest --gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkeyDirectToDb:WalletTests.CachedWitnesses*'
 
 # Boost: exclude known failures
-./src/test/test_bitcoin --run_test='!Alert_tests:!equihash_tests:!miner_tests:!main_tests'
+./src/test/test_bitcoin --run_test='!Alert_tests:!equihash_tests:!miner_tests'
 
 # Python RPC: verified pass/skip only (16 tests)
 for t in blockchain disablewallet httpbasics reindex decodescript keypool paymentdisclosure prioritisetransaction wallet_treestate wallet_anchorfork getchaintips rewind_index wallet_overwintertx wallet_changeaddresses shorter_block_times p2p_nu_peer_management; do
@@ -702,7 +702,7 @@ timeout 3600 ./qa/pull-tester/rpc-tests.sh -extended
 | Command | Scope |
 |---------|-------|
 | `./src/test/test_bitcoin` | All tests |
-| `./src/test/test_bitcoin --run_test='!Alert_tests:!equihash_tests:!miner_tests:!main_tests'` | Pass-only suites |
+| `./src/test/test_bitcoin --run_test='!Alert_tests:!equihash_tests:!miner_tests'` | Pass-only suites |
 | `./src/test/test_bitcoin -t <suite>` | Single suite |
 | `./src/test/test_bitcoin --list_content` | List all suites and cases |
 | `./contrib/run-boost-individual.sh` | Run each suite individually; reports pass/fail per suite |
@@ -891,3 +891,177 @@ Options: `--nocleanup`, `--noshutdown`, `--srcdir=SRCDIR`, `--tmpdir=TMPDIR`, `-
 - `zero-cli -regtest getblockchaininfo` — RPC against regtest
 
 **No zerod-specific test harness** beyond `make check` (test_bitcoin + zero-gtest) and qa/rpc-tests. The RPC tests are the primary integration tests.
+
+## 9. main_tests, Coverage Comparison, Zcash Integration Tests, RPC Comparison
+
+### 9.1 main_tests — Fix Status
+
+**All three main_tests already pass for Zero** when run in isolation. No further fixes needed.
+
+| Test | Zero behavior |
+|------|---------------|
+| block_subsidy_test | If `UsesReferenceSubsidyModel` → runs reference halving tests; else → runs `TestBlockSubsidyHalvingsZero` (10/10.8 ZER, 800k halving) |
+| subsidy_limit_test | If `!UsesReferenceSubsidyModel` → runs `TestSubsidyLimitZero` (MoneyRange over full supply); else → reference path |
+| test_combiner_all | Generic `boost::signals2::CombinerAll`; no chain params |
+
+**main_tests is now included in run-tests pass-only** (removed from BOOST_EXCLUDE). All three tests pass.
+
+### 9.2 rpc_wallet_tests vs Python RPC Coverage
+
+| Aspect | rpc_wallet_tests (Boost) | Python RPC (qa/rpc-tests) |
+|--------|--------------------------|---------------------------|
+| **Count** | 23 test cases | ~70 main + ~15 extended scripts |
+| **Scope** | Single process, in-memory wallet, `CallRPC()` | Multi-node, spawns zerod, uses zero-cli |
+| **Focus** | Parameter validation, error handling, z_* RPCs | End-to-end flows, chain building, cross-node |
+| **RPCs exercised** | addmultisig, getbalance, z_validateaddress, z_exportwallet, z_importwallet, z_importexport, z_getoperations, z_sendmany (params/internals), z_shieldcoinbase, z_mergetoaddress, z_listunspent, encrypted wallet | generate, getblockcount, listunspent, z_getnewaddress, z_sendmany, z_shieldcoinbase, z_gettotalbalance, getrawtransaction, sendtoaddress, createrawtransaction, etc. |
+| **Overlap** | z_* parameter checks, wallet basics | z_sendmany, z_shieldcoinbase, mergetoaddress, wallet persistence |
+| **Gap** | No multi-node, no chain mining | Less parameter-boundary testing |
+
+**Summary**: rpc_wallet_tests stress parameter validation and error paths; Python RPC stresses integration and multi-node flows. They complement each other.
+
+### 9.3 Zcash Integration Tests
+
+**Repository**: [zcash/integration-tests](https://github.com/zcash/integration-tests) (separate repo).
+
+**Purpose**: Integration tests for the Zcash ecosystem (zebrad, zainod, zallet) using regtest and JSON-RPC.
+
+**Contents**:
+- Python functional tests for zebrad, zainod, zallet
+- Framework and some tests inherited from Bitcoin Core
+- Originally part of zcashd; moved to a standalone repo
+- Run: `./qa/zcash/full_test_suite.py` (after building binaries into `./src/`)
+
+**Zero**: Uses in-tree qa/rpc-tests (legacy layout). Integration-tests targets zebrad/zainod/zallet, not zcashd/Zero.
+
+### 9.4 RPC Comparison — All Projects
+
+**Source**: RPCs extracted from `~/Work/ZK/bitcoin-src`, `zcash`, `pirate`, `ZeroMac`. See `RPCs.csv`.
+
+**Columns**: `rpc`, `type`, `bitcoin`, `zcash`, `pirate`, `zero` (y = present, n = absent).
+
+### 9.5 RPCs in Zcash or Pirate That Zero Misses
+
+**From Zcash (relevant for Zero as Zcash fork)**:
+
+| RPC | Type | Purpose |
+|-----|------|---------|
+| z_gettreestate | blockchain | Sapling/Orchard tree state at block |
+| z_getsubtreesbyindex | blockchain | Lightwalletd subtrees (Orchard) |
+| getmemoryinfo | control | Memory usage |
+| getexperimentalfeatures | control | Experimental feature flags |
+| setlogfilter | control | Runtime log filter |
+| importpubkey | wallet | Import watch-only pubkey |
+| listaddresses | wallet | All addresses (incl. Unified); Zcash deprecates z_listaddresses in favor |
+| walletconfirmbackup | wallet | Confirm seed phrase backup |
+| z_converttex | wallet | Convert taddr to Unified Address |
+| z_getnewaccount | wallet | Unified Address accounts |
+| z_getaddressforaccount | wallet | UA address for account |
+| z_listaccounts | wallet | UA accounts |
+| z_listunifiedreceivers | wallet | UA receivers |
+| z_getbalanceforviewingkey | wallet | Balance by viewing key |
+| z_getbalanceforaccount | wallet | Balance by UA account |
+| z_getnotescount | wallet | Note count |
+
+**From Pirate (Komodo ecosystem; mostly not applicable to Zero)**:
+
+| RPC | Type | Purpose |
+|-----|------|---------|
+| getpeerlist | network | Peer list (vs getpeerinfo) |
+| coinsupply | blockchain | Supply |
+| getlastsegidstakes | blockchain | Komodo staking |
+| notaries, minerids | blockchain | Komodo notaries |
+| kvsearch, kvupdate | blockchain | Komodo KV |
+| crosschain/* | crosschain | MoM, assetchain, importgateway, etc. |
+| z_getnewaddresskey | wallet | Pirate key model |
+| z_setprimaryspendingkey | wallet | Pirate |
+| z_exportseedphrase | wallet | Seed export |
+| z_sendmany_prepare_offline | wallet | Offline signing |
+| z_sign_offline | wallet | Offline signing |
+| rescan | wallet | Rescan |
+| consolidationstatus | wallet | Consolidation |
+| convertpassphrase | wallet | Passphrase conversion |
+| auction, lotto, rewards, faucet, heir, channels, oracles, payments, gateways, dice, tokens | various | Pirate app chains |
+
+**Zero-specific RPCs** (not in Zcash/Pirate): zeronode (18), zs_* (5), getalldata, getsupply, getsaplingwitness*, estimatefee, estimatepriority.
+
+## 10. RPC Tests — Coverage by Test Type
+
+### 10.1 Zero RPC Count and Groups
+
+**Total Zero RPCs**: ~120 (from RPCs.csv where zero=y).
+
+| Group | Count | Examples |
+|-------|-------|----------|
+| control | 2 | help, stop |
+| blockchain | 19 | getblockchaininfo, getblock, getblockdeltas, getblockhashes |
+| network | 12 | getpeerinfo, setban, listbanned, clearbanned |
+| util | 6 | validateaddress, z_validateaddress, estimatefee, estimatepriority |
+| addressindex | 5 | getaddressmempool, getaddressutxos, getaddressdeltas, getaddressbalance, getaddresstxids |
+| rawtransactions | 8 | getrawtransaction, createrawtransaction, decoderawtransaction, signrawtransaction, sendrawtransaction, fundrawtransaction |
+| mining/generating | 11 | generate, getblocksubsidy, getnetworksolps, getlocalsolps |
+| spork | 1 | spork |
+| zeronode | 18 | getzeronodecount, listzeronodes, startzeronode, … |
+| wallet | 45+ | getbalance, z_sendmany, z_shieldcoinbase, z_mergetoaddress, z_getnewaddress, … |
+| zero_exclusive | 7 | zs_listtransactions, zs_gettransaction, getalldata, getsupply, … |
+| zero_experimental | 3 | getsaplingwitness, getsaplingwitnessatheight, getsaplingblocks |
+| disclosure | 2 | z_getpaymentdisclosure, z_validatepaymentdisclosure |
+
+### 10.2 Coverage by Test Type
+
+| Test type | RPCs exercised | Focus |
+|-----------|-----------------|-------|
+| **rpc_tests** (Boost) | getrawtransaction, createrawtransaction, decoderawtransaction, decodescript, signrawtransaction, sendrawtransaction, clearbanned, setban, listbanned, getnetworksolps, getaddressmempool, getaddressutxos, getaddressdeltas, getaddressbalance, getaddresstxids, getblockdeltas, getblockhashes | Raw tx, ban, addressindex, mining |
+| **rpc_wallet_tests** (Boost) | setaccount, getbalance, listunspent, listreceivedbyaddress, listreceivedbyaccount, listsinceblock, listtransactions, listlockunspent, listaccounts, listaddressgroupings, getrawchangeaddress, getnewaddress, getaccountaddress, getaccount, signmessage, verifymessage, getaddressesbyaccount, fundrawtransaction, getblocksubsidy, getblock, z_setmigration, z_getbalance, z_gettotalbalance, z_listreceivedbyaddress, z_validateaddress, z_importkey, z_exportwallet, z_importwallet, z_exportkey, z_listaddresses, z_getnewaddress, z_getoperationstatus, z_getoperationresult, z_listoperationids, z_sendmany, getblockcount, encryptwallet, z_listunspent, z_mergetoaddress, z_shieldcoinbase | Wallet, z_* params, error paths |
+| **Python RPC** (qa/rpc-tests) | generate, getblockcount, getpeerinfo, listunspent, z_getnewaddress, z_sendmany, getrawtransaction, z_gettotalbalance, getwalletinfo, z_shieldcoinbase, getnewaddress, getblockchaininfo, sendtoaddress, createrawtransaction, getbalance, z_getbalance, zcrawkeygen, zcrawreceive, zcrawjoinsplit, signrawtransaction, sendrawtransaction, getbestblockhash, getchaintips, … | End-to-end, multi-node |
+
+### 10.3 Zero-Critical RPCs — Prioritization
+
+| Priority | RPCs | Test coverage |
+|----------|------|----------------|
+| **P1** (core shielded) | z_sendmany, z_shieldcoinbase, z_getnewaddress, z_getbalance, z_gettotalbalance, z_listaddresses, z_listunspent, z_mergetoaddress | rpc_wallet_tests, Python RPC |
+| **P2** (zeronode) | getzeronodecount, listzeronodes, startzeronode, getzeronodestatus, … (18 total) | None (no dedicated tests) |
+| **P3** (zero_exclusive) | zs_listtransactions, zs_gettransaction, getalldata, getsupply | None |
+| **P4** (shared wallet/blockchain) | getblock, getblockcount, generate, getbalance, listunspent, createrawtransaction | rpc_tests, rpc_wallet_tests, Python RPC |
+
+### 10.4 Gaps
+
+- **zeronode RPCs**: No test coverage in rpc_tests, rpc_wallet_tests, or Python RPC.
+- **zero_exclusive (zs_*, getalldata, getsupply)**: No coverage.
+- **zero_experimental (getsaplingwitness*)**: No coverage.
+- **decodescript**: rpc_tests (Boost) only; not in rpc_wallet_tests or Python RPC scripts.
+
+## 11. Suite Segregation — Actual Tests vs Orchestration
+
+### 11.1 Actual Test Suites (execute tests)
+
+| # | Suite | Type | Invocation |
+|---|-------|------|------------|
+| 1 | bitcoin-util-test | Python 3 | `cd src && srcdir=$(pwd) PYTHONPATH=$(pwd)/test python3 test/bitcoin-util-test.py` |
+| 2 | secp256k1 | C (autotools) | `make -C src/secp256k1 check` |
+| 3 | univalue | C++ (autotools) | `make -C src/univalue check` |
+| 4 | zero-gtest | C++ (GTest) | `./src/zero-gtest [--gtest_filter=...]` |
+| 5 | test_bitcoin | C++ (Boost) | `./src/test/test_bitcoin [--run_test=...]` |
+| 6 | Python RPC | Python 2 | `qa/pull-tester/rpc-tests.sh [script\|-extended]` |
+| 7 | check-security | Build | `make -C src check-security` |
+| 8 | checksec (RPATH/FORTIFY) | Build | `qa/zcash/checksec.sh` (ELF only) |
+| 9 | no-dot-so | Build | full_test_suite stage |
+
+### 11.2 Orchestration (run or coordinate other suites)
+
+| Script | Role | Invokes |
+|--------|------|---------|
+| run-tests.sh | Default runner | 1, 2, 3, 4 (filtered), 5 (excl Alert/equihash/miner), 6 (pass-only scripts) |
+| run-boost-individual.sh | Per-suite Boost | 5 (one suite at a time) |
+| full_test_suite.py | Full harness | 1–9; adds sec-hard, no-dot-so |
+| qa/pull-tester/rpc-tests.sh | Python RPC runner | 6 (testScripts or testScriptsExt) |
+| make -C src check | Recursive | 1, 2, 3, 5 (all) |
+
+### 11.3 Counts Summary (verified Feb 2026)
+
+| Suite | Tests/Cases | Pass | Excluded/Fail |
+|-------|-------------|------|---------------|
+| zero-gtest | 206 | 201 | 5 (CachedWitnesses*, WriteCryptedSaplingZkey*) |
+| test_bitcoin (pass-only) | 46 suites, ~240 cases | all | 4 suites excl (Alert, equihash, miner) |
+| test_bitcoin (full) | 50 suites, 260 cases | ~15 | ~277 (cascade) |
+| Python RPC (pass-only) | 16 scripts | 13+ | 3 skip |
+| Python RPC (-extended) | ~100 scripts | varies | Many fail |

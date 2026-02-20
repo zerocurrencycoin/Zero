@@ -20,7 +20,7 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
 
-BOOST_EXCLUDE='!Alert_tests:!equihash_tests:!miner_tests:!main_tests'
+BOOST_EXCLUDE='!Alert_tests:!equihash_tests:!miner_tests'
 
 PYTHON_PASSING=(
     blockchain disablewallet httpbasics reindex decodescript keypool
@@ -125,7 +125,7 @@ if [ "$QUICK" -eq 0 ]; then
             echo "--- Boost (all) ---"
             BTEST_PID=$(run_bg "test_bitcoin" ./src/test/test_bitcoin --log_level=test_suite 2>&1)
         else
-            echo "--- Boost (pass-only: exclude Alert, equihash, miner, main) ---"
+            echo "--- Boost (pass-only: exclude Alert, equihash, miner) ---"
             BTEST_PID=$(run_bg "test_bitcoin" ./src/test/test_bitcoin --run_test="$BOOST_EXCLUDE" --log_level=test_suite 2>&1)
         fi
     fi
