@@ -38,8 +38,10 @@ by Horizen with minimal additional risk. Both require C++14 minimum.
 
 ## 2. Current Results
 
-Tested on macOS ARM64 (`arm-mac-build` branch). All test failures observed
-so far reproduce pre-existing fork-level issues; none are ARM Mac-specific.
+**Platforms tested**:
+- **macOS ARM64** (`arm-mac-build` branch): Primary validation. All test failures reproduce pre-existing fork-level issues; none are ARM Mac-specific.
+- **Ubuntu 24.04 x86_64**: Linux build with depends. See §7.0 for build recipe.
+
 Outcomes below verified Feb 2026.
 
 ### 2.1 Google Test Summary
@@ -61,7 +63,7 @@ Outcomes below verified Feb 2026.
 | Result | Count | Details |
 |--------|-------|---------|
 | Passed | ~15 | Early tests + rpc_insightexplorer, rpc_z_mergetoaddress_parameters (after zcash-cli→zero-cli fix) |
-| Failed | 277 | alert_tests (MagicBean, PartitionAlert), equihash (96,5 vectors), miner_tests (invalid-solution), pow_tests (target spacing 120 vs 150), main_tests (block_subsidy, subsidy_limit), rpc_wallet_tests (founders %, z_getnewaddress) |
+| Failed | 277 | When run full suite (cascade). Individually on Ubuntu 24: main_tests, equihash_tests, miner_tests pass. Fail: alert_tests (MagicBean, PartitionAlert), pow_tests (target spacing 120 vs 150), rpc_wallet_tests (founders %, z_getnewaddress), rpc_tests (rpc_parse_monetary_values). |
 
 **Run**: `./src/test/test_bitcoin`
 
@@ -108,8 +110,8 @@ Outcomes below verified Feb 2026.
 |---|-------------|----------|------------|--------------|----------------|
 | 1 | **full_test_suite** | qa/zcash/full_test_suite.py | `python2 qa/zcash/full_test_suite.py [stage...]` | Overlaps run-tests; adds sec-hard, no-dot-so. | Stages: btest (test_bitcoin -p), gtest (zero-gtest), sec-hard (check_security_hardening), no-dot-so (ensure_no_dot_so_in_depends), util-test, secp256k1, univalue, rpc. sec-hard: make check-security + checksec RPATH/FORTIFY on zerod, zero-cli, zero-gtest, zero-tx, test_bitcoin. ELF-only: if zerod not ELF (macOS), skips RPATH/FORTIFY. no-dot-so: checks depends/x86_64-*/lib for .so; fails if found; exit 2 if arch dir missing. Python 2. |
 | 2 | **make check** | src/ | `make -C src check` | Recursion: `make -C src secp256k1 check` triggers check-recursive, runs full test_bitcoin. | Autotools recursive check. TESTS in src/Makefile.am include test_bitcoin. Subdirs secp256k1, univalue have own check. Top-level `make check` recurses; `make -C src secp256k1 check` from parent can invoke check-am which runs all TESTS. Run-tests avoids by calling `make -C src/secp256k1 check` (direct subdir). |
-| 3 | **check-symbols, check-security** | contrib/devtools/ | `make -C src check-symbols`, `make -C src check-security` | Build-time; not test execution. | symbol-check.py: ELF symbol versions (GCC 4.4.0, GLIBC 2.11, GLIBCXX 3.4.13, CXXABI 1.3.3); readelf. security-check.py: ELF PIE, NX, RELRO; readelf/objdump. Both use shebang `#!/usr/bin/env python`; require `python` in PATH. full_test_suite invokes check-security with PATH set. See §4.10, §4.11. |
-| 4 | **checksec** | qa/zcash/checksec.sh | full_test_suite only | ELF-only; run-tests cross-platform. | checksec.sh v1.5 (Tobias Klein). --file: RPATH/RUNPATH. --fortify-file: FORTIFY_SOURCE. full_test_suite calls for zerod, zero-cli, zero-gtest, zero-tx, test_bitcoin. Skips on macOS (not ELF). See §4.10 (FORTIFY unchecked calls), §4.11 (check-symbols). |
+| 3 | **check-symbols, check-security** | contrib/devtools/ | `make -C src check-symbols`, `make -C src check-security` | Build-time; not test execution. | symbol-check.py: ELF symbol versions (GCC 4.4.0, GLIBC 2.11, GLIBCXX 3.4.13, CXXABI 1.3.3); readelf. security-check.py: ELF PIE, NX, RELRO; readelf/objdump. Both use shebang `#!/usr/bin/env python`; require `python` in PATH. full_test_suite invokes check-security with PATH set. See §4.11, §4.12. |
+| 4 | **checksec** | qa/zcash/checksec.sh | full_test_suite only | ELF-only; run-tests cross-platform. | checksec.sh v1.5 (Tobias Klein). --file: RPATH/RUNPATH. --fortify-file: FORTIFY_SOURCE. full_test_suite calls for zerod, zero-cli, zero-gtest, zero-tx, test_bitcoin. Skips on macOS (not ELF). See §4.11 (FORTIFY unchecked calls), §4.12 (check-symbols). |
 | 5 | **Coverage** | Makefile | `make cov` / `make cov-zcash` | Separate lcov workflow; run-tests does not instrument. | cov: test_bitcoin.coverage + zero-gtest.coverage + total.coverage. Requires CFLAGS --coverage, lcov, genhtml. test_bitcoin.info from bitcoin_test_check; zero-gtest.info from zero-gtest_check. GENHTML produces HTML in *.coverage/. |
 | 6 | **leveldb, libsnark** | src/leveldb, src/snark | (no top-level target) | Internal; not wired to make check. | leveldb: testharness.h/cc, testutil.h/cc; 20+ tests (db/db_test.cc, util/*_test.cc, etc.). libsnark: test_bigint.cpp in algebra/fields/tests/. Zero may not build/run these. |
 
@@ -282,9 +284,48 @@ Null guards and `pblockIn` parameter in `wallet.cpp`/`wallet.h`. Also
 | Sapling | 0x7361707a | 0x76B809BB | 7361707a | 76b809bb |
 | Blossom | 0x2bb40e60 | 0x2BB40E60 | 2bb40e60 | 2bb40e60 |
 
-**Python tests with wrong IDs**: `wallet_changeaddresses.py` (5ba81b19, 76b809bb), `shorter_block_times.py`, `rewind_index.py`, `p2p_nu_peer_management.py`, `wallet_overwintertx.py` (asserts chaintip 76b809bb). `mininode.py` has `OVERWINTER_BRANCH_ID = 0x5BA81B19`, `SAPLING_BRANCH_ID = 0x76B809BB` — used for Equihash person strings in block validation.
+**Python nuparams status** (partial fix; rationale below):
 
-### 4.4 Python Tests: Why So Long, How to Run All
+| Location | Status | IDs used |
+|----------|--------|---------|
+| util.py, wallet_changeaddresses, shorter_block_times, rewind_index, p2p_nu_peer_management, wallet_overwintertx | Fixed | 6f76727a, 7361707a (Zero Overwinter/Sapling) |
+| mininode.py | Not fixed | 0x5BA81B19, 0x76B809BB (Zcash) |
+| signrawtransaction_offline, mempool_nu_activation | N/A | 2bb40e60 (Blossom; same for Zero) |
+
+**Choice: mininode.py left as Zcash IDs.** `OVERWINTER_BRANCH_ID` and `SAPLING_BRANCH_ID` feed Equihash person strings in block construction. Tests that use mininode to *create* blocks (e.g. p2p-acceptblock, invalidblockrequest) would produce blocks with Zcash headers, which Zero rejects. Tests that only *connect* mininodes to zerod (e.g. p2p_nu_peer_management) get blocks from zerod, so mininode branch IDs do not affect block validity there. **Rationale for not fixing**: (1) Few tests create blocks via mininode; most verified-pass tests use zerod as block source. (2) Python 3 migration (§5.5) will touch mininode for hashlib.blake2b; branch IDs can be updated then. (3) Changing mininode requires validating all P2P tests; higher risk for limited gain.
+
+### 4.4 rpc_wallet_tests Timing Breakdown
+
+From `test_bitcoin -t rpc_wallet_tests --log_level=test_suite` (Ubuntu 24, Feb 2026):
+
+| Test | Time (s) | % |
+|------|----------|---|
+| rpc_addmultisig | 1.17 | 2 |
+| rpc_wallet | 1.27 | 2 |
+| rpc_wallet_getbalance | 1.11 | 2 |
+| rpc_wallet_z_validateaddress | 1.13 | 2 |
+| rpc_wallet_z_exportwallet | 1.14 | 2 |
+| rpc_wallet_z_importwallet | 1.16 | 2 |
+| rpc_wallet_z_importexport | 1.70 | 3 |
+| **rpc_wallet_async_operations** | **5.63** | **11** |
+| **rpc_wallet_async_operations_parallel_wait** | **4.16** | **8** |
+| rpc_wallet_async_operations_parallel_cancel | 2.17 | 4 |
+| rpc_z_getoperations | 2.11 | 4 |
+| rpc_z_sendmany_parameters | 1.21 | 2 |
+| asyncrpcoperation_sign_send_raw_transaction | 1.11 | 2 |
+| rpc_z_sendmany_internals | 1.23 | 2 |
+| rpc_z_sendmany_taddr_to_sapling | 1.72 | 3 |
+| rpc_wallet_encrypted_wallet_zkeys | 1.73 | 3 |
+| rpc_wallet_encrypted_wallet_sapzkeys | ~1.7 | ~3 |
+| rpc_z_listunspent_parameters | ~1.25 | ~2 |
+| rpc_z_shieldcoinbase_parameters | ~1.28 | ~2 |
+| rpc_z_shieldcoinbase_internals | ~1.32 | ~3 |
+| rpc_z_mergetoaddress_parameters | ~1.19 | ~2 |
+| rpc_z_mergetoaddress_internals | ~1.32 | ~3 |
+
+**Total**: ~52 s. Top 3: rpc_wallet_async_operations (5.6s), rpc_wallet_async_operations_parallel_wait (4.2s), rpc_wallet_async_operations_parallel_cancel (2.2s) — ~24% of suite.
+
+### 4.5 Python Tests: Why So Long, How to Run All
 
 **Why long**: Each test (1) starts zerod, (2) mines 200 blocks or uses cached chain, (3) runs RPCs. ~70 tests × 30–120s each = 35 min–2+ hours. No parallelization; tests run sequentially. Failing tests still consume startup/mining time before failing.
 
@@ -301,7 +342,7 @@ timeout 60 "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${testScripts[$i]}" ...
 
 **Faster iteration**: Run tests that don't need pyblake2 first (blockchain, disablewallet, httpbasics, keypool, reindex).
 
-### 4.5 Alert Testing Structure
+### 4.6 Alert Testing Structure
 
 **Location**: `src/test/alert_tests.cpp`
 
@@ -319,7 +360,7 @@ timeout 60 "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${testScripts[$i]}" ...
 - `AlertDisablesRPC`: expects `strRPCError == "RPC disabled"` — may fail if alert processing disabled
 - `PartitionAlertTestImpl`: expects `expectedSlow`/`expectedFast` based on `PoWTargetSpacing`; Zero uses 120s (pre-Blossom) vs Zcash 150s → wrong expected block counts
 
-### 4.6 Expected vs Actual Mismatches (Catalog)
+### 4.7 Expected vs Actual Mismatches (Catalog)
 
 | Test/Suite | Expected | Actual | Cause |
 |------------|----------|--------|-------|
@@ -328,11 +369,11 @@ timeout 60 "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${testScripts[$i]}" ...
 | pow_tests | PoWTargetSpacing 150 | 120 | Zero pre-Blossom spacing |
 | equihash_tests | (96,5) vectors | solver mismatch | Zero uses (192,7) |
 | alert_tests | AppliesTo subver | mismatch | MagicBean vs Ambrym |
-| main_tests block_subsidy | 12.5 COIN | 10 COIN | Zero subsidy |
-| wallet_changeaddresses | nuparams 5ba81b19 | Invalid | Zero uses 6f76727a |
+| main_tests block_subsidy | 12.5 COIN | 10 COIN | Zero subsidy; UsesReferenceSubsidyModel skips reference path; TestSubsidyLimitZero runs. Suite passes when run individually. |
+| wallet_changeaddresses | nuparams 5ba81b19 | Invalid | Zero uses 6f76727a. **Fixed** in script; skip for get_coinbase_address impl gap. |
 | rpc_tests rpc_parse_monetary_values | BOOST_CHECK_THROW(..., UniValue) | "unknown type" | Fails when run full or isolated; at first BOOST_CHECK_THROW. AmountFromValue throws JSONRPCError (UniValue); Boost.Test may not match exception type |
 
-### 4.9 Debug/Improve test_bitcoin (Proposals)
+### 4.10 Debug/Improve test_bitcoin (Proposals)
 
 | Issue | Debug method | Proposed fix |
 |-------|--------------|--------------|
@@ -342,7 +383,7 @@ timeout 60 "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${testScripts[$i]}" ...
 | **Cascade isolation** | Run suites in isolation: `./src/test/test_bitcoin -t rpc_tests` | Run `-t rpc_tests`, `-t rpc_wallet_tests` separately to verify which suites pass when run alone |
 | **Capture output** | `./src/test/test_bitcoin --log_level=test_suite 2>&1 \| tee test-logs/test_bitcoin.log` | Use `contrib/run-tests.sh` or manual tee for reproducible logs |
 
-### 4.10 FORTIFY_SOURCE and Unchecked Calls
+### 4.11 FORTIFY_SOURCE and Unchecked Calls
 
 **What checksec --fortify-file reports**: The binary is compiled with `_FORTIFY_SOURCE=2` (HARDENED_CPPFLAGS). Some libc calls (e.g. `read`, `recv`) appear as "unchecked" — the executable references the unchecked symbol (e.g. `read`) instead of the fortified variant (`__read_chk`).
 
@@ -352,7 +393,7 @@ timeout 60 "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${testScripts[$i]}" ...
 
 **Typical counts** (Feb 2026): zerod 4 unchecked (recv×2, read×2); zero-cli, zero-tx 2 each (read×2).
 
-### 4.11 check-symbols and symbol versions
+### 4.12 check-symbols and symbol versions
 
 **Purpose**: `symbol-check.py` verifies ELF binaries (1) use only allowed symbol versions (glibc, libstdc++), (2) do not export symbols beyond IGNORE_EXPORTS.
 
@@ -364,7 +405,7 @@ timeout 60 "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${testScripts[$i]}" ...
 
 **Manual run**: `python contrib/devtools/symbol-check.py src/zerod src/zero-cli src/zero-tx`
 
-### 4.7 test_bitcoin: Run Individually or in Groups
+### 4.8 test_bitcoin: Run Individually or in Groups
 
 **By suite** (Boost.Test):
 ```bash
@@ -381,7 +422,7 @@ List suites: `./src/test/test_bitcoin --list_content`
 
 **Coverage**: 260 test cases across ~50+ BOOST_AUTO_TEST_CASE names. Early failures (alert, equihash) cascade via shared state; running later suites in isolation may show different results.
 
-### 4.8 zero-gtest Hang and Fail
+### 4.9 zero-gtest Hang and Fail
 
 See §6.2.
 
@@ -407,9 +448,9 @@ Low-effort items; mandatory before Boost. See UpdateFeatures.md §1 for Witness 
 |------|-------|--------|------------|
 | **z_getnewaddress params** | Boost rpc_wallet, Python RPC | Done | Extra-args check applied; accepts sprout/sapling |
 | **pyblake2** | Python RPC (~40 tests) | Low | `pip install pyblake2` unblocks many tests |
-| **nuparams in Python tests** | wallet_changeaddresses, shorter_block_times, etc. | Low | Replace 5ba81b19/76b809bb with 6f76727a/7361707a |
+| **nuparams in Python tests** | zerod args: done; mininode: postponed | Partial | See §4.3. Zerod startup args fixed in 6 scripts; mininode.py branch IDs left as Zcash (rationale in §4.3). |
 | **rpc_wallet founders %** | Boost rpc_wallet | Low | Update expected 9.99/0.81 for Zero 7.5% |
-| **block_subsidy / subsidy_limit skip** | main_tests | Low | Add Zero-specific skip or Zero-specific assertions |
+| **block_subsidy / subsidy_limit** | main_tests | Done | UsesReferenceSubsidyModel + TestSubsidyLimitZero; suite passes individually |
 
 ### 5.3 Later
 
@@ -428,9 +469,25 @@ Low-effort items; mandatory before Boost. See UpdateFeatures.md §1 for Witness 
 |------|-------|------------|
 | **Alert_tests** (MagicBean, AppliesTo, PartitionAlert) | alert_tests | See §6.4 |
 | **WriteCryptedSaplingZkeyDirectToDb** | zero-gtest | See §6.2 |
-| **block_subsidy_test / subsidy_limit_test** | main_tests | See §6.3 |
+| **block_subsidy_test / subsidy_limit_test** | main_tests | Pass individually; may cascade when run full. See §6.3. |
 
-### 5.5 Coverage Picture: Tests × Feature × Risk
+### 5.5 Python Version Work Items (Postponed)
+
+All items below deferred. Current approach: Python 2.7 (pyenv 2.7.18 or `python2`) + `pip install pyblake2`.
+
+| # | Item | Location | Effort | Notes |
+|---|------|----------|--------|-------|
+| 1 | **RPC tests: Python 2.7 → 3.6+** | qa/rpc-tests/, test_framework/ | High | ~100 scripts; test_framework (mininode, util, blocktools); requires Python 3 syntax pass. |
+| 2 | **pyblake2 → hashlib.blake2b** | qa/rpc-tests/test_framework/mininode.py | Low | When migrating to Python 3: replace `pyblake2.blake2b` with `hashlib.blake2b` (built-in 3.6+). Used for Equihash person strings. |
+| 3 | **symbol-check.py, security-check.py shebang** | contrib/devtools/ | Low | Change `#!/usr/bin/env python` → `python3`; add bytes/str handling for Python 3. |
+| 4 | **full_test_suite Python 2 syntax** | qa/zcash/full_test_suite.py | Low | `print` without parens, `ensure_no_dot_so_in_depends`; convert for Python 3. |
+| 5 | **tests-config.sh Python detection** | qa/pull-tester/tests-config.sh | Low | Update to prefer python3 when RPC tests migrate. |
+| 6 | **rpc-tests.sh PYTHON default** | qa/pull-tester/rpc-tests.sh | Low | Currently uses tests-config.sh; no change until migration. |
+| 7 | **run-tests find_python2** | contrib/run-tests.sh | Low | Replace with find_python3 when RPC tests migrate. |
+
+**Migration path** (when undertaken): (1) Update mininode.py to use hashlib.blake2b; (2) Add `from __future__ import print_function` or convert prints; (3) Fix bytes/str in test framework; (4) Run 2to3 or manual pass on scripts; (5) Update tests-config.sh and run-tests.sh; (6) Update devtools shebangs.
+
+### 5.6 Coverage Picture: Tests × Feature × Risk
 
 | Layer | Suites | Feature Area | Risk if Broken | Status |
 |-------|--------|--------------|-----------------|--------|
@@ -447,13 +504,21 @@ Low-effort items; mandatory before Boost. See UpdateFeatures.md §1 for Witness 
 
 **Minimum viable coverage** (fix-now items): GTest 200 pass + rpc_tests + rpc_wallet (after z_getnewaddress/founders) + Python blockchain + 5–10 more Python tests = consensus, shielded, RPC, basic integration covered.
 
+### 5.7 Pending / TODO
+
+| Item | Notes |
+|------|-------|
+| **reduce-exports vs depends** | Documented §7.0.1. config.site forces `enable_reduce_exports=no` when `make -C depends DEBUG=1`. Check via `grep enable_reduce_exports depends/.../share/config.site` or `grep 'reduce exports' config.log`. |
+| **test_bitcoin full run** | Confirm full completion; last observed stop at `rpc_wallet_encrypted_wallet_sapzkeys`. Remaining: rpc_z_listunspent_parameters, rpc_z_shieldcoinbase_*, rpc_z_mergetoaddress_* (5 tests; all pass when run individually). |
+| **Python RPC tests** | Run full pass-only suite; validate 16 scripts. |
+
 ## 6. Open Failures
 
 **Purpose**: Technical reference for each failure. Root cause, fix options, formulas. §5 points here for detail.
 
 ### 6.1 Boost Test Cascade
 
-~249 of 260 Boost test cases fail. Root causes: Alert_tests, equihash (96,5) vectors, miner_tests (invalid-solution), pow_tests (target spacing), rpc_wallet_tests (founders %, z_getnewaddress). See §4.6 for expected/actual catalog.
+~249 of 260 Boost test cases fail when run in full suite order (cascade). **Verified Feb 2026 (Ubuntu 24)**: main_tests, equihash_tests, miner_tests pass when run individually (`-t main_tests` etc.). Root causes when run full: Alert_tests, pow_tests (target spacing 120 vs 150), rpc_wallet_tests (founders %, z_getnewaddress), rpc_tests (rpc_parse_monetary_values). See §4.7 for expected/actual catalog.
 
 ### 6.2 zero-gtest Failures (Witness, BDB)
 
@@ -469,7 +534,7 @@ Low-effort items; mandatory before Boost. See UpdateFeatures.md §1 for Witness 
 
 ### 6.4 PartitionAlert expectedSlow (postponed)
 
-Alert system deprecated; raw data MagicBean-specific. `PartitionCheck` counts blocks in last 4 hours vs `BLOCKS_EXPECTED`. **expectedSlow** = (0.5×3600)/targetSpacing: Zero 120s → 15; Zcash 150s → 12. Set aside. See §4.5.
+Alert system deprecated; raw data MagicBean-specific. `PartitionCheck` counts blocks in last 4 hours vs `BLOCKS_EXPECTED`. **expectedSlow** = (0.5×3600)/targetSpacing: Zero 120s → 15; Zcash 150s → 12. Set aside. See §4.6.
 
 ### 6.5 Excluded tests (Pirate/Zcash comparison)
 
@@ -482,6 +547,47 @@ Alert system deprecated; raw data MagicBean-specific. `PartitionCheck` counts bl
 **Exclusion filter**: `--gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkeyDirectToDb:WalletTests.CachedWitnesses*'`
 
 ## 7. Build Log Review
+
+### 7.0 Build Recipe (Ubuntu 24.04 x86_64)
+
+```bash
+# 1. Build depends (one-time)
+make -C depends
+
+# 2. Configure
+./configure --prefix=$PWD/depends/x86_64-pc-linux-gnu --enable-reduce-exports --enable-hardening
+
+# 3. Build
+make -j$(nproc)
+
+# 4. Build checks (python in PATH)
+PATH="$HOME/.pyenv/versions/2.7.18/bin:$PATH" make -C src check-security
+PATH="$HOME/.pyenv/versions/2.7.18/bin:$PATH" make -C src check-symbols  # symbol versions pass; export check may fail
+```
+
+**Note**: `depends/config.site.in` sets `enable_reduce_exports=no` when `DEBUG=1` is passed to `make -C depends`. Symbol version check (MAX_VERSIONS Ubuntu 24) passes. Export check may fail without `--enable-reduce-exports`. See §7.0.1 for how to verify debug build.
+
+### 7.0.1 How to check debug build (reduce-exports)
+
+**When does config.site force `enable_reduce_exports=no`?** `depends/config.site.in` (lines 55–57) has `if test -n "@debug@"; then enable_reduce_exports=no; fi`. The `@debug@` placeholder is replaced by `$(DEBUG)` when depends generates `config.site` (depends/Makefile line 123). So:
+- `make -C depends` (no DEBUG) → `@debug@` empty → reduce-exports not overridden
+- `make -C depends DEBUG=1` → `@debug@` = "1" → `enable_reduce_exports=no` forced
+
+**How to check**:
+```bash
+# 1. Inspect generated config.site
+grep -A1 'enable_reduce_exports' depends/*/share/config.site
+# If you see "enable_reduce_exports=no", a debug depends build was used.
+
+# 2. Check configure output (run configure, then)
+grep 'reduce exports' config.log
+# "checking whether to reduce exports... yes" = reduce-exports enabled.
+# "checking whether to reduce exports... no" = disabled (debug build or not passed).
+```
+
+**zcutil/build.sh**: Does not pass `DEBUG=1` to depends; uses `make -C depends` only. So config.site does not override reduce-exports when using zcutil/build.sh.
+
+**Manual build**: If you ran `make -C depends DEBUG=1`, regenerate depends without DEBUG before a release build, or pass `--enable-reduce-exports` explicitly and verify it wins (configure processes command-line after config.site; explicit flag should override).
 
 ### 7.1 autogen (zero-config-autogen.log)
 
@@ -629,7 +735,7 @@ Single script. **Default**: pass-only. **--fail**: pass + fail (exclude hang/cra
 |--------|--------|
 | --quick | Skip zero-gtest and test_bitcoin; run only bitcoin-util-test, secp256k1, univalue |
 | --no-python | Skip Python RPC tests (qa/rpc-tests) |
-| --build-checks | Run `make -C src check-security` (ELF PIE, NX, RELRO). Requires `python` in PATH; uses PYTHON or pyenv 2.7.18 if set. See §4.10, §4.11. |
+| --build-checks | Run `make -C src check-security` (ELF PIE, NX, RELRO). Requires `python` in PATH; uses PYTHON or pyenv 2.7.18 if set. See §4.11, §4.12. |
 | --fail | Pass + fail; exclude only hang/crash |
 | --all | Everything including hang/crash (GTest may hang on WriteCryptedSaplingZkeyDirectToDb) |
 
@@ -773,7 +879,7 @@ Options: `--nocleanup`, `--noshutdown`, `--srcdir=SRCDIR`, `--tmpdir=TMPDIR`, `-
 | **Clean-chain amounts** | Balance assertions fail | Zero subsidy differs. | Recompute from Zero schedule. |
 | **pyblake2** | ImportError | `mininode.py` needs pyblake2. | `pip install pyblake2`. **Python 3 postponed**: Document `hashlib.blake2b` (3.6+) as migration path when tests move to Python 3. |
 
-**Python 2.7 (configuration choice)**: Tests use Python 2.7 by design; not a failure. Plan: migrate to Python 3 when feasible. When migrating: replace `pyblake2` with `hashlib.blake2b` (Python 3.6+). `mininode.py` uses blake2b for Equihash person strings.
+**Python 2.7 (configuration choice)**: Tests use Python 2.7 by design; not a failure. Python version migration work items: see §5.5.
 
 **pyblake2**: `pip install pyblake2` in the Python 2.7 env. Validated: p2p_nu_peer_management imports mininode (uses pyblake2) and runs; skip is for protocol version, not import.
 
