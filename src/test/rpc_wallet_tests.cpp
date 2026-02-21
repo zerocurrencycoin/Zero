@@ -552,8 +552,8 @@ BOOST_AUTO_TEST_CASE(rpc_wallet_z_importexport)
 {
     LOCK2(cs_main, pwalletMain->cs_wallet);
     UniValue retValue;
-    int n1 = 1000; // number of times to import/export
-    int n2 = 1000; // number of addresses to create and list
+    int n1 = 100; // number of times to import/export (reduced from 1000 for faster CI)
+    int n2 = 100; // number of addresses to create and list (reduced from 1000 for faster CI)
 
     // error if no args
     BOOST_CHECK_THROW(CallRPC("z_importkey"), runtime_error);

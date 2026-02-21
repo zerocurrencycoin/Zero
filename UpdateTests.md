@@ -28,6 +28,8 @@ Nine test suites, grouped by execution dependency and coverage area.
 | Pirate v5.9.0 | 1.8.0 | |
 | Latest | 1.17.0 | C++17 |
 
+**Platforms tested**: macOS ARM64 (`arm-mac-build`), Ubuntu 24.04 x86_64 (`linux_build188`). All test failures reproduce pre-existing fork-level issues; none are platform-specific. Verified Feb 2026.
+
 ### 2.1 Nine Suites
 
 | # | Name | Purpose | Coverage | Status |

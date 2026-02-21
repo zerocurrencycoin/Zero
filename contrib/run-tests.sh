@@ -4,9 +4,10 @@
 #   --fail: pass + fail; excludes only hang/crash.
 #   --all: everything including hang/crash (no exclusions; GTest may hang on WriteCryptedSaplingZkeyDirectToDb).
 #
-# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--fail|--all|--full-suite|--full]
+# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--fail|--all|--full-suite|--full]
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
 # --no-python: skip Python RPC tests (qa/rpc-tests)
+# --build-checks: run make check-security (requires python in PATH; see UpdateTests.md §4.10, §8.6)
 # --fail: pass + fail (exclude only hang/crash)
 # --all: everything including hang/crash (no exclusions)
 # --full-suite, --full: run qa/zcash/full_test_suite.py (btest, gtest, sec-hard, no-dot-so, util-test, secp256k1, univalue, rpc). On failure: report error and exit 1. Differs from --all: adds sec-hard, no-dot-so; uses full test_bitcoin -p, zero-gtest with no filter.
@@ -44,10 +45,12 @@ MODE=passing
 QUICK=0
 NO_PYTHON=0
 FULL_SUITE=0
+BUILD_CHECKS=0
 for arg in "$@"; do
     case "$arg" in
         --quick) QUICK=1 ;;
         --no-python) NO_PYTHON=1 ;;
+        --build-checks) BUILD_CHECKS=1 ;;
         --fail) MODE=fail ;;
         --all) MODE=all ;;
         --full-suite|--full) FULL_SUITE=1 ;;
@@ -76,6 +79,24 @@ run_bg() {
     ("$@" 2>&1 | tee "$log") &
     echo $!
 }
+
+if [ "$BUILD_CHECKS" -eq 1 ]; then
+    echo "--- Build checks ---"
+    PY_DIR=""
+    if [ -n "$PYTHON" ] && [ -x "$PYTHON" ]; then
+        PY_DIR="$(dirname "$PYTHON")"
+    elif [ -x "$HOME/.pyenv/versions/2.7.18/bin/python" ]; then
+        PY_DIR="$HOME/.pyenv/versions/2.7.18/bin"
+    elif command -v python2 &>/dev/null; then
+        PY_DIR="$(dirname "$(command -v python2)")"
+    fi
+    if [ -n "$PY_DIR" ]; then
+        run_cmd "check-security" env PATH="$PY_DIR:$PATH" make -C src check-security || true
+    else
+        echo "Skipping check-security: no python in PATH (set PYTHON or use pyenv 2.7.18)"
+    fi
+    echo ""
+fi
 
 if [ "$FULL_SUITE" -eq 1 ]; then
     PY2=$(find_python2)
