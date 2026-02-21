@@ -425,7 +425,8 @@ TEST(WalletTests, SetSaplingNoteAddrsInCWalletTx) {
 
     // Test individual fields in case equality operator is defined/changed.
     EXPECT_EQ(ivk, wtx.mapSaplingNoteData[op].ivk);
-    EXPECT_EQ(nullifier, wtx.mapSaplingNoteData[op].nullifier);
+    ASSERT_TRUE(wtx.mapSaplingNoteData[op].nullifier);
+    EXPECT_EQ(nullifier, *wtx.mapSaplingNoteData[op].nullifier);
     EXPECT_EQ(nd.witnessHeight, wtx.mapSaplingNoteData[op].witnessHeight);
     EXPECT_TRUE(witness == wtx.mapSaplingNoteData[op].witnesses.front());
 
@@ -502,7 +503,7 @@ TEST(WalletTests, GetSproutNoteNullifier) {
         address,
         dec,
         hSig, 1);
-    EXPECT_NE(nullifier, ret);
+    EXPECT_TRUE(!ret || *ret != nullifier);
 
     wallet.AddSproutSpendingKey(sk);
 
@@ -511,7 +512,8 @@ TEST(WalletTests, GetSproutNoteNullifier) {
         address,
         dec,
         hSig, 1);
-    EXPECT_EQ(nullifier, ret);
+    ASSERT_TRUE(ret);
+    EXPECT_EQ(nullifier, *ret);
 }
 
 TEST(WalletTests, FindMySaplingNotes) {
@@ -1353,8 +1355,20 @@ TEST(WalletTests, CachedWitnessesChainTip) {
         auto anchors5 = GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses5, saplingWitnesses5);
         EXPECT_NE(anchors5.first, anchors5.second);
 
-        EXPECT_EQ(sproutWitnesses, sproutWitnesses5);
-        EXPECT_EQ(saplingWitnesses, saplingWitnesses5);
+        EXPECT_EQ(sproutWitnesses.size(), sproutWitnesses5.size());
+        for (size_t i = 0; i < sproutWitnesses.size(); i++) {
+            EXPECT_EQ(sproutWitnesses[i].has_value(), sproutWitnesses5[i].has_value());
+            if (sproutWitnesses[i] && sproutWitnesses5[i]) {
+                EXPECT_TRUE(*sproutWitnesses[i] == *sproutWitnesses5[i]);
+            }
+        }
+        EXPECT_EQ(saplingWitnesses.size(), saplingWitnesses5.size());
+        for (size_t i = 0; i < saplingWitnesses.size(); i++) {
+            EXPECT_EQ(saplingWitnesses[i].has_value(), saplingWitnesses5[i].has_value());
+            if (saplingWitnesses[i] && saplingWitnesses5[i]) {
+                EXPECT_TRUE(*saplingWitnesses[i] == *saplingWitnesses5[i]);
+            }
+        }
         EXPECT_EQ(anchors4.first, anchors5.first);
         EXPECT_EQ(anchors4.second, anchors5.second);
     }

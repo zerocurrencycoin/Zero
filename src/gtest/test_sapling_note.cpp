@@ -49,7 +49,9 @@ TEST(SaplingNote, TestVectors)
 
     // Test nullifier
     SaplingSpendingKey spendingKey(sk);
-    ASSERT_EQ(note.nullifier(spendingKey.full_viewing_key(), note_pos), nf);
+    auto nf_opt = note.nullifier(spendingKey.full_viewing_key(), note_pos);
+    ASSERT_TRUE(nf_opt) << "nullifier expected";
+    ASSERT_EQ(*nf_opt, nf);
 }
 
 

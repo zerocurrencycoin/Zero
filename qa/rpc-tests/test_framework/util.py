@@ -28,6 +28,15 @@ def p2p_port(n):
 def rpc_port(n):
     return 12000 + n + os.getpid()%999
 
+# Zero regtest: 10 ZER base, halving every 150 blocks (Subsidy.md, blocktools.py)
+def zero_regtest_subsidy(n_blocks):
+    """Sum of block subsidies for blocks 1..n_blocks. Returns Decimal."""
+    total = Decimal(0)
+    for h in range(1, n_blocks + 1):
+        halvings = (h - 1) // 150
+        total += Decimal(10) / (2 ** halvings)
+    return total
+
 def check_json_precision():
     """Make sure json library being used does not lose precision converting BTC values"""
     n = Decimal("20000000.00000003")

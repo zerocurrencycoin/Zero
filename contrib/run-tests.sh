@@ -4,10 +4,11 @@
 #   --fail: pass + fail; excludes only hang/crash.
 #   --all: everything including hang/crash (no exclusions; GTest may hang on WriteCryptedSaplingZkeyDirectToDb).
 #
-# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--fail|--all|--full-suite|--full]
+# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--fail|--all|--full-suite|--full]
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
 # --no-python: skip Python RPC tests (qa/rpc-tests)
 # --build-checks: run make check-security (requires python in PATH; see UpdateTests.md §4.10, §8.6)
+# --jobs=N: run Python RPC tests in parallel (default 1). E.g. --jobs=4.
 # --fail: pass + fail (exclude only hang/crash)
 # --all: everything including hang/crash (no exclusions)
 # --full-suite, --full: run qa/zcash/full_test_suite.py (btest, gtest, sec-hard, no-dot-so, util-test, secp256k1, univalue, rpc). On failure: report error and exit 1. Differs from --all: adds sec-hard, no-dot-so; uses full test_bitcoin -p, zero-gtest with no filter.
@@ -46,6 +47,7 @@ QUICK=0
 NO_PYTHON=0
 FULL_SUITE=0
 BUILD_CHECKS=0
+PYTHON_JOBS=1
 for arg in "$@"; do
     case "$arg" in
         --quick) QUICK=1 ;;
@@ -54,6 +56,7 @@ for arg in "$@"; do
         --fail) MODE=fail ;;
         --all) MODE=all ;;
         --full-suite|--full) FULL_SUITE=1 ;;
+        --jobs=*) PYTHON_JOBS="${arg#--jobs=}" ;;
     esac
 done
 
@@ -167,8 +170,18 @@ if [ "$NO_PYTHON" -eq 0 ]; then
             echo "--- Python RPC (all) ---"
             run_cmd "rpc-all" \
                 PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -extended || true
+        elif [ "$PYTHON_JOBS" -gt 1 ]; then
+            echo "--- Python RPC (pass-only: ${#PYTHON_PASSING[@]} tests, jobs=$PYTHON_JOBS) ---"
+            PIDS=()
+            for t in "${PYTHON_PASSING[@]}"; do
+                pid=$(run_bg "rpc-$t" \
+                    PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true)
+                PIDS+=("$pid")
+                while [ "$(jobs -r 2>/dev/null | wc -l)" -ge "$PYTHON_JOBS" ]; do sleep 1; done
+            done
+            for p in "${PIDS[@]}"; do wait "$p" 2>/dev/null || true; done
         else
-            echo "--- Python RPC (pass-only: 16 verified) ---"
+            echo "--- Python RPC (pass-only: ${#PYTHON_PASSING[@]} verified) ---"
             for t in "${PYTHON_PASSING[@]}"; do
                 run_cmd "rpc-$t" \
                     PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true

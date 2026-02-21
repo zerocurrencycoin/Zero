@@ -10,7 +10,7 @@ from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, assert_greater_than, \
     initialize_chain_clean, start_nodes, start_node, connect_nodes_bi, \
     stop_nodes, sync_blocks, sync_mempools, wait_and_assert_operationid_status, \
-    wait_bitcoinds
+    wait_bitcoinds, zero_regtest_subsidy
 
 from decimal import Decimal
 
@@ -41,11 +41,12 @@ class WalletTest (BitcoinTestFramework):
         self.nodes[1].generate(721)
         self.sync_all()
 
+        node1_subsidy = zero_regtest_subsidy(721)
         assert_equal(self.nodes[0].getbalance(), 40)
-        assert_equal(self.nodes[1].getbalance(), 10)
+        assert_equal(self.nodes[1].getbalance(), node1_subsidy)
         assert_equal(self.nodes[2].getbalance(), 0)
         assert_equal(self.nodes[0].getbalance("*"), 40)
-        assert_equal(self.nodes[1].getbalance("*"), 10)
+        assert_equal(self.nodes[1].getbalance("*"), node1_subsidy)
         assert_equal(self.nodes[2].getbalance("*"), 0)
 
         # Send 21 ZERO from 0 to 2 using sendtoaddress call.

@@ -148,28 +148,28 @@ TEST_F(UpgradesTest, NextEpoch) {
     const Consensus::Params& params = Params().GetConsensus();
 
     // Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT
-    EXPECT_EQ(NextEpoch(-1, params), boost::none);
-    EXPECT_EQ(NextEpoch(0, params), boost::none);
-    EXPECT_EQ(NextEpoch(1, params), boost::none);
-    EXPECT_EQ(NextEpoch(1000000, params), boost::none);
+    EXPECT_FALSE(NextEpoch(-1, params));
+    EXPECT_FALSE(NextEpoch(0, params));
+    EXPECT_FALSE(NextEpoch(1, params));
+    EXPECT_FALSE(NextEpoch(1000000, params));
 
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_TESTDUMMY, Consensus::NetworkUpgrade::ALWAYS_ACTIVE);
 
-    EXPECT_EQ(NextEpoch(-1, params), boost::none);
-    EXPECT_EQ(NextEpoch(0, params), boost::none);
-    EXPECT_EQ(NextEpoch(1, params), boost::none);
-    EXPECT_EQ(NextEpoch(1000000, params), boost::none);
+    EXPECT_FALSE(NextEpoch(-1, params));
+    EXPECT_FALSE(NextEpoch(0, params));
+    EXPECT_FALSE(NextEpoch(1, params));
+    EXPECT_FALSE(NextEpoch(1000000, params));
 
     int nActivationHeight = 100;
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_TESTDUMMY, nActivationHeight);
 
-    EXPECT_EQ(NextEpoch(-1, params), boost::none);
+    EXPECT_FALSE(NextEpoch(-1, params));
     EXPECT_EQ(NextEpoch(0, params), static_cast<int>(Consensus::UPGRADE_TESTDUMMY));
     EXPECT_EQ(NextEpoch(1, params), static_cast<int>(Consensus::UPGRADE_TESTDUMMY));
     EXPECT_EQ(NextEpoch(nActivationHeight - 1, params), static_cast<int>(Consensus::UPGRADE_TESTDUMMY));
-    EXPECT_EQ(NextEpoch(nActivationHeight, params), boost::none);
-    EXPECT_EQ(NextEpoch(nActivationHeight + 1, params), boost::none);
-    EXPECT_EQ(NextEpoch(1000000, params), boost::none);
+    EXPECT_FALSE(NextEpoch(nActivationHeight, params));
+    EXPECT_FALSE(NextEpoch(nActivationHeight + 1, params));
+    EXPECT_FALSE(NextEpoch(1000000, params));
 }
 
 TEST_F(UpgradesTest, NextActivationHeight) {
@@ -177,26 +177,26 @@ TEST_F(UpgradesTest, NextActivationHeight) {
     const Consensus::Params& params = Params().GetConsensus();
 
     // Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT
-    EXPECT_EQ(NextActivationHeight(-1, params), boost::none);
-    EXPECT_EQ(NextActivationHeight(0, params), boost::none);
-    EXPECT_EQ(NextActivationHeight(1, params), boost::none);
-    EXPECT_EQ(NextActivationHeight(1000000, params), boost::none);
+    EXPECT_FALSE(NextActivationHeight(-1, params));
+    EXPECT_FALSE(NextActivationHeight(0, params));
+    EXPECT_FALSE(NextActivationHeight(1, params));
+    EXPECT_FALSE(NextActivationHeight(1000000, params));
 
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_TESTDUMMY, Consensus::NetworkUpgrade::ALWAYS_ACTIVE);
 
-    EXPECT_EQ(NextActivationHeight(-1, params), boost::none);
-    EXPECT_EQ(NextActivationHeight(0, params), boost::none);
-    EXPECT_EQ(NextActivationHeight(1, params), boost::none);
-    EXPECT_EQ(NextActivationHeight(1000000, params), boost::none);
+    EXPECT_FALSE(NextActivationHeight(-1, params));
+    EXPECT_FALSE(NextActivationHeight(0, params));
+    EXPECT_FALSE(NextActivationHeight(1, params));
+    EXPECT_FALSE(NextActivationHeight(1000000, params));
 
     int nActivationHeight = 100;
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_TESTDUMMY, nActivationHeight);
 
-    EXPECT_EQ(NextActivationHeight(-1, params), boost::none);
+    EXPECT_FALSE(NextActivationHeight(-1, params));
     EXPECT_EQ(NextActivationHeight(0, params), nActivationHeight);
     EXPECT_EQ(NextActivationHeight(1, params), nActivationHeight);
     EXPECT_EQ(NextActivationHeight(nActivationHeight - 1, params), nActivationHeight);
-    EXPECT_EQ(NextActivationHeight(nActivationHeight, params), boost::none);
-    EXPECT_EQ(NextActivationHeight(nActivationHeight + 1, params), boost::none);
-    EXPECT_EQ(NextActivationHeight(1000000, params), boost::none);
+    EXPECT_FALSE(NextActivationHeight(nActivationHeight, params));
+    EXPECT_FALSE(NextActivationHeight(nActivationHeight + 1, params));
+    EXPECT_FALSE(NextActivationHeight(1000000, params));
 }
