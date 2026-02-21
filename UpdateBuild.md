@@ -3,7 +3,7 @@
 Build system changes, dependency management, platform setup, and library
 upgrade planning for the Zero node.
 
-**Cross-references**: UpdateZero.md §1.1 (document index). Related: UpdateFeatures.md §4 (BDB, OpenSSL), UpdateTests.md §1.1 (GTest), §6.2 (WriteCryptedSaplingZkeyDirectToDb).
+**Cross-references**: UpdateZero.md §1.1.
 
 ## 1. Build System Overview
 
@@ -310,7 +310,7 @@ endif
 | utfcpp | 3.1 | 4.0.9 | Deferred |
 | Qpid Proton | 0.26.0 | 0.39.0 | Disabled |
 
-Google Test version tracking is in UpdateTests.md section 1.1.
+Google Test version tracking is in UpdateTests §2.1.
 
 ### 5.4 Vendored Rust Crates
 
@@ -335,7 +335,7 @@ version comparison.
 
 ### 6.1 BerkeleyDB 6.2.23 → 6.2.32
 
-**Done.** `bdb.mk` at 6.2.32. ARM64 mutex fixed natively. See UpdateFeatures.md §4.1 for wallet compatibility.
+**Done.** `bdb.mk` at 6.2.32. ARM64 mutex fixed natively. See UpdateFeatures §4.1 for wallet compatibility.
 
 BDB version and license context:
 
@@ -387,7 +387,7 @@ Replaces system symlink approach with deterministic pinned download.
 
 **Postponed.** Separate effort. Requires detailed validation strategy before proceeding.
 
-**Current understanding** (see UpdateFeatures.md §4.2):
+**Current understanding** (UpdateFeatures §4.2):
 - Zero uses OpenSSL for RPC TLS and legacy crypto paths.
 - 1.1.1w is EOL (final 1.1.1 release, Sep 2023); no further security fixes.
 - Zcash and Bitcoin Core removed OpenSSL; Zero, Horizen, Fluxd, Zclassic still carry it.
@@ -406,14 +406,9 @@ a monorepo of many crates.
 Deferred. Currently disabled (`--enable-proton=no`). Optional AMQP
 messaging. Re-evaluate if needed.
 
-Google Test upgrade is tracked in UpdateTests.md section 1.1.
-
 ## 7. Cross-Project Library Versions
 
-How each Zcash-family project versions its core dependencies. Referenced
-from UpdateZero.md section 6.2 and UpdateFeatures.md section 4.
-
-Google Test is tracked separately in UpdateTests.md section 1.1.
+How each Zcash-family project versions its core dependencies. GTest: UpdateTests §2.1.
 
 | Library | Zero | Zcash | Horizen | Pirate | Fluxd | Zclassic | HUSH | Bitcoin | Latest | Target |
 |---------|------|-------|---------|--------|-------|----------|------|---------|--------|--------|
@@ -454,7 +449,7 @@ download hashes replaces the current system-Rust symlink.
 
 ### 7.4 OpenSSL
 
-**Postponed.** Separate effort. See §6.8 and UpdateFeatures.md §4.2.
+**Postponed.** Separate effort. See §6.8 and UpdateFeatures §4.2.
 
 Projects: Zcash, Bitcoin (removed); HUSH (WolfSSL); Zero, Horizen, Fluxd, Zclassic (1.1.1x). Zero on 1.1.1w (EOL). Requires call-site audit and validation strategy before any change.
 

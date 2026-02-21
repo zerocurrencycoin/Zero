@@ -2,7 +2,7 @@
 
 Test suite results, fixes, open failures, and testing procedures for the Zero node.
 
-UpdateZero.md §1.1 (document index). UpdateFeatures.md §1 (witness architecture). UpdateBuild.md §6.1 (BDB, WriteCryptedSaplingZkeyDirectToDb). Subsidy.md §11.2 (Python RPC amounts).
+UpdateZero.md §1.1 (index).
 
 ## 1. Framework
 
@@ -71,7 +71,7 @@ Nine test suites, grouped by execution dependency and coverage area.
 | run-tests.sh --fail | Same + fail tests | Pass + fail; excludes hang/crash |
 | run-tests.sh --all | Same, no exclusions | Includes hang/crash |
 | run-tests.sh --quick | 1, 2, 3, check-symbols, check-security | Skip GTest, Boost |
-| run-tests.sh --full, --full-suite | full_test_suite.py: 1–8 | Replaces run-tests flow; invokes `python2 qa/zcash/full_test_suite.py`; adds sec-hard, no-dot-so; exit 1 on failure |
+| run-tests.sh --full, --full-suite | full_test_suite.py: 1–8 | Replaces run-tests flow; invokes `python2 qa/zcash/full_test_suite.py`; on Darwin passes `--skip sec-hard --skip no-dot-so`; exit 1 on failure |
 | run-tests.sh --no-python | 1–5 only | Skip RPC Python |
 | run-boost-individual.sh | 5 (one suite at a time) | Per-suite isolation; avoids cascade |
 | qa/pull-tester/rpc-tests.sh | 6 | Python RPC only |
@@ -88,6 +88,7 @@ Nine test suites, grouped by execution dependency and coverage area.
 | Boost | `./src/test/test_bitcoin [--run_test=...]` |
 | RPC Python | `./qa/pull-tester/rpc-tests.sh [script\|-extended]` |
 | sec-hard | `make -C src check-security` |
+| full_test_suite | `python2 qa/zcash/full_test_suite.py [--skip STAGE ...] [stage ...]` |
 
 ### 3.3 Scenarios
 
@@ -101,11 +102,11 @@ Nine test suites, grouped by execution dependency and coverage area.
 
 ### 3.4 Special Cases
 
-- **--full** and **--full-suite** are equivalent. When set, run-tests.sh invokes `python2 qa/zcash/full_test_suite.py` and exits (does not run default components). Usage: `./contrib/run-tests.sh --full`.
+- **--full** and **--full-suite** are equivalent. When set, run-tests.sh invokes `python2 qa/zcash/full_test_suite.py` and exits (does not run default components). On Darwin, passes `--skip sec-hard --skip no-dot-so` so `--full` succeeds without a depends build. Usage: `./contrib/run-tests.sh --full`.
 - **Cascade**: Early Boost failures (Alert, equihash, miner) cause later suites to fail via shared state. Run by suite (`-t rpc_tests`) to isolate.
 - **run-boost-individual.sh** excludes Alert_tests, equihash_tests, miner_tests, Checkpoints_tests (empty suite); main_tests included.
 - **ELF-only**: sec-hard checksec (RPATH/FORTIFY), check-symbols (readelf). Skip or no-op on macOS.
-- **Python 2.7**: Set `PYTHON` for RPC tests. Prereq: `python2 -m pip install pyblake2`.
+- **Python 2.7**: Set `PYTHON` for RPC tests. Prereq: `python2 -m pip install pyblake2`. See §8.4.
 - **zerod/zero-cli**: rpc-tests.sh sources tests-config.sh; BUILDDIR = repo root (from script path). Exports BITCOIND, BITCOINCLI (run-bitcoin-cli wrapper → zero-cli). Binaries invoked by absolute path; no PATH required.
 
 ## 4. Status
@@ -157,14 +158,14 @@ No known failures.
 *Root cause*: CreateValidBlock stores `&index` in mapBlockIndex; index is local and goes out of scope → dangling pointer. BuildWitnessCache expects pcoinsTip/chain state the harness does not provide.  
 *Fix/mitigation*: Excluded. Options: keep block indices in scope; refactor CreateValidBlock; adapt harness to populate chain state.  
 *Debug*: `./src/zero-gtest --gtest_filter='WalletTests.CachedWitnessesEmptyChain' --gtest_break_on_failure`; lldb `bt` at crash.  
-*References*: UpdateFeatures.md §1; Status 4.3, 4.4 (same harness gap).
+*References*: UpdateFeatures §1; Status 4.3, 4.4.
 
 **4.2 WriteCryptedSaplingZkeyDirectToDb**  
 *Symptoms*: Hangs.  
 *Root cause*: CDB::Rewrite in `src/wallet/db.cpp:389` spins `while (mapFileUseCount[strFile] != 0) { MilliSleep(100); }`. First wallet never closed; wallet2 opens same file → mapFileUseCount > 0. EncryptWallet → Rewrite deadlock. Flush (Zcash 4.5.0) does not close DB when refcount > 0.  
 *Fix/mitigation*: Excluded. Options tried: scope block, separate file; both hang.  
 *Debug*: Add LogPrintf in CDB::Rewrite before loop; gdb break at MilliSleep.  
-*References*: `src/wallet/gtest/test_wallet_zkeys.cpp:406`; UpdateBuild.md §6.1.
+*References*: `src/wallet/gtest/test_wallet_zkeys.cpp:406`; UpdateBuild §6.1.
 
 **4.3 UpdatedSaplingNoteData**  
 *Symptoms*: Assertion failure; witnesses empty or mismatch.  
@@ -176,7 +177,7 @@ No known failures.
 *Symptoms*: mapSaplingNullifiersToNotes and nd.witnesses remain empty.  
 *Root cause*: BuildWitnessCache needs pcoinsTip/chain state the harness does not provide.  
 *Fix/mitigation*: Fixed. Manual witness build (SaplingMerkleTree, witness(), store in mapSaplingNoteData).  
-*References*: UpdateFeatures.md §1; Status 4.1, 4.3.
+*References*: UpdateFeatures §1; Status 4.1, 4.3.
 
 **4.5 SpentSaplingNoteIsFromMe**  
 *Symptoms*: Incorrect result; chainActive.Height() was 0.  
@@ -213,6 +214,7 @@ No known failures.
 | 5.1 | Excl | Alert_tests |
 | 5.2 | Excl | equihash_tests |
 | 5.3 | Excl | miner_tests |
+| 5.3a | Hang | rpc_wallet_encrypted_wallet_sapzkeys |
 | 5.4 | Fix | rpc_wallet founders % |
 | 5.5 | Fix | z_getnewaddress extra args |
 | 5.6 | Fix | RPC zcash-cli → zero-cli |
@@ -237,6 +239,12 @@ No known failures.
 *Root cause*: Zero (192,7) vs test (96,5).  
 *Fix/mitigation*: Excluded.  
 *References*: `src/test/miner_tests.cpp`.
+
+**5.3a rpc_wallet_encrypted_wallet_sapzkeys**  
+*Symptoms*: Hangs; test enters but never completes (verified >120s timeout).  
+*Root cause*: Same CDB::Rewrite deadlock as 4.2. EncryptWallet on Sapling zkeys triggers wallet DB rewrite; first wallet never closed.  
+*Fix/mitigation*: Excluded in run-tests.sh BOOST_EXCLUDE.  
+*References*: `src/test/rpc_wallet_tests.cpp:1409`; Status 4.2.
 
 **5.4 rpc_wallet founders %**  
 *Symptoms*: Expected miner 10, founders 0.8; got 9.99, 0.81.  
@@ -267,7 +275,9 @@ No known failures.
 *Fix/mitigation*: Fixed. try/catch; diagnostic logs typeid/e.what().  
 *References*: `src/test/rpc_tests.cpp`.
 
-**Pass-only filter**: `--run_test='!Alert_tests:!equihash_tests:!miner_tests'`
+**Pass-only filter**: `--run_test='!Alert_tests:!equihash_tests:!miner_tests:!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'`
+
+**Slow tests** (macOS ARM64, ~48s total): rpc_wallet_async_operations 5.1s, PrevectorTestInt 4.1s, rpc_wallet_async_operations_parallel_wait 3.7s, rpc_wallet_async_operations_parallel_cancel 1.7s, subsidy_limit_test 1.7s, rpc_z_getoperations 1.6s, rpc_wallet_encrypted_wallet_zkeys 1.1s, coin_selection_tests 0.85s. Suites: rpc_wallet_tests 23s, DoS_tests 5.5s, rpc_tests 5.5s, PrevectorTests 4.1s, main_tests 2.9s, mempool_tests 2.4s.
 
 ### 4.7 RPC Python (6.x)
 
@@ -298,7 +308,7 @@ No known failures.
 *Symptoms*: Balance assertions fail in wallet.py, txn_doublespend.  
 *Root cause*: Zero subsidy 10 ZER/block, different halving.  
 *Fix/mitigation*: Open. Recompute expected amounts from Zero schedule.  
-*References*: Subsidy.md §11.2; `qa/rpc-tests/test_framework/blocktools.py`.
+*References*: `qa/rpc-tests/test_framework/blocktools.py`; Subsidy §11.2.
 
 **6.4 nuparams, branch IDs**  
 *Symptoms*: zerod exits Invalid network upgrade (5ba81b19).  
@@ -345,14 +355,34 @@ No known failures.
 **Parallel and shared node**
 
 - **Current**: `contrib/run-tests.sh` runs Python tests sequentially: `for t in PYTHON_PASSING; do run_cmd "rpc-$t" ...`. Each test gets fresh tmpdir, starts its own zerod(s).
-- **Parallel**: Run multiple tests in background (e.g. 2–4 jobs). Each test uses `p2p_port(n) + os.getpid()%999` and `rpc_port(n) + os.getpid()%999` — port collision possible if same PID; different PIDs from parallel runs give different ports. Use separate tmpdir per test (already via `tempfile.mkdtemp` default). **Proposed**: Add `--jobs=N` to run-tests.sh; run N tests in parallel with `wait`; cap at 4–8 to avoid resource exhaustion.
+- **Parallel**: `--jobs=N` implemented in run-tests.sh. Each test uses `p2p_port(n) + os.getpid()%999` and `rpc_port(n) + os.getpid()%999` — different PIDs from parallel runs give different ports. Cap at 4–8 to avoid resource exhaustion.
 - **Shared node**: Bitcoin Core func tests use isolated datadirs per test; no shared node. Sharing one zerod across tests would require: (a) test isolation (reset state between tests), (b) no conflicting ports, (c) tests written for shared setup. Current tests assume clean chain and full control. **Verdict**: Shared node is high effort; parallel execution is feasible with separate processes.
 
 **Recommended next steps**
 
 1. Add skip check in wallet_overwintertx for empty `addrs` (5 min).
 2. Add `zero_regtest_subsidy(n)` and update wallet.py for 6.3 (30 min).
-3. Add `--jobs=4` to run-tests.sh for parallel Python RPC (15 min).
+3. Use `--jobs=4` for faster RPC Python runs (implemented).
+
+**4.7.2 script_test.py — not run**
+
+- **Location**: `qa/rpc-tests/script_test.py`. Uses `script_valid.json` and `script_invalid.json`; end-to-end script validation via two nodes.
+- **Status**: Not run. Commented out in `rpc-tests.sh` (testScriptsExt). Not in run-tests.sh PYTHON_PASSING.
+- **Failure**: When run directly, fails with `AssertionError: Not all nodes requested block` during sync_blocks (~15s). One node rejects or does not request blocks; likely block format, consensus, or protocol mismatch.
+- **Duration**: If it ran, >40 min (docstring). ~1000+ test cases × ~102 Equihash block solves each.
+- **Block count**: Uses 100 blocks to mature coinbase. Zero COINBASE_MATURITY is 720; 100 blocks would not satisfy maturity. Reducing to 10 blocks would fail on both Zero and Bitcoin (maturity not met).
+- **Conclusion**: script_test does not contribute to current test duration; it is excluded.
+
+**4.7.3 Why tests take long**
+
+| Component | Time | Cause |
+|-----------|------|-------|
+| RPC Python (11 pass-only) | ~5–20 min | Main bottleneck. Each test starts zerod, mines Equihash blocks, runs, stops. ~30–120s per test; sequential by default. |
+| Boost (pass-only) | ~48s | rpc_wallet_tests ~23s, DoS_tests 5.5s, rpc_tests 5.5s, etc. |
+| GTest (201 tests) | varies | Many tests; runtime hardware-dependent. |
+| Util, secp256k1, univalue | fast | — |
+
+**Speed-up**: Use `./contrib/run-tests.sh --jobs=4` for parallel RPC Python. GTest and Boost already run in parallel via run_bg.
 
 ### 4.8 Workarounds and Skips
 
@@ -373,6 +403,7 @@ The following are workarounds and skips to overcome test problems and failures. 
 | Alert_tests | Excluded via `--run_test='!Alert_tests'` | MagicBean/Zcash-specific alerts; Zero uses Ambrym |
 | equihash_tests | Excluded via `--run_test='!equihash_tests'` | Zero (192,7) vs test (96,5); suite skips when nEquihashN!=96 |
 | miner_tests | Excluded via `--run_test='!miner_tests'` | Zero (192,7) vs test (96,5) |
+| rpc_wallet_encrypted_wallet_sapzkeys | Excluded via `--run_test='!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'` | CDB::Rewrite deadlock (same as GTest WriteCryptedSaplingZkey*) |
 | run-tests.sh, run-boost-individual.sh | Pass-only filter excludes above | Cascade from shared state |
 
 **RPC Python**
@@ -391,7 +422,7 @@ The following are workarounds and skips to overcome test problems and failures. 
 | Item | Requirement |
 |------|-------------|
 | pyblake2 (6.6) | `python2 -m pip install pyblake2` before RPC Python tests using mininode |
-| Python 2.7 | Set `PYTHON` or use pyenv 2.7.18 |
+| Python 2.7 | Set `PYTHON` or use pyenv 2.7.18. See §8.4. |
 | tests-config.sh | BUILDDIR, REAL_BITCOIND, REAL_BITCOINCLI must point to Zero binaries |
 
 **Platform skips**
@@ -405,7 +436,9 @@ The following are workarounds and skips to overcome test problems and failures. 
 
 **7.x sec-hard**: System-specific. ELF only; skips on macOS. make check-security is cross-platform; checksec (RPATH/FORTIFY) is ELF-only. Document applicability; not a problem.
 
-**8.x no-dot-so**: full_test_suite stage. Ensures depends/x86_64-*/lib has no .so. Fails if any .so; exit 2 if arch dir missing.
+**8.x no-dot-so**: full_test_suite stage. Ensures depends/x86_64-*/lib (or x86_64-apple-darwin*, aarch64-apple-darwin*) has no .so. Fails if any .so. If no arch dir exists, skips (returns success) instead of exit 2; allows `--full` on macOS without a depends build.
+
+**OS-based skips**: full_test_suite supports `--skip STAGE` (repeatable). run-tests.sh passes `--skip sec-hard --skip no-dot-so` on Darwin when invoking `--full`, so the full suite completes successfully on macOS.
 
 ### 4.10 check (9.x)
 
@@ -448,7 +481,7 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 
 ### 6.1 Build Log
 
-**autogen**: GZIP_ENV, distcleancheck overrides; $as_echo obsolete (Autoconf 2.70+). Documented in UpdateBuild.md.
+**autogen**: GZIP_ENV, distcleancheck overrides; $as_echo obsolete (Autoconf 2.70+). See UpdateBuild.
 
 **configure**: brew not in PATH (optional); -single_module obsolete (Darwin ld); static flag no (expected on Darwin).
 
@@ -507,7 +540,7 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 
 **Set aside**: Status 4.2 (WriteCryptedSaplingZkeyDirectToDb), 5.1 (Alert_tests), 5.2 (equihash_tests), 5.3 (miner_tests).
 
-**New work**: zeronode RPC tests; Python 3 migration (Notes §6.3, delayed).
+**New work**: zeronode RPC tests; Python 3 migration (Notes §6.3, delayed); runner unification (§8).
 
 ### 7.3 Ordering Suggestions
 
@@ -528,6 +561,214 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 | 6.3 | RPC Python | clean-chain amounts | Medium | Later |
 | — | RPC | zeronode tests | Medium | Later |
 | — | Notes | Python 3 migration | Low | Delayed |
+| — | §8 | Unify runners, Python config | Low | Optional |
+
+## 8. Unify Runners
+
+Proposal to consolidate orchestration scripts, Python 2 lookup, and test configuration. See §3.1 Runners for current layout; §3.4 Special Cases for Python 2.7 usage; §4.7 for RPC Python.
+
+### 8.1 Current State
+
+**Runners and orchestration**
+
+| Script | Role |
+|--------|------|
+| contrib/run-tests.sh | Main entry; modes quick/default/fail/all/full/no-python/build-checks/jobs |
+| contrib/run-boost-individual.sh | Per-suite Boost isolation; avoids cascade |
+| qa/zcash/full_test_suite.py | Full validation: btest, gtest, sec-hard, no-dot-so, util-test, secp256k1, univalue, rpc |
+| qa/pull-tester/rpc-tests.sh | Python RPC only; testScripts, testScriptsExt arrays |
+| make -C src check | Recursive; Util, secp256k1, univalue, Boost |
+
+**Support scripts**
+
+| Script | Role |
+|--------|------|
+| qa/pull-tester/tests-config.sh | BUILDDIR, REAL_BITCOIND, REAL_BITCOINCLI (hardcoded paths) |
+| qa/pull-tester/run-bitcoin-cli | Wrapper for zero-cli; strips Windows CR |
+| qa/pull-tester/run-bitcoind-for-test.sh | Legacy; starts zerod for manual runs; rpc-tests use util.py |
+
+**Test lists (duplicated)**
+
+- run-tests.sh: PYTHON_PASSING (16 scripts for pass-only)
+- rpc-tests.sh: testScripts (~60), testScriptsExt (~15)
+
+### 8.2 Proposal: Unification
+
+**contrib: single script**
+
+- Merge run-boost-individual.sh into run-tests.sh as `--boost-individual`
+- Extract Python lookup to contrib/find-python.sh
+- Result: contrib/run-tests.sh, contrib/find-python.sh
+
+**qa: single orchestrator**
+
+- Add qa/run-tests.sh: `--full` → full_test_suite.py; `rpc [scripts]` → RPC tests
+- Keep full_test_suite.py, rpc-tests.sh (or fold rpc logic into qa/run-tests.sh)
+- Result: qa/run-tests.sh as qa entry point
+
+**Test list: single config**
+
+- Add qa/rpc-tests/tests.conf (or .json): passing, extended, excluded
+- run-tests.sh and qa/run-tests.sh read from it
+- Result: one source of truth
+
+**tests-config: derive paths**
+
+- BUILDDIR = `$(cd "$(dirname "$0")/../.." && pwd)` instead of hardcoded path
+- REAL_BITCOIND, REAL_BITCOINCLI derived from BUILDDIR
+
+### 8.3 Stacking (proposed)
+
+```
+contrib/run-tests.sh
+├── --quick          → util, secp256k1, univalue, check-symbols, check-security
+├── --full           → qa/run-tests.sh --full → full_test_suite.py
+├── --boost-individual → each Boost suite (merged from run-boost-individual.sh)
+└── default          → util, secp256k1, univalue, gtest, boost, qa/run-tests.sh rpc
+
+qa/run-tests.sh
+├── --full           → full_test_suite.py
+└── rpc [scripts]    → run Python RPC tests (from tests.conf)
+
+full_test_suite.py
+└── rpc stage        → qa/run-tests.sh rpc
+```
+
+### 8.4 Python Config
+
+Python 2.7 is required for RPC tests and full_test_suite; symbol-check and security-check need `python` in PATH. Detection is duplicated across run-tests.sh, BUILD_CHECKS, and full_test_suite. This section proposes a unified approach and compares it to the Find-or-configure alternative.
+
+**8.4.1 Where Python 2.7 is used**
+
+| Suite/component | Python | Notes |
+|-----------------|--------|-------|
+| RPC Python (qa/rpc-tests/*.py) | 2.7 | rpc-tests.sh uses $PYTHON; scripts assert sys.version_info < (3,) |
+| full_test_suite | 2.7 | Shebang python2; invoked by run-tests.sh |
+| Util (bitcoin-util-test.py) | 3 | run-tests.sh uses python3 |
+| symbol-check.py, security-check.py | env python | Shebang #!/usr/bin/env python; need python in PATH for make check-security. full_test_suite _env_for_make and run-tests.sh --build-checks prepend Python dir to PATH. |
+| test-security-check.py | 2 | Shebang python2 |
+
+**8.4.2 Current lookup (duplicated)**
+
+| Location | Logic |
+|----------|-------|
+| run-tests.sh find_python2() | 1. $PYTHON 2. ~/.pyenv/versions/2.7.18/bin/python 3. python2 from PATH. No -x check for PYTHON. Version hardcoded. |
+| run-tests.sh (BUILD_CHECKS) | Same order for PY_DIR; prepends to PATH for make check-security |
+| full_test_suite _env_for_make() | PYTHON → pyenv 2.7.18 → sys.executable dir; prepends to PATH for make |
+| rpc-tests.sh | Uses $PYTHON from caller |
+
+**8.4.3 Proposed: contrib/find-python.sh**
+
+Single script; default Python 2; `-2` or `-3` to steer. Precedence: PYTHON (if set and executable) > pyenv version > python2/python3 in PATH.
+
+```bash
+#!/usr/bin/env bash
+# Output Python path to stdout. Exit 1 if not found.
+# Usage: find-python.sh [-2|-3]   (default: -2)
+PYTHON2_VERSION="${PYTHON2_VERSION:-2.7.18}"
+PYTHON3_VERSION="${PYTHON3_VERSION:-3.12.0}"
+MODE=2
+[ "$1" = "-3" ] && MODE=3
+[ "$1" = "-2" ] && MODE=2
+
+if [ -n "$PYTHON" ] && [ -x "$PYTHON" ]; then
+    echo "$PYTHON"
+    exit 0
+fi
+if [ "$MODE" = 2 ]; then
+    if [ -x "$HOME/.pyenv/versions/$PYTHON2_VERSION/bin/python" ]; then
+        echo "$HOME/.pyenv/versions/$PYTHON2_VERSION/bin/python"
+        exit 0
+    fi
+    if py=$(command -v python2 2>/dev/null) && [ -x "$py" ]; then
+        echo "$py"
+        exit 0
+    fi
+else
+    if [ -x "$HOME/.pyenv/versions/$PYTHON3_VERSION/bin/python" ]; then
+        echo "$HOME/.pyenv/versions/$PYTHON3_VERSION/bin/python"
+        exit 0
+    fi
+    if py=$(command -v python3 2>/dev/null) && [ -x "$py" ]; then
+        echo "$py"
+        exit 0
+    fi
+fi
+exit 1
+```
+
+**8.4.4 Callers, installation, prereqs**
+
+Callers invoke find-python.sh or inherit PYTHON. run-tests.sh: `PY2=$("$REPO_ROOT/contrib/find-python.sh")`; BUILD_CHECKS: `PY_DIR=$(dirname "$("$REPO_ROOT/contrib/find-python.sh")")`. full_test_suite inherits PYTHON from run-tests.sh. Installation: pyenv `$PYTHON2_VERSION` (default 2.7.18), Homebrew python@2, or system python2. Override: `export PYTHON=/path` or `PYTHON2_VERSION=2.7.18`. Prereq: `python2 -m pip install pyblake2` for RPC tests using mininode.
+
+**8.4.5 Python lookup**
+
+Recommendation: adopt find-python.sh to remove duplicated logic and hardcoded versions.
+
+| Pro | Con |
+|-----|-----|
+| Single source of truth; no drift between shell and Python | New script to maintain |
+| PYTHON validated with -x; invalid path falls through to fallbacks | — |
+| Explicit override (PYTHON) takes precedence | — |
+| full_test_suite can simplify _env_for_make (trust PYTHON when set) | — |
+
+**8.4.6 Unification overall**
+
+Recommendation: Phase 1 (Python lookup) first; Phases 2–4 optional and lower priority.
+
+| Pro | Con |
+|-----|-----|
+| Fewer scripts; clearer entry points | Migration effort; risk of regressions |
+| Single test list (tests.conf) | Config file adds indirection |
+| BUILDDIR derived from path; portable | tests-config.sh may be sourced from multiple dirs |
+| run-boost-individual merged; one less script | run-tests.sh grows |
+
+**8.4.7 Redo Changes**
+
+Summary of changes to align run-tests.sh and full_test_suite.py with §8.4:
+
+| File | Change |
+|------|--------|
+| **contrib/find-python.sh** | Add script. PYTHON2_VERSION, PYTHON3_VERSION variables; -2/-3 flags; default Python 2. |
+| **run-tests.sh** | Remove find_python2(); replace with `PY2=$("$REPO_ROOT/contrib/find-python.sh")`. Replace BUILD_CHECKS PY_DIR logic with `PY_DIR=$(dirname "$("$REPO_ROOT/contrib/find-python.sh")")`. |
+| **full_test_suite** | _env_for_make: use PYTHON2_VERSION for pyenv path; trust PYTHON when set. util_test: run bitcoin-util-test with python3 (or find-python.sh -3). rpc stage: pass PYTHON in subprocess env when invoking rpc-tests.sh. |
+
+**8.4.8 Compare: find-python.sh vs Find-or-configure**
+
+| | find-python.sh | Find-or-configure |
+|---|----------------|-------------------|
+| **Source** | contrib/find-python.sh | tests-config.sh (or .in); scripts source it |
+| **Detection** | PYTHON > pyenv > python2; same order | Same |
+| **Python 3** | -3 flag | No |
+| **Configure** | None | AC_ARG_VAR(PYTHON); @PYTHON@ in .in |
+| **Adoption** | New script; no build changes | Requires tests-config as hub |
+
+**Recommendation**: Use find-python.sh for Phase 1. Both remove duplication; find-python.sh is simpler (no autoconf) and supports Python 3. Choose Find-or-configure only if tests-config is already the config hub and configure integration is desired.
+
+**Actions**: Implement find-python.sh per §8.4.7. Consider migrating to Find-or-configure later if qa/run-tests.sh exists, all qa scripts source tests-config, and a single config file is preferred—until then, find-python.sh avoids rework if §8.2 is deferred.
+
+**Phase 1: Python lookup (low risk)**
+
+1. Create contrib/find-python.sh with logic above (PYTHON2_VERSION variable, -2/-3 flags).
+2. In run-tests.sh: replace find_python2() with `PY2=$("$REPO_ROOT/contrib/find-python.sh")`; add `-x` check for PYTHON in script.
+3. In run-tests.sh BUILD_CHECKS: use `PY_DIR=$(dirname "$("$REPO_ROOT/contrib/find-python.sh")")`.
+4. In full_test_suite _env_for_make: if PYTHON set and executable, use its dir; else pyenv; else sys.executable. Remove duplicate lookup logic.
+
+**Phase 2: tests-config (medium risk)**
+
+1. In tests-config.sh: `BUILDDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"` (assumes tests-config.sh in qa/pull-tester/).
+2. Verify rpc-tests.sh, run-bitcoin-cli work with derived BUILDDIR.
+
+**Phase 3: Merge run-boost-individual (low risk)**
+
+1. Add `--boost-individual` to run-tests.sh; implement loop from run-boost-individual.sh.
+2. Deprecate run-boost-individual.sh; document in §3.1.
+
+**Phase 4: tests.conf (optional, higher effort)**
+
+1. Create qa/rpc-tests/tests.conf with sections passing, extended, excluded.
+2. Update run-tests.sh and rpc-tests.sh to read from it.
+3. Remove duplicate arrays.
 
 ## Appendix A. References (External)
 

@@ -3,7 +3,7 @@
 Architecture changes, production code fixes, cross-fork analysis, and
 design decisions for the Zero node.
 
-**Cross-references**: UpdateZero.md §1.1 (document index). Related: UpdateBuild.md §4 (BDB, OpenSSL), UpdateTests.md §3.5, §8 (witness tests).
+**Cross-references**: UpdateZero.md §1.1.
 
 ## 1. Witness Cache Architecture
 
@@ -104,9 +104,6 @@ none of these requirements. When Zero replaced `IncrementNoteWitnesses`,
 the tests were updated to call `BuildWitnessCache` but the test
 infrastructure was not updated to provide the needed state. This caused
 latent failures.
-
-Four `CachedWitnesses*` tests and `UpdatedSaplingNoteData` remain
-failing. See UpdateTests.md §6.2.
 
 ### 1.6 Cross-Fork Comparison
 
@@ -219,9 +216,7 @@ required.
 
 ### 5.2 Witness Test Coverage
 
-The manual witness building pattern used in three tests should be
-extracted to a shared helper. The `CreateValidBlock` helper needs
-consistent teardown. See UpdateTests.md §8.1, §8.2.
+Witness test coverage gaps and harness improvements: UpdateTests §4.5, §7.
 
 ### 5.3 Documentation
 

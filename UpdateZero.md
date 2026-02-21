@@ -26,16 +26,45 @@ or cross-platform implications go in UpdateFeatures.
 | Build/platform setup | §3.1, §4.1 | §1–4 | — | — |
 | Depends changes | §4.1 | §3 | — | — |
 | Library versions, upgrade plan | §6.2 | §5–7 | — | — |
-| BDB, wallet | — | §6.1, §7.1 | §6.2 | §4.1 |
-| Test results, fixes | §3.2, §4.2 | — | §1–3, §8.6 | — |
+| BDB, wallet | — | §6.1, §7.1 | §4.5 | §4.1 |
+| Test results, fixes | §3.2, §4.2 | — | §1–4, §8 | — |
 | Test prioritization | §5 | — | §5 | — |
-| Open test failures | §5.1 | — | §4, §6 | — |
-| Witness architecture | §5.3, §6.3 | — | §3.5, §8.2 | §1 |
-| z_getnewaddress, RPC | — | — | §4.1, §5.2 | — |
-| GTest version | — | §5.3, §7 | §1.1 | — |
+| Open test failures | §5.1 | — | §4 | — |
+| Witness architecture | §5.3, §6.3 | — | §4.5 | §1 |
+| z_getnewaddress, RPC | — | — | §4.6, §5 | — |
+| GTest version | — | §5.3, §7 | §2.1 | — |
 | OpenSSL, TLS | §5.2 | §6.8, §7.4 | — | §4.2 |
 
-**Cross-check**: Each Update*.md header lists related docs. UpdateTests §7.1 references UpdateBuild (GZIP_ENV). UpdateBuild §6.1, §7.4 reference UpdateFeatures. UpdateFeatures §1.5, §5.2 reference UpdateTests.
+### 1.2 Documentation Principles
+
+**Partition (scope and ownership)**
+
+| Doc | Owns | Does not own |
+|-----|------|--------------|
+| UpdateZero | Status, direction, open items, plans | Implementation detail |
+| UpdateBuild | Build system, depends, platform setup, library versions | Test procedures, production code design |
+| UpdateTests | Test suites, results, fixes, procedures, runner config | Build recipes, architecture decisions |
+| UpdateFeatures | Architecture, production code changes, cross-fork analysis | Test harness fixes, build system |
+
+Source changes: test files → UpdateTests. Production code: small fix tied to one test → UpdateTests; broader scope → UpdateFeatures.
+
+**Terminology**
+
+- Status: Done | Open | Documented | Planned | Pending | Set aside (UpdateZero open items)
+- Test status: Excl | Fix | Pass | Skip (UpdateTests per-suite)
+- Urgency: Immediate | Delayed | Deferred (UpdateZero); Fix now | Later | Set aside (UpdateTests)
+- Use "pass-only" for run mode; "PASS" for suite result
+
+**Cross-references**
+
+- One index: UpdateZero §1.1. Other docs: single-line header cross-ref to index.
+- Inline: prefer doc name + one section (e.g. "UpdateTests §4") over multiple sections.
+- No cross-check paragraph; index is authoritative.
+
+**Format**
+
+- Tables: `| Col | Col |`; no extra pipes.
+- Section numbering: 1, 2, 3…; subsections 1.1, 1.2…
 
 ## 2. Branch
 
@@ -64,16 +93,7 @@ Windows regression testing required before merge. See UpdateBuild.md §2–3.
 
 ### 3.2 Tests
 
-| Suite | Platform | Passed | Failed | Crashed | Excluded | Total |
-|-------|----------|--------|--------|---------|----------|-------|
-| GTest | macOS ARM64 | 200 | 1 | 0 | 5 | 206 |
-| Boost | macOS ARM64 | ~11 | ~249 | — | — | 260 |
-
-GTest: 4 fixes applied, 4 pre-existing failures excluded, 1 hang excluded.
-Boost: cascade failure from 2-3 root causes; most of the 249 are not
-independent bugs. See UpdateTests.md §3 (fixes), §4 (deep-dive), §6 (open failures).
-
-**Automation:** `contrib/run-tests.sh` runs test suites and captures logs to `test-logs/`. See UpdateTests.md §8.6.
+Test results, fixes, exclusions, and procedures are in **UpdateTests.md**. Run `contrib/run-tests.sh`; logs go to `test-logs/`.
 
 ### 3.3 Features
 
@@ -113,13 +133,13 @@ See UpdateFeatures.md section 1.
 ### 5.1 Immediate
 
 1. **Linux regression test** — verify all changes build and pass on Linux x86_64
-2. **Fix-now test items** — UpdateTests §5.2 (pyblake2, nuparams, rpc_wallet founders %, block_subsidy). z_getnewaddress extra-args fix applied.
+2. **Fix-now test items** — UpdateTests §4 (pyblake2, nuparams, rpc_wallet founders %, block_subsidy). z_getnewaddress extra-args fix applied.
 
 ### 5.2 Delayed
 
 3. **OpenSSL** — UpdateBuild §6.8, UpdateFeatures §4.2
 4. **Rust version pinning** — replace system symlink with pinned download for CI
-5. **Failing tests** — UpdateTests §5.2, §6.2
+5. **Failing tests** — UpdateTests §4
 
 ### 5.3 Deferred
 

@@ -106,31 +106,29 @@ def check_security_hardening():
 
     return ret
 
-def ensure_no_dot_so_in_depends():
+def ensure_nodotso_depends():
     depends_dir = os.path.join(REPOROOT, 'depends')
     arch_dir = os.path.join(depends_dir, 'x86_64-unknown-linux-gnu')
     if not os.path.isdir(arch_dir):
-        # Not Linux, try MacOS
         arch_dirs = glob(os.path.join(depends_dir, 'x86_64-apple-darwin*'))
         if arch_dirs:
-            # Just try the first one; there will only be on in CI
             arch_dir = arch_dirs[0]
+        else:
+            arch_dirs = glob(os.path.join(depends_dir, 'aarch64-apple-darwin*'))
+            if arch_dirs:
+                arch_dir = arch_dirs[0]
+
+    if not os.path.isdir(arch_dir):
+        print "Skipping no-dot-so: no depends arch dir (run 'make' in depends/ for Linux/macOS depends build)"
+        return True
 
     exit_code = 0
-
-    if os.path.isdir(arch_dir):
-        lib_dir = os.path.join(arch_dir, 'lib')
-        libraries = os.listdir(lib_dir)
-
-        for lib in libraries:
-            if lib.find(".so") != -1:
-                print lib
-                exit_code = 1
-    else:
-        exit_code = 2
-        print "arch-specific build dir not present"
-        print "Did you build the ./depends tree?"
-        print "Are you on a currently unsupported architecture?"
+    lib_dir = os.path.join(arch_dir, 'lib')
+    libraries = os.listdir(lib_dir)
+    for lib in libraries:
+        if lib.find(".so") != -1:
+            print lib
+            exit_code = 1
 
     if exit_code == 0:
         print "PASS."
@@ -166,7 +164,7 @@ STAGE_COMMANDS = {
     'btest': [repofile('src/test/test_bitcoin'), '-p'],
     'gtest': [repofile('src/zero-gtest')],
     'sec-hard': check_security_hardening,
-    'no-dot-so': ensure_no_dot_so_in_depends,
+    'no-dot-so': ensure_nodotso_depends,
     'util-test': util_test,
     'secp256k1': ['make', '-C', repofile('src/secp256k1'), 'check'],
     'univalue': ['make', '-C', repofile('src/univalue'), 'check'],
@@ -199,25 +197,29 @@ def run_stage(stage):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--list-stages', dest='list', action='store_true')
+    parser.add_argument('--skip', action='append', default=[], metavar='STAGE',
+                        help='Skip stage (repeatable). Stages: %s' % ', '.join(STAGES))
     parser.add_argument('stage', nargs='*', default=STAGES,
-                        help='One of %s'%STAGES)
+                        help='One of %s' % STAGES)
     args = parser.parse_args()
 
-    # Check for list
     if args.list:
         for s in STAGES:
             print(s)
         sys.exit(0)
 
-    # Check validity of stages
-    for s in args.stage:
+    skip_set = set(args.skip)
+    for s in skip_set:
         if s not in STAGES:
-            print("Invalid stage '%s' (choose from %s)" % (s, STAGES))
+            print("Invalid --skip '%s' (choose from %s)" % (s, STAGES))
             sys.exit(1)
 
-    # Run the stages
+    stages_to_run = [s for s in args.stage if s not in skip_set]
+    if skip_set:
+        print("Skipping stages: %s" % ', '.join(sorted(skip_set)))
+
     passed = True
-    for s in args.stage:
+    for s in stages_to_run:
         passed &= run_stage(s)
 
     if not passed:

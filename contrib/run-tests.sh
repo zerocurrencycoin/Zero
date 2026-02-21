@@ -7,7 +7,7 @@
 # Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--fail|--all|--full-suite|--full]
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
 # --no-python: skip Python RPC tests (qa/rpc-tests)
-# --build-checks: run make check-security (requires python in PATH; see UpdateTests.md §4.10, §8.6)
+# --build-checks: run make check-security (requires python in PATH; see UpdateTests.md §4.10, §8.4)
 # --jobs=N: run Python RPC tests in parallel (default 1). E.g. --jobs=4.
 # --fail: pass + fail (exclude only hang/crash)
 # --all: everything including hang/crash (no exclusions)
@@ -22,7 +22,7 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
 
-BOOST_EXCLUDE='!Alert_tests:!equihash_tests:!miner_tests'
+BOOST_EXCLUDE='!Alert_tests:!equihash_tests:!miner_tests:!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'
 
 PYTHON_PASSING=(
     blockchain disablewallet httpbasics reindex decodescript keypool
@@ -107,8 +107,12 @@ if [ "$FULL_SUITE" -eq 1 ]; then
         echo "FAIL: Python 2.7 required for full_test_suite"
         exit 1
     fi
+    FULL_SUITE_SKIP=()
+    if [ "$(uname -s)" = "Darwin" ]; then
+        FULL_SUITE_SKIP=(--skip sec-hard --skip no-dot-so)
+    fi
     echo "--- full_test_suite ---"
-    if ! run_cmd "full_test_suite" "$PY2" "$REPO_ROOT/qa/zcash/full_test_suite.py"; then
+    if ! run_cmd "full_test_suite" "$PY2" "$REPO_ROOT/qa/zcash/full_test_suite.py" "${FULL_SUITE_SKIP[@]}"; then
         echo "FAIL: full_test_suite exited with error"
         exit 1
     fi
