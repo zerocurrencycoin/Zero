@@ -4,6 +4,7 @@
 #include "consensus/upgrades.h"
 
 #include <boost/optional.hpp>
+#include <boost/optional/optional_io.hpp>
 
 class UpgradesTest : public ::testing::Test {
 protected:

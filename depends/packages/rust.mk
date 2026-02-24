@@ -1,13 +1,11 @@
 package=rust
 
-# Detect Apple Silicon native build to use system Rust
-# (Rust 1.32.0 has no aarch64-apple-darwin binaries)
+# Detect Apple Silicon build machine: use system Rust
+# (Rust 1.32.0 has no aarch64-apple-darwin binaries; fetch returns 403/404)
 rust_system_rust :=
 ifeq ($(build_os),darwin)
 ifneq (,$(findstring aarch64,$(build)))
-ifeq ($(canonical_host),$(build))
 rust_system_rust := yes
-endif
 endif
 endif
 

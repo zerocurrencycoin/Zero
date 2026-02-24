@@ -2,8 +2,6 @@
 
 Test suite results, fixes, open failures, and testing procedures for the Zero node.
 
-UpdateZero.md §1.1 (index).
-
 ## 1. Framework
 
 **Purpose**: Test framework for the Zero node covering consensus, shielded transactions, RPC, and integration. Supports incremental build validation, release validation, feature verification, and crash debugging.
@@ -106,7 +104,7 @@ Nine test suites, grouped by execution dependency and coverage area.
 - **Cascade**: Early Boost failures (Alert, equihash, miner) cause later suites to fail via shared state. Run by suite (`-t rpc_tests`) to isolate.
 - **run-boost-individual.sh** excludes Alert_tests, equihash_tests, miner_tests, Checkpoints_tests (empty suite); main_tests included.
 - **ELF-only**: sec-hard checksec (RPATH/FORTIFY), check-symbols (readelf). Skip or no-op on macOS.
-- **Python 2.7**: Set `PYTHON` for RPC tests. Prereq: `python2 -m pip install pyblake2`. See §8.4.
+- **Python 2.7**: Set `PYTHON` for RPC tests. Prereq: `python2 -m pip install pyblake2`.
 - **zerod/zero-cli**: rpc-tests.sh sources tests-config.sh; BUILDDIR = repo root (from script path). Exports BITCOIND, BITCOINCLI (run-bitcoin-cli wrapper → zero-cli). Binaries invoked by absolute path; no PATH required.
 
 ### 3.5 Build Validation Modes
@@ -170,51 +168,43 @@ No known failures.
 *Symptoms*: CachedWitnessesEmptyChain, CachedWitnessesChainTip fail assertions; CachedWitnessesDecrementFirst, CachedWitnessesCleanIndex crash in VerifyAndSetInitialWitness/BuildWitnessCache.  
 *Root cause*: CreateValidBlock stores `&index` in mapBlockIndex; index is local and goes out of scope → dangling pointer. BuildWitnessCache expects pcoinsTip/chain state the harness does not provide.  
 *Fix/mitigation*: Excluded. Options: keep block indices in scope; refactor CreateValidBlock; adapt harness to populate chain state.  
-*Debug*: `./src/zero-gtest --gtest_filter='WalletTests.CachedWitnessesEmptyChain' --gtest_break_on_failure`; lldb `bt` at crash.  
-*References*: UpdateFeatures §1; Status 4.3, 4.4.
+*Debug*: `./src/zero-gtest --gtest_filter='WalletTests.CachedWitnessesEmptyChain' --gtest_break_on_failure`; lldb `bt` at crash.
 
 **4.2 WriteCryptedSaplingZkeyDirectToDb**  
 *Symptoms*: Hangs.  
 *Root cause*: CDB::Rewrite in `src/wallet/db.cpp:389` spins `while (mapFileUseCount[strFile] != 0) { MilliSleep(100); }`. First wallet never closed; wallet2 opens same file → mapFileUseCount > 0. EncryptWallet → Rewrite deadlock. Flush (Zcash 4.5.0) does not close DB when refcount > 0.  
 *Fix/mitigation*: Excluded. Options tried: scope block, separate file; both hang.  
-*Debug*: Add LogPrintf in CDB::Rewrite before loop; gdb break at MilliSleep.  
-*References*: `src/wallet/gtest/test_wallet_zkeys.cpp:406`; UpdateBuild §6.1.
+*Debug*: Add LogPrintf in CDB::Rewrite before loop; gdb break at MilliSleep.
 
 **4.3 UpdatedSaplingNoteData**  
 *Symptoms*: Assertion failure; witnesses empty or mismatch.  
 *Root cause*: CreateValidBlock builds witnesses with empty tree; test expects witness matching testNote.tree.witness().  
-*Fix/mitigation*: Fixed. Manual witness for change output only; same pattern as Status 4.4.  
-*References*: `src/wallet/gtest/test_wallet.cpp`.
+*Fix/mitigation*: Fixed. Manual witness for change output only; same pattern as Status 4.4.
 
 **4.4 NavigateFromSaplingNullifierToNote**  
 *Symptoms*: mapSaplingNullifiersToNotes and nd.witnesses remain empty.  
 *Root cause*: BuildWitnessCache needs pcoinsTip/chain state the harness does not provide.  
-*Fix/mitigation*: Fixed. Manual witness build (SaplingMerkleTree, witness(), store in mapSaplingNoteData).  
-*References*: UpdateFeatures §1; Status 4.1, 4.3.
+*Fix/mitigation*: Fixed. Manual witness build (SaplingMerkleTree, witness(), store in mapSaplingNoteData).
 
 **4.5 SpentSaplingNoteIsFromMe**  
 *Symptoms*: Incorrect result; chainActive.Height() was 0.  
 *Root cause*: Test-order dependency; RegtestActivateSapling() left chain state inconsistent.  
-*Fix/mitigation*: Fixed. chainActive.SetTip(NULL) after RegtestActivateSapling().  
-*References*: `src/wallet/gtest/test_wallet.cpp`.
+*Fix/mitigation*: Fixed. chainActive.SetTip(NULL) after RegtestActivateSapling().
 
 **4.6 PoW.MinDifficultyRules**  
 *Symptoms*: boost::optional::get() assertion.  
 *Root cause*: Zero testnet sets nPowAllowMinDifficultyBlocksAfterHeight to boost::none; test dereferenced unconditionally.  
-*Fix/mitigation*: Fixed. Early return when parameter unset.  
-*References*: `src/gtest/test_pow.cpp`.
+*Fix/mitigation*: Fixed. Early return when parameter unset.
 
 **4.7 DeprecationTest.AlertNotify**  
 *Symptoms*: Expected "Zcash" in deprecation warning.  
 *Root cause*: Runtime says "ZERO".  
-*Fix/mitigation*: Fixed. Changed expected string to "ZERO".  
-*References*: `src/gtest/test_deprecation.cpp`.
+*Fix/mitigation*: Fixed. Changed expected string to "ZERO".
 
 **4.8 equihash check_optimised_solver_cancelled**  
 *Symptoms*: ASSERT_THROW for PartialEnd cancellation failed.  
 *Root cause*: Platform-dependent; PartialEnd never reached for Equihash<48,5> with test input 0x00.  
-*Fix/mitigation*: Fixed. try/catch accepts either exception or normal return.  
-*References*: `src/gtest/test_equihash.cpp`.
+*Fix/mitigation*: Fixed. try/catch accepts either exception or normal return.
 
 **Exclusion filter**: `--gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkey*:WalletTests.CachedWitnesses*'`
 
@@ -238,38 +228,32 @@ No known failures.
 **5.1 Alert_tests**  
 *Symptoms*: MagicBean subver mismatch; PartitionAlert expectedSlow wrong; AlertDisablesRPC may fail.  
 *Root cause*: alertTests.raw MagicBean/Zcash-specific; Zero uses Ambrym. PoWTargetSpacing 120 vs Zcash 150. Alert system deprecated.  
-*Fix/mitigation*: Excluded. Set aside.  
-*References*: `src/test/alert_tests.cpp`.
+*Fix/mitigation*: Excluded. Set aside.
 
 **5.2 equihash_tests**  
 *Symptoms*: (96,5) vector mismatch.  
 *Root cause*: Zero uses (192,7); tests use (96,5).  
-*Fix/mitigation*: Excluded. Skip when nEquihashN!=96; suite exits 0.  
-*References*: `src/test/equihash_tests.cpp`.
+*Fix/mitigation*: Excluded. Skip when nEquihashN!=96; suite exits 0.
 
 **5.3 miner_tests**  
 *Symptoms*: Invalid-solution.  
 *Root cause*: Zero (192,7) vs test (96,5).  
-*Fix/mitigation*: Excluded.  
-*References*: `src/test/miner_tests.cpp`.
+*Fix/mitigation*: Excluded.
 
 **5.3a rpc_wallet_encrypted_wallet_sapzkeys**  
 *Symptoms*: Hangs; test enters but never completes (verified >120s timeout).  
 *Root cause*: Same CDB::Rewrite deadlock as 4.2. EncryptWallet on Sapling zkeys triggers wallet DB rewrite; first wallet never closed.  
-*Fix/mitigation*: Excluded in run-tests.sh BOOST_EXCLUDE.  
-*References*: `src/test/rpc_wallet_tests.cpp:1409`; Status 4.2.
+*Fix/mitigation*: Excluded in run-tests.sh BOOST_EXCLUDE.
 
 **5.4 rpc_wallet founders %**  
 *Symptoms*: Expected miner 10, founders 0.8; got 9.99, 0.81.  
 *Root cause*: Zero 7.5% founder, 10 ZER base.  
-*Fix/mitigation*: Fixed. Expected values updated for Zero.  
-*References*: `src/test/rpc_wallet_tests.cpp`.
+*Fix/mitigation*: Fixed. Expected values updated for Zero.
 
 **5.5 z_getnewaddress extra args**  
 *Symptoms*: params.size()>1 not rejected.  
 *Root cause*: Missing help condition.  
-*Fix/mitigation*: Fixed. params.size()>1 triggers help. Test added for `z_getnewaddress sprout extra`.  
-*References*: `src/wallet/rpcwallet.cpp`; RPC §5.
+*Fix/mitigation*: Fixed. params.size()>1 triggers help. Test added for `z_getnewaddress sprout extra`.
 
 **5.6 RPC zcash-cli → zero-cli**  
 *Symptoms*: rpc_insightexplorer, rpc_z_mergetoaddress_parameters failed on expectedErrorMessage.  
@@ -279,14 +263,12 @@ No known failures.
 **5.7 rpc_tests signrawtransaction, getblockdeltas**  
 *Symptoms*: Invalid branch ID; wrong genesis.  
 *Root cause*: Zcash Sapling 5ba81b19, Zcash genesis. Zero uses 7361707a, genesis 068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6.  
-*Fix/mitigation*: Fixed.  
-*References*: `src/test/rpc_tests.cpp`.
+*Fix/mitigation*: Fixed.
 
 **5.8 rpc_parse_monetary_values**  
 *Symptoms*: BOOST_CHECK_THROW(..., UniValue) failed; "unknown type".  
 *Root cause*: AmountFromValue throws UniValue/JSONRPCError.  
-*Fix/mitigation*: Fixed. try/catch; diagnostic logs typeid/e.what().  
-*References*: `src/test/rpc_tests.cpp`.
+*Fix/mitigation*: Fixed. try/catch; diagnostic logs typeid/e.what().
 
 **Pass-only filter**: `--run_test='!Alert_tests:!equihash_tests:!miner_tests:!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'`
 
@@ -309,37 +291,31 @@ No known failures.
 *Symptoms*: assert(len(set(addrs)) > 0) — no generated utxos.  
 *Root cause*: listunspent with generated returns empty when nuparams activate early. Implementation gap.  
 *Fix/mitigation*: Skip. Check addrs before get_coinbase_address; return with message. Affects wallet_changeaddresses, shorter_block_times.  
-*References*: `qa/rpc-tests/test_framework/util.py`.
 
 **6.2 protocol version**  
 *Symptoms*: versions.count(SPROUT_PROTO_VERSION) — expected 10, got 0.  
 *Root cause*: Zero uses different SPROUT/OVERWINTER/SAPLING versions; mininode expects Zcash.  
 *Fix/mitigation*: Skip. Check count==0; return with message. Affects p2p_nu_peer_management.  
-*References*: `qa/rpc-tests/test_framework/mininode.py`.
 
 **6.3 clean-chain amounts**  
 *Symptoms*: Balance assertions fail in wallet.py, txn_doublespend.  
 *Root cause*: Zero subsidy 10 ZER/block, different halving.  
 *Fix/mitigation*: Open. Recompute expected amounts from Zero schedule.  
-*References*: `qa/rpc-tests/test_framework/blocktools.py`; Subsidy §11.2.
 
 **6.4 nuparams, branch IDs**  
 *Symptoms*: zerod exits Invalid network upgrade (5ba81b19).  
 *Root cause*: Tests passed Zcash branch IDs. Zero uses 6f76727a (Overwinter), 7361707a (Sapling).  
 *Fix/mitigation*: Fixed. Replaced in wallet_changeaddresses, shorter_block_times, rewind_index, p2p_nu_peer_management, wallet_overwintertx. mininode.py OVERWINTER=0x6f76727a, SAPLING=0x7361707a.  
-*References*: `qa/rpc-tests/test_framework/util.py`, `mininode.py`.
 
 **6.5 getchaintips**  
 *Symptoms*: len(tips)==1 fails (got 2); height 210 fails (got ~424).  
 *Root cause*: Zero returns active + valid-fork; regtest block count differs.  
 *Fix/mitigation*: Fixed. Extract active tip; skip when height≠210.  
-*References*: `qa/rpc-tests/getchaintips.py`.
 
 **6.6 pyblake2**  
 *Symptoms*: ImportError.  
 *Root cause*: mininode.py needs pyblake2 for Equihash block validation.  
 *Fix/mitigation*: Prereq. `python2 -m pip install pyblake2`.  
-*References*: `qa/rpc-tests/test_framework/mininode.py`.
 
 **Verified pass**: blockchain, disablewallet, httpbasics, reindex, decodescript, keypool, paymentdisclosure, prioritisetransaction, wallet_treestate, wallet_anchorfork, getchaintips (skip), rewind_index, wallet_overwintertx (skip), wallet_changeaddresses (skip), shorter_block_times (skip), p2p_nu_peer_management (skip).
 
@@ -435,7 +411,7 @@ The following are workarounds and skips to overcome test problems and failures. 
 | Item | Requirement |
 |------|-------------|
 | pyblake2 (6.6) | `python2 -m pip install pyblake2` before RPC Python tests using mininode |
-| Python 2.7 | Set `PYTHON` or use pyenv 2.7.18. See §8.4. |
+| Python 2.7 | Set `PYTHON` or use pyenv 2.7.18. |
 | tests-config.sh | BUILDDIR, REAL_BITCOIND, REAL_BITCOINCLI must point to Zero binaries |
 
 **Platform skips**
@@ -488,13 +464,12 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 
 **Zero-specific** (not in Zcash/Pirate): zeronode (18), zs_* (5), getalldata, getsupply, getsaplingwitness*, estimatefee, estimatepriority.
 
-*References*: RPCs.csv (repo root). Status 5.5 for z_getnewaddress.
 
 ## 6. Notes
 
 ### 6.1 Build Log
 
-**autogen**: GZIP_ENV, distcleancheck overrides; $as_echo obsolete (Autoconf 2.70+). See UpdateBuild.
+**autogen**: GZIP_ENV, distcleancheck overrides; $as_echo obsolete (Autoconf 2.70+).
 
 **configure**: brew not in PATH (optional); -single_module obsolete (Darwin ld); static flag no (expected on Darwin).
 
@@ -523,267 +498,13 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 - **Coverage (make cov)**: Postponed; requires CFLAGS --coverage, lcov.
 - **leveldb, libsnark**: Not wired to top-level check.
 
-### 6.4 Open Questions
-
-- WriteCryptedSaplingZkeyDirectToDb: Exact CDB::Rewrite deadlock path not fully traced.
-- Regtest 424 vs 210: Cause of block count mismatch not confirmed.
-- get_coinbase_address: listunspent/generated behavior when nuparams activate early — implementation gap; fix in Zero or accept skip.
-
 ### 6.5 System-Specific
 
 **sec-hard, checksec**: ELF only. Applicable on Linux; skips on macOS (zerod is Mach-O). Document platform applicability; not a problem.
 
 **check-symbols**: readelf, GLIBC_BACK_COMPAT; Linux only.
 
-## 7. Plan
-
-### 7.1 Direction and Goals
-
-**Goals**: Pass-only run green; release validation via --full; coverage for core shielded and critical RPCs.
-
-**Success criteria**: GTest 201 pass; Boost 47 suites pass; RPC Python 11 pass; no known regressions in pass-only set.
-
-### 7.2 Grouped Work Items
-
-**GTest harness** (cross-dependent): Status 4.1, 4.3, 4.4 share BuildWitnessCache/harness gap. Fix harness once to unblock multiple tests.
-
-**Fix now**: (none remaining)
-
-**Later**: Status 4.1 (CachedWitnesses*), 6.1 (get_coinbase_address), 6.3 (clean-chain amounts). RPC: zeronode tests (RPC §5.3 gap).
-
-**Set aside**: Status 4.2 (WriteCryptedSaplingZkeyDirectToDb), 5.1 (Alert_tests), 5.2 (equihash_tests), 5.3 (miner_tests).
-
-**New work**: zeronode RPC tests; Python 3 migration (Notes §6.3, delayed); runner unification (§8).
-
-### 7.3 Ordering Suggestions
-
-1. GTest harness: Address Status 4.1 before 4.3/4.4 if pursuing full inclusion.
-2. RPC Python: Status 6.3 (clean-chain amounts) depends on Zero subsidy constants; Subsidy.md defines specifics (halving, founder, etc.).
-3. RPC coverage: zeronode tests can proceed independently (RPC §5.3).
-
-### 7.4 Collated Listing
-
-| ID | Area | Item | Importance | Urgency |
-|----|------|------|------------|---------|
-| 4.1 | GTest | CachedWitnesses* | High | Later |
-| 4.2 | GTest | WriteCryptedSaplingZkeyDirectToDb | Medium | Set aside |
-| 5.1 | Boost | Alert_tests | Low | Set aside |
-| 5.2 | Boost | equihash_tests | Medium | Set aside |
-| 5.3 | Boost | miner_tests | Medium | Set aside |
-| 6.1 | RPC Python | get_coinbase_address | Medium | Later |
-| 6.3 | RPC Python | clean-chain amounts | Medium | Later |
-| — | RPC | zeronode tests | Medium | Later |
-| — | Notes | Python 3 migration | Low | Delayed |
-| — | §8 | Unify runners, Python config | Low | Optional |
-
-## 8. Unify Runners
-
-Proposal to consolidate orchestration scripts, Python 2 lookup, and test configuration. See §3.1 Runners for current layout; §3.4 Special Cases for Python 2.7 usage; §4.7 for RPC Python.
-
-### 8.1 Current State
-
-**Runners and orchestration**
-
-| Script | Role |
-|--------|------|
-| contrib/run-tests.sh | Main entry; modes quick/default/fail/all/full/no-python/build-checks/jobs |
-| contrib/run-boost-individual.sh | Per-suite Boost isolation; avoids cascade |
-| qa/zcash/full_test_suite.py | Full validation: btest, gtest, sec-hard, no-dot-so, util-test, secp256k1, univalue, rpc |
-| qa/pull-tester/rpc-tests.sh | Python RPC only; testScripts, testScriptsExt arrays |
-| make -C src check | Recursive; Util, secp256k1, univalue, Boost |
-
-**Support scripts**
-
-| Script | Role |
-|--------|------|
-| qa/pull-tester/tests-config.sh | BUILDDIR, REAL_BITCOIND, REAL_BITCOINCLI (hardcoded paths) |
-| qa/pull-tester/run-bitcoin-cli | Wrapper for zero-cli; strips Windows CR |
-| qa/pull-tester/run-bitcoind-for-test.sh | Legacy; starts zerod for manual runs; rpc-tests use util.py |
-
-**Test lists (duplicated)**
-
-- run-tests.sh: PYTHON_PASSING (16 scripts for pass-only)
-- rpc-tests.sh: testScripts (~60), testScriptsExt (~15)
-
-### 8.2 Proposal: Unification
-
-**contrib: single script**
-
-- Merge run-boost-individual.sh into run-tests.sh as `--boost-individual`
-- Extract Python lookup to contrib/find-python.sh
-- Result: contrib/run-tests.sh, contrib/find-python.sh
-
-**qa: single orchestrator**
-
-- Add qa/run-tests.sh: `--full` → full_test_suite.py; `rpc [scripts]` → RPC tests
-- Keep full_test_suite.py, rpc-tests.sh (or fold rpc logic into qa/run-tests.sh)
-- Result: qa/run-tests.sh as qa entry point
-
-**Test list: single config**
-
-- Add qa/rpc-tests/tests.conf (or .json): passing, extended, excluded
-- run-tests.sh and qa/run-tests.sh read from it
-- Result: one source of truth
-
-**tests-config: derive paths**
-
-- BUILDDIR = `$(cd "$(dirname "$0")/../.." && pwd)` instead of hardcoded path
-- REAL_BITCOIND, REAL_BITCOINCLI derived from BUILDDIR
-
-### 8.3 Stacking (proposed)
-
-```
-contrib/run-tests.sh
-├── --quick          → util, secp256k1, univalue, check-symbols, check-security
-├── --full           → qa/run-tests.sh --full → full_test_suite.py
-├── --boost-individual → each Boost suite (merged from run-boost-individual.sh)
-└── default          → util, secp256k1, univalue, gtest, boost, qa/run-tests.sh rpc
-
-qa/run-tests.sh
-├── --full           → full_test_suite.py
-└── rpc [scripts]    → run Python RPC tests (from tests.conf)
-
-full_test_suite.py
-└── rpc stage        → qa/run-tests.sh rpc
-```
-
-### 8.4 Python Config
-
-Python 2.7 is required for RPC tests and full_test_suite; symbol-check and security-check need `python` in PATH. Detection is duplicated across run-tests.sh, BUILD_CHECKS, and full_test_suite. This section proposes a unified approach and compares it to the Find-or-configure alternative.
-
-**8.4.1 Where Python 2.7 is used**
-
-| Suite/component | Python | Notes |
-|-----------------|--------|-------|
-| RPC Python (qa/rpc-tests/*.py) | 2.7 | rpc-tests.sh uses $PYTHON; scripts assert sys.version_info < (3,) |
-| full_test_suite | 2.7 | Shebang python2; invoked by run-tests.sh |
-| Util (bitcoin-util-test.py) | 3 | run-tests.sh uses python3 |
-| symbol-check.py, security-check.py | env python | Shebang #!/usr/bin/env python; need python in PATH for make check-security. full_test_suite _env_for_make and run-tests.sh --build-checks prepend Python dir to PATH. |
-| test-security-check.py | 2 | Shebang python2 |
-
-**8.4.2 Current lookup (duplicated)**
-
-| Location | Logic |
-|----------|-------|
-| run-tests.sh find_python2() | 1. $PYTHON 2. ~/.pyenv/versions/2.7.18/bin/python 3. python2 from PATH. No -x check for PYTHON. Version hardcoded. |
-| run-tests.sh (BUILD_CHECKS) | Same order for PY_DIR; prepends to PATH for make check-security |
-| full_test_suite _env_for_make() | PYTHON → pyenv 2.7.18 → sys.executable dir; prepends to PATH for make |
-| rpc-tests.sh | Uses $PYTHON from caller |
-
-**8.4.3 Proposed: contrib/find-python.sh**
-
-Single script; default Python 2; `-2` or `-3` to steer. Precedence: PYTHON (if set and executable) > pyenv version > python2/python3 in PATH.
-
-```bash
-#!/usr/bin/env bash
-# Output Python path to stdout. Exit 1 if not found.
-# Usage: find-python.sh [-2|-3]   (default: -2)
-PYTHON2_VERSION="${PYTHON2_VERSION:-2.7.18}"
-PYTHON3_VERSION="${PYTHON3_VERSION:-3.12.0}"
-MODE=2
-[ "$1" = "-3" ] && MODE=3
-[ "$1" = "-2" ] && MODE=2
-
-if [ -n "$PYTHON" ] && [ -x "$PYTHON" ]; then
-    echo "$PYTHON"
-    exit 0
-fi
-if [ "$MODE" = 2 ]; then
-    if [ -x "$HOME/.pyenv/versions/$PYTHON2_VERSION/bin/python" ]; then
-        echo "$HOME/.pyenv/versions/$PYTHON2_VERSION/bin/python"
-        exit 0
-    fi
-    if py=$(command -v python2 2>/dev/null) && [ -x "$py" ]; then
-        echo "$py"
-        exit 0
-    fi
-else
-    if [ -x "$HOME/.pyenv/versions/$PYTHON3_VERSION/bin/python" ]; then
-        echo "$HOME/.pyenv/versions/$PYTHON3_VERSION/bin/python"
-        exit 0
-    fi
-    if py=$(command -v python3 2>/dev/null) && [ -x "$py" ]; then
-        echo "$py"
-        exit 0
-    fi
-fi
-exit 1
-```
-
-**8.4.4 Callers, installation, prereqs**
-
-Callers invoke find-python.sh or inherit PYTHON. run-tests.sh: `PY2=$("$REPO_ROOT/contrib/find-python.sh")`; BUILD_CHECKS: `PY_DIR=$(dirname "$("$REPO_ROOT/contrib/find-python.sh")")`. full_test_suite inherits PYTHON from run-tests.sh. Installation: pyenv `$PYTHON2_VERSION` (default 2.7.18), Homebrew python@2, or system python2. Override: `export PYTHON=/path` or `PYTHON2_VERSION=2.7.18`. Prereq: `python2 -m pip install pyblake2` for RPC tests using mininode.
-
-**8.4.5 Python lookup**
-
-Recommendation: adopt find-python.sh to remove duplicated logic and hardcoded versions.
-
-| Pro | Con |
-|-----|-----|
-| Single source of truth; no drift between shell and Python | New script to maintain |
-| PYTHON validated with -x; invalid path falls through to fallbacks | — |
-| Explicit override (PYTHON) takes precedence | — |
-| full_test_suite can simplify _env_for_make (trust PYTHON when set) | — |
-
-**8.4.6 Unification overall**
-
-Recommendation: Phase 1 (Python lookup) first; Phases 2–4 optional and lower priority.
-
-| Pro | Con |
-|-----|-----|
-| Fewer scripts; clearer entry points | Migration effort; risk of regressions |
-| Single test list (tests.conf) | Config file adds indirection |
-| BUILDDIR derived from path; portable | tests-config.sh may be sourced from multiple dirs |
-| run-boost-individual merged; one less script | run-tests.sh grows |
-
-**8.4.7 Redo Changes**
-
-Summary of changes to align run-tests.sh and full_test_suite.py with §8.4:
-
-| File | Change |
-|------|--------|
-| **contrib/find-python.sh** | Add script. PYTHON2_VERSION, PYTHON3_VERSION variables; -2/-3 flags; default Python 2. |
-| **run-tests.sh** | Remove find_python2(); replace with `PY2=$("$REPO_ROOT/contrib/find-python.sh")`. Replace BUILD_CHECKS PY_DIR logic with `PY_DIR=$(dirname "$("$REPO_ROOT/contrib/find-python.sh")")`. |
-| **full_test_suite** | _env_for_make: use PYTHON2_VERSION for pyenv path; trust PYTHON when set. util_test: run bitcoin-util-test with python3 (or find-python.sh -3). rpc stage: pass PYTHON in subprocess env when invoking rpc-tests.sh. |
-
-**8.4.8 Compare: find-python.sh vs Find-or-configure**
-
-| | find-python.sh | Find-or-configure |
-|---|----------------|-------------------|
-| **Source** | contrib/find-python.sh | tests-config.sh (or .in); scripts source it |
-| **Detection** | PYTHON > pyenv > python2; same order | Same |
-| **Python 3** | -3 flag | No |
-| **Configure** | None | AC_ARG_VAR(PYTHON); @PYTHON@ in .in |
-| **Adoption** | New script; no build changes | Requires tests-config as hub |
-
-**Recommendation**: Use find-python.sh for Phase 1. Both remove duplication; find-python.sh is simpler (no autoconf) and supports Python 3. Choose Find-or-configure only if tests-config is already the config hub and configure integration is desired.
-
-**Actions**: Implement find-python.sh per §8.4.7. Consider migrating to Find-or-configure later if qa/run-tests.sh exists, all qa scripts source tests-config, and a single config file is preferred—until then, find-python.sh avoids rework if §8.2 is deferred.
-
-**Phase 1: Python lookup (low risk)**
-
-1. Create contrib/find-python.sh with logic above (PYTHON2_VERSION variable, -2/-3 flags).
-2. In run-tests.sh: replace find_python2() with `PY2=$("$REPO_ROOT/contrib/find-python.sh")`; add `-x` check for PYTHON in script.
-3. In run-tests.sh BUILD_CHECKS: use `PY_DIR=$(dirname "$("$REPO_ROOT/contrib/find-python.sh")")`.
-4. In full_test_suite _env_for_make: if PYTHON set and executable, use its dir; else pyenv; else sys.executable. Remove duplicate lookup logic.
-
-**Phase 2: tests-config (medium risk)**
-
-1. In tests-config.sh: `BUILDDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"` (assumes tests-config.sh in qa/pull-tester/).
-2. Verify rpc-tests.sh, run-bitcoin-cli work with derived BUILDDIR.
-
-**Phase 3: Merge run-boost-individual (low risk)**
-
-1. Add `--boost-individual` to run-tests.sh; implement loop from run-boost-individual.sh.
-2. Deprecate run-boost-individual.sh; document in §3.1.
-
-**Phase 4: tests.conf (optional, higher effort)**
-
-1. Create qa/rpc-tests/tests.conf with sections passing, extended, excluded.
-2. Update run-tests.sh and rpc-tests.sh to read from it.
-3. Remove duplicate arrays.
-
-## Appendix A. References (External)
+## 7. References (External)
 
 | Reference | URL/Notes |
 |-----------|-----------|
@@ -791,7 +512,7 @@ Summary of changes to align run-tests.sh and full_test_suite.py with §8.4:
 | Zcash integration-tests | https://github.com/zcash/integration-tests (zebrad, zainod, zallet; not zcashd/Zero) |
 | Bitcoin Core | test/functional, src/test/fuzz |
 
-## Appendix B. Cross-Project Comparison
+## 8. Cross-Project Comparison
 
 | Suite | Zero | Bitcoin | Zcash | Pirate | Notes |
 |-------|------|---------|-------|--------|-------|
@@ -806,3 +527,61 @@ Summary of changes to align run-tests.sh and full_test_suite.py with §8.4:
 | Integration tests | in-tree qa | — | separate repo | — | |
 
 **Suites in others not in Zero**: Functional tests (Bitcoin Py3), Fuzz, Lint, Stress tests. Integration tests (Zcash separate repo for zebrad/zainod/zallet).
+
+## 9. Coverage Analysis, Limitations, and Future Work
+
+Aggregated from coverage analysis. Detailed limitations, justifications for exclusions, and future work.
+
+### 9.1 Coverage by Functional Area
+
+| Area | Coverage | Test Files | Notes |
+|------|----------|------------|-------|
+| Cryptography | 95% | 15+ | Hash, sigs, Equihash, Zcash crypto; test vectors |
+| Zcash Features | 90% | 12+ | JoinSplit, shielded, Merkle, Sapling, note encryption |
+| Core Blockchain | 90% | 20+ | Block validation, chain state, mining |
+| RPC Interface | 85% | 25+ | Unit + integration |
+| Wallet | 80% | 8+ | Standard wallet; async RPC |
+| Mining/PoW | 75% | 6+ | Equihash (192,7); miner_tests excluded |
+| Network/P2P | 60% | 5+ | Gaps: partition, peer misbehavior |
+| Zeronode System | 0% | 0 | Critical gap; see 9.2 |
+
+**Test-to-source ratio:** ~40% (96 test files vs 149 .cpp + 258 .h).
+
+### 9.2 Zeronode Coverage Gap — Critical
+
+**Components not tested:** zeronode management, payments, budget/governance, spork, SwiftTX, obfuscation. No unit, integration, or RPC tests for zeronode-specific commands.
+
+**Risk:** High. Core differentiating features lack automated coverage. Manual validation only.
+
+**Justification for deferral:** Zeronode test suite is high impact but not part of current port/stabilization. Existing infrastructure (GTest, Boost, RPC Python) provides foundation; zeronode tests would require new fixtures and network simulation.
+
+**Future work:** Unit tests for registration, validation, payments; integration for masternode network behavior; RPC tests for zeronode commands. Budget proposal/voting, SwiftTX lock/conflict, spork activation.
+
+### 9.3 Other Gaps and Priorities
+
+**High:** SwiftTX (instant tx validation, lock conflict, consensus); Spork (activation, backward compat).
+
+**Medium:** P2P (partition, misbehavior); database resilience (corruption, load, backup).
+
+**Low:** Performance benchmarking; cross-platform behavior.
+
+### 9.4 Recent Fixes (June 2025)
+
+- **Founders reward:** Halving (9,10), 11 addresses, subsidy 338665500000000. Accuracy TBD.
+- **Alert:** Placeholder keys; verification disabled; deprecated.
+- **Tx size:** Sapling limits validated.
+- **PTHREAD_STACK_MIN:** configure.ac, depends; threading compatibility.
+
+### 9.5 Doubts and Open Questions
+
+- **Regtest 424 vs 210:** Block count mismatch; cause not fully confirmed.
+- **Founders reward expected values:** Updated to actual; accuracy TBD.
+- **script_test.py:** Excluded; sync_blocks fails; >40 min; COINBASE_MATURITY 720 vs test 100 blocks — not viable without major rewrite.
+
+### 9.6 Future Directions
+
+- Python 3 migration (pyblake2 → hashlib.blake2b).
+- Zeronode test suite (see 9.2).
+- Fuzz tests (Zero has none; Bitcoin has src/test/fuzz/).
+- Functional test migration (Bitcoin test/functional Py3; Zero uses legacy qa/rpc-tests).
+- Coverage targets (make cov; requires lcov).

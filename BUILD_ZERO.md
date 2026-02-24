@@ -1,6 +1,6 @@
 # BUILD_ZERO
 
-Build guide for the Zero node (zerod). Covers Quick Start, data directory layout, and developer build knowledge.
+Build guide for the Zero node (zerod). Quick Start, data directory layout, and developer build knowledge.
 
 ---
 
@@ -9,8 +9,6 @@ Build guide for the Zero node (zerod). Covers Quick Start, data directory layout
 Zero is a Zcash-family cryptocurrency node. This document describes how to build zerod from source on Linux, macOS ARM64, and Windows (generic). Dev and test target is Ubuntu 24.04; moving forward is the overarching goal, not a design decision. The build uses autotools with a `depends/` system for deterministic dependency builds. Each platform has specific toolchain and configure requirements.
 
 **Requirements:** Full build: Mac &lt;6 GB, Linux &lt;5 GB disk. 4-core 16 GB RAM compiles promptly; 2 CPU 4 GB manages. GCC 7.0+, GNU Make 4.0+, Python 3.6+, Git 2.0+. C++14 required (Boost 1.88).
-
-**Related:** [doc/files.md](doc/files.md) (data directory files).
 
 ---
 
@@ -100,7 +98,9 @@ Binaries: `src/zerod.exe`, `src/zero-cli.exe`, `src/zero-tx.exe`.
 
 Override with `-datadir=<path>`.
 
-### 3.2 Files (doc/files.md)
+### 3.2 Files
+
+See [doc/files.md](doc/files.md) for details.
 
 | File/dir | Purpose |
 |----------|---------|
@@ -184,7 +184,7 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 
 - Depends: `depends/$HOST/` (e.g. `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin24.5.0`).
 - Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. GUI: `src/qt/zerowallet` if built with `--with-gui=qt5`.
-- Tests: `contrib/run-tests.sh`; logs in `test-logs/`.
+- Tests: `contrib/run-tests.sh`; logs in `test-logs/`. See [TEST_ZERO.md](TEST_ZERO.md).
 
 ### 4.6 Configure Options
 

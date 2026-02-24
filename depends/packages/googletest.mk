@@ -5,7 +5,7 @@ $(package)_file_name=$(package)-$($(package)_version).tar.gz
 $(package)_sha256_hash=78c676fc63881529bf97bf9d45948d905a66833fbfa5318ea2cd7478cb98f399
 
 define $(package)_set_vars
-$(package)_cxxflags+=-std=c++11
+$(package)_cxxflags+=-std=c++14
 $(package)_cxxflags_linux=-fPIC
 $(package)_cxxflags_freebsd=-fPIC
 endef

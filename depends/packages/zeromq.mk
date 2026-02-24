@@ -8,7 +8,7 @@ define $(package)_set_vars
   $(package)_config_opts=--without-documentation --disable-shared --disable-curve
   $(package)_config_opts_linux=--with-pic
   $(package)_config_opts_freebsd=--with-pic
-  $(package)_cxxflags=-std=c++11 -Wno-missing-braces
+  $(package)_cxxflags=-std=c++14 -Wno-missing-braces
 endef
 
 define $(package)_config_cmds

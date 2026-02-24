@@ -1,9 +1,6 @@
 # UpdateBuild
 
-Build system changes, dependency management, platform setup, and library
-upgrade planning for the Zero node.
-
-**Cross-references**: UpdateZero.md §1.1.
+Build system changes, dependency management, platform setup, and library upgrade planning for the Zero node.
 
 ## 1. Build System Overview
 
@@ -142,7 +139,7 @@ OpenSSL 1.1.1a to 1.1.1w.
 - 1.1.1a (2018) has no `darwin64-arm64-cc` target.
 - 1.1.1w is the final 1.1.1 LTS release (Sep 2023). Updated download URL (GitHub releases) and SHA256.
 - Added `$(package)_config_opts_aarch64_darwin=darwin64-arm64-cc`.
-- OpenSSL 1.1.1 is EOL. Future: remove or migrate to 3.x. See section 6.9.
+- OpenSSL 1.1.1 is EOL. Future: remove or migrate to 3.x.
 
 ### 3.3 rust.mk
 
@@ -309,7 +306,7 @@ reasoning and upgrade history in §6.
 rpczerowallet.cpp for `utf8::is_valid(memoStr)` on shielded memo fields.
 Zero includes it via zcash_packages. Upgrade deferred.
 
-Google Test version tracking is in UpdateTests §2.1.
+GTest 1.16.0 (googletest.mk); C++14.
 
 ### 5.4 Vendored Rust Crates
 
@@ -334,7 +331,7 @@ version comparison.
 
 ### 6.1 BerkeleyDB 6.2.23 → 6.2.32
 
-**Done.** `bdb.mk` at 6.2.32. ARM64 mutex fixed natively. See UpdateFeatures §4.1 for wallet compatibility.
+**Done.** `bdb.mk` at 6.2.32. ARM64 mutex fixed natively.
 
 BDB version and license context:
 
@@ -384,7 +381,7 @@ commit `06da3b9` compiles with any modern Rust.
 
 **Postponed.** Separate effort. Requires detailed validation strategy before proceeding.
 
-**Current understanding** (UpdateFeatures §4.2):
+**Current understanding:**
 - Zero uses OpenSSL for RPC TLS and legacy crypto paths.
 - 1.1.1w is EOL (final 1.1.1 release, Sep 2023); no further security fixes.
 - Zcash and Bitcoin Core removed OpenSSL; Zero, Horizen, Fluxd, Zclassic still carry it.
@@ -406,7 +403,7 @@ messaging. Re-evaluate if needed.
 
 ## 7. Cross-Project Library Versions
 
-How each Zcash-family project versions its core dependencies. GTest: UpdateTests §2.1.
+How each Zcash-family project versions its core dependencies.
 
 | Library | Zero | Zcash | Horizen | Pirate | Fluxd | Zclassic | HUSH | Bitcoin | Latest | Target |
 |---------|------|-------|---------|--------|-------|----------|------|---------|--------|--------|
@@ -445,7 +442,7 @@ See §6.7. Pin modern version; symlink workaround for ARM Mac until rust.mk upda
 
 ### 7.4 OpenSSL
 
-**Postponed.** Separate effort. See §6.8 and UpdateFeatures §4.2.
+**Postponed.** Separate effort. See §6.8.
 
 Projects: Zcash, Bitcoin (removed); HUSH (WolfSSL); Zero, Horizen, Fluxd, Zclassic (1.1.1x). Zero on 1.1.1w (EOL). Requires call-site audit and validation strategy before any change.
 
@@ -492,23 +489,3 @@ Build system architecture and platform support across Zcash-family and Bitcoin.
 
 **Dependencies (other projects):** Bitcoin: build-essential, cmake, pkgconf, python3, libevent-dev, libboost-dev; GUI: qt6. Zcash: build-essential, pkg-config, libc6-dev, m4, g++-multilib, autoconf, libtool, ncurses-dev, unzip, git, python3, python3-zmq, zlib1g-dev, curl, bsdmainutils, automake, libtinfo5.
 
-## Proposed §3–7 Restructure
-
-**Problem:** Each library appears in §3, §5, §6, §7 with overlapping descriptions. Same issue touched in multiple places.
-
-**Principle:** Group and prioritize within groups. Each topic has one primary home; other sections reference it. Not every point needs coverage at each level.
-
-**Proposed assignment:**
-
-| Topic | Primary home | Other sections |
-|-------|--------------|----------------|
-| Recipe edits (.mk changes) | §3 | §5/§6/§7: no repeat; "See §3.N" |
-| Current version (what we have) | §5 table | §6/§7: "See §5.1" or table only |
-| Upgrade history, rationale, blockers | §6 | §7.1–7.4: fold into §6; §7 becomes table-only |
-| Cross-project comparison | §7 table | §6: one-line "See §7 table" where relevant |
-
-**Within §6:** Group by status. Done (BDB, libsodium, libevent, ZeroMQ, ccache, Boost): brief "Done. See §5.1." Deferred/postponed (Rust, OpenSSL, librustzcash, Qpid): full rationale here; cross-project notes inline. §7.1–7.4 content moves into the relevant §6 subsections.
-
-**Within §3:** Recipe-only. Version numbers, upgrade rationale, cross-fork context → §5/§6. §3 says what changed in the .mk file.
-
-**Result:** Fewer places per issue. Lookup: §5 for versions, §3 for recipe, §6 for history and rationale. §7 table for cross-project; no §7.1–7.4 duplication.

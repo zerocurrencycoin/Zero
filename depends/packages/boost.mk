@@ -20,7 +20,7 @@ $(package)_archiver_$(host_os)=$($(package)_ar)
 $(package)_toolset_darwin=clang
 $(package)_archiver_darwin=$($(package)_ar)
 $(package)_config_libraries=chrono,filesystem,program_options,system,thread,test
-$(package)_cxxflags=-std=c++11 -fvisibility=hidden -Wno-nonnull -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-error -Wno-deprecated-declarations
+$(package)_cxxflags=-std=c++14 -fvisibility=hidden -Wno-nonnull -Wno-unused-parameter -Wno-implicit-fallthrough -Wno-error -Wno-deprecated-declarations
 $(package)_cppflags+=-DPTHREAD_STACK_MIN=16384
 $(package)_cxxflags_linux=-fPIC
 $(package)_cxxflags_freebsd=-fPIC

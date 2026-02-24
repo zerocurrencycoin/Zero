@@ -1,9 +1,6 @@
 # UpdateFeatures
 
-Architecture changes, production code fixes, cross-fork analysis, and
-design decisions for the Zero node.
-
-**Cross-references**: UpdateZero.md §1.1.
+Architecture changes, production code fixes, cross-fork analysis, and design decisions for the Zero node.
 
 ## 1. Witness Cache Architecture
 
@@ -154,7 +151,7 @@ current codebase.
    maintenance path but discards performance work for IBD scenarios.
 
 Current decision: option 1. Options 2–4 are future work for additional
-capabilities; no tracking in UpdateZero until reviewed.
+capabilities; not tracked until reviewed.
 
 ## 2. Equihash State API
 
@@ -185,14 +182,13 @@ files.
 ## 4. Library Dependencies with Feature Impact
 
 Some library upgrades or removals have implications beyond build
-configuration. These are tracked here for architectural awareness;
-build-level details are in UpdateBuild.md.
+configuration.
 
 ### 4.1 BerkeleyDB and Wallet Compatibility
 
 Implementation and backwards compatibility. BDB version determines wallet file format and storage behavior. All Zcash-family projects use BDB 6.2.x (AGPLv3). Wallet files created with 6.2.23 are compatible with 6.2.32 (same on-disk format). The BDB mutex fix on ARM64 directly affects wallet reliability at runtime.
 
-Bitcoin Core has migrated entirely from BDB to SQLite-backed descriptor wallets. No Zcash-family project has followed this path. See UpdateBuild.md §7.1.
+Bitcoin Core has migrated entirely from BDB to SQLite-backed descriptor wallets. No Zcash-family project has followed this path.
 
 ### 4.2 OpenSSL and TLS
 
@@ -204,24 +200,5 @@ Bitcoin Core has migrated entirely from BDB to SQLite-backed descriptor wallets.
 - Zcash, Bitcoin: removed. HUSH: WolfSSL. Zero, Horizen, Fluxd, Zclassic: still carry 1.1.1x.
 - Options: keep 1.1.1w; remove (audit call sites, libsodium+libsecp256k1); migrate to 3.5.x LTS.
 
-**Before proceeding:** Audit all OpenSSL call sites; document TLS/crypto usage; define validation strategy (unit tests, integration tests, TLS handshake verification). Do not mix with Boost or other upgrades. See UpdateBuild.md §6.8.
+**Before proceeding:** Audit all OpenSSL call sites; document TLS/crypto usage; define validation strategy (unit tests, integration tests, TLS handshake verification). Do not mix with Boost or other upgrades.
 
-## 5. Identified Requirements
-
-### 5.1 Linux and Windows Validation
-
-All production code changes (wallet.cpp, wallet.h, equihash.cpp) must be
-validated on Linux and Windows before merge. The changes are defensive
-(null guards with unchanged production paths) but regression testing is
-required.
-
-### 5.2 Witness Test Coverage
-
-Witness test coverage gaps and harness improvements: UpdateTests §4.5, §7.
-
-### 5.3 Documentation
-
-Process for the Zero project should include:
-- A changelog or release notes capturing what changed and why.
-- Build instructions per platform verified against clean environments.
-- Test execution procedures with expected results and known exclusions.

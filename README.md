@@ -109,31 +109,36 @@ Disabledeprecation flag has been removed. Nodes running release 3.3.1 will autom
 🔧 Building
 --------
 
-### **📚 Build Documentation**
+**User types:** New to Zero? Run the Quick Start below. Building on macOS or Windows? See [BUILD_ZERO.md](BUILD_ZERO.md). Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-For comprehensive build instructions, see our detailed documentation:
+**Document map:**
+```
+                    README
+                       │
+        ┌──────────────┼──────────────┐
+        ▼              ▼              ▼
+   BUILD_ZERO     TEST_ZERO     CONTRIBUTING
+        │              │              │
+        └──────────────┘              ▼
+   (cross-ref)                   TODO
+```
 
-- **[BUILD_ZERO.md](BUILD_ZERO.md)** - Build guide for Linux, macOS ARM64, Windows
-- **[TEST.md](TEST.md)** - Test coverage analysis and validation results
-- **[TODO.md](TODO.md)** - Implementation status and development roadmap  
-- **[MULTISIG.md](MULTISIG.md)** - Multisig implementation and usage guide
+- **[BUILD_ZERO.md](BUILD_ZERO.md)** — Build guide (Linux, macOS ARM64, Windows)
+- **[TEST_ZERO.md](TEST_ZERO.md)** — Test procedures and validation
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — How to contribute
+- **[TODO.md](TODO.md)** — Implementation status and roadmap
 
-### **⚡ Quick Start**
+### Quick Start (Linux)
 
-See **[BUILD_ZERO.md](BUILD_ZERO.md)** for detailed build instructions covering:
-- Linux, macOS, and Windows platforms
-- Package dependencies and system requirements  
-- GNU toolchain and C++14 setup
-- Configuration options and troubleshooting
-- Current test status (98% Google Test success rate)
+```bash
+sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib autoconf libtool ncurses-dev unzip git python3 python3-zmq zlib1g-dev wget bsdmainutils automake cmake curl
+git clone https://github.com/zerocurrencycoin/Zero.git && cd Zero
+./zcutil/fetch-params.sh
+./zcutil/build.sh -j$(nproc)
+./src/zerod -daemon
+```
 
-**Linux users:** Basic build steps are in BUILD_ZERO.md §2.2.
-
-### **🧪 Build Status**
-- **Build System**: ✅ Stable (threading issues resolved)
-- **Test Coverage**: ~75% overall, 98% core functionality  
-- **Core Features**: ✅ Thoroughly tested and validated
-- **Documentation**: ✅ Comprehensive and current
+macOS and Windows: see [BUILD_ZERO.md](BUILD_ZERO.md).
 
 ### Create a Zero configuration file
 ```
@@ -165,17 +170,15 @@ echo 'equihashsolver=tromp' >> ~/.zero/zero.conf
 
 🔩 Running Zero
 --------------------
-After successfully building, the Zero binaries are stored in `./src`. The two important binaries are `zerod` and `zero-cli`.
-To run zerod in the background
+After building, binaries are in `./src`. Run the daemon in the background:
+
 ```
-./zerod --daemon
-``` 
-To see command line options (also available in zero.conf file)
+./src/zerod -daemon
 ```
-./zerod -?
-``` 
-Your wallet will be created (on first zerod run) in: ~/.zero/wallet.zero
-Please, [backup your wallet](https://github.com/zerocurrencycoin/Zero/wiki/Wallet-Backup) often and keep it safe and secret.
+
+Command-line options: `./src/zerod -help` (or set in zero.conf).
+
+Your wallet is created on first run in `~/.zero/wallet.zero`. [Backup your wallet](https://github.com/zerocurrencycoin/Zero/wiki/Wallet-Backup) often.
 
 The usage is currently very similar to Zcash. For more information see the [Zcash User Guide](https://github.com/zcash/zcash/wiki/1.0-User-Guide#running-zcash).
 
