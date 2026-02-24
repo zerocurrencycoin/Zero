@@ -48,7 +48,7 @@ static inline void RegisterAllCoreRPCCommands(CRPCTable &tableRPC)
     RegisterMiningRPCCommands(tableRPC);
     RegisterRawTransactionRPCCommands(tableRPC);
     RegisterZeronodeRPCCommands(tableRPC);
-    //RegisterBudgetRPCCommands(tableRPC); //Disabled for now
+    RegisterBudgetRPCCommands(tableRPC);
     RegisterSporkRPCCommands(tableRPC);
 #ifdef ENABLE_WALLET
     RegisterZeroExclusiveRPCCommands(tableRPC);

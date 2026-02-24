@@ -121,7 +121,16 @@ bugs also present in HUSH3.
 | Python 3 migration | Planned | When feasible; hashlib.blake2b replaces pyblake2 |
 | GTest 1.12.1 upgrade | Pending | C++14 min; cross-fork validation |
 
-### 4.6 External Documentation Review (Area to Improve)
+### 4.6 Documented Mismatches (Subsidy §11.1)
+
+| Location | Issue |
+|----------|-------|
+| `src/amount.h` | `MAX_MONEY = 16.95M ZER`; Zero total supply ~25.6M ZER exceeds this; validation uses per-subsidy `MoneyRange` only, not cumulative |
+| `TODO.md`, `TEST.md` | Outdated `338665500000000` total subsidy reference; Zero total ≈ 2.56e15 zatoshi |
+| `README.md` | "Stable supply is 3888 ZER, after first halfing" — ambiguous; 3888 ≈ daily emission (720×5.4) after first halving, not total supply |
+| `doc/tor.md` | `"subver" : "/MagicBean:1.0.0/"` — legacy; Zero uses Ambrym |
+
+### 4.7 External Documentation Review (Area to Improve)
 
 **Issue:** External links in README, BUILD_ZERO, and other user docs point to Zcash, Bitcoin, and third-party sites. Several need review and improvement.
 

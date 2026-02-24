@@ -402,6 +402,9 @@ TEST(wallet_zkeys_tests, write_cryptedzkey_direct_to_db) {
 
 /**
  * This test covers methods on CWalletDB to load/save crypted sapling z keys.
+ * EXCLUDED: Hangs — CDB::Rewrite spins on mapFileUseCount; EncryptWallet triggers Rewrite
+ * while wallet holds DB. See UpdateTests.md §4.2, Appendix A.2.
+ * WORKAROUND: WriteCryptedSaplingZkeyDirectToDbSeparateFile uses different file for wallet2.
  */
 TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDb) {
     SelectParams(CBaseChainParams::TESTNET);

@@ -1190,6 +1190,17 @@ TEST(WalletTests, SpentSaplingNoteIsFromMe) {
     RegtestDeactivateSapling();
 }
 
+// CachedWitnesses* tests: Partial fix applied (keep indices in scope for ChainTip, DecrementFirst).
+// Still excluded: BuildWitnessCache returns early when pcoinsTip is null, so witnesses never built.
+// To re-enable: populate pcoinsTip in harness, or build witnesses manually (see UpdateTests.md §4.1).
+//
+// PARTIAL FIX (commented): Manual witness build to bypass BuildWitnessCache.
+// Pattern: NavigateFromSaplingNullifierToNote (lines ~967–981) — build SaplingMerkleTree from
+// block.vtx, append commitments, call witness(), store in mapSaplingNoteData. For Sprout: iterate
+// vJoinSplit commitments, build SproutMerkleTree, witness per JSOutPoint. Then UpdateNullifierNoteMapForBlock.
+//
+// ALTERNATIVE: Replace EXPECT_DEATH — DecrementNoteWitnesses has no assert; current code only pops when size>1.
+//   // EXPECT_DEATH(wallet.DecrementNoteWitnesses(&index), ".*nWitnessCacheSize > 0.*");
 TEST(WalletTests, CachedWitnessesEmptyChain) {
     TestWallet wallet;
 
@@ -1228,6 +1239,7 @@ TEST(WalletTests, CachedWitnessesEmptyChain) {
     block.hashMerkleRoot = block.BuildMerkleTree();
     auto blockHash = block.GetHash();
     CBlockIndex index(block);
+    index.nHeight = 0;
     auto it = mapBlockIndex.insert(std::make_pair(blockHash, &index));
     index.phashBlock = &(it.first->first);
     chainActive.SetTip(&index);
@@ -1251,7 +1263,7 @@ TEST(WalletTests, CachedWitnessesEmptyChain) {
     EXPECT_TRUE((bool) sproutWitnesses[1]);
     EXPECT_TRUE((bool) saplingWitnesses[0]);
 
-    // Until #1302 is implemented, this should triggger an assertion
+    // Until #1302 is implemented, this should trigger an assertion
     EXPECT_DEATH(wallet.DecrementNoteWitnesses(&index),
                  ".*nWitnessCacheSize > 0.*");
 
@@ -1264,6 +1276,7 @@ TEST(WalletTests, CachedWitnessesChainTip) {
     TestWallet wallet;
     std::pair<uint256, uint256> anchors1;
     CBlock block1;
+    CBlockIndex index1(block1);  // Keep in scope: mapBlockIndex stores &index1; dangling ptr caused crash
     SproutMerkleTree sproutTree;
     SaplingMerkleTree saplingTree;
 
@@ -1272,7 +1285,6 @@ TEST(WalletTests, CachedWitnessesChainTip) {
 
     {
         // First block (case tested in _empty_chain)
-        CBlockIndex index1(block1);
         index1.nHeight = 1;
         auto outpts = CreateValidBlock(wallet, sk, index1, block1, sproutTree, saplingTree);
 
@@ -1376,6 +1388,8 @@ TEST(WalletTests, CachedWitnessesChainTip) {
 
 TEST(WalletTests, CachedWitnessesDecrementFirst) {
     TestWallet wallet;
+    CBlock block1;
+    CBlockIndex index1(block1);  // Keep in scope: mapBlockIndex stores &index1; dangling ptr caused crash
     SproutMerkleTree sproutTree;
     SaplingMerkleTree saplingTree;
 
@@ -1384,8 +1398,6 @@ TEST(WalletTests, CachedWitnessesDecrementFirst) {
 
     {
         // First block (case tested in _empty_chain)
-        CBlock block1;
-        CBlockIndex index1(block1);
         index1.nHeight = 1;
         CreateValidBlock(wallet, sk, index1, block1, sproutTree, saplingTree);
     }

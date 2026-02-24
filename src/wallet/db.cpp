@@ -391,6 +391,9 @@ bool CDB::Rewrite(const string& strFile, const char* pszSkip)
     while (true) {
         {
             LOCK(bitdb.cs_db);
+            // DEBUG: Uncomment to trace deadlock (mapFileUseCount never 0 → spins forever)
+            // int ref = bitdb.mapFileUseCount.count(strFile) ? bitdb.mapFileUseCount[strFile] : 0;
+            // LogPrintf("CDB::Rewrite: %s refcount=%d\n", strFile.c_str(), ref);
             if (!bitdb.mapFileUseCount.count(strFile) || bitdb.mapFileUseCount[strFile] == 0) {
                 // Flush log data to the dat file
                 bitdb.CloseDb(strFile);

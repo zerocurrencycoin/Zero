@@ -1322,7 +1322,9 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
   }
   if (!pcoinsTip) {
     LogPrintf("VerifyAndSetInitialWitness: pcoinsTip is null (test harness?)\n");
-    return pindex->nHeight;
+    if (!pblockIn)
+      return pindex->nHeight;
+    // Test harness: pblockIn provided; continue to build witnesses from block
   }
   if (chainActive.Height() < 0) {
     LogPrintf("VerifyAndSetInitialWitness: chainActive empty (test harness?)\n");

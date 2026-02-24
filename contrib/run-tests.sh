@@ -29,6 +29,7 @@ PYTHON_PASSING=(
     paymentdisclosure prioritisetransaction wallet_treestate wallet_anchorfork
     getchaintips rewind_index wallet_overwintertx wallet_changeaddresses
     shorter_block_times p2p_nu_peer_management
+    txn_doublespend
 )
 
 echo "Zero test validation - $TIMESTAMP"

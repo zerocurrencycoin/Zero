@@ -83,6 +83,8 @@ BITCOIN_TESTS =\
   test/raii_event_tests.cpp \
   test/reverselock_tests.cpp \
   test/rpc_tests.cpp \
+  test/rpc_zeronode_tests.cpp \
+  test/rpc_zeronode_budget_tests.cpp \
   test/sanity_tests.cpp \
   test/scheduler_tests.cpp \
   test/script_P2SH_tests.cpp \
@@ -104,7 +106,9 @@ if ENABLE_WALLET
 BITCOIN_TESTS += \
   test/accounting_tests.cpp \
   wallet/test/wallet_tests.cpp \
-  test/rpc_wallet_tests.cpp
+  test/rpc_wallet_tests.cpp \
+  test/rpc_zero_exclusive_tests.cpp \
+  test/rpc_zero_experimental_tests.cpp
 endif
 
 test_test_bitcoin_SOURCES = $(BITCOIN_TESTS) $(JSON_TEST_FILES) $(RAW_TEST_FILES)

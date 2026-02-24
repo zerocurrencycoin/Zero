@@ -253,6 +253,8 @@ Run `./zcutil/fetch-params.sh` before starting zerod.
 
 ### 6.2 Berkeley DB
 
+**Version:** BDB 6.2.32 only (from `depends/packages/bdb.mk`). Used for wallet storage (`wallet/walletdb.cpp`, `wallet/db.cpp`).
+
 **Not found:** Ensure depends built: `ls depends/$HOST/lib/libdb*`.
 
 **Mutex crash (macOS):** Remove `database/` in data dir and restart.

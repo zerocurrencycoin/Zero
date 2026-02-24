@@ -28,12 +28,16 @@ def p2p_port(n):
 def rpc_port(n):
     return 12000 + n + os.getpid()%999
 
-# Zero regtest: 10 ZER base, halving every 150 blocks (Subsidy.md, blocktools.py)
+# Zero regtest: 10 ZER base, halving every 150 blocks (Consensus::Halving = h/150)
 def zero_regtest_subsidy(n_blocks):
     """Sum of block subsidies for blocks 1..n_blocks. Returns Decimal."""
+    return zero_regtest_subsidy_range(1, n_blocks)
+
+def zero_regtest_subsidy_range(height_start, height_end):
+    """Sum of block subsidies for chain heights height_start..height_end (inclusive). Returns Decimal."""
     total = Decimal(0)
-    for h in range(1, n_blocks + 1):
-        halvings = (h - 1) // 150
+    for h in range(height_start, height_end + 1):
+        halvings = h // 150
         total += Decimal(10) / (2 ** halvings)
     return total
 
