@@ -151,6 +151,8 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 | ccache | 4.12.2 |
 | Rust (depends) | Pinned current (macOS ARM64); 1.32.0 (Linux/Win). Note: test pinned Rust on Windows and Linux. |
 
+**ZMQ:** ZeroMQ 4.3.5 is built and used by default for block/tx notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, etc.). AMQP 1.0 (via Qpid Proton 0.26.0) would provide the same role with `-amqppub*`; we do not use it. Proton is not built or downloaded; disabled since 2017 (gcc/CMake issues).
+
 ### 4.2 Build Flow
 
 1. `depends/` builds libraries into `depends/$HOST/` (bin, include, lib, share).

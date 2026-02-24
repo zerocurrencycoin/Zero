@@ -1,15 +1,20 @@
 *.tar.gz
 *.deb
 *.exe
-src/bitcoin
 src/zerod
 src/zero-cli
 src/zero-gtest
 src/zero-tx
+zero-gtest.coverage/
+src/bitcoin
 src/test/test_bitcoin
+test_bitcoin.coverage/
 
 *zcashTest.pk
 *zcashTest.vk
+.zcash
+libzcashconsensus.pc
+
 
 # autoreconf
 Makefile.in
@@ -53,10 +58,11 @@ src/univalue/gen
 *.pyc
 *.o
 *.o-*
-.zcash
 *.a
 *.pb.cc
 *.pb.h
+*~
+.cursor
 .vscode
 
 *.log
@@ -88,8 +94,6 @@ build
 *.gcno
 *.gcda
 /*.info
-test_bitcoin.coverage/
-zero-gtest.coverage/
 test-logs/
 total.coverage/
 coverage_percent.txt
@@ -106,8 +110,6 @@ qa/pull-tester/test.*/*
 !src/leveldb*/Makefile
 
 /doc/doxygen/
-
-libzcashconsensus.pc
 
 contrib/debian/files
 contrib/debian/substvars

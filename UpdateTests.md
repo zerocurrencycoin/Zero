@@ -912,3 +912,124 @@ Organized by group/area. Priorities: P1 (high impact, low effort), P2 (high impa
 2. Mock CZeronodeBudget::GetBudgetPayments, GetProposals.
 3. Mock zeronodeSync.GetAssetID, IsBlockchainSynced.
 4. Add GTest cases: payment calculation, collateral check, budget vote validation.
+
+---
+
+## 12. Item: Reindex, Rescan, Deletetx, Consolidation — Code, Docs, Tests, Options
+
+### 12.1 File references
+
+| Feature | File | Purpose |
+|---------|------|---------|
+| **reindex** | src/init.cpp | Help, prune interaction, fReindex, txindex/insight/zindex reindex triggers |
+| **reindex** | src/main.cpp | Reindex loop, block loading, mapBlocksUnknownParent |
+| **reindex** | src/zeronode/zeronode.cpp | Wait for reindex/import |
+| **reindex** | src/wallet/wallet.h | Doc: restart with -reindex |
+| **reindex** | src/wallet/gtest/test_wallet.cpp | Comment: "pretend we are reindexing" |
+| **rescan** | src/init.cpp | Help; salvagewallet/zapwallettxes → SoftSetBoolArg rescan; wallet load; post-rescan |
+| **rescan** | src/wallet/wallet.cpp | ShowProgress "Rescanning..."; LogPrintf progress |
+| **rescan** | src/wallet/walletdb.cpp | Bad tx record → SoftSetBoolArg rescan; Recover doc |
+| **rescan** | src/wallet/rpcdump.cpp | importprivkey, importaddress, z_importkey, z_importviewingkey rescan param; ScanForWalletTransactions |
+| **deletetx** | src/init.cpp | Help; debug category; fTxDeleteEnabled |
+| **deletetx** | src/wallet/wallet.cpp | LogPrint deletetx; reorder/delete logic |
+| **consolidation** | src/init.cpp | Include; help; fSaplingConsolidationEnabled, fConsolidationTxFee, address validation |
+| **consolidation** | src/wallet/wallet.cpp | Include; skip during witness build; AsyncRPCOperation_saplingconsolidation; comments |
+| **consolidation** | src/wallet/asyncrpcoperation_saplingconsolidation.h | Class def |
+| **consolidation** | src/wallet/asyncrpcoperation_saplingconsolidation.cpp | Implementation; mapMultiArgs consolidatesaplingaddress |
+| **consolidation** | src/Makefile.am | Build |
+| **deleteinterval, keeptxnum, keeptxfornblocks** | src/init.cpp | Help; GetArg; InitError validation |
+
+### 12.2 Rescan import RPC
+
+| RPC | Rescan param | File | Behavior |
+|-----|--------------|------|----------|
+| `z_importkey` | `"yes"`, `"no"`, `"whenkeyisnew"` (default) | rpcdump.cpp | If fRescan, calls ScanForWalletTransactions. **Sync:** RPC blocks until rescan completes; caller waits. |
+| `z_importviewingkey` | Same | rpcdump.cpp | Same pattern |
+| `importprivkey` | boolean, default true | rpcdump.cpp | Rescan wallet for transactions |
+| `importaddress` | boolean, default true | rpcdump.cpp | Same |
+
+**Startup rescan** (`-rescan`): Init reads from zero.conf; wallet load triggers `ScanForWalletTransactions` when `GetBoolArg("-rescan", false)`. Separate from import RPCs.
+
+### 12.3 zerowallet → Zero: how rescan/reindex are transmitted
+
+| Setting | zerowallet | Zero receives |
+|---------|------------|---------------|
+| **Settings Reindex** | mainwindow.cpp (chkReindex, addToZcashConf, restart dialog); rpc.cpp (removeFromZcashConf after connection) | zerod reads zero.conf on next startup |
+| **Settings Rescan** | mainwindow.cpp (chkRescan, addToZcashConf, same flow); rpc.cpp (removeFromZcashConf after connection) | zerod reads zero.conf on next startup |
+| **Import key (z_importkey)** | rpc.cpp (params [addr, rescan yes/no]) | zerod executes rescan inside RPC call; no zero.conf |
+| **Import key (importprivkey)** | rpc.cpp (same pattern) | Same |
+
+### 12.4 reindex.py
+
+**Location:** `qa/rpc-tests/reindex.py`
+
+**What it does:** Tests `-reindex` with `-checkblockindex=1`. (1) `initialize_chain_clean` creates 1-node regtest. (2) `start_node(0)`; node generates 3 blocks. (3) `stop_node`, `wait_bitcoinds`. (4) Restart node with `["-debug", "-reindex", "-checkblockindex=1"]`. (5) Assert `getblockcount() == 3`. Verifies reindex rebuilds index from existing blk*.dat and preserves block count.
+
+**Status:** Pass. In PYTHON_PASSING. ~30–60s (Equihash PoW for 3 blocks).
+
+### 12.5 Test feasibility and complexity
+
+| Feature | Python RPC | Boost (unit) | GTest | Feasibility | Complexity |
+|---------|------------|--------------|-------|-------------|------------|
+| **reindex** | ✓ reindex.py exists | Possible: start node with -reindex | N/A (chain-level) | **Done** | Low |
+| **rescan (startup)** | Possible: add rescan=1 to conf, restart, assert balance | Possible: mock chain, call ScanForWalletTransactions | Harness needs chain | Medium | Medium: needs regtest chain |
+| **rescan (import)** | Easy: z_importkey/importprivkey with rescan yes/no; assert balance | Possible: CallRPC z_importkey | Same as wallet tests | **Easy** | Low |
+| **deletetx** | Medium: enable deletetx, mine, send, wait blocks, assert tx pruned | Possible: rpc_wallet style; need wallet + chain | Needs CWallet + chain | Medium | Medium: deletetx logic is stateful |
+| **consolidation** | Hard: enable consolidation, add address, mine blocks, wait for auto-consolidation tx | Possible: param validation only | wallet.cpp integration; needs Sapling notes | **Hard** | High: async, timing, note state |
+| **deleteinterval, keeptxnum, keeptxfornblocks** | Medium: enable deletetx+params, run IBD, assert retention | Possible: unit test retention logic | Extract logic for unit test | Medium | Medium |
+
+**Summary:** reindex is done; rescan (import) is easy; rescan (startup), deletetx, retention options are medium; consolidation is hard (async, Sapling state).
+
+### 12.6 Docs
+
+| Doc | Has | Missing |
+|-----|-----|--------|
+| doc/man/zerod.1 | -reindex, -rescan, -zapwallettxes→rescan | consolidation, deletetx, deleteinterval, keeptxnum, keeptxfornblocks, consolidationtxfee, consolidatesaplingaddress |
+| src/init.cpp | Full help for all | — |
+| UpdateZero.md | -reindex for Windows sync | — |
+
+### 12.7 RPC and options (cross-project)
+
+| Type | Name | B | Z | P | Zero | Notes |
+|------|------|---|---|-----|------|-------|
+| Option | reindex | ✓ | ✓ | ✓ | ✓ | Chain |
+| Option | rescan | ✓ | ✓ | ✓ | ✓ | Wallet startup |
+| Option | deletetx | ✗ | ✗ | ✗ | ✓ | Zero-only |
+| Option | deleteinterval | ✗ | ✗ | ✗ | ✓ | Zero-only |
+| Option | keeptxnum | ✗ | ✗ | ✗ | ✓ | Zero-only |
+| Option | keeptxfornblocks | ✗ | ✗ | ✗ | ✓ | Zero-only |
+| Option | consolidation | ✗ | ✓ | ✓ | ✓ | |
+| Option | consolidationtxfee | ✗ | ✓ | ✓ | ✓ | |
+| Option | consolidatesaplingaddress | ✗ | ✓ | ✓ | ✓ | |
+| RPC | rescan | ✗ | ✗ | ✓ | ✗ | Pirate standalone RPC |
+| RPC | consolidationstatus | ✗ | ✗ | ✓ | ✗ | Pirate |
+
+B=Bitcoin, Z=Zcash, P=Pirate. Source: Options_extended.csv, RPCs_extended.csv.
+
+### 12.8 Planning and prioritization
+
+| Priority | Item | Type | Effort | Rationale |
+|----------|------|------|--------|-----------|
+| **P1** | Add consolidation, deletetx, deleteinterval, keeptxnum, keeptxfornblocks to doc/man/zerod.1 | Doc | Low | Man page incomplete |
+| **P1** | Python RPC: rescan-via-import test (z_importkey rescan=yes, assert balance) | Test | Low | Rescan covered only indirectly |
+| **P2** | Python RPC: rescan startup test (rescan=1 in conf, restart, verify) | Test | Medium | Complements reindex.py |
+| **P2** | Boost: deletetx param validation (enable, wrong args) | Test | Low | Error-path coverage |
+| **P2** | Boost: consolidation param validation | Test | Low | Same pattern as rpc_zeronode |
+| **P3** | Python RPC: deletetx integration (enable, mine, verify retention) | Test | Medium | Stateful; needs blocks |
+| **P3** | Python RPC or Boost: consolidation integration | Test | High | Async; timing; Sapling notes |
+| **P4** | Add rescan RPC (Pirate has; Zero does not) | Feature | Medium | Optional; import RPCs cover main use |
+| **P4** | Add consolidationstatus RPC | Feature | Low | Optional; status query |
+
+### 12.9 Gaps summary
+
+| Gap | Severity | Action |
+|-----|----------|--------|
+| zerod.1 missing 6 options | Doc | P1: update man page |
+| No rescan-only test | Test | P1: import rescan; P2: startup rescan |
+| No deletetx test | Test | P2: param; P3: integration |
+| No consolidation test | Test | P2: param; P3: integration |
+| No deleteinterval/keeptxnum/keeptxfornblocks test | Test | P3 |
+| No rescan RPC | Feature | P4: optional |
+| No consolidationstatus RPC | Feature | P4: optional |
+
+See `Reindex_Rescan.csv` for machine-readable summary.

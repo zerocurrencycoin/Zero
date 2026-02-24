@@ -8,16 +8,16 @@ UpdateZero assembles status, open items, long-term plans, gotchas, and gaps. TOD
 
 ## Documentation Split
 
-**Direction:** User-facing docs must never reference internal docs. Internal docs may reference each other.
+**Direction:** User-facing docs must never reference project docs. Project docs may reference each other.
 
 | Group | Files | Audience |
 |-------|-------|----------|
 | **User-facing** | README.md, BUILD_ZERO.md, TEST_ZERO.md, CONTRIBUTING.md, TODO.md | Contributors, users building/running Zero |
-| **Internal** | UpdateZero.md, UpdateBuild.md, UpdateTests.md, UpdateFeatures.md, Zeronode_wallet.md, Subsidy.md, doc/files.md | Maintainers, status tracking, design decisions |
+| **Project** | UpdateZero.md, UpdateBuild.md, UpdateTests.md, UpdateFeatures.md, Zeronode_wallet.md, Subsidy.md, doc/files.md | Maintainers, status tracking, design decisions |
 
 ---
 
-## 1. Internal Documentation Map
+## 1. Project Documentation Map
 
 ```
                     UpdateZero (hub)
@@ -144,9 +144,9 @@ bugs also present in HUSH3.
 | `README.md` | "Stable supply is 3888 ZER, after first halfing" — ambiguous; 3888 ≈ daily emission (720×5.4) after first halving, not total supply |
 | `doc/tor.md` | `"subver" : "/MagicBean:1.0.0/"` — legacy; Zero uses Ambrym |
 
-### 4.7 External Documentation Review (Area to Improve)
+### 4.7 User-Facing Documentation Review (Area to Improve)
 
-**Issue:** External links in README, BUILD_ZERO, and other user docs point to Zcash, Bitcoin, and third-party sites. Several need review and improvement.
+**Issue:** Links in README, BUILD_ZERO, and other user-facing docs point to Zcash, Bitcoin, and third-party sites. Several need review and improvement.
 
 **Issues:**
 - **Zcash branding:** Security (z.cash/support/security), user guide (Zcash wiki), params (download.z.cash) all point to Zcash. Zero should either host its own equivalents or explicitly state these are Zcash resources.
@@ -335,3 +335,79 @@ When zero=n: B=Bitcoin, Z=Zcash, P=Pirate. Filter ZP for "Zcash and Pirate have,
 ### 8.5 Excel
 
 Import RPCs_extended.csv or Options_extended.csv into Excel/Sheets. Filter on zero_missing_sources. No formulas needed.
+
+---
+
+## 9. Windows Build (Zero and zerowallet)
+
+Collated from BUILD_ZERO, UpdateBuild, UpdateWallet, zerowallet BUILD.md, and upstream (Zcash-family depends, Zclassic, zen). Windows is the primary user deployment platform; build is cross-compile from Linux.
+
+### 9.1 Zero (zerod) — MinGW Cross-Compile
+
+**Source:** `zcutil/build-win.sh`. Run from Linux (or WSL2).
+
+**Prerequisites:**
+```bash
+sudo apt install mingw-w64 build-essential
+```
+
+**Build:**
+```bash
+cd Zero
+./zcutil/fetch-params.sh
+./zcutil/build-win.sh
+```
+Output: `src/zerod.exe`, `src/zero-cli.exe`, `src/zero-tx.exe`.
+
+**build-win.sh:** Runs `make HOST=x86_64-w64-mingw32 NO_QT=1` in depends, then configure with `--disable-zmq --disable-rust`, applies `sed` for boost_system-mt, builds in `src/`. Uses `x86_64-w64-mingw32-gcc-posix` / `-g++-posix`. Manual equivalent: `depends/README` host triplets; `download-win` for sources.
+
+**Data dir:** `%APPDATA%\zero`. **Params:** `%APPDATA%\ZcashParams`. Firewall: allow zerod.exe. Antivirus may need whitelist.
+
+**WSL2:** Use Linux instructions; build and run inside WSL2. No native Windows toolchain needed for build.
+
+**Status:** Untested with current Zero changes. Requirements TBD (params path, native MSVC if any). See UpdateBuild §2.2, BUILD_ZERO §2.4.
+
+### 9.2 zerowallet — Cross-Compile (MXE)
+
+**Source:** zerowallet BUILD.md, UpdateWallet §Cross-Compilation, `src/scripts/mkrelease-win.sh`.
+
+**Prerequisites:** MXE (M Cross Environment) with static Qt5. Clone to `~/mxe` or `~/github/mxe`:
+```bash
+git clone https://github.com/mxe/mxe.git ~/mxe
+cd ~/mxe
+make -j$(nproc) MXE_TARGETS=x86_64-w64-mingw32.static qtbase qtwebsockets
+```
+Initial build: 2–4 hours, ~4GB disk.
+
+**zerod first:** Build Zero for Windows (`./zcutil/build-win.sh` in Zero repo). `ZERO_DIR` must contain `zerod.exe` and `zero-cli.exe`.
+
+**Build zerowallet:**
+```bash
+cd zerowallet
+export MXE_PATH="$HOME/mxe/usr/bin"   # or -m /path/to/mxe/usr/bin
+./src/scripts/mkrelease-win.sh -z $ZERO_DIR -v X.Y.Z -p X.Y.(Z-1)
+```
+Output: `artifacts/Windows-zerowallet-vX.Y.Z.zip`.
+
+**mkrelease-win.sh:** Uses `x86_64-w64-mingw32.static-qmake-qt5`, strips precompiled headers for MinGW, runs `res/libsodium/buildlibsodium-win.sh`, copies zerod.exe/zero-cli.exe into package.
+
+**Native Windows (alternative):** Requires Qt5 and MinGW or MSVC installed on Windows. `qmake zero-qt-wallet.pro -spec win32-g++ CONFIG+=release` then `mingw32-make`; or `-spec win32-msvc` with `nmake`. Not integrated with mkrelease; manual zerod packaging.
+
+### 9.3 Upstream Reference
+
+| Source | Windows build |
+|--------|----------------|
+| Zcash | No doc/build-windows.md in current repo |
+| Zclassic | depends/README: `make HOST=x86_64-w64-mingw32`; host triplets i686/x86_64-w64-mingw32 |
+| zen (Horizen) | `zcutil/build-win.sh`; release notes reference |
+| Bitcoin/Zcash depends | Same host triplets; `download-win` target for sources |
+
+### 9.4 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| zerod: configure fails | Ensure `mingw-w64` posix threads; `CC=x86_64-w64-mingw32-gcc-posix` |
+| zerowallet: `cannot find -lQt5Widgets` | `export PKG_CONFIG_PATH="/opt/mxe/usr/x86_64-w64-mingw32.static/lib/pkgconfig"` |
+| zerowallet: `undefined reference to sodium_*` | Run `res/libsodium/buildlibsodium-win.sh`; ensure `res/libsodium.a` is MinGW .a |
+| zerowallet: Linux Qt linked | Use MXE; system Qt is for Linux. `zero-qt-wallet-mingw.pro` + MXE qmake. |
+| Windows sync stuck | zerod `-reindex`; check antivirus, firewall, disk path. Compare Linux/macOS. |
