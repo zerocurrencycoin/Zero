@@ -58,8 +58,7 @@ do not break existing builds.
 
 ### 2.2 Windows
 
-Cross-compiled via MinGW. Primary user deployment platform. No changes
-to the Windows build path in this update. Regression testing required.
+Cross-compiled via MinGW. Primary user deployment platform. **Requirements TBD.** Ideas: MinGW toolchain, WSL2 path, params location, native MSVC (if any). Document in this section as determined.
 
 ### 2.3 macOS ARM64
 
@@ -129,9 +128,7 @@ single-token overrides; multi-word values need escaping.
 
 ### 3.1 boost.mk
 
-Boost 1.83.0 (upgraded from 1.70.0). Zcash-validated path.
-
-1. **Version/URL**: 1.70.0 → 1.83.0; `archives.boost.io/release/1.83.0/source`
+Boost 1.88.0. See §5.1 for current version; §6.6 for upgrade history.
 2. **Toolset**: `--toolset=clang` for Darwin (old darwin-4.2.1 injects `-fcoalesce-templates`, unsupported by Clang 17)
 3. **sed portability**: Uses `$(build_SED_INPLACE)`. Pattern `using [a-z]* ;` matches bootstrap-selected toolset
 4. **CXXFLAGS**: `-Wno-enum-constexpr-conversion` for Darwin
@@ -149,17 +146,12 @@ OpenSSL 1.1.1a to 1.1.1w.
 
 ### 3.3 rust.mk
 
-System Rust for ARM Mac.
+**Decision:** Pin a modern Rust version (e.g. 1.81+). Deterministic, CI-ready.
 
 - Rust 1.32.0 (Jan 2019) has no `aarch64-apple-darwin` binaries.
-- Added conditional: on native ARM Mac builds, skip download and symlink system `rustc`/`cargo` into the depends tree.
-- Original 1.32.0 download path is completely unchanged for all other platforms.
+- Current workaround: on native ARM Mac builds, symlink system `rustc`/`cargo` into the depends tree. Adequate for local dev only.
+- Target: update `rust.mk` to download a pinned modern Rust (1.81+ or current stable) with `aarch64-apple-darwin` hashes for all platforms.
 - librustzcash at commit `06da3b9` uses Rust edition 2015, compatible with modern Rust.
-
-Alternatives:
-- **Current (symlink)**: Simple, works for local dev. Couples build to system Rust.
-- **Pin a modern Rust version**: Update `rust.mk` to download e.g. Rust 1.81+ with `aarch64-apple-darwin` hashes. Fully deterministic.
-- **Recommendation**: Pin a modern version for CI. Symlink is adequate for development.
 
 ### 3.4 bdb.mk
 
@@ -284,6 +276,9 @@ endif
 
 ## 5. Library Versions
 
+**Canonical source:** `depends/packages/*.mk`. This section summarizes;
+reasoning and upgrade history in §6.
+
 ### 5.1 Core Libraries
 
 | Package | Current | Target | Status |
@@ -292,14 +287,14 @@ endif
 | libsodium | 1.0.21 | 1.0.21 | ✓ At target |
 | libevent | 2.1.12 | 2.1.12 | ✓ At target |
 | ZeroMQ | 4.3.5 | 4.3.5 | ✓ At target |
-| Boost | 1.83.0 | 1.83.0 | ✓ At target |
+| Boost | 1.88.0 | 1.88.0 | ✓ At target |
 | OpenSSL | 1.1.1w | TBD | EOL; keep for now |
 
 ### 5.2 Rust Toolchain
 
 | Package | Current | Target | Status |
 |---------|---------|--------|--------|
-| Rust (in rust.mk) | 1.32.0 / system | 1.93.1 | Not upgraded; ARM Mac uses system 1.91.1 |
+| Rust (in rust.mk) | 1.32.0 / symlink | pin modern | Target: update rust.mk for pinned 1.81+ |
 | librustzcash | 0.1 (06da3b9) | Deferred | Tied to protocol version |
 
 ### 5.3 Build Tools
@@ -309,6 +304,10 @@ endif
 | ccache | 4.12.2 | 4.12.2 | ✓ At target |
 | utfcpp | 3.1 | 4.0.9 | Deferred |
 | Qpid Proton | 0.26.0 | 0.39.0 | Disabled |
+
+**utfcpp:** Header-only C++ UTF-8 validation. Used in rpcwallet.cpp,
+rpczerowallet.cpp for `utf8::is_valid(memoStr)` on shielded memo fields.
+Zero includes it via zcash_packages. Upgrade deferred.
 
 Google Test version tracking is in UpdateTests §2.1.
 
@@ -362,26 +361,24 @@ BDB version and license context:
 
 **Done.** `native_ccache.mk` at 4.12.2.
 
-### 6.6 Boost 1.70.0 → 1.83.0
+### 6.6 Boost
 
-**Done.** Upgraded to 1.83.0 (Zcash-validated). API changes in Filesystem, Thread, Test addressed.
+**Current:** 1.88.0 (boost.mk). Upgraded from 1.70.0; Zcash-validated path.
+API changes in Filesystem, Thread, Test addressed. Zero uses
+`path::stem()` and `path::extension()` (init.cpp:1233).
 
 **Version timeline:** 1.70 (Apr 2019) | 1.83 (Aug 2023) | 1.88 (Apr 2025) | 1.90 (Dec 2025)
 
-**1.88 compatibility:** Not drop-in. Boost 1.88 removed `filesystem::basename` and `filesystem::extension` (use `path::stem()` and `path::extension()`). Zero uses these in `init.cpp:1233`. One source fix required. `libboost_system` still present in 1.88 (removed in 1.89).
-
-**1.90 compatibility:** Requires C++14 (Boost.Math), filesystem API fix, and `ax_boost_system` fallback for header-only System. Not recommended without C++14 upgrade.
+**1.90 compatibility:** Requires C++14 (Boost.Math), `ax_boost_system` fallback. Not recommended without C++14 upgrade.
 
 ### 6.7 Rust 1.32.0 to 1.93.1
 
-Confirmed. Medium risk. Target latest stable (1.93.1).
+**Decision:** Pin a modern version (1.81+ or current stable). Deterministic, CI-ready.
 
-librustzcash at commit `06da3b9` is edition-2015 code and compiles with
-any modern Rust. No edition-specific features exercised.
-
-Action: rewrite `rust.mk` to download pinned version with
-`aarch64-apple-darwin` hashes. Reference Zcash `native_rust.mk`.
-Replaces system symlink approach with deterministic pinned download.
+Linux/Win: depends currently downloads Rust 1.32.0. ARM Mac: 1.32.0 has no
+aarch64-apple-darwin binaries; symlink workaround in place. Target: update
+`rust.mk` to download pinned modern Rust for all platforms. librustzcash at
+commit `06da3b9` compiles with any modern Rust.
 
 ### 6.8 OpenSSL
 
@@ -398,8 +395,9 @@ Replaces system symlink approach with deterministic pinned download.
 ### 6.9 librustzcash
 
 Deferred. Tied to protocol/consensus version. Upgrade only alongside
-network upgrade. Current snapshot is Sapling-era; modern librustzcash is
-a monorepo of many crates.
+network upgrade. Zero's snapshot: commit `06da3b9`, Sapling-era. Upstream
+(zcash/librustzcash): active monorepo with zcash_proofs, zcash_primitives,
+orchard, zcash_client_backend, etc.; sapling-crypto in separate repo.
 
 ### 6.10 Qpid Proton
 
@@ -417,8 +415,8 @@ How each Zcash-family project versions its core dependencies. GTest: UpdateTests
 | libevent | 2.1.12 | 2.1.12 | 2.1.8 | 2.1.12 | 2.1.12 | 2.1.8 | 2.1.8 | 2.1.12 | 2.1.12 | ✓ |
 | ZeroMQ | 4.3.5 | 4.3.5 | 4.3.4 | 4.3.1 | 4.3.1 | 4.3.1 | (removed) | 4.3.5 | 4.3.5 | ✓ |
 | ccache | 4.12.2 | 4.11.3 | 3.3.1 | — | 3.3.1 | 3.3.1 | 3.3.1 | — | 4.12.2 | ✓ |
-| Boost | 1.83.0 | 1.83.0 | 1.82.0 | 1.83.0 | 1.70.0 | 1.80.0 | 1.72.0 | 1.88.0 | 1.90.0 | ✓ |
-| Rust | 1.32.0 | 1.81.0 | 1.70.0 | 1.69.0 | 1.32.0 | 1.32.0 | 1.32.0 | — | 1.93.1 | 1.93.1 |
+| Boost | 1.88.0 | 1.83.0 | 1.82.0 | 1.83.0 | 1.70.0 | 1.80.0 | 1.72.0 | 1.88.0 | 1.90.0 | ✓ |
+| Rust | 1.32.0 / symlink | 1.81.0 | 1.70.0 | 1.69.0 | 1.32.0 | 1.32.0 | 1.32.0 | — | 1.93.1 | pin modern |
 | OpenSSL | 1.1.1w | (removed) | 1.1.1w | — | 1.1.1a | 1.1.1a | (none) | (removed) | 3.6.1 | TBD |
 
 Zero at target for BDB, libsodium, libevent, ZeroMQ, ccache, Boost. Rust and OpenSSL not upgraded.
@@ -439,13 +437,11 @@ No Zcash-family project has implemented this migration.
 
 ### 7.2 Boost
 
-Zero at 1.83.0 (Zcash-validated). Fluxd remains at 1.70.0.
+Zero at 1.88.0. See §5.1, §6.6.
 
 ### 7.3 Rust
 
-Target: 1.93.1 (latest). Zero's librustzcash is edition-2015 code that
-compiles with any modern Rust. Pinning to a specific version with
-download hashes replaces the current system-Rust symlink.
+See §6.7. Pin modern version; symlink workaround for ARM Mac until rust.mk updated.
 
 ### 7.4 OpenSSL
 
@@ -455,7 +451,7 @@ Projects: Zcash, Bitcoin (removed); HUSH (WolfSSL); Zero, Horizen, Fluxd, Zclass
 
 ## 8. Reference Repositories
 
-Cloned to `~/Work/ZK/` for comparison.
+Cloned to `~/Work/ZK/` for cross-project comparison.
 
 | Project | Repo | Version | Date | Upstream |
 |---------|------|---------|------|----------|
@@ -469,3 +465,50 @@ Cloned to `~/Work/ZK/` for comparison.
 | Zero | ZeroMac | arm-mac-build | Feb 2026 | github.com/zerocurrencycoin/zero |
 
 HUSH and Pirate local clones are shallow (single squashed commit).
+
+## 9. Cross-Project Build Context
+
+Build system architecture and platform support across Zcash-family and Bitcoin.
+
+**Build system:**
+
+| Project | Config | Depends | Windows | macOS |
+|---------|--------|---------|---------|-------|
+| Zero | ./configure (autotools) | Custom /depends | WIP MinGW | ARM64 |
+| Bitcoin Core | cmake -B | Toolchain files | Mingw + VS | ✓ |
+| Zcash | zcutil scripts | Custom | Not supported | — |
+| Pirate | make (inherited) | Inherited | Not documented | — |
+| Horizen | make (Zcash-based) | Custom /depends | Not documented | — |
+
+**Zero depends cross-compile targets:** `HOST=x86_64-w64-mingw32` (Win64), `HOST=i686-w64-mingw32` (Win32), `HOST=aarch64-apple-darwin24` (macOS ARM64), `HOST=arm-linux-gnueabihf` (ARM Linux).
+
+**Bitcoin cross-compile hosts:** i686-w64-mingw32, x86_64-w64-mingw32, x86_64-apple-darwin11, arm-linux-gnueabihf.
+
+**Testing:** Zero (GTest, Boost, qa/rpc-tests). Bitcoin (Boost Test, Python, fuzz). Zcash (Boost Test, Python, zk-SNARK).
+
+**Policy/License:** Zero: COPYING; no code_of_conduct, no responsible_disclosure. Bitcoin: COPYING (MIT). Zcash: COPYING, code_of_conduct.
+
+**README/CONTRIBUTING:** Bitcoin: minimal README, rich CONTRIBUTING. Zcash: concise README, external CONTRIBUTING. Zero: longer README (branding + build), external CONTRIBUTING.
+
+**Dependencies (other projects):** Bitcoin: build-essential, cmake, pkgconf, python3, libevent-dev, libboost-dev; GUI: qt6. Zcash: build-essential, pkg-config, libc6-dev, m4, g++-multilib, autoconf, libtool, ncurses-dev, unzip, git, python3, python3-zmq, zlib1g-dev, curl, bsdmainutils, automake, libtinfo5.
+
+## Proposed §3–7 Restructure
+
+**Problem:** Each library appears in §3, §5, §6, §7 with overlapping descriptions. Same issue touched in multiple places.
+
+**Principle:** Group and prioritize within groups. Each topic has one primary home; other sections reference it. Not every point needs coverage at each level.
+
+**Proposed assignment:**
+
+| Topic | Primary home | Other sections |
+|-------|--------------|----------------|
+| Recipe edits (.mk changes) | §3 | §5/§6/§7: no repeat; "See §3.N" |
+| Current version (what we have) | §5 table | §6/§7: "See §5.1" or table only |
+| Upgrade history, rationale, blockers | §6 | §7.1–7.4: fold into §6; §7 becomes table-only |
+| Cross-project comparison | §7 table | §6: one-line "See §7 table" where relevant |
+
+**Within §6:** Group by status. Done (BDB, libsodium, libevent, ZeroMQ, ccache, Boost): brief "Done. See §5.1." Deferred/postponed (Rust, OpenSSL, librustzcash, Qpid): full rationale here; cross-project notes inline. §7.1–7.4 content moves into the relevant §6 subsections.
+
+**Within §3:** Recipe-only. Version numbers, upgrade rationale, cross-fork context → §5/§6. §3 says what changed in the .mk file.
+
+**Result:** Fewer places per issue. Lookup: §5 for versions, §3 for recipe, §6 for history and rationale. §7 table for cross-project; no §7.1–7.4 duplication.

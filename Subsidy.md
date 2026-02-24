@@ -255,7 +255,7 @@ void FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, CTxOut& txFounder
 | Location | Issue |
 |----------|-------|
 | `src/amount.h` | `MAX_MONEY = 1695014989600000` (16.95M ZER in zatoshi). Zero total supply ~25.6M ZER exceeds this; validation uses per-subsidy `MoneyRange` only. |
-| `BUILD.md` | `338665500000000` — outdated total subsidy (zatoshi); Zero total ≈ 2.56e15. |
+| (removed) | `338665500000000` — outdated total subsidy (zatoshi); Zero total ≈ 2.56e15. |
 | `TODO.md` | Same `338665500000000` reference. |
 | `TEST.md` | Same `338665500000000` reference. |
 | `README.md` | "Stable supply is 3888 ZER, after first halfing" — ambiguous; 3888 ≈ daily emission (720×5.4) after first halving, not total supply. |
@@ -304,3 +304,83 @@ if ((nHeight >= consensusParams.nFeeStartBlockHeight) && (nHeight <= consensusPa
 **Tests:** `main_tests.cpp` — `block_subsidy_test`, `subsidy_limit_test` skipped for Zero (`UsesReferenceSubsidyModel`); `test_foundersreward.cpp` — `regtest_get_last_block_blossom`, `regtest`; `blocktools.py:55` — regtest halvings `(counter+heightAdjust)/150`.
 
 **Logs:** `payments.cpp:331–337` — `Zeronode payment to %s`, `Total miner to %s`, `Total founder to %s`, `Total zero node to %s`, `Total Coinbase to %s`.
+
+---
+
+## 15. Addresses and Keys in Code
+
+Reference of hardcoded addresses and keys, their locations, and purpose.
+
+### 15.1 Founders Reward (Developer Fund) Addresses
+
+**Location:** `src/chainparams.cpp:230–241` (mainnet), `390–402` (testnet), `530` (regtest)
+
+**Purpose:** 7.5% of block subsidy; rotates by block height via `GetFoundersRewardAddressAtHeight()`.
+
+| Network | Addresses |
+|---------|-----------|
+| **Mainnet** | `t3hmg6WApjqVFw9oPWTDy4JLEqXcUWthg5v`, `t3hrh5M7eaGA5zXCitPXz2pbe146GkVPWHs`, `t3aWmHqBGS7watoKQLa7uykeTaYHoYqM361`, `t3hsi89hPsZzmnbs3pny6cfAxMxV5TJLErj`, `t3TdGxPVUdMXd6qDrDCEuJETLadZ9Ki3s9r`, `t3cb5ZjKmbGbqDaYk97Auam9kXXikGQBmyY`, `t3V1YovGUPW9WSBoAHS48FDdUfUTo6LDpZR`, `t3KB9n28MVg31oo856t1tQGfJuYq8usTvSi`, `t3dqSV4YGj5V3WjQhqFGrKTMUf9Tgc6xnJM`, `t3aJkYT1i6tyytq8J6khPaDNtgZsBSXgfBf` |
+| **Testnet** | `t2BEnZwurNtPyhyWdZ82zTdS93rKyoUpgMJ`, `t2AwNRubry4rQrEvHwAdpYve4Gz5cSmjGXA`, … (10 addresses) |
+| **Regtest** | `t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg` |
+
+**RPC:** `getblockchaininfo` exposes as `developmentfee` (`src/rpc/zeronode.cpp:1123`).
+
+### 15.2 Zeronode Dummy Addresses
+
+**Location:** `src/chainparams.cpp:146` (mainnet), `317` (testnet), `471` (regtest)
+
+**Purpose:** Output address for a validation-only transaction. Used when verifying Zeronode 10,000 ZER collateral: code builds a fake tx (vin = collateral, vout = 9999.99 ZER to dummy), runs `AcceptableInputs()`; tx is never broadcast. The dummy address must be valid for script construction but receives no real funds.
+
+| Network | Address |
+|---------|---------|
+| **Mainnet** | `t1TLNF3seMZennWmmxik8r1PVEKj5zudgRw` |
+| **Testnet** | `tmWuQ8Yh3pHDa8MingmN8ECPRBxo2n8uZRs` |
+| **Regtest** | `s1eQnJdoWDhKhxDrX8ev3aFjb1J6ZwXCxUT` |
+
+**Usage:** `src/zeronode/zeronode.cpp:203, 570` → `GetTestingCollateralScript(Params().ZeronodeDummyAddress(), scriptPubKey)`.
+
+### 15.3 ZeroWallet Donation Address
+
+**Location:** `zerowallet/src/settings.cpp:490, 568`
+
+**Purpose:** Donation / zboard address shown in ZeroWallet UI.
+
+| Network | Address |
+|---------|---------|
+| **Mainnet** | `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP` |
+| **Testnet** | `ztestsaplingXXX` (placeholder) |
+
+### 15.4 Test Private Keys (zerod)
+
+**Location:** `src/test/rpc_tests.cpp:132–133`
+
+**Purpose:** WIF keys for multisig signing in regtest; used to sign a raw transaction in `rpc_signrawtransaction` test.
+
+| Key (WIF) |
+|-----------|
+| `KzsXybp9jX64P5ekX1KUxRQ79Jht9uzW7LorgwE65i5rWACL6LQe` |
+| `Kyhdf5LuKTRx4ge69ybABsiUAWjVRK4XGxAKk2FQLp2HjGMy87Z4` |
+
+**Location:** `qa/rpc-tests/sprout_sapling_migration.py:15`
+
+**Purpose:** Regtest extended key for Sprout→Sapling migration tests.
+
+| Key |
+|-----|
+| `secret-extended-key-regtest1qv62zt2fqyqqpqrh2qzc08h7gncf4447jh9kvnnnhjg959fkwt7mhw9j8e9at7attx8z6u3953u86vcnsujdc2ckdlcmztjt44x3uxpah5mxtncxd0mqcnz9eq8rghh5m4j44ep5d9702sdvvwawqassulktfegrcp4twxgqdxx4eww3lau0mywuaeztpla2cmvagr5nj98elt45zh6fjznadl6wz52n2uyhdwcm2wlsu8fnxstrk6s4t55t8dy6jkgx5g0cwpchh5qffp8x5` |
+
+### 15.5 Alert Signing Key
+
+**Location:** `src/test/alert_tests.cpp:39–41` (references `alertkeys.h`, not committed)
+
+**Purpose:** Signs `CAlert` for network alert tests. Key must be in `alertkeys.h`; file is gitignored and must not be committed.
+
+**Note:** The P2P alert system is long outdated and likely deprecated. **Bitcoin:** Retirement announced Nov 2016; final disabling alert Jan 2017; code removed (PR #7692). **Zcash (upstream):** Removed P2P alert system Aug 2025 (commit cc6e096); deleted `alertkeys.h`, `sendalert.cpp`, `alert_tests.cpp`; kept `-alertnotify` and deprecation/fork detection. Zero inherited the legacy from Zcash; uses a placeholder key and has disabled signature checks in tests (`alert_tests.cpp`).
+
+### 15.6 Inspecting and generating wallet addresses
+
+Wallet T- and Z-addresses are created at runtime by zerod when RPCs are invoked (e.g. by ZeroWallet on first connect or when the user requests a new address). They are not hardcoded.
+
+**List addresses:** RPC `getaddressesbyaccount ""` (T-addresses), `z_listaddresses` (Z-addresses). CLI: `zero-cli getaddressesbyaccount ""`, `zero-cli z_listaddresses`.
+
+**Request new keys:** RPC `getnewaddress` (T), `z_getnewaddress sapling` (Z). CLI: `zero-cli getnewaddress`, `zero-cli z_getnewaddress sapling`.

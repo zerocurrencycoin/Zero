@@ -144,16 +144,17 @@ current codebase.
 - Main while-loop in `BuildWitnessCache` has unguarded `pprev` and
   `pcoinsTip` accesses (safe in production, fragile in principle).
 
-**Options**:
+**Options** (design only; not reviewed for necessity, benefit, effort, or timeline):
 1. **Keep current code, fix bugs** (done). Minimum change.
 2. **Restore `IncrementNoteWitnesses` as secondary path**. Enables
-   tests, provides fallback, reduces upstream divergence. Medium effort.
+   tests, provides fallback, reduces upstream divergence.
 3. **Adopt Pirate's Rust SaplingWallet approach**. Forward-looking but
    major architectural change.
 4. **Revert to upstream `IncrementNoteWitnesses` entirely**. Simplest
    maintenance path but discards performance work for IBD scenarios.
 
-Current decision: option 1 (short-term), evaluate option 2 (medium-term).
+Current decision: option 1. Options 2–4 are future work for additional
+capabilities; no tracking in UpdateZero until reviewed.
 
 ## 2. Equihash State API
 

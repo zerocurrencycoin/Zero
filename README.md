@@ -113,22 +113,21 @@ Disabledeprecation flag has been removed. Nodes running release 3.3.1 will autom
 
 For comprehensive build instructions, see our detailed documentation:
 
-- **[BUILD.md](BUILD.md)** - Complete build guide for Linux, macOS, Windows
-- **[BUILD_C11.md](BUILD_C11.md)** - GCC/C++11 compatibility and compiler setup
+- **[BUILD_ZERO.md](BUILD_ZERO.md)** - Build guide for Linux, macOS ARM64, Windows
 - **[TEST.md](TEST.md)** - Test coverage analysis and validation results
 - **[TODO.md](TODO.md)** - Implementation status and development roadmap  
 - **[MULTISIG.md](MULTISIG.md)** - Multisig implementation and usage guide
 
 ### **⚡ Quick Start**
 
-See **[BUILD.md](BUILD.md)** for detailed build instructions covering:
+See **[BUILD_ZERO.md](BUILD_ZERO.md)** for detailed build instructions covering:
 - Linux, macOS, and Windows platforms
 - Package dependencies and system requirements  
-- GNU toolchain and C++11 setup
+- GNU toolchain and C++14 setup
 - Configuration options and troubleshooting
 - Current test status (98% Google Test success rate)
 
-**Linux users:** Basic build steps are in BUILD.md "Linux Quick Start" section.
+**Linux users:** Basic build steps are in BUILD_ZERO.md §2.2.
 
 ### **🧪 Build Status**
 - **Build System**: ✅ Stable (threading issues resolved)

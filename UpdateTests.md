@@ -109,6 +109,19 @@ Nine test suites, grouped by execution dependency and coverage area.
 - **Python 2.7**: Set `PYTHON` for RPC tests. Prereq: `python2 -m pip install pyblake2`. See §8.4.
 - **zerod/zero-cli**: rpc-tests.sh sources tests-config.sh; BUILDDIR = repo root (from script path). Exports BITCOIND, BITCOINCLI (run-bitcoin-cli wrapper → zero-cli). Binaries invoked by absolute path; no PATH required.
 
+### 3.5 Build Validation Modes
+
+For CI, release validation, or debugging vendored lib failures. Not needed for routine test runs.
+
+| Test / Mode | Validates | Invocation |
+|-------------|-----------|------------|
+| secp256k1-check | Vendored secp256k1 compiles and passes | `make -C src secp256k1-check` |
+| univalue-check | Vendored univalue compiles and passes | `make -C src univalue-check` |
+| no-dot-so | depends/ has no .so (deterministic build) | full_test_suite stage; skipped on Darwin |
+| sec-hard | PIE, RELRO, NX, Canary (ELF) or HIGH_ENTROPY_VA, DYNAMIC_BASE (PE) | `make -C src check-security` |
+| --quick | Incremental build (util, secp256k1, univalue, check-symbols, check-security) | `./contrib/run-tests.sh --quick` |
+| --full | Release build + full suite | `./contrib/run-tests.sh --full` |
+
 ## 4. Status
 
 Tested on macOS ARM64 (`arm-mac-build` branch). Verified Feb 2026. All failures reproduce pre-existing fork-level issues; none ARM-specific.

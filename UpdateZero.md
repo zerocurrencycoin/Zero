@@ -30,10 +30,11 @@ or cross-platform implications go in UpdateFeatures.
 | Test results, fixes | §3.2, §4.2 | — | §1–4, §8 | — |
 | Test prioritization | §5 | — | §5 | — |
 | Open test failures | §5.1 | — | §4 | — |
-| Witness architecture | §5.3, §6.3 | — | §4.5 | §1 |
+| Witness architecture | — | — | §4.5 | §1 |
 | z_getnewaddress, RPC | — | — | §4.6, §5 | — |
 | GTest version | — | §5.3, §7 | §2.1 | — |
 | OpenSSL, TLS | §5.2 | §6.8, §7.4 | — | §4.2 |
+| Rust, librustzcash | §5.2 | §3.3, §5.2, §6.7, §6.9, §7.3 | — | — |
 
 ### 1.2 Documentation Principles
 
@@ -66,11 +67,19 @@ Source changes: test files → UpdateTests. Production code: small fix tied to o
 - Tables: `| Col | Col |`; no extra pipes.
 - Section numbering: 1, 2, 3…; subsections 1.1, 1.2…
 
+**Redundancy (regression, Rust, Build):** §3.1, §4.1, §5.1–5.2 duplicated
+status and open items that belong in UpdateBuild and UpdateTests. Cause:
+UpdateZero was the status hub and summarized build changes; the line
+between "status" and "implementation" was fuzzy. Doc reviews focused on
+partition (scope) and cross-refs, not deduplication. Fix: minimal pointers
+in UpdateZero; implementation in UpdateBuild/UpdateTests. Index §1.1 is
+authoritative for where each topic lives.
+
 ## 2. Branch
 
 - Branch: `arm-mac-build` based on `origin/zeronode_wallet`
 - Remote: `https://github.com/zerocurrencycoin/Zero`
-- Recent: Boost 1.83, BDB 6.2.32, libsodium 1.0.21, duplicate -lc++ fix
+- Recent: Boost 1.88, BDB 6.2.32, libsodium 1.0.21, duplicate -lc++ fix
 
 **Workflow:** Do not push or merge to upstream `origin/main` or `origin/zeronode_wallet`.
 Commit only to `arm-mac-build` (or a fork).
@@ -87,9 +96,8 @@ Commit only to `arm-mac-build` (or a fork).
 | ~~macOS x86~~ | Not supported | EOL; not verified to compile or run. |
 
 Build changes target ARM Mac enablement but touch shared infrastructure
-(download URLs, sed portability). BDB 6.2.32, libsodium 1.0.21, Boost 1.83,
-OpenSSL 1.1.1w, duplicate -lc++ fix verified on macOS ARM64. Linux and
-Windows regression testing required before merge. See UpdateBuild.md §2–3.
+(download URLs, sed portability). Linux and Windows regression required
+before merge. See UpdateBuild §2–3; procedure UpdateTests §3.
 
 ### 3.2 Tests
 
@@ -106,9 +114,9 @@ See UpdateFeatures.md section 1.
 
 ### 4.1 Build System
 
-1. Boost 1.70 → 1.83.0 (Zcash-validated) for Clang 17 compatibility
+1. Boost 1.70 → 1.88.0 (Zcash-validated path) for Clang 17 compatibility
 2. OpenSSL 1.1.1a → 1.1.1w for ARM64 target support
-3. Rust depends: system Rust symlink for ARM Mac (1.32.0 has no ARM binaries)
+3. Rust: UpdateBuild §3.3
 4. BerkeleyDB 6.2.23 → 6.2.32 (native ARM64 mutex; workaround removed)
 5. libsodium 1.0.15 → 1.0.21, download URL fix (old path 404)
 6. config.guess/config.sub: 2015 to 2025 (ARM Mac identification)
@@ -132,20 +140,19 @@ See UpdateFeatures.md section 1.
 
 ### 5.1 Immediate
 
-1. **Linux regression test** — verify all changes build and pass on Linux x86_64
+1. **Platform regression** — UpdateTests §3: verify build and pass on Linux x86_64, Windows
 2. **Fix-now test items** — UpdateTests §4 (pyblake2, nuparams, rpc_wallet founders %, block_subsidy). z_getnewaddress extra-args fix applied.
 
 ### 5.2 Delayed
 
 3. **OpenSSL** — UpdateBuild §6.8, UpdateFeatures §4.2
-4. **Rust version pinning** — replace system symlink with pinned download for CI
+4. **Rust** — UpdateBuild §6.7 (pin modern version; rust.mk update pending)
 5. **Failing tests** — UpdateTests §4
 
 ### 5.3 Deferred
 
 6. **Zeronode test suite** — Zero-specific features (zeronode, budget, SwiftTX) have 0% test coverage. High impact; not part of current port.
 7. **Enhanced error handling** — Replace boolean returns in zeronode wallet interface with detailed error reporting. Optional enhancement.
-8. **Witness architecture evaluation** — Architecture/design (BuildWitnessCache vs IncrementNoteWitnesses); distinct from Witness-related test failures in §6. UpdateFeatures §1.6
 
 ### 5.4 Open questions / Pending approvals
 
@@ -173,16 +180,7 @@ prioritized by risk: BDB first (low risk, high value), then patch-level
 bumps, then major version upgrades. See UpdateBuild.md sections 6 and 7
 for upgrade plan and cross-project version comparison.
 
-### 6.3 Witness Architecture
-
-Zero replaced Zcash's per-block `IncrementNoteWitnesses` with a custom
-full-chain `VerifyAndSetInitialWitness` / `BuildWitnessCache` system in
-Feb 2020. This divergence is shared with HUSH3 and was abandoned by Pirate.
-Short-term: fix bugs in current code. Medium-term: evaluate restoring
-`IncrementNoteWitnesses` as a secondary path. Long-term: track Zcash's
-witness evolution for future protocol upgrades. See UpdateFeatures.md section 1.
-
-### 6.4 Test Health
+### 6.3 Test Health
 
 Target: zero crashes and segfaults in GTest, isolated root causes in Boost
 tests. Pre-existing test failures that require architectural changes are

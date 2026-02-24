@@ -1,1 +1,3 @@
-Please read [our Development Guidelines](https://zcash.readthedocs.io/en/latest/rtd_pages/development_guidelines.html).
+RTFM. Read the documentation in this repository (BUILD_ZERO.md, doc/, etc.) before contributing.
+
+*Note: This file should be improved with project-specific contribution guidelines.*

@@ -110,14 +110,13 @@ bool AppInit(int argc, char* argv[])
                    "that zerod won't accidentally compromise your privacy if there was a default\n"
                    "option you needed to change.\n"
                    "\n"
-                   "You can look at the example configuration file for suggestions of default\n"
-                   "options that you may want to change. It should be in one of these locations,\n"
-                   "depending on how you installed Zero:\n") +
+                   "You can look at the example configuration files for suggestions of default\n"
+                   "options that you may want to change.\n") +
                  _("- Source code:  %s\n"
                    "- .deb package: %s\n")).c_str(),
                 GetConfigFile().string().c_str(),
                 "contrib/DEBIAN/examples/zero.conf",
-                "/usr/share/doc/zcash/examples/zero.conf");
+                "contrib/zero.conf");
             return false;
         } catch (const std::exception& e) {
             fprintf(stderr,"Error reading configuration file: %s\n", e.what());
