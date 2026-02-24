@@ -106,12 +106,9 @@ See important security warnings on the
 Disabledeprecation flag has been removed. Nodes running release 3.3.1 will automatically shut down in ten years (June 2032).
 
 
-🔧 Building
---------
+📚 Documentation
+----------------
 
-**User types:** New to Zero? Run the Quick Start below. Building on macOS or Windows? See [BUILD_ZERO.md](BUILD_ZERO.md). Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-**Document map:**
 ```
                     README
                        │
@@ -123,10 +120,18 @@ Disabledeprecation flag has been removed. Nodes running release 3.3.1 will autom
    (cross-ref)                   TODO
 ```
 
-- **[BUILD_ZERO.md](BUILD_ZERO.md)** — Build guide (Linux, macOS ARM64, Windows)
-- **[TEST_ZERO.md](TEST_ZERO.md)** — Test procedures and validation
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — How to contribute
-- **[TODO.md](TODO.md)** — Implementation status and roadmap
+| Document | Purpose |
+|----------|---------|
+| [BUILD_ZERO.md](BUILD_ZERO.md) | Build guide (Linux, macOS ARM64, Windows) |
+| [TEST_ZERO.md](TEST_ZERO.md) | Test procedures and validation |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+| [TODO.md](TODO.md) | Implementation status and roadmap |
+
+
+🔧 Building
+--------
+
+**User types:** New to Zero? Run the Quick Start below. Building on macOS or Windows? See [BUILD_ZERO.md](BUILD_ZERO.md). Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Quick Start (Linux)
 

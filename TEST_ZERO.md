@@ -87,7 +87,7 @@ Runs Util, secp256k1, univalue, GTest (filtered), Boost (pass-only), RPC Python 
 | Core blockchain, crypto, Zcash shielded | High |
 | RPC, wallet | Good |
 | Network/P2P | Moderate |
-| Zeronode, budget, SwiftTX | None (manual only) |
+| Zeronode, budget, SwiftTX | Partial (RPC param/read-only); logic/integration none |
 
 ---
 

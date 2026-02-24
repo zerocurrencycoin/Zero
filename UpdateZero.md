@@ -6,6 +6,17 @@ UpdateZero assembles status, open items, long-term plans, gotchas, and gaps. TOD
 
 ---
 
+## Documentation Split
+
+**Direction:** User-facing docs must never reference internal docs. Internal docs may reference each other.
+
+| Group | Files | Audience |
+|-------|-------|----------|
+| **User-facing** | README.md, BUILD_ZERO.md, TEST_ZERO.md, CONTRIBUTING.md, TODO.md | Contributors, users building/running Zero |
+| **Internal** | UpdateZero.md, UpdateBuild.md, UpdateTests.md, UpdateFeatures.md, Zeronode_wallet.md, Subsidy.md, doc/files.md | Maintainers, status tracking, design decisions |
+
+---
+
 ## 1. Internal Documentation Map
 
 ```
@@ -36,6 +47,8 @@ UpdateZero assembles status, open items, long-term plans, gotchas, and gaps. TOD
 | **Subsidy** | Block subsidy, halving algorithm |
 | **doc/files** | Data directory layout |
 | **TODO** | User-facing items with design and timelines |
+| **BUILD_ZERO** | User-facing build guide (README → BUILD_ZERO) |
+| **TEST_ZERO** | User-facing test procedures (README → TEST_ZERO) |
 
 ### Workflows
 
@@ -49,9 +62,9 @@ UpdateZero assembles status, open items, long-term plans, gotchas, and gaps. TOD
 
 ## 2. Branch
 
-- Branch: `arm-mac-build` based on `origin/zeronode_wallet`
+- **Active branches**: `arm-mac-build` (ARM Mac), `mac_linux_boost188` (Boost 1.88, Mac+Linux). Both based on `origin/zeronode_wallet` or `origin/master`.
 - Remote: `https://github.com/zerocurrencycoin/Zero`
-- Workflow: Do not push or merge to upstream. Commit only to `arm-mac-build` or a fork.
+- Workflow: Do not push or merge to upstream. Commit only to a feature branch or fork.
 
 ## 3. Status Summary
 
@@ -72,6 +85,7 @@ before merge.
 
 GTest 201 pass, 5 excluded. Boost 47 suites pass (3 excluded). RPC Python
 11 pass, 5 skip. Run `contrib/run-tests.sh`; logs go to `test-logs/`.
+Details: **UpdateTests** §4.
 
 ### 3.3 Features
 
@@ -100,7 +114,7 @@ bugs also present in HUSH3.
 
 | Module | Item | Notes |
 |--------|------|-------|
-| Zeronode | Test suite | Zero-specific features (zeronode, budget, SwiftTX) have 0% test coverage. High impact; not part of current port. |
+| Zeronode | Test suite | RPC param/read-only: partial (rpc_zeronode_tests, rpc_zeronode_budget_tests). Logic/integration: 0%. See UpdateTests §11.4. |
 | Zeronode | Enhanced error handling | Replace boolean returns in zeronode wallet interface with detailed error reporting. Optional enhancement; design complete. |
 
 ### 4.4 P4 — Set Aside
@@ -126,7 +140,7 @@ bugs also present in HUSH3.
 | Location | Issue |
 |----------|-------|
 | `src/amount.h` | `MAX_MONEY = 16.95M ZER`; Zero total supply ~25.6M ZER exceeds this; validation uses per-subsidy `MoneyRange` only, not cumulative |
-| `TODO.md`, `TEST.md` | Outdated `338665500000000` total subsidy reference; Zero total ≈ 2.56e15 zatoshi |
+| `TODO.md`, `TEST_ZERO.md` | Outdated `338665500000000` total subsidy reference; Zero total ≈ 2.56e15 zatoshi |
 | `README.md` | "Stable supply is 3888 ZER, after first halfing" — ambiguous; 3888 ≈ daily emission (720×5.4) after first halving, not total supply |
 | `doc/tor.md` | `"subver" : "/MagicBean:1.0.0/"` — legacy; Zero uses Ambrym |
 
@@ -255,7 +269,7 @@ Zero uses custom `VerifyAndSetInitialWitness` and `BuildWitnessCache` (full-chai
 
 ### 6.4 Zeronode
 
-18 zeronode RPCs with no test coverage. Enhanced error handling (ZeronodeWalletResult, ZeronodeWalletError) designed but not implemented. See Zeronode_wallet.md.
+RPC param/read-only: partial coverage (rpc_zeronode_tests, rpc_zeronode_budget_tests). Logic, integration, remaining RPCs: no coverage. Enhanced error handling (ZeronodeWalletResult, ZeronodeWalletError) designed but not implemented. See Zeronode_wallet.md, UpdateTests §11.4.
 
 ### 6.5 Other Work Items
 
