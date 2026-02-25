@@ -58,6 +58,8 @@ testScripts=(
     'key_import_export.py'
     'nodehandling.py'
     'reindex.py'
+    'rescan_import.py'
+    'rescan_startup.py'
     'addressindex.py'
     'spentindex.py'
     'timestampindex.py'

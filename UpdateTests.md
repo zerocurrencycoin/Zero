@@ -10,7 +10,7 @@ Test suite results, fixes, open failures, and testing procedures for the Zero no
 
 **Limitations**: Python 2.7 for RPC tests; no fuzz tests; no Bitcoin-style functional tests; legacy qa layout. sec-hard and checksec are ELF-only (Linux); not applicable on macOS.
 
-**Future directions**: Python 3 migration (delayed; pyblake2 → hashlib.blake2b when migrated). Possible functional test migration. Coverage targets exist in Makefile but require lcov.
+**Future directions**: Python (see §6.2.1). Coverage targets exist in Makefile but require lcov.
 
 ## 2. Suites
 
@@ -37,7 +37,7 @@ Nine test suites, grouped by execution dependency and coverage area.
 | 3 | **univalue** | JSON library | Univalue | PASS |
 | 4 | **GTest** | Consensus, wallet, shielded, Sapling/Sprout | Consensus, shielded | 201 pass, 5 excl |
 | 5 | **Boost** | RPC, script, serialization, crypto, alerts, mining | RPC, script, serialization | 47 suites pass (excl 3) |
-| 6 | **RPC Python** | Multi-node, regtest, zerod/zero-cli | Integration, RPC flows | 11 pass, 5 skip; 16 pass-only |
+| 6 | **RPC Python** | Multi-node, regtest, zerod/zero-cli | Integration, RPC flows | 12 pass, 6 skip; 18 pass-only |
 | 7 | **sec-hard** | PIE, NX, RELRO, Canary; RPATH/FORTIFY (ELF) | Build security | System-specific: ELF only |
 | 8 | **no-dot-so** | depends/.so check | Deterministic build | full_test_suite only |
 | 9 | **check** | Recursive make check | Overlaps 1–5 | Use secp256k1-check, univalue-check for isolated |
@@ -295,7 +295,8 @@ No known failures.
 **6.1 get_coinbase_address**  
 *Symptoms*: assert(len(set(addrs)) > 0) — no generated utxos.  
 *Root cause*: listunspent with generated returns empty when nuparams activate early. Implementation gap.  
-*Fix/mitigation*: Skip. Check addrs before get_coinbase_address; return with message. Affects wallet_changeaddresses, shorter_block_times.  
+*Fix/mitigation*: Skip. Check addrs before get_coinbase_address; return with message. Affects wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import.  
+*P1 rescan_import*: Uses same skip; when Zero provides generated utxos, the test will run z_importkey rescan=yes and assert balance.  
 
 **6.2 protocol version**  
 *Symptoms*: versions.count(SPROUT_PROTO_VERSION) — expected 10, got 0.  
@@ -322,7 +323,7 @@ No known failures.
 *Root cause*: mininode.py needs pyblake2 for Equihash block validation.  
 *Fix/mitigation*: Prereq. `python2 -m pip install pyblake2`.  
 
-**Verified pass**: blockchain, disablewallet, httpbasics, reindex, decodescript, keypool, paymentdisclosure, prioritisetransaction, wallet_treestate, wallet_anchorfork, getchaintips (skip), rewind_index, wallet_overwintertx (skip), wallet_changeaddresses (skip), shorter_block_times (skip), p2p_nu_peer_management (skip).
+**Verified pass**: blockchain, disablewallet, httpbasics, reindex, rescan_import (skip), rescan_startup, decodescript, keypool, paymentdisclosure, prioritisetransaction, wallet_treestate, wallet_anchorfork, getchaintips (skip), rewind_index, wallet_overwintertx (skip), wallet_changeaddresses (skip), shorter_block_times (skip), p2p_nu_peer_management (skip).
 
 **Options**: `--nocleanup` (leave zerods and test datadir on exit); `--noshutdown` (don't stop zerods after test); `--srcdir=SRCDIR` (default `${BUILDDIR}/src`); `--tmpdir=TMPDIR`; `--tracerpc` (print RPC calls). rpc-tests.sh sources `qa/pull-tester/tests-config.sh` for BUILDDIR, PYTHON, REAL_BITCOIND, REAL_BITCOINCLI.
 
@@ -334,7 +335,7 @@ No known failures.
 
 | ID | Test | Fix |
 |----|------|-----|
-| 6.1 | get_coinbase_address (wallet_changeaddresses, shorter_block_times, wallet_overwintertx) | Fixed: added skip check in wallet_overwintertx. wallet_changeaddresses, shorter_block_times already had it. |
+| 6.1 | get_coinbase_address (wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import) | Fixed: added skip check in wallet_overwintertx, rescan_import. wallet_changeaddresses, shorter_block_times already had it. |
 | 6.2 | protocol version (p2p_nu_peer_management) | Already skips when `versions.count(SPROUT_PROTO_VERSION)==0`. No change. |
 | 6.3 | clean-chain amounts (wallet.py, txn_doublespend) | Fixed for wallet.py: added `zero_regtest_subsidy(n)` in util.py; wallet.py uses it for node1 balance. txn_doublespend: 25×10=250 matches Zero; may pass as-is. |
 | 6.5 | getchaintips | Already fixed (active tip, skip on height mismatch). |
@@ -404,12 +405,12 @@ The following are workarounds and skips to overcome test problems and failures. 
 
 | Item | Workaround | Root cause (unfixed) |
 |------|------------|----------------------|
-| get_coinbase_address (6.1) | In-test skip: `if not addrs: print("Skipping..."); return` before `get_coinbase_address()`. Affects wallet_changeaddresses, shorter_block_times, wallet_overwintertx. | listunspent with generated returns empty when nuparams activate early |
+| get_coinbase_address (6.1) | In-test skip: `if not addrs: print("Skipping..."); return` before `get_coinbase_address()`. Affects wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import. | listunspent with generated returns empty when nuparams activate early |
 | protocol version (6.2) | In-test skip: `if versions.count(SPROUT_PROTO_VERSION)==0: print("Skipping..."); return`. Affects p2p_nu_peer_management. | Zero uses different SPROUT/OVERWINTER/SAPLING protocol versions than Zcash |
 | getchaintips (6.5) | In-test skip: `if tip['height']!=expected: print("Skipping..."); return`. Extract active tip from tips; skip on height mismatch. | Zero returns active+valid-fork; regtest block count differs |
 | clean-chain amounts (6.3) | Workaround: `zero_regtest_subsidy(n)` in util.py; wallet.py uses it for node1 balance instead of hardcoded Zcash amount. | Zero subsidy 10 ZER/block, halving every 150; node0 block 5 not maturing. **Appendix A.3** |
 | wallet_overwintertx chaintip | In-test skip: `if bci['consensus']['chaintip']!='7361707a': print("Skipping..."); return` | Zero regtest block count differs from expected |
-| run-tests.sh | PYTHON_PASSING list omits known-fail scripts; runs only 16 verified | Many scripts fail for above reasons or Zcash-specific logic |
+| run-tests.sh | PYTHON_PASSING list omits known-fail scripts; runs only 18 verified | Many scripts fail for above reasons or Zcash-specific logic |
 
 **Prereqs (environment, not workarounds)**
 
@@ -490,16 +491,23 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 
 **Manual witness pattern**: For synthetic Sapling notes: (1) append commitments to SaplingMerkleTree; (2) capture saplingTree.witness() at target note; (3) append subsequent commitments; (4) store in mapSaplingNoteData. Bypasses BuildWitnessCache.
 
-**pyblake2**: mininode.py uses for Equihash person strings. Python 3.6+ has hashlib.blake2b. Migration path when tests move to Python 3.
+**pyblake2**: mininode.py uses for Equihash person strings. Python 3.6+ has hashlib.blake2b. See §6.2.1.
 
 **nuparams**: Overwinter 0x6f76727a, Sapling 0x7361707a (Zero). Zcash: 0x5BA81B19, 0x76B809BB.
 
+### 6.2.1 Python (canonical)
+
+**Current**: Py2.7 for RPC tests. Prereq: `python2 -m pip install pyblake2`. No project docs for pyenv/python2. run-tests.sh find_python2: `$PYTHON` → `~/.pyenv/versions/2.7.18/bin/python` → `python2`.
+
+**Proposal (not implemented)**: Centralize detection in tests-config.sh (PYTHON, PYTHON_DIR); detection order above; configure AC_ARG_VAR PYTHON; remove find_python2 and hardcoded paths; document once in BUILD.md.
+
+**Future**: Py3 migration. Replace pyblake2 with hashlib.blake2b. Functional test layout (Bitcoin test/functional Py3; Zero uses legacy qa/rpc-tests).
+
 ### 6.3 Wants and Suggestions
 
-- **Python 3 migration** (delayed work area): Replace pyblake2 with hashlib.blake2b when migrated.
+- **Python**: See §6.2.1.
 - **zeronode RPC tests**: Partial (Groups A+B); add Groups C–F per §11.4.
 - **Fuzz tests**: Zero has none; Bitcoin has src/test/fuzz/.
-- **Functional tests**: Bitcoin uses test/functional (Python 3); Zero uses legacy qa/rpc-tests.
 - **Coverage (make cov)**: Postponed; requires CFLAGS --coverage, lcov.
 - **leveldb, libsnark**: Not wired to top-level check.
 
@@ -597,10 +605,9 @@ Aggregated from coverage analysis. Detailed limitations, justifications for excl
 
 ### 9.6 Future Directions
 
-- Python 3 migration (pyblake2 → hashlib.blake2b).
+- Python: See §6.2.1.
 - Zeronode test suite (see 9.2).
 - Fuzz tests (Zero has none; Bitcoin has src/test/fuzz/).
-- Functional test migration (Bitcoin test/functional Py3; Zero uses legacy qa/rpc-tests).
 - Coverage targets (make cov; requires lcov).
 
 ### 9.7 Consolidated Coverage Gaps (by Area)
@@ -620,7 +627,7 @@ Reconciles §9.1–9.3, §5.3, §11.4. Single reference for gaps and excluded te
 | **Network/P2P** | 60% | — | Partition, peer misbehavior | — |
 | **Mining/PoW** | 75% | — | miner_tests (Zero 192,7 vs 96,5) | miner_tests, equihash_tests |
 | **Wallet** | 80% | — | Backup/restore, corruption recovery | CachedWitnesses*, WriteCryptedSaplingZkey*, rpc_wallet_encrypted_wallet_sapzkeys |
-| **RPC Python** | 16 pass-only | — | Many scripts fail; get_coinbase_address, protocol, getchaintips skip logic | script_test.py |
+| **RPC Python** | 18 pass-only | — | Many scripts fail; get_coinbase_address, protocol, getchaintips skip logic | script_test.py |
 | **Consensus harness** | Partial | Indices in scope (ChainTip, DecrementFirst) | pcoinsTip null → BuildWitnessCache returns early; witnesses not built | CachedWitnesses* |
 | **Alert** | — | — | MagicBean/Zcash-specific | Alert_tests |
 
@@ -781,7 +788,7 @@ See §11.5 for prioritized implementation.
 | **Mining/PoW** | miner_tests excluded | Equihash (192,7) vs test (96,5). Add Zero-specific test vectors or skip when nEquihashN!=192. |
 | **addressindex** | rpc_tests only | getaddressmempool, getaddressutxos, etc. — add error-path tests; coverage in rpc_tests. |
 | **Fuzz** | None | Defer. Bitcoin src/test/fuzz; requires libFuzzer/infra. |
-| **Functional** | Legacy qa | Defer. Python 3 migration; test/functional layout. |
+| **Functional** | Legacy qa | Defer. See §6.2.1. |
 
 ### 11.5 Implementation Plan (Prioritized)
 
@@ -802,7 +809,7 @@ Organized by group/area. Priorities: P1 (high impact, low effort), P2 (high impa
 | **P3** | Wallet | — | Backup/restore, corruption recovery tests | Boost + Python | Medium | Resilience |
 | **P3** | addressindex | — | Error-path tests for getaddressmempool, getaddressutxos, etc. | Boost | Low | rpc_tests only |
 | **P4** | Fuzz | — | libFuzzer infra; seed from Bitcoin src/test/fuzz | Fuzz | High | New infra |
-| **P4** | Functional | — | Python 3 migration; test/functional layout | Python 3 | High | Depends on Py3 migration |
+| **P4** | Functional | — | See §6.2.1 | Python 3 | High | Depends on Py3 migration |
 | **P4** | decodescript | — | Expand beyond rpc_tests | Boost | Low | Minor gap |
 
 **Workflow:** P1 first (quick wins). P2 in parallel where harness work (C, D, consensus) can inform each other. P3 after P2. P4 deferred.
@@ -1011,10 +1018,10 @@ B=Bitcoin, Z=Zcash, P=Pirate. Source: Options_extended.csv, RPCs_extended.csv.
 | Priority | Item | Type | Effort | Rationale |
 |----------|------|------|--------|-----------|
 | **P1** | Add consolidation, deletetx, deleteinterval, keeptxnum, keeptxfornblocks to doc/man/zerod.1 | Doc | Low | Man page incomplete |
-| **P1** | Python RPC: rescan-via-import test (z_importkey rescan=yes, assert balance) | Test | Low | Rescan covered only indirectly |
-| **P2** | Python RPC: rescan startup test (rescan=1 in conf, restart, verify) | Test | Medium | Complements reindex.py |
-| **P2** | Boost: deletetx param validation (enable, wrong args) | Test | Low | Error-path coverage |
-| **P2** | Boost: consolidation param validation | Test | Low | Same pattern as rpc_zeronode |
+| **P1** | Python RPC: rescan-via-import test (z_importkey rescan=yes, assert balance) | Test | Low | **Done.** rescan_import.py. Skips when get_coinbase_address fails (6.1). |
+| **P2** | Python RPC: rescan startup test (rescan=1 in conf, restart, verify) | Test | Medium | **Done.** rescan_startup.py. Restart with -rescan, verify chain. |
+| **P2** | Boost: deletetx param validation (enable, wrong args) | Test | Low | **N/A.** deletetx is init option, not RPC; CallRPC cannot test. |
+| **P2** | Boost: consolidation param validation | Test | Low | **N/A.** consolidation is init option, not RPC; CallRPC cannot test. |
 | **P3** | Python RPC: deletetx integration (enable, mine, verify retention) | Test | Medium | Stateful; needs blocks |
 | **P3** | Python RPC or Boost: consolidation integration | Test | High | Async; timing; Sapling notes |
 | **P4** | Add rescan RPC (Pirate has; Zero does not) | Feature | Medium | Optional; import RPCs cover main use |
@@ -1025,7 +1032,7 @@ B=Bitcoin, Z=Zcash, P=Pirate. Source: Options_extended.csv, RPCs_extended.csv.
 | Gap | Severity | Action |
 |-----|----------|--------|
 | zerod.1 missing 6 options | Doc | P1: update man page |
-| No rescan-only test | Test | P1: import rescan; P2: startup rescan |
+| No rescan-only test | Test | **Done.** rescan_import.py (skip when 6.1); rescan_startup.py. |
 | No deletetx test | Test | P2: param; P3: integration |
 | No consolidation test | Test | P2: param; P3: integration |
 | No deleteinterval/keeptxnum/keeptxfornblocks test | Test | P3 |

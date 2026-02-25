@@ -25,7 +25,7 @@ LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
 BOOST_EXCLUDE='!Alert_tests:!equihash_tests:!miner_tests:!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'
 
 PYTHON_PASSING=(
-    blockchain disablewallet httpbasics reindex decodescript keypool
+    blockchain disablewallet httpbasics reindex rescan_import rescan_startup decodescript keypool
     paymentdisclosure prioritisetransaction wallet_treestate wallet_anchorfork
     getchaintips rewind_index wallet_overwintertx wallet_changeaddresses
     shorter_block_times p2p_nu_peer_management
