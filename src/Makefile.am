@@ -607,7 +607,7 @@ clean-local:
 	-rm -f config.h
 
 .rc.o:
-	@test -f $(WINDRES)
+	@test -n "$(WINDRES)" && (command -v "$(WINDRES)" >/dev/null 2>&1 || test -f "$(WINDRES)") || { echo "windres not found"; exit 1; }
 	$(AM_V_GEN) $(WINDRES) -DWINDRES_PREPROC -i $< -o $@
 
 .mm.o:
