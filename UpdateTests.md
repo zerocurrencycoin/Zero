@@ -501,7 +501,7 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 
 **Invocation fix**: run-tests.sh must use `env PYTHON="$PY2"` when calling rpc-tests.sh. Passing `PYTHON="$PY2"` as the first arg to run_cmd causes the shell to try to execute `PYTHON=...` as a command ("No such file or directory"). Using `env` sets the variable and runs the script correctly.
 
-**Proposal (not implemented)**: Centralize detection in tests-config.sh (PYTHON, PYTHON_DIR); detection order above; configure AC_ARG_VAR PYTHON; remove find_python2 and hardcoded paths; document once in BUILD.md.
+**Proposal (not implemented)**: Centralize detection in tests-config.sh (PYTHON, PYTHON_DIR); detection order above; configure AC_ARG_VAR PYTHON; remove find_python2 and hardcoded paths; document once in BUILD_ZERO.md.
 
 **Future**: Py3 migration. Replace pyblake2 with hashlib.blake2b. Functional test layout (Bitcoin test/functional Py3; Zero uses legacy qa/rpc-tests).
 

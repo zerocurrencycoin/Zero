@@ -61,6 +61,8 @@ Cross-compiled from Linux via MinGW. Primary user deployment platform.
 
 **Script:** Uses `HOST=x86_64-w64-mingw32`, `--disable-zmq --disable-rust` for configure, `x86_64-w64-mingw32-gcc-posix`/`-g++-posix`, CXXFLAGS for PTW32_STATIC_LIB and CURVE_ALT_BN128, sed fix for boost_system-mt. Linux-only (readlink -f, sed -i).
 
+**Sed fix:** `sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure` — space after `-lboost_system-mt` is a word boundary (configure outputs `-lboost_system-mt -lother`). GNU `sed -i` without suffix can leave `configure~`; use `sed -i.bak '...' configure && rm -f configure.bak` or add `configure~` to `clean-local` in Makefile.am.
+
 ### 2.3 macOS ARM64
 
 New platform addition. **Compatibility defined by macOS 24.5.0 (darwin
@@ -123,6 +125,10 @@ Use `sysctl -n hw.ncpu` or install GNU coreutils (`brew install coreutils`) for
 (e.g. `gnproc`, `gmake`). Add `$(brew --prefix coreutils)/libexec/gnubin` to
 PATH to use un-prefixed names, or call `gnproc` explicitly.
 
+**MacPorts:** configure.ac adds `/opt/local` when `port` found. With CONFIG_SITE from depends, depends wins. Optional for users who use MacPorts for other deps.
+
+**Two scripts:** build.sh (Linux + Mac, native) and build-win.sh (Windows cross from Linux) are separate: different HOST, configure flags, make targets (.exe). Cannot merge.
+
 **CONFIGURE_FLAGS:** Passed unquoted to `./configure`; the shell splits on
 spaces. Values with spaces (e.g. `CXXFLAGS="-g -Wno-..."`) break. Workaround:
 escape spaces, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-deprecated-builtins\ -Wno-enum-constexpr-conversion'`.
@@ -131,7 +137,7 @@ single-token overrides; multi-word values need escaping.
 
 ### 2.6 GCC / Toolchain (Linux)
 
-**GCC 13:** If build fails on Ubuntu 24.04, try gcc-11. `build.sh` auto-selects gcc-11 if present. Install: `sudo apt update && sudo apt install gcc-11 g++-11`. Override: `CC=gcc-11 CXX=g++-11 ./zcutil/build.sh`. Windows cross-compile uses mingw-w64, not gcc-11. GCC &lt; 7 is too old for C++14. (zerowallet, which uses Qt, is built from separate repos and has its own GCC requirements.)
+zerod uses system GCC. GCC 7.0+ required for C++14. Windows cross-compile uses mingw-w64, not system GCC. zerowallet (separate repos) has its own toolchain requirements; static Qt on Linux for Linux may require gcc-11 (Qt struggles with GCC 13 on Ubuntu 24.04).
 
 ### 2.7 Autoconf Macros
 
@@ -246,7 +252,7 @@ intermediate SHA-256 result, then copies to `output.data()`.
 
 **Issue:** `ld: warning: object file ... was built for newer 'macOS' version (26.0) than being linked (11.0)` — googletest built with default SDK, main app uses `-mmacosx-version-min=10.8`.
 
-**Fix:** `depends/packages/googletest.mk` adds `-DCMAKE_OSX_DEPLOYMENT_TARGET=10.8` for darwin. Requires `make -C depends clean` and rebuild to take effect.
+**Fix:** `depends/packages/googletest.mk` uses `$(OSX_MIN_VERSION)` (15.0) for darwin. Requires `make -C depends clean` and rebuild to take effect.
 
 ### 4.5 Build Warnings (non-fatal)
 
@@ -312,6 +318,8 @@ endif
 
 **Canonical source:** `depends/packages/*.mk`. This section summarizes;
 reasoning and upgrade history in §6.
+
+**Pinning policy:** Pin only when necessary: (1) reproducibility, (2) known incompatibility, (3) CI determinism. Depends packages (Boost, BDB, etc.) pinned for hash verification. CI: pin for reproducibility; local dev: system defaults acceptable if documented.
 
 ### 5.1 Core Libraries
 

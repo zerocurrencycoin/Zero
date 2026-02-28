@@ -123,7 +123,6 @@ Disabledeprecation flag has been removed. Nodes running release 3.3.1 will autom
 
 | Document | Purpose |
 |----------|---------|
-| [BUILD.md](BUILD.md) | Build ecosystem (zerod vs zerowallet toolchains) |
 | [BUILD_ZERO.md](BUILD_ZERO.md) | Build guide (Linux, macOS ARM64, Windows) |
 | [TEST_ZERO.md](TEST_ZERO.md) | Test procedures and validation |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |

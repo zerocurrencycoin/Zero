@@ -1,6 +1,6 @@
 # BUILD_ZERO
 
-Build guide for the Zero node (zerod). Quick Start, data directory layout, and developer build knowledge. For zerod vs zerowallet toolchains, see [BUILD.md](BUILD.md).
+Build guide for the Zero node (zerod). Quick Start, data directory layout, and developer build knowledge.
 
 ---
 
@@ -298,7 +298,9 @@ With `--disable-mining`, `test_miner` is excluded from tests. Equihash template 
 
 ### 6.6 zerowallet
 
-zerowallet (Qt GUI) is built from separate repos. This repo builds only zerod, zero-cli, zero-tx. See [BUILD.md](BUILD.md) for zerod vs zerowallet toolchains.
+zerowallet (Qt GUI) is built from separate repos (zerowalletmac, zerowalletlinux, zerowalletwin). This repo builds only zerod, zero-cli, zero-tx.
+
+**zerod vs zerowallet toolchains:** zerod uses system GCC (Linux), Clang (macOS), mingw-w64 (Windows). Zerowallet uses Qt; Windows may use MXE for static Qt; static Qt on Linux for Linux may require gcc-11 (Qt struggles with GCC 13 on Ubuntu 24.04).
 
 ### 6.7 Clean Rebuild
 
