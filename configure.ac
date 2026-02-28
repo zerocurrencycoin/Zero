@@ -234,6 +234,9 @@ AC_ARG_WITH([daemon],
   [build_bitcoind=$withval],
   [build_bitcoind=yes])
 
+dnl Zero node has no Qt GUI; zerowallet is built from separate repos.
+bitcoin_enable_qt=no
+
 use_pkgconfig=yes
 case $host in
   *mingw*)

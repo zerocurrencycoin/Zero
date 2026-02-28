@@ -18,32 +18,12 @@ function gprefix() {
 gprefix READLINK readlink
 cd "$(dirname "$("$READLINK" -f "$0")")/.."
 
-# Use GCC-11 if available; Qt struggles with GCC 13
 if [[ -z "${CC-}" ]]; then
-    if type -p "gcc-11" > /dev/null; then
-        CC=gcc-11
-        echo "✅ Using GCC-11 (Qt struggles with GCC 13)"
-    else
-        CC=gcc
-        echo ""
-        echo "⚠️  WARNING: GCC-11 not found!"
-        echo "   Qt struggles with GCC 13. The build may fail with newer GCC."
-        echo "   Install GCC-11 for best results:"
-        echo "   sudo apt-get install gcc-11 g++-11"
-        echo ""
-        echo "   Continuing with system GCC ($(gcc --version | head -1))..."
-        echo ""
-    fi
+    CC=gcc
 fi
-
 if [[ -z "${CXX-}" ]]; then
-    if type -p "g++-11" > /dev/null; then
-        CXX=g++-11
-    else
-        CXX=g++
-    fi
+    CXX=g++
 fi
-
 export CC CXX
 
 # Allow user overrides to $MAKE. Typical usage for users who need it:
@@ -88,12 +68,12 @@ Usage:
 $0 --help
   Show this help message and exit.
 
-$0 [ --enable-lcov || --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon-only ] [ MAKEARGS... ]
+$0 [ --enable-lcov || --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon ] [ MAKEARGS... ]
   Build Zcash and most of its transitive dependencies from
   source. MAKEARGS are applied to both dependencies and Zcash itself.
 
-  If --daemon-only is passed, build daemon/cli only: NO_QT for depends,
-  --disable-zmq and --disable-rust for configure. Aligns with build-win.sh options.
+  If --daemon is passed, build daemon/cli only: --disable-zmq and --disable-rust.
+  Aligns with build-win.sh.
 
   If --enable-lcov is passed, Zcash is configured to add coverage
   instrumentation, thus enabling "make cov" to work.
@@ -145,12 +125,11 @@ then
     shift
 fi
 
-# If --daemon-only is the next argument, skip ZMQ/Rust (align with build-win.sh):
-DAEMON_ONLY_ARG=''
-if [ "x${1:-}" = 'x--daemon-only' ]
+# If --daemon is the next argument, skip ZMQ/Rust (align with build-win.sh):
+DAEMON_ARG=''
+if [ "x${1:-}" = 'x--daemon' ]
 then
-    DAEMON_ONLY_ARG='--disable-zmq --disable-rust'
-    export NO_QT=1
+    DAEMON_ARG='--disable-zmq --disable-rust'
     shift
 fi
 
@@ -174,6 +153,15 @@ as --version
 ld -v
 
 HOST="$HOST" BUILD="$BUILD" NO_PROTON="$PROTON_ARG" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
+
+# Remove stale secp256k1 .la when host changed (fixes ld "search path not found" warning)
+if [ -f src/secp256k1/libsecp256k1.la ] && [ -d "depends/$HOST" ]; then
+  la_host=$(grep 'dependency_libs' src/secp256k1/libsecp256k1.la 2>/dev/null | sed -n 's|.*depends/\([^/]*\)/.*|\1|p')
+  if [ -n "$la_host" ] && [ "$la_host" != "$HOST" ]; then
+    rm -f src/secp256k1/libsecp256k1.la src/secp256k1/config.status
+  fi
+fi
+
 ./autogen.sh
-CONFIG_SITE="$PWD/depends/$HOST/share/config.site" ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" "$PROTON_ARG" $DAEMON_ONLY_ARG $CONFIGURE_FLAGS CXXFLAGS='-g'
+CONFIG_SITE="$PWD/depends/$HOST/share/config.site" ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" "$PROTON_ARG" $DAEMON_ARG $CONFIGURE_FLAGS CXXFLAGS='-g'
 "$MAKE" "${MAKEARGS[@]}" V=1

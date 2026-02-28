@@ -1,6 +1,6 @@
 # BUILD_ZERO
 
-Build guide for the Zero node (zerod). Quick Start, data directory layout, and developer build knowledge.
+Build guide for the Zero node (zerod). Quick Start, data directory layout, and developer build knowledge. For zerod vs zerowallet toolchains, see [BUILD.md](BUILD.md).
 
 ---
 
@@ -23,7 +23,7 @@ cd Zero
 ./zcutil/build.sh -j4
 ```
 
-Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. Optional: `src/zerowallet` (Qt GUI) if built with `--with-gui=qt5`.
+Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. zerowallet is a separate application (zerowalletmac, zerowalletlinux, zerowalletwin repos).
 
 ### 2.2 Linux x86_64
 
@@ -35,12 +35,6 @@ sudo apt update
 sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib \
   autoconf libtool ncurses-dev unzip git python3 python3-zmq \
   zlib1g-dev wget bsdmainutils automake cmake curl
-```
-For Qt/GUI builds on Ubuntu 24.04 (or if system GCC is 13+): add `gcc-11 g++-11`.
-
-**GUI (optional):** On Ubuntu 22.04+ `qt5-default` is deprecated; use:
-```bash
-sudo apt install qtbase5-dev qtbase5-dev-tools qttools5-dev-tools libqt5websockets5-dev
 ```
 
 **Build:**
@@ -59,8 +53,6 @@ sudo apt install qtbase5-dev qtbase5-dev-tools qttools5-dev-tools libqt5websocke
 ```bash
 brew install automake cmake pkg-config coreutils
 ```
-
-**GUI (optional):** For zerowallet: `brew install qt5`; add `$(brew --prefix qt5)/bin` to PATH if needed.
 
 **Build:**
 ```bash
@@ -81,7 +73,7 @@ sudo apt install mingw-w64 build-essential
 
 Output: `src/zerod.exe`, `src/zero-cli.exe`, `src/zero-tx.exe`.
 
-**Manual steps** (if not using build-win.sh): `zcutil/build-win.sh` runs: depends with `HOST=x86_64-w64-mingw32 NO_QT=1`; configure with `--disable-zmq --disable-rust`, posix threads (`-gcc-posix`), and CXXFLAGS for PTW32/BN128; sed fix for boost_system-mt; make in src/.
+**Manual steps** (if not using build-win.sh): depends with `HOST=x86_64-w64-mingw32`; configure with `--disable-zmq --disable-rust`, posix threads (`-gcc-posix`), CXXFLAGS for PTW32/BN128; sed fix for boost_system-mt; make in src/.
 
 **WSL2:** Use Linux instructions; build and run inside WSL2.
 
@@ -165,40 +157,51 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 
 **zcutil/build.sh** runs steps 1–4 in one command. It sets `HOST` via `depends/config.guess`, builds depends, runs autogen, configure, and make.
 
-### 4.3 zcutil/build.sh
+### 4.3 config.site
+
+`depends/$HOST/share/config.site` is generated from `depends/config.site.in` when depends is built. It is sourced by `./configure` when `CONFIG_SITE` is set. It preconfigures:
+
+- **CC, CXX:** Host compiler (from `depends/hosts/*.mk`). For Windows: `x86_64-w64-mingw32-gcc-posix`, `x86_64-w64-mingw32-g++-posix`.
+- **CFLAGS, CXXFLAGS, CPPFLAGS, LDFLAGS:** From host config.
+- **PKG_CONFIG_LIBDIR, PKG_CONFIG_PATH:** Point to `depends/$HOST/lib/pkgconfig` and `share/pkgconfig`.
+- **Prefix:** `-I$depends_prefix/include`, `-L$depends_prefix/lib` so configure finds depends-built libraries.
+
+Without `CONFIG_SITE`, configure would use system compilers and paths.
+
+**Source:** `depends/config.site.in`; template variables `@CC@`, `@CXX@`, `@host_os@`, etc. are substituted by `depends/Makefile` when building `depends/$HOST/share/config.site`.
+
+### 4.4 zcutil/build.sh
 
 ```
-./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon-only ] [ MAKEARGS... ]
+./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon ] [ MAKEARGS... ]
 ```
 
-- `--daemon-only`: NO_QT for depends, `--disable-zmq --disable-rust` for configure. Aligns with build-win.sh; useful for daemon-only experiments.
+- `--daemon`: `--disable-zmq --disable-rust` for configure. Aligns with build-win.sh.
 - Flags must come before `-jN` and other make args.
 - `-jN` capped at 4 by default; use `-j$(nproc)` or `-j$(sysctl -n hw.ncpu)` to override.
 - `CONFIGURE_FLAGS` passed to configure; multi-word values need escaping, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-enum-constexpr-conversion'`.
 
-### 4.4 Variables and Overrides
+### 4.5 Variables and Overrides
 
 | Variable | Purpose |
 |----------|---------|
-| `CC`, `CXX` | Compiler (e.g. `gcc-11`, `g++-11`) |
+| `CC`, `CXX` | Compiler override |
 | `MAKE` | Make command (e.g. `gmake`) |
 | `BUILD`, `HOST` | Triplet for porters |
 | `CONFIGURE_FLAGS` | Extra configure options |
 | `CCACHE_DIR` | ccache cache (optional). ccache 4.12.2 in depends; `ccache -M 5G` for size. |
 
-### 4.5 Intermediate Results
+### 4.6 Intermediate Results
 
-- Depends: `depends/$HOST/` (e.g. `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin24.5.0`).
-- Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. GUI: `src/qt/zerowallet` if built with `--with-gui=qt5`.
+- Depends: `depends/$HOST/` (e.g. `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin25.3.0`).
+- Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`.
 - Tests: `contrib/run-tests.sh`; logs in `test-logs/`. See [TEST_ZERO.md](TEST_ZERO.md).
 
-### 4.6 Configure Options
+### 4.7 Configure Options
 
 | Option | Purpose |
 |--------|---------|
 | `--disable-wallet` | Daemon only (servers) |
-| `--with-gui=qt5` | Build zerowallet (Qt5) |
-| `--without-gui` | Daemon only |
 | `--enable-debug` | Debug symbols |
 | `--disable-mining` | Exclude mining code |
 | `--enable-ccache` | Use ccache (default: auto) |
@@ -209,12 +212,7 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 
 ### 5.1 Linux x86_64
 
-**Compiler:** GCC. Qt5 has compatibility issues with GCC 13; see [Qt 5.15 and Ubuntu 24.04](https://forum.qt.io/topic/156941/qt-5-15-14-and-ubuntu-24-04), [GCC 13 porting notes](https://gcc.gnu.org/gcc-13/porting_to.html). Full builds with zerowallet require gcc-11. Do not assume system GCC — check with `gcc --version`. Install:
-```bash
-sudo apt update
-sudo apt install gcc-11 g++-11
-```
-Override: `CC=gcc-11 CXX=g++-11 ./zcutil/build.sh`. See UpdateBuild §2.6 for toolchain details.
+**Compiler:** GCC. Need GCC 7.0+ for C++14.
 
 **Depends:** `make -C depends/` uses `config.guess` for HOST. Output: `depends/x86_64-unknown-linux-gnu/`.
 
@@ -228,11 +226,11 @@ Override: `CC=gcc-11 CXX=g++-11 ./zcutil/build.sh`. See UpdateBuild §2.6 for to
 
 **Prerequisites:** `automake`, `cmake`, `pkg-config`, `coreutils` (for `gnproc`).
 
-**Host triplet:** `aarch64-apple-darwin24.5.0` (config.guess 2025).
+**Host triplet:** `aarch64-apple-darwin*` from config.guess (e.g. darwin24.5.0, darwin25.3.0).
 
-**Configure:**
+**Configure:** (HOST from `./depends/config.guess` or `build.sh`)
 ```bash
-CONFIG_SITE=$PWD/depends/aarch64-apple-darwin24.5.0/share/config.site \
+CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
 ./configure --enable-hardening --enable-proton=no --enable-mining \
   CXXFLAGS="-g -Wno-enum-constexpr-conversion"
 ```
@@ -247,6 +245,22 @@ CONFIG_SITE=$PWD/depends/aarch64-apple-darwin24.5.0/share/config.site \
 ### 5.3 Windows
 
 **Cross-compile from Linux:** `./zcutil/build-win.sh -j$(nproc)`. Requires `mingw-w64` (posix threads). See §2.4.
+
+**Toolchain:** zerod uses system mingw-w64 directly (`apt install mingw-w64`). No MXE. Compilers: `x86_64-w64-mingw32-gcc-posix`, `x86_64-w64-mingw32-g++-posix`.
+
+**build-win.sh flow:**
+
+1. **Depends:** `make HOST=x86_64-w64-mingw32` in `depends/`. Includes `depends/hosts/mingw32.mk`, which sets `mingw32_CC`, `mingw32_CXX` to the posix compilers and `mingw32_CFLAGS`/`mingw32_CXXFLAGS` (e.g. `-fopenmp`, `-DPTW32_STATIC_LIB`). Builds Boost, OpenSSL, libevent, etc. for Windows. Output: `depends/x86_64-w64-mingw32/` (include, lib, share).
+
+2. **config.site:** Depends generates `depends/x86_64-w64-mingw32/share/config.site` with CC, CXX, CFLAGS, CXXFLAGS, LDFLAGS, PKG_CONFIG paths. See §4.3.
+
+3. **Configure:** `CONFIG_SITE=$PWD/depends/x86_64-w64-mingw32/share/config.site ./configure --host=x86_64-w64-mingw32 --enable-static --disable-shared --disable-zmq --disable-rust` plus CXXFLAGS for PTW32_STATIC_LIB, CURVE_ALT_BN128, -fopenmp, -pthread.
+
+4. **Sed fix:** `sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure` — configure emits shared boost lib; MinGW static build needs `-lboost_system-mt-s`.
+
+5. **Make:** `CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix make zerod.exe zero-cli.exe zero-tx.exe` in `src/`.
+
+**mingw32.mk:** `depends/hosts/mingw32.mk` defines compiler and flags. When `HOST=x86_64-w64-mingw32`, `depends/Makefile` sets `host_os=mingw32` and includes this file. All depends packages (Boost, OpenSSL, etc.) use these settings.
 
 **Native/WSL:** Use Linux instructions inside WSL2.
 
@@ -272,8 +286,6 @@ Run `./zcutil/fetch-params.sh` before starting zerod.
 
 ### 6.3 Boost / GCC
 
-**Qt / GCC 13:** Qt5 has compatibility issues with GCC 13 ([Qt forum](https://forum.qt.io/topic/156941/qt-5-15-14-and-ubuntu-24-04)). Full builds with zerowallet require gcc-11. Install: `sudo apt update && sudo apt install gcc-11 g++-11`. Override: `CC=gcc-11 CXX=g++-11 ./zcutil/build.sh`. See UpdateBuild §2.6.
-
 **GCC too old:** Need GCC 7.0+ for C++14.
 
 ### 6.4 Memory Exhausted
@@ -284,9 +296,9 @@ Run `./zcutil/fetch-params.sh` before starting zerod.
 
 With `--disable-mining`, `test_miner` is excluded from tests. Equihash template instantiations are guarded by `ENABLE_MINING`.
 
-### 6.6 Qt/GUI Not Found
+### 6.6 zerowallet
 
-Install Qt5: `sudo apt install qtbase5-dev qtbase5-dev-tools qttools5-dev-tools libqt5websockets5-dev` (Ubuntu 22.04+; `qt5-default` deprecated). Or `brew install qt5` on macOS.
+zerowallet (Qt GUI) is built from separate repos. This repo builds only zerod, zero-cli, zero-tx. See [BUILD.md](BUILD.md) for zerod vs zerowallet toolchains.
 
 ### 6.7 Clean Rebuild
 

@@ -76,7 +76,7 @@ UpdateZero assembles status, open items, long-term plans, gotchas, and gaps. TOD
 |----------|--------|-------|
 | Linux x86_64 | Untested with current changes | Base branch builds on Linux. Primary dev and validation platform. |
 | Windows | Untested | Primary user deployment platform. MinGW cross-compile; requirements TBD. |
-| macOS ARM64 | Working | All binaries produced. Compatibility defined by macOS 24.5.0. Host triplet aarch64-apple-darwin24.5.0. |
+| macOS ARM64 | Working | All binaries produced. Host triplet from config.guess (e.g. aarch64-apple-darwin25.3.0). |
 | macOS x86 | Not supported | EOL; not verified. |
 
 Build changes target ARM Mac enablement but touch shared infrastructure

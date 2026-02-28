@@ -47,7 +47,7 @@ done
 set -x
 cd "$(dirname "$(readlink -f "$0")")/.."
 
-cd depends/ && make HOST=$HOST V=1 NO_QT=1 "${MAKEARGS[@]}" && cd ../
+cd depends/ && make HOST=$HOST V=1 "${MAKEARGS[@]}" && cd ../
 ./autogen.sh
 CONFIG_SITE=$PWD/depends/x86_64-w64-mingw32/share/config.site CXXFLAGS+="-DPTW32_STATIC_LIB -DCURVE_ALT_BN128 -fopenmp -pthread" ./configure --prefix="${PREFIX}" --host=x86_64-w64-mingw32 --enable-static --disable-shared --disable-zmq --disable-rust
 sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure

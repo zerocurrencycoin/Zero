@@ -59,14 +59,14 @@ Cross-compiled from Linux via MinGW. Primary user deployment platform.
 
 **Build:** `./zcutil/build-win.sh -j$(nproc)`. Requires `mingw-w64` (posix threads): `sudo apt install mingw-w64 build-essential`.
 
-**Script:** Uses `HOST=x86_64-w64-mingw32`, `NO_QT=1` for depends, `--disable-zmq --disable-rust` for configure, `x86_64-w64-mingw32-gcc-posix`/`-g++-posix`, CXXFLAGS for PTW32_STATIC_LIB and CURVE_ALT_BN128, sed fix for boost_system-mt. Linux-only (readlink -f, sed -i).
+**Script:** Uses `HOST=x86_64-w64-mingw32`, `--disable-zmq --disable-rust` for configure, `x86_64-w64-mingw32-gcc-posix`/`-g++-posix`, CXXFLAGS for PTW32_STATIC_LIB and CURVE_ALT_BN128, sed fix for boost_system-mt. Linux-only (readlink -f, sed -i).
 
 ### 2.3 macOS ARM64
 
 New platform addition. **Compatibility defined by macOS 24.5.0 (darwin
 24.5.0) until further testing.**
 
-- Host triplet: `aarch64-apple-darwin24.5.0`
+- Host triplet: `aarch64-apple-darwin*` (from config.guess; e.g. darwin24.5.0, darwin25.3.0)
 - Compiler: Apple Clang 17.0
 - System Rust: 1.91.1
 
@@ -82,7 +82,7 @@ brew install automake cmake pkg-config coreutils
 Configure command:
 
 ```
-CONFIG_SITE=$PWD/depends/aarch64-apple-darwin24.5.0/share/config.site \
+CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
 ./configure --enable-hardening --enable-proton=no --enable-mining \
 CXXFLAGS="-g -Wno-enum-constexpr-conversion"
 ```
@@ -104,10 +104,12 @@ Strike for the time being.
 only the first positional argument for each flag.
 
 ```
-./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon-only ] [ MAKEARGS... ]
+./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon ] [ MAKEARGS... ]
 ```
 
-- `--daemon-only`: NO_QT for depends, `--disable-zmq --disable-rust` for configure. Aligns with build-win.sh.
+- `--daemon`: `--disable-zmq --disable-rust` for configure. Aligns with build-win.sh.
+
+Zero node has no Qt; zerowallet is built from separate repos.
 
 Examples:
 - `./zcutil/build.sh --disable-mining -j4` (correct)
@@ -129,9 +131,20 @@ single-token overrides; multi-word values need escaping.
 
 ### 2.6 GCC / Toolchain (Linux)
 
-**Qt5 and GCC 13:** Qt 5.15 has compatibility issues with GCC 13. Symptoms: XKB key declarations (`XKB_KEY_dead_lowline` not declared), stricter type checking, header dependency changes (C++ stdlib headers no longer include others implicitly). GCC 13 also implements C++23 implicit move rules and removed two-stage overload resolution, affecting some C++17 code. Qt 5.15 officially supports Ubuntu 20.04/18.04 with GCC 9; Ubuntu 24.04 is not listed. See [Qt 5.15.14 and Ubuntu 24.04](https://forum.qt.io/topic/156941/qt-5-15-14-and-ubuntu-24-04), [GCC 13 porting to](https://gcc.gnu.org/gcc-13/porting_to.html).
+**GCC 13:** If build fails on Ubuntu 24.04, try gcc-11. `build.sh` auto-selects gcc-11 if present. Install: `sudo apt update && sudo apt install gcc-11 g++-11`. Override: `CC=gcc-11 CXX=g++-11 ./zcutil/build.sh`. Windows cross-compile uses mingw-w64, not gcc-11. GCC &lt; 7 is too old for C++14. (zerowallet, which uses Qt, is built from separate repos and has its own GCC requirements.)
 
-**Workaround:** Use gcc-11 for full builds with zerowallet. `build.sh` auto-selects gcc-11 if present. Install: `sudo apt update && sudo apt install gcc-11 g++-11`. Override: `CC=gcc-11 CXX=g++-11 ./zcutil/build.sh`. Windows cross-compile uses mingw-w64, not gcc-11. GCC &lt; 7 is too old for C++14.
+### 2.7 Autoconf Macros
+
+**Version history:** Zero uses autoconf-archive macros in `build-aux/m4/`. Versions (serial numbers) vary; some are from 2019–2023.
+
+**ax_pthread.m4 (serial 22→23):** Autoconf 2.72 deprecates `$as_echo`; use `AS_ECHO(["..."])` instead. The macro at line 297 used `$as_echo` for the Clang two-step link test, causing `configure.ac:394: warning: $as_echo is obsolete`. Updated to `AS_ECHO(["$ac_link"])` per autoconf-archive master (serial 31). Serial bumped to 23.
+
+**Further improvements:**
+- **ax_boost_*.m4:** Current serials 1–27. Autoconf-archive has newer versions; upgrade if Boost detection fails.
+- **ax_check_*.m4:** Require AC_PREREQ(2.64); already use AS_VAR_IF. Serial 4.
+- **ax_cxx_compile_stdcxx.m4:** Serial 4; supports C++14/17. Adequate.
+- **config.guess/config.sub:** Use 2025 versions (see §3.6).
+- **AC_PREREQ:** configure.ac requires 2.60; consider 2.69+ for better portability.
 
 ## 3. Depends Changes
 
@@ -223,7 +236,19 @@ function writes the hash into that span. Benefits: (1) caller controls storage
 parameter; internally Pirate still uses `buf[CSHA256::OUTPUT_SIZE]` for the
 intermediate SHA-256 result, then copies to `output.data()`.
 
-### 4.3 Build Warnings (non-fatal)
+### 4.3 secp256k1 libsecp256k1.la host path
+
+**Issue:** After switching hosts (e.g. darwin24→darwin25) or upgrading macOS, `libsecp256k1.la` may contain a stale `-Ldepends/aarch64-apple-darwin24.5.0/...` path, causing `ld: warning: search path '...' not found`.
+
+**Fix:** `build.sh` now removes `src/secp256k1/libsecp256k1.la` and `config.status` when the embedded host in the .la file differs from `$HOST`. Ensures secp256k1 is reconfigured with the correct depends path.
+
+### 4.4 googletest macOS deployment target
+
+**Issue:** `ld: warning: object file ... was built for newer 'macOS' version (26.0) than being linked (11.0)` — googletest built with default SDK, main app uses `-mmacosx-version-min=10.8`.
+
+**Fix:** `depends/packages/googletest.mk` adds `-DCMAKE_OSX_DEPLOYMENT_TARGET=10.8` for darwin. Requires `make -C depends clean` and rebuild to take effect.
+
+### 4.5 Build Warnings (non-fatal)
 
 **Definitions override:** Automake pre-defines variables and targets. When
 `Makefile.am` assigns to the same name, the user definition overrides the
@@ -495,7 +520,7 @@ Build system architecture and platform support across Zcash-family and Bitcoin.
 | Pirate | make (inherited) | Inherited | Not documented | — |
 | Horizen | make (Zcash-based) | Custom /depends | Not documented | — |
 
-**Zero depends cross-compile targets:** `HOST=x86_64-w64-mingw32` (Win64), `HOST=i686-w64-mingw32` (Win32), `HOST=aarch64-apple-darwin24` (macOS ARM64), `HOST=arm-linux-gnueabihf` (ARM Linux).
+**Zero depends cross-compile targets:** `HOST=x86_64-w64-mingw32` (Win64), `HOST=i686-w64-mingw32` (Win32), `HOST=aarch64-apple-darwin*` (macOS ARM64; from config.guess), `HOST=arm-linux-gnueabihf` (ARM Linux).
 
 **Bitcoin cross-compile hosts:** i686-w64-mingw32, x86_64-w64-mingw32, x86_64-apple-darwin11, arm-linux-gnueabihf.
 
@@ -513,8 +538,8 @@ Build system architecture and platform support across Zcash-family and Bitcoin.
 
 | Test | Purpose |
 |------|---------|
-| **Parity** | Verify `build.sh --daemon-only` and `build-win.sh` use same configure options (NO_QT, `--disable-zmq`, `--disable-rust`). Unified now; test guards drift. |
-| **Depended** | Depends build for HOST succeeds: `make -C depends HOST=x86_64-w64-mingw32 NO_QT=1` (Linux). Minimal validation before full build. |
+| **Parity** | Verify `build.sh --daemon` and `build-win.sh` use same configure options (`--disable-zmq`, `--disable-rust`). |
+| **Depended** | Depends build for HOST succeeds: `make -C depends HOST=x86_64-w64-mingw32` (Linux). Minimal validation before full build. |
 
 **Under consideration:** config.site presence check, configure `--help` options drift check, Windows binary format (PE32+), depends clean+rebuild.
 

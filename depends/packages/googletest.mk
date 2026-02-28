@@ -8,6 +8,8 @@ define $(package)_set_vars
 $(package)_cxxflags+=-std=c++14
 $(package)_cxxflags_linux=-fPIC
 $(package)_cxxflags_freebsd=-fPIC
+$(package)_cmake_opts=
+$(package)_cmake_opts_darwin=-DCMAKE_OSX_DEPLOYMENT_TARGET=$(OSX_MIN_VERSION)
 endef
 
 define $(package)_preprocess_cmds
@@ -19,7 +21,8 @@ define $(package)_config_cmds
     -DCMAKE_CXX_STANDARD=11 \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     -DBUILD_GMOCK=ON \
-    -DBUILD_GTEST=ON
+    -DBUILD_GTEST=ON \
+    $($(package)_cmake_opts) $($(package)_cmake_opts_$(host_os))
 endef
 
 define $(package)_build_cmds
