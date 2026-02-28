@@ -226,8 +226,12 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 
 | Variable | Purpose |
 |----------|---------|
+<<<<<<< HEAD
+| `CC`, `CXX` | Compiler override |
+=======
 | `MXE_ROOT` | MXE install root; `MXE_PATH=$MXE_ROOT/usr/bin` (default `$HOME/mxe`; use `/usr/lib/mxe` for system) |
 | `CC`, `CXX` | Compiler (e.g. `gcc-11`, `g++-11`) |
+>>>>>>> origin/mac_linux_boost188
 | `MAKE` | Make command (e.g. `gmake`) |
 | `BUILD`, `HOST` | Triplet for porters |
 | `CONFIGURE_FLAGS` | Extra configure options |
@@ -270,7 +274,11 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 
 ### 5.3 Windows
 
-**Cross-compile:** `HOST=x86_64-w64-mingw32`. Requires MXE with `x86_64-w64-mingw32.static-gcc`. Set `MXE_ROOT` (default `$HOME/mxe`; `MXE_PATH=$MXE_ROOT/usr/bin`). See §2.4 for full steps.
+<<<<<<< HEAD
+**Cross-compile from Linux:** See §2.4. Toolchain: system mingw-w64 (`apt install mingw-w64`). No MXE.
+=======
+**Cross-compile:** `HOST=x86_64-w64-mingw32`. Requires MXE with `x86_64-w64-mingw32-gcc-posix` and `x86_64-w64-mingw32-g++-posix`. Set `MXE_ROOT` (default `$HOME/mxe`; `MXE_PATH=$MXE_ROOT/usr/bin`). See §2.4 for full steps.
+>>>>>>> origin/mac_linux_boost188
 
 **Manual build:** (1) `make HOST=x86_64-w64-mingw32` in depends; (2) configure with CONFIG_SITE (see §4.3), `--host=x86_64-w64-mingw32 --enable-static --disable-shared --disable-zmq --disable-rust`, CXXFLAGS for PTW32_STATIC_LIB, CURVE_ALT_BN128; (3) sed fix: `sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure`; (4) make in src/ with `CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix`.
 

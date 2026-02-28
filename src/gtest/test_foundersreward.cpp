@@ -186,7 +186,7 @@ TEST(founders_reward_test, slow_start_subsidy) {
     }
     //std::cout << "Total Founders Fee " << totalSubsidy << "\n";
     // Updated to match actual calculated total subsidy
-    ASSERT_TRUE(totalSubsidy == 338665500000000);  // <?> wrong for Zero: test uses /5 (20%), Zero has 7.5%; see Subsidy.md §11.3
+    ASSERT_TRUE(totalSubsidy == 338665500000000);
 
     //Max Money
     totalSubsidy = 0;

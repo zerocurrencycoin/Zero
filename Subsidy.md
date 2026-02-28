@@ -255,6 +255,9 @@ void FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, CTxOut& txFounder
 | Location | Issue |
 |----------|-------|
 | `src/amount.h` | `MAX_MONEY = 1695014989600000` (16.95M ZER in zatoshi). Zero total supply ~25.6M ZER exceeds this; validation uses per-subsidy `MoneyRange` only. |
+| (removed) | `338665500000000` — outdated total subsidy (zatoshi); Zero total ≈ 2.56e15. |
+| `TODO.md` | Same `338665500000000` reference. |
+| `TEST.md` | Same `338665500000000` reference. |
 | `README.md` | "Stable supply is 3888 ZER, after first halfing" — ambiguous; 3888 ≈ daily emission (720×5.4) after first halving, not total supply. |
 | `doc/tor.md` | `"subver" : "/MagicBean:1.0.0/"` — legacy; Zero uses Ambrym. |
 
@@ -269,17 +272,6 @@ void FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, CTxOut& txFounder
 | `zcjoinsplitdoublespend.py` | Fixed: ZEC → ZER. |
 | `invalidblockrequest.py` | Fixed: tx amounts 9 ZER for 10 ZER coinbase. |
 | `wallet.py` and others | Use initialize_chain_clean; expected amounts may need Zero-specific updates. |
-
-### 11.3 Wrong Subsidy Value `338665500000000<?>`
-
-**Unit:** The value is in **zatoshi** (1 ZER = 10⁸ zatoshis, same as Bitcoin satoshi).  
-`338665500000000` zatoshi = **3,386,655 ZER**.
-
-**Correct reference:** Zero total supply ≈ **25.6M ZER** (see §11). Founders reward total: **1,275,000 ZER** (under 1.5M ZER) = 1.275×10¹⁴ zatoshi.
-
-**Comparison:** `338665500000000` (3.39M ZER) is ~2.7× the correct founders total. It appears in `src/gtest/test_foundersreward.cpp:189` as the expected "total founders reward" from `slow_start_subsidy`. The test uses `GetBlockSubsidy(...) / 5` (20%) — a **Zcash-derived formula**. Zero uses **7.5%** founders reward (`payments.cpp:306`). The value is wrong for Zero; append `<?>` as a reminder wherever it appears.
-
-**Tracking:** See UpdateZero.md §4.6 (Documented Mismatches).
 
 ---
 
