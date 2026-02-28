@@ -2,9 +2,7 @@ name: Zero Linux CI
 
 on:
   pull_request:
-    branches: [master]
   push:
-    branches: [master]
   schedule:
     - cron: '0 19 * * *'
 
@@ -12,10 +10,10 @@ jobs:
 
   linux-build:
     name: Linux Build
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Install deps (Linux)
 
@@ -25,7 +23,7 @@ jobs:
           sudo apt-get update  # prevents repo404 errors on apt-remove below
           sudo apt-get install \
               build-essential pkg-config libc6-dev m4 g++-multilib \
-              autoconf libtool ncurses-dev unzip git python python-zmq \
+              autoconf libtool ncurses-dev unzip git python3 python3-zmq python-is-python3 \
               zlib1g-dev wget bsdmainutils automake cmake curl
           ./zcutil/fetch-params.sh
 
@@ -35,7 +33,7 @@ jobs:
           tar -czvf zero-linux.tar.gz src/zerod src/zero-cli
           
       - name: Upload zero-linux.tar.gz as artifact
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v4
         with:
           name: zero-linux
           path: ./zero-linux.tar.gz
