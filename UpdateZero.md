@@ -51,6 +51,10 @@ UpdateZero assembles status, open items, long-term plans, gotchas, and gaps. TOD
 | **BUILD_ZERO** | User-facing build guide (README → BUILD_ZERO) |
 | **TEST_ZERO** | User-facing test procedures (README → TEST_ZERO) |
 
+### Content placement policy
+
+Place content in the document whose scope it matches. Avoid duplication: reference other docs (e.g. "See UpdateBuild §5") rather than repeating. Remove content when it becomes obsolete or moves elsewhere. Update\*.md files may reference each other; user-facing docs must not reference Update\* or other project docs.
+
 ### Workflows
 
 | Workflow | Where to look |
@@ -75,7 +79,7 @@ UpdateZero assembles status, open items, long-term plans, gotchas, and gaps. TOD
 | Platform | Status | Notes |
 |----------|--------|-------|
 | Linux x86_64 | Untested with current changes | Base branch builds on Linux. Primary dev and validation platform. |
-| Windows | Untested | Primary user deployment platform. MinGW cross-compile; requirements TBD. |
+| Windows | See BUILD_ZERO §2.4 | Primary user deployment platform. MinGW cross-compile from Linux. |
 | macOS ARM64 | Working | All binaries produced. Host triplet from config.guess (e.g. aarch64-apple-darwin25.3.0). |
 | macOS x86 | Not supported | EOL; not verified. |
 
@@ -401,7 +405,7 @@ Import RPCs_extended.csv or Options_extended.csv into Excel/Sheets. Filter on ze
 
 Status tracking. For build instructions, see referenced docs.
 
-**zerod:** [BUILD_ZERO.md](BUILD_ZERO.md) §2.4, §5.3; [UpdateBuild.md](UpdateBuild.md) §2.2.
+**zerod:** [BUILD_ZERO.md](BUILD_ZERO.md) §2.4, §5.3. Platform rationale: UpdateBuild §2.1.
 
 **zerowallet:** zerowallet BUILD.md §Windows, §MXE; UpdateWallet §Cross-Compilation (zerowallet-specific content TBD).
 

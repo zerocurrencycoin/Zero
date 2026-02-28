@@ -166,3 +166,4 @@ DISTCHECK_CONFIGURE_FLAGS = --enable-man
 
 clean-local:
 	rm -rf test_bitcoin.coverage/ zero-gtest.coverage/ total.coverage/
+	rm -f configure~ src/univalue/configure~

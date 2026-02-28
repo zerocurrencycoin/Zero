@@ -42,104 +42,29 @@ failed on macOS; it was removed.
 
 ## 2. Platform Setup
 
-**Version targets** (e.g. OpenSSL 1.1.1w, libsodium 1.0.20) are upgrade
-targets until compatibility is verified. Build with current library
-versions first; upgrade after validation.
+**Version targets** (e.g. OpenSSL 1.1.1w, libsodium 1.0.20) are upgrade targets until compatibility is verified. Build with current library versions first; upgrade after validation.
 
-### 2.1 Linux x86_64
+**Build instructions:** BUILD_ZERO §2 (Quick Start), §4 (Developer Knowledge), §5 (Per-Platform Detail).
 
-Standard build with `depends/`. Primary development and validation
-platform. No changes to the Linux build path in this update. Regression
-testing required to confirm shared changes (download URLs, sed patterns)
-do not break existing builds.
+### 2.1 Platform rationale
 
-### 2.2 Windows
+**Linux:** Primary development and validation platform. Standard `depends/` build.
 
-Cross-compiled from Linux via MinGW. Primary user deployment platform.
+**Windows:** Cross-compiled from Linux via MinGW. Primary user deployment platform. build-win.sh uses `HOST=x86_64-w64-mingw32`; sed fix for boost_system-mt (word boundary: space after `-lboost_system-mt` ensures match of lib flag only). Linux-only script (readlink -f, sed -i).
 
-**Build:** `./zcutil/build-win.sh -j$(nproc)`. Requires `mingw-w64` (posix threads): `sudo apt install mingw-w64 build-essential`.
+**macOS ARM64:** Host triplet `aarch64-apple-darwin*` from config.guess. `--enable-proton=no`: Qpid Proton CMakeLists.txt incompatible with CMake 4.x. `-Wno-enum-constexpr-conversion`: Suppresses Boost/Clang 17 incompatibility. BDB mutex crash workaround: remove `database/` in data dir. **MacPorts:** configure.ac adds `/opt/local` when `port` found; with CONFIG_SITE from depends, depends paths take precedence.
 
-**Script:** Uses `HOST=x86_64-w64-mingw32`, `--disable-zmq --disable-rust` for configure, `x86_64-w64-mingw32-gcc-posix`/`-g++-posix`, CXXFLAGS for PTW32_STATIC_LIB and CURVE_ALT_BN128, sed fix for boost_system-mt. Linux-only (readlink -f, sed -i).
+**macOS x86 (Intel):** Not supported. EOL.
 
-**Sed fix:** `sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure` — space after `-lboost_system-mt` is a word boundary (configure outputs `-lboost_system-mt -lother`). GNU `sed -i` without suffix can leave `configure~`; use `sed -i.bak '...' configure && rm -f configure.bak` or add `configure~` to `clean-local` in Makefile.am.
-
-### 2.3 macOS ARM64
-
-New platform addition. **Compatibility defined by macOS 24.5.0 (darwin
-24.5.0) until further testing.**
-
-- Host triplet: `aarch64-apple-darwin*` (from config.guess; e.g. darwin24.5.0, darwin25.3.0)
-- Compiler: Apple Clang 17.0
-- System Rust: 1.91.1
-
-**Homebrew prerequisites (install before build):**
-```bash
-brew install automake cmake pkg-config coreutils
-```
-- `automake` — autotools
-- `cmake` — build config (leveldb, etc.)
-- `pkg-config` — library detection
-- `coreutils` — `gnproc` (CPU count for parallel builds)
-
-Configure command:
-
-```
-CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
-./configure --enable-hardening --enable-proton=no --enable-mining \
-CXXFLAGS="-g -Wno-enum-constexpr-conversion"
-```
-
-- `--enable-proton=no`: Qpid Proton CMakeLists.txt incompatible with CMake 4.x. Optional AMQP component.
-- `-Wno-enum-constexpr-conversion`: Suppresses Boost/Clang 17 incompatibility.
-
-Runtime prerequisite after a BDB mutex crash:
-`rm -rf "$HOME/Library/Application Support/zero/database"`
-
-### 2.4 macOS x86 (Intel)
-
-Not supported. EOL macOS version; not verified to compile or run.
-Strike for the time being.
-
-### 2.5 Build Script (zcutil/build.sh)
-
-**Argument order:** Flags must come before make arguments. The script parses
-only the first positional argument for each flag.
-
-```
-./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon ] [ MAKEARGS... ]
-```
-
-- `--daemon`: `--disable-zmq --disable-rust` for configure. Aligns with build-win.sh.
-
-Zero node has no Qt; zerowallet is built from separate repos.
-
-Examples:
-- `./zcutil/build.sh --disable-mining -j4` (correct)
-- `./zcutil/build.sh -j4 --disable-mining` (wrong: --disable-mining passed to make)
-
-**Parallel jobs (-j):** On Linux use `nproc`; on macOS `nproc` is not standard.
-Use `sysctl -n hw.ncpu` or install GNU coreutils (`brew install coreutils`) for
-`gnproc`. The script caps `-jN` at 4 by default.
-
-**gnproc on Mac:** Homebrew coreutils installs GNU utils with a `g` prefix
-(e.g. `gnproc`, `gmake`). Add `$(brew --prefix coreutils)/libexec/gnubin` to
-PATH to use un-prefixed names, or call `gnproc` explicitly.
-
-**MacPorts:** configure.ac adds `/opt/local` when `port` found. With CONFIG_SITE from depends, depends wins. Optional for users who use MacPorts for other deps.
+**configure~ cleanup:** Implemented. build-win.sh uses `sed -i.bak '...' configure && rm -f configure.bak`. Makefile.am clean-local removes `configure~` and `src/univalue/configure~`.
 
 **Two scripts:** build.sh (Linux + Mac, native) and build-win.sh (Windows cross from Linux) are separate: different HOST, configure flags, make targets (.exe). Cannot merge.
 
-**CONFIGURE_FLAGS:** Passed unquoted to `./configure`; the shell splits on
-spaces. Values with spaces (e.g. `CXXFLAGS="-g -Wno-..."`) break. Workaround:
-escape spaces, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-deprecated-builtins\ -Wno-enum-constexpr-conversion'`.
-Same behavior on Linux. Zcash and similar projects use CONFIGURE_FLAGS for
-single-token overrides; multi-word values need escaping.
+### 2.2 GCC / Toolchain
 
-### 2.6 GCC / Toolchain (Linux)
+zerod uses system GCC (Linux), Clang (macOS), mingw-w64 (Windows). GCC 7.0+ required for C++14. zerowallet (separate repos): static Qt on Linux for Linux may require gcc-11 (Qt struggles with GCC 13 on Ubuntu 24.04).
 
-zerod uses system GCC. GCC 7.0+ required for C++14. Windows cross-compile uses mingw-w64, not system GCC. zerowallet (separate repos) has its own toolchain requirements; static Qt on Linux for Linux may require gcc-11 (Qt struggles with GCC 13 on Ubuntu 24.04).
-
-### 2.7 Autoconf Macros
+### 2.3 Autoconf Macros
 
 **Version history:** Zero uses autoconf-archive macros in `build-aux/m4/`. Versions (serial numbers) vary; some are from 2019–2023.
 
@@ -250,7 +175,7 @@ intermediate SHA-256 result, then copies to `output.data()`.
 
 ### 4.4 googletest macOS deployment target
 
-**Issue:** `ld: warning: object file ... was built for newer 'macOS' version (26.0) than being linked (11.0)` — googletest built with default SDK, main app uses `-mmacosx-version-min=10.8`.
+**Issue:** `ld: warning: object file ... was built for newer 'macOS' version than being linked` — googletest built with default SDK, main app uses `-mmacosx-version-min`.
 
 **Fix:** `depends/packages/googletest.mk` uses `$(OSX_MIN_VERSION)` (15.0) for darwin. Requires `make -C depends clean` and rebuild to take effect.
 
@@ -297,7 +222,7 @@ name collision.
 | **ignoring duplicate libraries: '-lc++'** | Fixed | libzmq.pc Libs.private adds `-lstdc++`; `-stdlib=libc++` (Darwin) adds `-lc++`. Stripped from ZMQ_LIBS in configure.ac for darwin. |
 | **GZIP_ENV / distcleancheck override** | Intentional | User definitions override Automake defaults. See above. |
 
-### 4.4 test_miner and --disable-mining
+### 4.6 test_miner and --disable-mining
 
 When `--enable-mining=no`, `GetScriptForMinerAddress` is not compiled (miner.cpp
 wrapped in `#ifdef ENABLE_MINING`). `test_miner.cpp` still references it and
@@ -316,8 +241,7 @@ endif
 
 ## 5. Library Versions
 
-**Canonical source:** `depends/packages/*.mk`. This section summarizes;
-reasoning and upgrade history in §6.
+**Canonical source:** `depends/packages/*.mk`. Version list: BUILD_ZERO §4.1. This section adds status, targets, and rationale; upgrade history in §6.
 
 **Pinning policy:** Pin only when necessary: (1) reproducibility, (2) known incompatibility, (3) CI determinism. Depends packages (Boost, BDB, etc.) pinned for hash verification. CI: pin for reproducibility; local dev: system defaults acceptable if documented.
 
@@ -522,7 +446,7 @@ Build system architecture and platform support across Zcash-family and Bitcoin.
 
 | Project | Config | Depends | Windows | macOS |
 |---------|--------|---------|---------|-------|
-| Zero | ./configure (autotools) | Custom /depends | WIP MinGW | ARM64 |
+| Zero | ./configure (autotools) | Custom /depends | MinGW (cross) | ARM64 |
 | Bitcoin Core | cmake -B | Toolchain files | Mingw + VS | ✓ |
 | Zcash | zcutil scripts | Custom | Not supported | — |
 | Pirate | make (inherited) | Inherited | Not documented | — |

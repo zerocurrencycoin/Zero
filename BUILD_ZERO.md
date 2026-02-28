@@ -1,14 +1,20 @@
 # BUILD_ZERO
 
-Build guide for the Zero node (zerod). Quick Start, data directory layout, and developer build knowledge.
+Build guide for the Zero node (zerod).
+
+**Quick Start:** §2 — clone, install packages, run build script.  
+**Data directory:** §3 — `.zero` location, params, files.  
+**Developer:** §4 — versions, build flow, config.site, build.sh flags.  
+**Per-platform:** §5 — manual configure, platform quirks (see §2 for basic commands).  
+**Troubleshooting:** §6 — params, BDB, memory, clean rebuild.
 
 ---
 
 ## 1. Introduction
 
-Zero is a Zcash-family cryptocurrency node. This document describes how to build zerod from source on Linux, macOS ARM64, and Windows (generic). Dev and test target for macOS is ARM64; for Linux, Ubuntu 24.04. The build uses autotools with a `depends/` system for deterministic dependency builds. Each platform has specific toolchain and configure requirements.
+Zero is a Zcash-family cryptocurrency node. Build zerod from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). Tested: Ubuntu 24.04, macOS 24.5.0. Autotools with `depends/` for deterministic dependency builds.
 
-**Requirements:** Full build: Mac &lt;6 GB, Linux &lt;5 GB disk. 4-core 16 GB RAM compiles promptly; 2 CPU 4 GB manages. GCC 7.0+, GNU Make 4.0+, Python 3.6+, Git 2.0+. C++14 required (Boost 1.88).
+**Requirements:** Mac &lt;6 GB, Linux &lt;5 GB disk. 4-core 16 GB RAM. GCC 7.0+, GNU Make 4.0+, Python 3.6+, Git 2.0+. C++14 (Boost 1.88).
 
 ---
 
@@ -73,7 +79,7 @@ sudo apt install mingw-w64 build-essential
 
 Output: `src/zerod.exe`, `src/zero-cli.exe`, `src/zero-tx.exe`.
 
-**Manual steps** (if not using build-win.sh): depends with `HOST=x86_64-w64-mingw32`; configure with `--disable-zmq --disable-rust`, posix threads (`-gcc-posix`), CXXFLAGS for PTW32/BN128; sed fix for boost_system-mt; make in src/.
+**Manual build:** See §5.3.
 
 **WSL2:** Use Linux instructions; build and run inside WSL2.
 
@@ -177,8 +183,8 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 ```
 
 - `--daemon`: `--disable-zmq --disable-rust` for configure. Aligns with build-win.sh.
-- Flags must come before `-jN` and other make args.
-- `-jN` capped at 4 by default; use `-j$(nproc)` or `-j$(sysctl -n hw.ncpu)` to override.
+- Flags must come before `-jN` and other make args. Example: `./zcutil/build.sh --disable-mining -j4` (correct); `./zcutil/build.sh -j4 --disable-mining` (wrong — flag passed to make).
+- `-jN` capped at 4 by default. Linux: `nproc`; macOS: `sysctl -n hw.ncpu` or `gnproc` (from `brew install coreutils`).
 - `CONFIGURE_FLAGS` passed to configure; multi-word values need escaping, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-enum-constexpr-conversion'`.
 
 ### 4.5 Variables and Overrides
@@ -212,57 +218,27 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 
 ### 5.1 Linux x86_64
 
-**Compiler:** GCC. Need GCC 7.0+ for C++14.
+**Compiler:** GCC 7.0+ for C++14.
 
-**Depends:** `make -C depends/` uses `config.guess` for HOST. Output: `depends/x86_64-unknown-linux-gnu/`.
-
-**Configure:** `CONFIG_SITE=$PWD/depends/x86_64-unknown-linux-gnu/share/config.site ./configure --enable-hardening`.
-
-**Portable sed:** Depends use `sed -i.old` for in-place edits (BSD/GNU compatible).
+**Manual build** (if not using build.sh): `make -C depends/` (HOST from config.guess), then `CONFIG_SITE=$PWD/depends/x86_64-unknown-linux-gnu/share/config.site ./configure --enable-hardening`, then `make`.
 
 ### 5.2 macOS ARM64
 
-**Compiler:** Apple Clang. No GCC.
+**Compiler:** Apple Clang.
 
-**Prerequisites:** `automake`, `cmake`, `pkg-config`, `coreutils` (for `gnproc`).
+**Manual build:** HOST from `./depends/config.guess`. Configure with `--enable-proton=no` (Proton incompatible with CMake 4.x) and `CXXFLAGS="-g -Wno-enum-constexpr-conversion"` (Boost/Clang 17). See §2.3 for prerequisites.
 
-**Host triplet:** `aarch64-apple-darwin*` from config.guess (e.g. darwin24.5.0, darwin25.3.0).
+**Rust:** Depends uses system Rust on ARM64 (1.32.0 has no aarch64 binaries).
 
-**Configure:** (HOST from `./depends/config.guess` or `build.sh`)
-```bash
-CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
-./configure --enable-hardening --enable-proton=no --enable-mining \
-  CXXFLAGS="-g -Wno-enum-constexpr-conversion"
-```
-
-- `--enable-proton=no`: Qpid Proton incompatible with CMake 4.x.
-- `-Wno-enum-constexpr-conversion`: Boost/Clang 17 compatibility.
-
-**Rust:** Depends pins current system Rust on macOS ARM64 (1.32.0 has no aarch64 binaries). Test same pinned approach on Windows and Linux.
-
-**BDB:** If `database` mutex crash: `rm -rf "$HOME/Library/Application Support/zero/database"`.
+**BDB mutex crash:** See §6.2.
 
 ### 5.3 Windows
 
-**Cross-compile from Linux:** `./zcutil/build-win.sh -j$(nproc)`. Requires `mingw-w64` (posix threads). See §2.4.
+**Cross-compile from Linux:** See §2.4. Toolchain: system mingw-w64 (`apt install mingw-w64`). No MXE.
 
-**Toolchain:** zerod uses system mingw-w64 directly (`apt install mingw-w64`). No MXE. Compilers: `x86_64-w64-mingw32-gcc-posix`, `x86_64-w64-mingw32-g++-posix`.
+**Manual build:** (1) `make HOST=x86_64-w64-mingw32` in depends; (2) configure with CONFIG_SITE (see §4.3), `--host=x86_64-w64-mingw32 --enable-static --disable-shared --disable-zmq --disable-rust`, CXXFLAGS for PTW32_STATIC_LIB, CURVE_ALT_BN128; (3) sed fix: `sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure`; (4) make in src/ with `CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix`.
 
-**build-win.sh flow:**
-
-1. **Depends:** `make HOST=x86_64-w64-mingw32` in `depends/`. Includes `depends/hosts/mingw32.mk`, which sets `mingw32_CC`, `mingw32_CXX` to the posix compilers and `mingw32_CFLAGS`/`mingw32_CXXFLAGS` (e.g. `-fopenmp`, `-DPTW32_STATIC_LIB`). Builds Boost, OpenSSL, libevent, etc. for Windows. Output: `depends/x86_64-w64-mingw32/` (include, lib, share).
-
-2. **config.site:** Depends generates `depends/x86_64-w64-mingw32/share/config.site` with CC, CXX, CFLAGS, CXXFLAGS, LDFLAGS, PKG_CONFIG paths. See §4.3.
-
-3. **Configure:** `CONFIG_SITE=$PWD/depends/x86_64-w64-mingw32/share/config.site ./configure --host=x86_64-w64-mingw32 --enable-static --disable-shared --disable-zmq --disable-rust` plus CXXFLAGS for PTW32_STATIC_LIB, CURVE_ALT_BN128, -fopenmp, -pthread.
-
-4. **Sed fix:** `sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure` — configure emits shared boost lib; MinGW static build needs `-lboost_system-mt-s`.
-
-5. **Make:** `CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix make zerod.exe zero-cli.exe zero-tx.exe` in `src/`.
-
-**mingw32.mk:** `depends/hosts/mingw32.mk` defines compiler and flags. When `HOST=x86_64-w64-mingw32`, `depends/Makefile` sets `host_os=mingw32` and includes this file. All depends packages (Boost, OpenSSL, etc.) use these settings.
-
-**Native/WSL:** Use Linux instructions inside WSL2.
+**WSL2:** Use Linux instructions.
 
 ---
 
@@ -278,11 +254,11 @@ Run `./zcutil/fetch-params.sh` before starting zerod.
 
 ### 6.2 Berkeley DB
 
-**Version:** BDB 6.2.32 only (from `depends/packages/bdb.mk`). Used for wallet storage (`wallet/walletdb.cpp`, `wallet/db.cpp`).
+BDB 6.2.32 (depends). Used for wallet storage.
 
 **Not found:** Ensure depends built: `ls depends/$HOST/lib/libdb*`.
 
-**Mutex crash (macOS):** Remove `database/` in data dir and restart.
+**Mutex crash (macOS):** `rm -rf "$HOME/Library/Application Support/zero/database"` and restart.
 
 ### 6.3 Boost / GCC
 
