@@ -174,13 +174,13 @@ if [ "$NO_PYTHON" -eq 0 ]; then
         if [ "$MODE" = "fail" ] || [ "$MODE" = "all" ]; then
             echo "--- Python RPC (all) ---"
             run_cmd "rpc-all" \
-                PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -extended || true
+                env PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -extended || true
         elif [ "$PYTHON_JOBS" -gt 1 ]; then
             echo "--- Python RPC (pass-only: ${#PYTHON_PASSING[@]} tests, jobs=$PYTHON_JOBS) ---"
             PIDS=()
             for t in "${PYTHON_PASSING[@]}"; do
                 pid=$(run_bg "rpc-$t" \
-                    PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true)
+                    env PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true)
                 PIDS+=("$pid")
                 while [ "$(jobs -r 2>/dev/null | wc -l)" -ge "$PYTHON_JOBS" ]; do sleep 1; done
             done
@@ -189,7 +189,7 @@ if [ "$NO_PYTHON" -eq 0 ]; then
             echo "--- Python RPC (pass-only: ${#PYTHON_PASSING[@]} verified) ---"
             for t in "${PYTHON_PASSING[@]}"; do
                 run_cmd "rpc-$t" \
-                    PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true
+                    env PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true
             done
         fi
     else

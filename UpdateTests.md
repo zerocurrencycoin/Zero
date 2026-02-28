@@ -37,7 +37,7 @@ Nine test suites, grouped by execution dependency and coverage area.
 | 3 | **univalue** | JSON library | Univalue | PASS |
 | 4 | **GTest** | Consensus, wallet, shielded, Sapling/Sprout | Consensus, shielded | 201 pass, 5 excl |
 | 5 | **Boost** | RPC, script, serialization, crypto, alerts, mining | RPC, script, serialization | 47 suites pass (excl 3) |
-| 6 | **RPC Python** | Multi-node, regtest, zerod/zero-cli | Integration, RPC flows | 12 pass, 6 skip; 18 pass-only |
+| 6 | **RPC Python** | Multi-node, regtest, zerod/zero-cli | Integration, RPC flows | 19 pass-only (verified) |
 | 7 | **sec-hard** | PIE, NX, RELRO, Canary; RPATH/FORTIFY (ELF) | Build security | System-specific: ELF only |
 | 8 | **no-dot-so** | depends/.so check | Deterministic build | full_test_suite only |
 | 9 | **check** | Recursive make check | Overlaps 1–5 | Use secp256k1-check, univalue-check for isolated |
@@ -136,7 +136,7 @@ Tested on macOS ARM64 (`arm-mac-build` branch). Verified Feb 2026. All failures 
 | GTest | 206 | 201 | 5 (4 CachedWitnesses*, 1 WriteCryptedSaplingZkey*) |
 | Boost (pass-only) | 47 suites | all | 3 excl (Alert, equihash, miner) |
 | Boost (full) | 50 suites, 260 cases | ~15 | ~277 (cascade) |
-| RPC Python (pass-only) | 16 scripts | 11 pass, 5 skip | — |
+| RPC Python (pass-only) | 19 scripts | 19 pass (verified) | — |
 | RPC Python (-extended) | ~100 scripts | varies | Many fail |
 
 ### 4.2 Util (1.x)
@@ -372,7 +372,7 @@ No known failures.
 
 | Component | Time | Cause |
 |-----------|------|-------|
-| RPC Python (11 pass-only) | ~5–20 min | Main bottleneck. Each test starts zerod, mines Equihash blocks, runs, stops. ~30–120s per test; sequential by default. |
+| RPC Python (19 pass-only) | ~5–20 min | Main bottleneck. Each test starts zerod, mines Equihash blocks, runs, stops. ~30–120s per test; sequential by default. |
 | Boost (pass-only) | ~48s | rpc_wallet_tests ~23s, DoS_tests 5.5s, rpc_tests 5.5s, etc. |
 | GTest (201 tests) | varies | Many tests; runtime hardware-dependent. |
 | Util, secp256k1, univalue | fast | — |
@@ -410,7 +410,7 @@ The following are workarounds and skips to overcome test problems and failures. 
 | getchaintips (6.5) | In-test skip: `if tip['height']!=expected: print("Skipping..."); return`. Extract active tip from tips; skip on height mismatch. | Zero returns active+valid-fork; regtest block count differs |
 | clean-chain amounts (6.3) | Workaround: `zero_regtest_subsidy(n)` in util.py; wallet.py uses it for node1 balance instead of hardcoded Zcash amount. | Zero subsidy 10 ZER/block, halving every 150; node0 block 5 not maturing. **Appendix A.3** |
 | wallet_overwintertx chaintip | In-test skip: `if bci['consensus']['chaintip']!='7361707a': print("Skipping..."); return` | Zero regtest block count differs from expected |
-| run-tests.sh | PYTHON_PASSING list omits known-fail scripts; runs only 18 verified | Many scripts fail for above reasons or Zcash-specific logic |
+| run-tests.sh | PYTHON_PASSING list omits known-fail scripts; runs only 19 verified | Many scripts fail for above reasons or Zcash-specific logic |
 
 **Prereqs (environment, not workarounds)**
 
@@ -497,7 +497,9 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 
 ### 6.2.1 Python (canonical)
 
-**Current**: Py2.7 for RPC tests. Prereq: `python2 -m pip install pyblake2`. No project docs for pyenv/python2. run-tests.sh find_python2: `$PYTHON` → `~/.pyenv/versions/2.7.18/bin/python` → `python2`.
+**Current**: Py2.7 for RPC tests. Prereq: `python2 -m pip install pyblake2`. run-tests.sh find_python2: `$PYTHON` → `~/.pyenv/versions/2.7.18/bin/python` → `python2`.
+
+**Invocation fix**: run-tests.sh must use `env PYTHON="$PY2"` when calling rpc-tests.sh. Passing `PYTHON="$PY2"` as the first arg to run_cmd causes the shell to try to execute `PYTHON=...` as a command ("No such file or directory"). Using `env` sets the variable and runs the script correctly.
 
 **Proposal (not implemented)**: Centralize detection in tests-config.sh (PYTHON, PYTHON_DIR); detection order above; configure AC_ARG_VAR PYTHON; remove find_python2 and hardcoded paths; document once in BUILD.md.
 
@@ -627,7 +629,7 @@ Reconciles §9.1–9.3, §5.3, §11.4. Single reference for gaps and excluded te
 | **Network/P2P** | 60% | — | Partition, peer misbehavior | — |
 | **Mining/PoW** | 75% | — | miner_tests (Zero 192,7 vs 96,5) | miner_tests, equihash_tests |
 | **Wallet** | 80% | — | Backup/restore, corruption recovery | CachedWitnesses*, WriteCryptedSaplingZkey*, rpc_wallet_encrypted_wallet_sapzkeys |
-| **RPC Python** | 18 pass-only | — | Many scripts fail; get_coinbase_address, protocol, getchaintips skip logic | script_test.py |
+| **RPC Python** | 19 pass-only | — | Many scripts fail; get_coinbase_address, protocol, getchaintips skip logic | script_test.py |
 | **Consensus harness** | Partial | Indices in scope (ChainTip, DecrementFirst) | pcoinsTip null → BuildWitnessCache returns early; witnesses not built | CachedWitnesses* |
 | **Alert** | — | — | MagicBean/Zcash-specific | Alert_tests |
 

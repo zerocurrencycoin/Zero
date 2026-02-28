@@ -6,7 +6,7 @@ Build guide for the Zero node (zerod). Quick Start, data directory layout, and d
 
 ## 1. Introduction
 
-Zero is a Zcash-family cryptocurrency node. This document describes how to build zerod from source on Linux, macOS ARM64, and Windows (generic). Dev and test target is Ubuntu 24.04; moving forward is the overarching goal, not a design decision. The build uses autotools with a `depends/` system for deterministic dependency builds. Each platform has specific toolchain and configure requirements.
+Zero is a Zcash-family cryptocurrency node. This document describes how to build zerod from source on Linux, macOS ARM64, and Windows (generic). Dev and test target for macOS is ARM64; for Linux, Ubuntu 24.04. The build uses autotools with a `depends/` system for deterministic dependency builds. Each platform has specific toolchain and configure requirements.
 
 **Requirements:** Full build: Mac &lt;6 GB, Linux &lt;5 GB disk. 4-core 16 GB RAM compiles promptly; 2 CPU 4 GB manages. GCC 7.0+, GNU Make 4.0+, Python 3.6+, Git 2.0+. C++14 required (Boost 1.88).
 
@@ -31,10 +31,12 @@ Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. Optional: `src/zerowallet`
 
 **Packages:**
 ```bash
+sudo apt update
 sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib \
   autoconf libtool ncurses-dev unzip git python3 python3-zmq \
   zlib1g-dev wget bsdmainutils automake cmake curl
 ```
+For Qt/GUI builds on Ubuntu 24.04 (or if system GCC is 13+): add `gcc-11 g++-11`.
 
 **GUI (optional):** On Ubuntu 22.04+ `qt5-default` is deprecated; use:
 ```bash
@@ -70,15 +72,16 @@ brew install automake cmake pkg-config coreutils
 
 ### 2.4 Windows
 
-**MinGW cross-compile (from Linux):**
+**Cross-compile from Linux** (recommended):
+
 ```bash
 sudo apt install mingw-w64 build-essential
-cd depends && make HOST=x86_64-w64-mingw32 -j$(nproc) && cd ..
-./autogen.sh
-./configure --prefix=$(pwd)/depends/x86_64-w64-mingw32 --host=x86_64-w64-mingw32 --disable-shared --enable-static
-make -j$(nproc)
+./zcutil/build-win.sh -j$(nproc)
 ```
-Binaries: `src/zerod.exe`, `src/zero-cli.exe`, `src/zero-tx.exe`.
+
+Output: `src/zerod.exe`, `src/zero-cli.exe`, `src/zero-tx.exe`.
+
+**Manual steps** (if not using build-win.sh): `zcutil/build-win.sh` runs: depends with `HOST=x86_64-w64-mingw32 NO_QT=1`; configure with `--disable-zmq --disable-rust`, posix threads (`-gcc-posix`), and CXXFLAGS for PTW32/BN128; sed fix for boost_system-mt; make in src/.
 
 **WSL2:** Use Linux instructions; build and run inside WSL2.
 
@@ -165,9 +168,10 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 ### 4.3 zcutil/build.sh
 
 ```
-./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ MAKEARGS... ]
+./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon-only ] [ MAKEARGS... ]
 ```
 
+- `--daemon-only`: NO_QT for depends, `--disable-zmq --disable-rust` for configure. Aligns with build-win.sh; useful for daemon-only experiments.
 - Flags must come before `-jN` and other make args.
 - `-jN` capped at 4 by default; use `-j$(nproc)` or `-j$(sysctl -n hw.ncpu)` to override.
 - `CONFIGURE_FLAGS` passed to configure; multi-word values need escaping, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-enum-constexpr-conversion'`.
@@ -205,7 +209,12 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 
 ### 5.1 Linux x86_64
 
-**Compiler:** GCC. `zcutil/build.sh` prefers GCC-11 if available (Boost compatibility). Install: `sudo apt install gcc-11 g++-11`.
+**Compiler:** GCC. Qt5 has compatibility issues with GCC 13; see [Qt 5.15 and Ubuntu 24.04](https://forum.qt.io/topic/156941/qt-5-15-14-and-ubuntu-24-04), [GCC 13 porting notes](https://gcc.gnu.org/gcc-13/porting_to.html). Full builds with zerowallet require gcc-11. Do not assume system GCC — check with `gcc --version`. Install:
+```bash
+sudo apt update
+sudo apt install gcc-11 g++-11
+```
+Override: `CC=gcc-11 CXX=g++-11 ./zcutil/build.sh`. See UpdateBuild §2.6 for toolchain details.
 
 **Depends:** `make -C depends/` uses `config.guess` for HOST. Output: `depends/x86_64-unknown-linux-gnu/`.
 
@@ -237,7 +246,7 @@ CONFIG_SITE=$PWD/depends/aarch64-apple-darwin24.5.0/share/config.site \
 
 ### 5.3 Windows
 
-**Cross-compile:** `HOST=x86_64-w64-mingw32`. Install MinGW: `sudo apt install mingw-w64`. See §2.4 for full steps.
+**Cross-compile from Linux:** `./zcutil/build-win.sh -j$(nproc)`. Requires `mingw-w64` (posix threads). See §2.4.
 
 **Native/WSL:** Use Linux instructions inside WSL2.
 
@@ -263,9 +272,9 @@ Run `./zcutil/fetch-params.sh` before starting zerod.
 
 ### 6.3 Boost / GCC
 
-**GCC 13+ warnings:** Install GCC-11 or use `CC=gcc-11 CXX=g++-11 ./zcutil/build.sh`.
+**Qt / GCC 13:** Qt5 has compatibility issues with GCC 13 ([Qt forum](https://forum.qt.io/topic/156941/qt-5-15-14-and-ubuntu-24-04)). Full builds with zerowallet require gcc-11. Install: `sudo apt update && sudo apt install gcc-11 g++-11`. Override: `CC=gcc-11 CXX=g++-11 ./zcutil/build.sh`. See UpdateBuild §2.6.
 
-**GCC too old:** Need GCC 7.0+. Update or use `update-alternatives` to switch.
+**GCC too old:** Need GCC 7.0+ for C++14.
 
 ### 6.4 Memory Exhausted
 

@@ -30,6 +30,7 @@ No other options are needed, the paths are automatically configured.
 Dependency Options:
 The following can be set when running make: make FOO=bar
 
+    NO_QT: Skip Qt (used by build-win.sh for daemon-only Windows build)
     SOURCES_PATH: downloaded sources will be placed here
     BASE_CACHE: built packages will be placed here
     SDK_PATH: Path where sdk's can be found (used by OSX)

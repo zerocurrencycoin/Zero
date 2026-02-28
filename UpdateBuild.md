@@ -55,7 +55,11 @@ do not break existing builds.
 
 ### 2.2 Windows
 
-Cross-compiled via MinGW. Primary user deployment platform. **Requirements TBD.** Ideas: MinGW toolchain, WSL2 path, params location, native MSVC (if any). Document in this section as determined.
+Cross-compiled from Linux via MinGW. Primary user deployment platform.
+
+**Build:** `./zcutil/build-win.sh -j$(nproc)`. Requires `mingw-w64` (posix threads): `sudo apt install mingw-w64 build-essential`.
+
+**Script:** Uses `HOST=x86_64-w64-mingw32`, `NO_QT=1` for depends, `--disable-zmq --disable-rust` for configure, `x86_64-w64-mingw32-gcc-posix`/`-g++-posix`, CXXFLAGS for PTW32_STATIC_LIB and CURVE_ALT_BN128, sed fix for boost_system-mt. Linux-only (readlink -f, sed -i).
 
 ### 2.3 macOS ARM64
 
@@ -100,8 +104,10 @@ Strike for the time being.
 only the first positional argument for each flag.
 
 ```
-./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ MAKEARGS... ]
+./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon-only ] [ MAKEARGS... ]
 ```
+
+- `--daemon-only`: NO_QT for depends, `--disable-zmq --disable-rust` for configure. Aligns with build-win.sh.
 
 Examples:
 - `./zcutil/build.sh --disable-mining -j4` (correct)
@@ -120,6 +126,12 @@ spaces. Values with spaces (e.g. `CXXFLAGS="-g -Wno-..."`) break. Workaround:
 escape spaces, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-deprecated-builtins\ -Wno-enum-constexpr-conversion'`.
 Same behavior on Linux. Zcash and similar projects use CONFIGURE_FLAGS for
 single-token overrides; multi-word values need escaping.
+
+### 2.6 GCC / Toolchain (Linux)
+
+**Qt5 and GCC 13:** Qt 5.15 has compatibility issues with GCC 13. Symptoms: XKB key declarations (`XKB_KEY_dead_lowline` not declared), stricter type checking, header dependency changes (C++ stdlib headers no longer include others implicitly). GCC 13 also implements C++23 implicit move rules and removed two-stage overload resolution, affecting some C++17 code. Qt 5.15 officially supports Ubuntu 20.04/18.04 with GCC 9; Ubuntu 24.04 is not listed. See [Qt 5.15.14 and Ubuntu 24.04](https://forum.qt.io/topic/156941/qt-5-15-14-and-ubuntu-24-04), [GCC 13 porting to](https://gcc.gnu.org/gcc-13/porting_to.html).
+
+**Workaround:** Use gcc-11 for full builds with zerowallet. `build.sh` auto-selects gcc-11 if present. Install: `sudo apt update && sudo apt install gcc-11 g++-11`. Override: `CC=gcc-11 CXX=g++-11 ./zcutil/build.sh`. Windows cross-compile uses mingw-w64, not gcc-11. GCC &lt; 7 is too old for C++14.
 
 ## 3. Depends Changes
 
@@ -448,18 +460,24 @@ Projects: Zcash, Bitcoin (removed); HUSH (WolfSSL); Zero, Horizen, Fluxd, Zclass
 
 ## 8. Reference Repositories
 
-Cloned to `~/Work/ZK/` for cross-project comparison.
+**Layout:** `~/Work/ZK/ZKs/` holds reference repos; `~/Work/ZK/` holds Zero node and zerowallet build dirs.
 
 | Project | Repo | Version | Date | Upstream |
 |---------|------|---------|------|----------|
-| Bitcoin Core | bitcoin-src | v30.2 | Jan 2026 | github.com/bitcoin/bitcoin |
-| Zcash | zcash | v6.11.0 | Jan 2026 | github.com/zcash/zcash |
-| HUSH | hush3 | v3.10.4 | Jul 2025 | git.hush.is/hush/hush3 |
-| Zclassic | zclassic | v2.1.1.60 | Dec 2024 | github.com/ZclassicCommunity/zclassic |
-| Horizen | zen | v6.0.0 | Jul 2025 | github.com/HorizenOfficial/zen |
-| Fluxd | fluxd | v9.0.6 | Dec 2024 | github.com/RunOnFlux/fluxd |
-| Pirate | pirate | v5.9.0 | Sep 2024 | github.com/PirateNetwork/pirate |
-| Zero | ZeroMac | arm-mac-build | Feb 2026 | github.com/zerocurrencycoin/zero |
+| Bitcoin Core | ZKs/bitcoin-src | v30.2 | Jan 2026 | github.com/bitcoin/bitcoin |
+| Zcash | ZKs/zcash | v6.11.0 | Jan 2026 | github.com/zcash/zcash |
+| HUSH | ZKs/hush3 | v3.10.4 | Jul 2025 | git.hush.is/hush/hush3 |
+| Zclassic | ZKs/zclassic | v2.1.1.60 | Dec 2024 | github.com/ZclassicCommunity/zclassic |
+| Horizen | ZKs/zen | v6.0.0 | Jul 2025 | github.com/HorizenOfficial/zen |
+| Fluxd | ZKs/fluxd | v9.0.6 | Dec 2024 | github.com/RunOnFlux/fluxd |
+| Pirate | ZKs/pirate | v5.9.0 | Sep 2024 | github.com/PirateNetwork/pirate |
+| PirateOcean | ZKs/PirateOcean | — | — | Pirate Qt wallet |
+
+**Zero node build dirs:** ZeroLinux, ZeroMac, ZeroWin (this repo = ZeroMac).
+
+**zerowallet build dirs:** zerowalletlinux, zerowalletmac, zerowalletwin.
+
+**Cross-project analysis:** ZKs/Comparison.md — difficulty, coin selection, peer discovery, Equihash/PoW ecosystem, C/C++ toolchain.
 
 HUSH and Pirate local clones are shallow (single squashed commit).
 
@@ -488,4 +506,15 @@ Build system architecture and platform support across Zcash-family and Bitcoin.
 **README/CONTRIBUTING:** Bitcoin: minimal README, rich CONTRIBUTING. Zcash: concise README, external CONTRIBUTING. Zero: longer README (branding + build), external CONTRIBUTING.
 
 **Dependencies (other projects):** Bitcoin: build-essential, cmake, pkgconf, python3, libevent-dev, libboost-dev; GUI: qt6. Zcash: build-essential, pkg-config, libc6-dev, m4, g++-multilib, autoconf, libtool, ncurses-dev, unzip, git, python3, python3-zmq, zlib1g-dev, curl, bsdmainutils, automake, libtinfo5.
+
+## 10. Build Validation (planned)
+
+**Approved for testing:**
+
+| Test | Purpose |
+|------|---------|
+| **Parity** | Verify `build.sh --daemon-only` and `build-win.sh` use same configure options (NO_QT, `--disable-zmq`, `--disable-rust`). Unified now; test guards drift. |
+| **Depended** | Depends build for HOST succeeds: `make -C depends HOST=x86_64-w64-mingw32 NO_QT=1` (Linux). Minimal validation before full build. |
+
+**Under consideration:** config.site presence check, configure `--help` options drift check, Windows binary format (PE32+), depends clean+rebuild.
 

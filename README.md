@@ -61,12 +61,13 @@ Zero is legal in most jurisdictions in the world but there are a small number of
 Zero is a network operating by the three fundamental principles of technological freedom: Decentralization, Open Source code and true Peer-to-Peer technology. With Privacy being a fundamental human right. Zero’s trust is based on the subjective valuations of human faith in mathematical algorithms, encryption and numbers. With the three pillars of technological principles Zero’s Blockchain is a peer-reviewed system of integrity.
 
 --------------
-Zero has a low emission and the inflation degrades over time quickly. Stable supply is 3888 ZER, after first halfing.
+Zero has a low emission and the inflation degrades over time quickly. Total is under 20M ZERD.
 
+Zero supports both transparent (T) and shielded (Z) addresses.  Privacy is optional, not mandatory.
 ------------------------------------------
 
 [Zero](https://zero.directory/) is an implementation of the "Zerocash" protocol.
-Based on Bitcoin's code, Zero intends to offer a far higher standard of privacy
+Based on Bitcoin and Zcash code, Zero intends to offer a far higher standard of privacy
 through a sophisticated zero-knowledge proving scheme that preserves
 confidentiality of transaction metadata. More technical details are available
 in the [Protocol Specification](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf).
@@ -187,5 +188,3 @@ Your wallet is created on first run in `~/.zero/wallet.zero`. [Backup your walle
 
 The usage is currently very similar to Zcash. For more information see the [Zcash User Guide](https://github.com/zcash/zcash/wiki/1.0-User-Guide#running-zcash).
 
-📜 License
--------

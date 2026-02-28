@@ -104,6 +104,8 @@ latent failures.
 
 ### 1.6 Cross-Fork Comparison
 
+**Broader analysis:** ZKs/Comparison.md covers difficulty algorithms, Equihash parameters, PoW variations (RandomX, ZelHash), and C/C++ toolchain across Bitcoin, Zero, Zcash, Pirate, HUSH, Zclassic, Horizen, Flux.
+
 | Project | Witness Strategy | Functions | Status |
 |---------|-----------------|-----------|--------|
 | Zcash | Per-block incremental | `IncrementNoteWitnesses` | Active, maintained |

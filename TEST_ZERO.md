@@ -7,7 +7,7 @@ How to run the Zero node test suite. Procedures, commands, and expected results.
 ## Prerequisites
 
 - **Build complete:** `zerod`, `zero-cli` built. See [BUILD_ZERO.md](BUILD_ZERO.md).
-- **Python 2.7** (for RPC tests): `python2 -m pip install pyblake2`.
+- **Python 2.7** (for RPC tests): `python2 -m pip install pyblake2`. Set `PYTHON` or use pyenv 2.7.18; run-tests.sh auto-detects.
 - **Working directory:** Run from repo root. `contrib/run-tests.sh` resolves root from its path.
 
 ---
@@ -66,7 +66,7 @@ Runs Util, secp256k1, univalue, GTest (filtered), Boost (pass-only), RPC Python 
 | Util, secp256k1, univalue | All | — |
 | GTest | 201 | 5 (CachedWitnesses*, WriteCryptedSaplingZkey*) |
 | Boost (pass-only) | 47 suites | 3 (Alert, equihash, miner) |
-| RPC Python (pass-only) | 11 pass, 5 skip | — |
+| RPC Python (pass-only) | 19 pass (verified) | — |
 
 ---
 
@@ -94,6 +94,7 @@ Runs Util, secp256k1, univalue, GTest (filtered), Boost (pass-only), RPC Python 
 ## Troubleshooting
 
 - **ImportError pyblake2:** `python2 -m pip install pyblake2`
+- **"PYTHON=...: No such file or directory":** Fixed in run-tests.sh (uses `env PYTHON=...`). Upgrade if you see this.
 - **GTest/Boost cascade:** Run by suite (e.g. `-t rpc_tests`) to isolate
 - **RPC tests fail:** Ensure `BUILDDIR`, `BITCOIND`, `BITCOINCLI` point to Zero binaries (tests-config.sh)
 - **macOS --full:** Skips sec-hard and no-dot-so; suite completes

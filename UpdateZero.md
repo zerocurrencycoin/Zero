@@ -46,6 +46,7 @@ UpdateZero assembles status, open items, long-term plans, gotchas, and gaps. TOD
 | **Zeronode_wallet** | Wallet abstraction for zeronode |
 | **Subsidy** | Block subsidy, halving algorithm |
 | **doc/files** | Data directory layout |
+| **ZKs/Comparison** | Cross-project: difficulty, Equihash, toolchain (outside repo) |
 | **TODO** | User-facing items with design and timelines |
 | **BUILD_ZERO** | User-facing build guide (README → BUILD_ZERO) |
 | **TEST_ZERO** | User-facing test procedures (README → TEST_ZERO) |
@@ -59,6 +60,7 @@ UpdateZero assembles status, open items, long-term plans, gotchas, and gaps. TOD
 | **Track project status** | §3 (Status Summary); §4 (Open Items); §7 (Direction) |
 | **Run or debug tests** | UpdateTests §3 (runners, invocation); §4 (per-suite status); §6 (notes) |
 | **Build on new platform / upgrade dependency** | UpdateBuild §2 (platform setup); §3 (depends); §5 (version table) |
+| **Compare difficulty / Equihash / toolchain across forks** | ZKs/Comparison.md (§1 Difficulty, §5 Equihash & PoW, §4 Toolchain) |
 
 ## 2. Branch
 
@@ -84,7 +86,7 @@ before merge.
 ### 3.2 Tests
 
 GTest 201 pass, 5 excluded. Boost 47 suites pass (3 excluded). RPC Python
-11 pass, 5 skip. Run `contrib/run-tests.sh`; logs go to `test-logs/`.
+19 pass (verified). Run `contrib/run-tests.sh`; logs go to `test-logs/`.
 Details: **UpdateTests** §4.
 
 ### 3.3 Features
@@ -163,6 +165,72 @@ bugs also present in HUSH3.
 
 ## 5. In-Code TODOs, Documented Bugs, Filed Bugs
 
+**Terms:** *Filed* = zerocurrencycoin/Zero GitHub issues/PRs. *In-code TODOs* = file:line references in the codebase. §5.5 indexes tracked items; §5.6–5.9 give expanded details for selected items; §5.1–5.3 are code tables by module; §5.4 lists fixed bugs.
+
+### 5.5 Filed / Referenced Issues
+
+Index of external issues and in-code refs. Order: actionable, then pending, then deferred.
+
+| ID | Context |
+|----|---------|
+| #70 | getrawtransaction missing "size" and "fees" — §5.6 (size), §5.7 (fees deferred) |
+| #71 (PR) | Raspberry Pi 5 ARM64 build — §5.8 |
+| Zcash #1614 | Sprout anchor selection — wallet.cpp:3249 — §5.9 |
+| #966 | test_checktransaction.cpp — §5.3 |
+| #1350 | test_wallet.cpp — §5.2 |
+| #1354 | asyncrpcoperation.cpp — §5.2 |
+| #1366 | asyncrpcoperation_common.cpp — §5.2 |
+
+### 5.6 TODO: getrawtransaction size (Issue #70)
+
+**Issue:** [zerocurrencycoin/Zero#70](https://github.com/zerocurrencycoin/Zero/issues/70) — `getrawtransaction "txid" 1` and `decoderawtransaction "hex"` return verbose JSON without `size`. `fees` deferred (§5.7).
+
+**Fix:** Add `size` to `TxToJSONExpanded` (the function that builds verbose JSON for both RPCs). Same change fixes both.
+
+| Item | Detail |
+|------|--------|
+| **File** | `src/rpc/rawtransaction.cpp` |
+| **Function** | `TxToJSONExpanded` (lines 150–247) |
+| **Insert after** | Line 154: `entry.push_back(Pair("txid", txid.GetHex()));` |
+| **Add** | `entry.push_back(Pair("size", (int)::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION)));` |
+| **Reference** | `TxToJSON` (same file, line 255) already has this pattern |
+
+**Affected RPCs:** `getrawtransaction` (verbose), `decoderawtransaction` — both call `TxToJSONExpanded` (lines 444, 775).
+
+**Test:** `src/test/rpc_tests.cpp` — `rpc_rawparams` (lines 99–102). Assertion: `BOOST_CHECK_EQUAL(find_value(r.get_obj(), "size").get_int(), 225);` for known 225-byte rawtx. Run: `./src/test/test_bitcoin -t rpc_rawparams` or via `contrib/run-tests.sh`.
+
+**Backward compatibility:** Additive JSON key; no schema validation; existing consumers access specific keys only. Safe.
+
+### 5.7 TODO: getrawtransaction fees (Issue #70, deferred)
+
+**Issue:** Same as §5.6 — reporter also requested `fees` in verbose output.
+
+**Deferred:** Fee = sum(inputs) − sum(outputs) for transparent txs. Shielded txs use `valueBalance`; computing effective fee requires tracking decrypted values. Bitcoin Core exposes fee in `gettransaction` (wallet) and mempool RPCs; `getrawtransaction` does not. Options: (1) add fee for transparent-only txs; (2) document as unsupported for shielded; (3) implement full fee for both (higher effort).
+
+**File:** `src/rpc/rawtransaction.cpp`, `TxToJSONExpanded` or new helper.
+
+### 5.8 TODO: PR #71 Raspberry Pi 5 (ARM64) build
+
+**PR:** [zerocurrencycoin/Zero#71](https://github.com/zerocurrencycoin/Zero/pull/71) — Add Raspberry Pi 5 (aarch64 Linux) build support. Target: master. Branch: `raspberry-pi-5-support`.
+
+**Changes:** GCC 14.2 / Boost 1.83 header fixes (validationinterface.cpp, httpserver.cpp, equihash.h); build-bdb.sh, build-rpi-wallet-v2.sh; BUILD-RASPBERRY-PI.md. Tested on RPi 5 2GB, Debian Trixie, DietPi.
+
+**Overlap with arm-mac-build:** Both use Boost 1.83, BDB 6.2.32. Shared file edits may conflict; review before merge. arm-mac-build targets macOS ARM64; #71 targets Linux aarch64.
+
+**Action:** Review, resolve conflicts with arm-mac-build, complete PR checklist (docs, test plan, buildbot).
+
+### 5.9 TODO: Sprout anchor selection (Zcash #1614)
+
+**Reference:** [zcash/zcash#1614](https://github.com/zcash/zcash/issues/1614) — choose less recent JoinSplit, Spend, and Action anchors.
+
+**Context:** `WitnessNoteCommitment` (wallet.cpp:3204) sets `final_anchor = tree.root()` — the chain-tip root. The TODO asks for a heuristic instead.
+
+**Zcash discussion:** (1) **Latency** — newer anchor = faster spend; (2) **Reorg risk** — newer anchor more likely orphaned; (3) **Privacy** — newer anchor can leak timing (e.g. incoming payment just arrived); (4) **Privacy** — newer anchor can leak “you are online” vs older-anchor users; (5) **Privacy** — older anchor can leak “you are not new” vs newer-anchor users. Current choice (most recent anchor) optimizes latency and some privacy but is worst for reorg risk.
+
+**Pro/con:** Newer anchor = lower latency, better for some privacy; older anchor (e.g. 10 blocks back) = fewer reorg invalidations, worse latency. str4d/zooko: prefer anchor N blocks back (e.g. 10); configurable per node.
+
+**Relevance to Zero:** Zero still uses Sprout and `WitnessNoteCommitment`; Zcash has removed it. Same tradeoff applies; implementing a heuristic would improve reliability and align with Zcash analysis.
+
 ### 5.1 Zero-Specific (High Relevance)
 
 | File | Line | Type | Description |
@@ -187,7 +255,7 @@ bugs also present in HUSH3.
 | wallet/wallet.cpp | 1227 | TODO | Expose local nullifier stats; for now global only |
 | wallet/wallet.cpp | 1849 | TODO | Sapling. walletpassphrase currently unsupported |
 | wallet/wallet.cpp | 2548 | TODO | Fix handling of 'change' outputs |
-| wallet/wallet.cpp | 3249 | TODO | #93; Select root via heuristic |
+| wallet/wallet.cpp | 3249 | TODO | Select anchor via heuristic (Zcash #1614). See §5.9. |
 | wallet/wallet.cpp | 4399 | TODO | Allow non-wallet inputs |
 | wallet/wallet.cpp | 4696 | TODO | Pass scriptChange instead of reservekey |
 | wallet/wallet.h | 170 | TODO | nOrderPos; calculate elsewhere |
@@ -209,6 +277,7 @@ bugs also present in HUSH3.
 | main.cpp | 4594 | TODO | Deal better with return value for duplicate |
 | main.cpp | 6633 | TODO | Prohibit joinsplits/shielded from mapOrphans |
 | main.cpp | 6728 | TODO | Optimize: if pindexLast is ancestor, continue |
+| rpc/rawtransaction.cpp | 154 | TODO | Add size to TxToJSONExpanded (#70). §5.6. |
 | rpc/blockchain.cpp | 863 | TODO | mempool.pruneSpent should be done by CCoinsViewMemPool |
 | rpc/mining.cpp | 500 | TODO | Re-enable coinbasevalue once spec written |
 | rpc/mining.cpp | 605 | TODO | Recheck connections/IBD; send expires-immediately template |
@@ -228,16 +297,6 @@ bugs also present in HUSH3.
 | nWitnessCacheSize not reset | ClearNoteWitnessCache | Added nWitnessCacheSize = 0 |
 | zeronode.h:229 memcpy | SliceHash | memcpy(&n, (char*)&hash + slice*8, 8) |
 | budget.cpp:35 overflow | Intentional sentinel | INT_MAX to silence |
-
-### 5.5 Filed / Referenced Issues
-
-| ID | Context |
-|----|---------|
-| #93 | wallet.cpp:3249 — Select root via heuristic |
-| #966 | test_checktransaction.cpp — TODO |
-| #1350 | test_wallet.cpp — New note witnessed |
-| #1354 | asyncrpcoperation.cpp — Metadata to return |
-| #1366 | asyncrpcoperation_common.cpp — vErrors |
 
 ## 6. Long-Term Plans, Gotchas, Gaps
 
@@ -340,74 +399,12 @@ Import RPCs_extended.csv or Options_extended.csv into Excel/Sheets. Filter on ze
 
 ## 9. Windows Build (Zero and zerowallet)
 
-Collated from BUILD_ZERO, UpdateBuild, UpdateWallet, zerowallet BUILD.md, and upstream (Zcash-family depends, Zclassic, zen). Windows is the primary user deployment platform; build is cross-compile from Linux.
+Status tracking. For build instructions, see referenced docs.
 
-### 9.1 Zero (zerod) — MinGW Cross-Compile
+**zerod:** [BUILD_ZERO.md](BUILD_ZERO.md) §2.4, §5.3; [UpdateBuild.md](UpdateBuild.md) §2.2.
 
-**Source:** `zcutil/build-win.sh`. Run from Linux (or WSL2).
+**zerowallet:** zerowallet BUILD.md §Windows, §MXE; UpdateWallet §Cross-Compilation (zerowallet-specific content TBD).
 
-**Prerequisites:**
-```bash
-sudo apt install mingw-w64 build-essential
-```
+**Upstream:** Zclassic, zen use same host triplets; Zcash no build-windows doc; Bitcoin/Zcash depends `download-win` target.
 
-**Build:**
-```bash
-cd Zero
-./zcutil/fetch-params.sh
-./zcutil/build-win.sh
-```
-Output: `src/zerod.exe`, `src/zero-cli.exe`, `src/zero-tx.exe`.
-
-**build-win.sh:** Runs `make HOST=x86_64-w64-mingw32 NO_QT=1` in depends, then configure with `--disable-zmq --disable-rust`, applies `sed` for boost_system-mt, builds in `src/`. Uses `x86_64-w64-mingw32-gcc-posix` / `-g++-posix`. Manual equivalent: `depends/README` host triplets; `download-win` for sources.
-
-**Data dir:** `%APPDATA%\zero`. **Params:** `%APPDATA%\ZcashParams`. Firewall: allow zerod.exe. Antivirus may need whitelist.
-
-**WSL2:** Use Linux instructions; build and run inside WSL2. No native Windows toolchain needed for build.
-
-**Status:** Untested with current Zero changes. Requirements TBD (params path, native MSVC if any). See UpdateBuild §2.2, BUILD_ZERO §2.4.
-
-### 9.2 zerowallet — Cross-Compile (MXE)
-
-**Source:** zerowallet BUILD.md, UpdateWallet §Cross-Compilation, `src/scripts/mkrelease-win.sh`.
-
-**Prerequisites:** MXE (M Cross Environment) with static Qt5. Clone to `~/mxe` or `~/github/mxe`:
-```bash
-git clone https://github.com/mxe/mxe.git ~/mxe
-cd ~/mxe
-make -j$(nproc) MXE_TARGETS=x86_64-w64-mingw32.static qtbase qtwebsockets
-```
-Initial build: 2–4 hours, ~4GB disk.
-
-**zerod first:** Build Zero for Windows (`./zcutil/build-win.sh` in Zero repo). `ZERO_DIR` must contain `zerod.exe` and `zero-cli.exe`.
-
-**Build zerowallet:**
-```bash
-cd zerowallet
-export MXE_PATH="$HOME/mxe/usr/bin"   # or -m /path/to/mxe/usr/bin
-./src/scripts/mkrelease-win.sh -z $ZERO_DIR -v X.Y.Z -p X.Y.(Z-1)
-```
-Output: `artifacts/Windows-zerowallet-vX.Y.Z.zip`.
-
-**mkrelease-win.sh:** Uses `x86_64-w64-mingw32.static-qmake-qt5`, strips precompiled headers for MinGW, runs `res/libsodium/buildlibsodium-win.sh`, copies zerod.exe/zero-cli.exe into package.
-
-**Native Windows (alternative):** Requires Qt5 and MinGW or MSVC installed on Windows. `qmake zero-qt-wallet.pro -spec win32-g++ CONFIG+=release` then `mingw32-make`; or `-spec win32-msvc` with `nmake`. Not integrated with mkrelease; manual zerod packaging.
-
-### 9.3 Upstream Reference
-
-| Source | Windows build |
-|--------|----------------|
-| Zcash | No doc/build-windows.md in current repo |
-| Zclassic | depends/README: `make HOST=x86_64-w64-mingw32`; host triplets i686/x86_64-w64-mingw32 |
-| zen (Horizen) | `zcutil/build-win.sh`; release notes reference |
-| Bitcoin/Zcash depends | Same host triplets; `download-win` target for sources |
-
-### 9.4 Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| zerod: configure fails | Ensure `mingw-w64` posix threads; `CC=x86_64-w64-mingw32-gcc-posix` |
-| zerowallet: `cannot find -lQt5Widgets` | `export PKG_CONFIG_PATH="/opt/mxe/usr/x86_64-w64-mingw32.static/lib/pkgconfig"` |
-| zerowallet: `undefined reference to sodium_*` | Run `res/libsodium/buildlibsodium-win.sh`; ensure `res/libsodium.a` is MinGW .a |
-| zerowallet: Linux Qt linked | Use MXE; system Qt is for Linux. `zero-qt-wallet-mingw.pro` + MXE qmake. |
-| Windows sync stuck | zerod `-reindex`; check antivirus, firewall, disk path. Compare Linux/macOS. |
+**Items and notes (pending Windows build confirmation on Linux):** Update zerowallet BUILD.md to reference BUILD_ZERO for zerod/Windows. Determine whether UpdateWallet retains Windows zerowallet-specific info.

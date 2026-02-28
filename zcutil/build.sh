@@ -18,16 +18,16 @@ function gprefix() {
 gprefix READLINK readlink
 cd "$(dirname "$("$READLINK" -f "$0")")/.."
 
-# Prefer GCC-11 if available for compatibility with older Boost
+# Use GCC-11 if available; Qt struggles with GCC 13
 if [[ -z "${CC-}" ]]; then
     if type -p "gcc-11" > /dev/null; then
         CC=gcc-11
-        echo "✅ Using GCC-11 for optimal compatibility"
+        echo "✅ Using GCC-11 (Qt struggles with GCC 13)"
     else
         CC=gcc
         echo ""
         echo "⚠️  WARNING: GCC-11 not found!"
-        echo "   The build may fail with newer GCC versions due to Boost 1.70.0 compatibility."
+        echo "   Qt struggles with GCC 13. The build may fail with newer GCC."
         echo "   Install GCC-11 for best results:"
         echo "   sudo apt-get install gcc-11 g++-11"
         echo ""
@@ -88,9 +88,12 @@ Usage:
 $0 --help
   Show this help message and exit.
 
-$0 [ --enable-lcov || --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ MAKEARGS... ]
+$0 [ --enable-lcov || --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon-only ] [ MAKEARGS... ]
   Build Zcash and most of its transitive dependencies from
   source. MAKEARGS are applied to both dependencies and Zcash itself.
+
+  If --daemon-only is passed, build daemon/cli only: NO_QT for depends,
+  --disable-zmq and --disable-rust for configure. Aligns with build-win.sh options.
 
   If --enable-lcov is passed, Zcash is configured to add coverage
   instrumentation, thus enabling "make cov" to work.
@@ -142,6 +145,15 @@ then
     shift
 fi
 
+# If --daemon-only is the next argument, skip ZMQ/Rust (align with build-win.sh):
+DAEMON_ONLY_ARG=''
+if [ "x${1:-}" = 'x--daemon-only' ]
+then
+    DAEMON_ONLY_ARG='--disable-zmq --disable-rust'
+    export NO_QT=1
+    shift
+fi
+
 # Build MAKEARGS: cap -jN at 4, or add -j$(detect_jobs) if no -j given.
 MAKEARGS=()
 HAS_JOBS=0
@@ -163,5 +175,5 @@ ld -v
 
 HOST="$HOST" BUILD="$BUILD" NO_PROTON="$PROTON_ARG" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
 ./autogen.sh
-CONFIG_SITE="$PWD/depends/$HOST/share/config.site" ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" "$PROTON_ARG" $CONFIGURE_FLAGS CXXFLAGS='-g'
+CONFIG_SITE="$PWD/depends/$HOST/share/config.site" ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" "$PROTON_ARG" $DAEMON_ONLY_ARG $CONFIGURE_FLAGS CXXFLAGS='-g'
 "$MAKE" "${MAKEARGS[@]}" V=1
