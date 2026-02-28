@@ -70,20 +70,55 @@ brew install automake cmake pkg-config coreutils
 
 ### 2.4 Windows
 
-**Cross-compile from Linux** (recommended):
+**MXE cross-compile (from Linux):**
 
+Windows builds use [MXE](https://mxe.cc/) (M Cross Environment). Build MXE once (2–4 h), then reuse.
+
+**1. Set MXE root** (default `$HOME/mxe`; use `/usr/lib/mxe` for system install):
 ```bash
-sudo apt install mingw-w64 build-essential
-./zcutil/build-win.sh -j$(nproc)
+export MXE_ROOT="${MXE_ROOT:-$HOME/mxe}"
+export MXE_PATH="${MXE_ROOT}/usr/bin"
+export PATH="$MXE_PATH:$PATH"
 ```
 
-Output: `src/zerod.exe`, `src/zero-cli.exe`, `src/zero-tx.exe`.
+**2. Build MXE** (one-time; see [MXE standalone](#24a-mxe-standalone) below if needed).
 
-**Manual build:** See §5.3.
+**3. Build Zero:**
+```bash
+./zcutil/fetch-params.sh
+./zcutil/build-win.sh
+```
+
+Or manually:
+```bash
+HOST=x86_64-w64-mingw32
+cd depends && make HOST=$HOST NO_QT=1 -j$(nproc) && cd ..
+./autogen.sh
+CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
+  CXXFLAGS="-DPTW32_STATIC_LIB -DCURVE_ALT_BN128 -fopenmp -pthread" \
+  ./configure --prefix=$PWD/depends/$HOST --host=$HOST --enable-static --disable-shared --disable-zmq --disable-rust
+sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure
+cd src && make CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix -j$(nproc) zerod.exe zero-cli.exe zero-tx.exe
+```
+
+Binaries: `src/zerod.exe`, `src/zero-cli.exe`, `src/zero-tx.exe`.
+
+**Override MXE location:** `MXE_ROOT=/path/to/mxe ./zcutil/build-win.sh` or `./zcutil/build-win.sh -m /path/to/mxe`
 
 **WSL2:** Use Linux instructions; build and run inside WSL2.
 
 **Data dir:** `%APPDATA%\zero`. **Params:** `%APPDATA%\ZcashParams`. Firewall: allow zerod.exe. Antivirus may need to whitelist binaries.
+
+#### 2.4a MXE standalone
+
+If MXE is not yet built:
+```bash
+export MXE_ROOT="${MXE_ROOT:-$HOME/mxe}"
+sudo apt install -y autoconf automake autopoint bash bison bzip2 flex g++ g++-multilib gettext git gperf intltool libc6-dev-i386 libgdk-pixbuf2.0-dev libltdl-dev libssl-dev libtool-bin libxml-parser-perl make openssl p7zip-full patch perl pkg-config python3-mako python3-setuptools python3-tk python3-venv ruby sed unzip wget xz-utils zstd
+git clone https://github.com/mxe/mxe.git "$MXE_ROOT"
+cd "$MXE_ROOT" && make MXE_TARGETS='x86_64-w64-mingw32.static' gcc -j$(nproc)
+```
+Then build Zero as above.
 
 ---
 
@@ -191,7 +226,12 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 
 | Variable | Purpose |
 |----------|---------|
+<<<<<<< HEAD
 | `CC`, `CXX` | Compiler override |
+=======
+| `MXE_ROOT` | MXE install root; `MXE_PATH=$MXE_ROOT/usr/bin` (default `$HOME/mxe`; use `/usr/lib/mxe` for system) |
+| `CC`, `CXX` | Compiler (e.g. `gcc-11`, `g++-11`) |
+>>>>>>> origin/mac_linux_boost188
 | `MAKE` | Make command (e.g. `gmake`) |
 | `BUILD`, `HOST` | Triplet for porters |
 | `CONFIGURE_FLAGS` | Extra configure options |
@@ -234,7 +274,11 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 
 ### 5.3 Windows
 
+<<<<<<< HEAD
 **Cross-compile from Linux:** See §2.4. Toolchain: system mingw-w64 (`apt install mingw-w64`). No MXE.
+=======
+**Cross-compile:** `HOST=x86_64-w64-mingw32`. Requires MXE with `x86_64-w64-mingw32-gcc-posix` and `x86_64-w64-mingw32-g++-posix`. Set `MXE_ROOT` (default `$HOME/mxe`; `MXE_PATH=$MXE_ROOT/usr/bin`). See §2.4 for full steps.
+>>>>>>> origin/mac_linux_boost188
 
 **Manual build:** (1) `make HOST=x86_64-w64-mingw32` in depends; (2) configure with CONFIG_SITE (see §4.3), `--host=x86_64-w64-mingw32 --enable-static --disable-shared --disable-zmq --disable-rust`, CXXFLAGS for PTW32_STATIC_LIB, CURVE_ALT_BN128; (3) sed fix: `sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure`; (4) make in src/ with `CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix`.
 
