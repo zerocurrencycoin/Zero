@@ -62,7 +62,7 @@ failed on macOS; it was removed.
 
 ### 2.2 GCC / Toolchain
 
-zerod uses system GCC (Linux), Clang (macOS), mingw-w64 (Windows). GCC 7.0+ required for C++14. zerowallet (separate repos): static Qt on Linux for Linux may require gcc-11 (Qt struggles with GCC 13 on Ubuntu 24.04).
+zerod uses system GCC (Linux), Clang (macOS), mingw-w64 (Windows). GCC 7.0+ required for C++14. zerowallet toolchains: BUILD_ZERO §6.6.
 
 ### 2.3 Autoconf Macros
 
