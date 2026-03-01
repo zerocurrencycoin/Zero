@@ -8,12 +8,14 @@ UpdateZero assembles status, open items, long-term plans, gotchas, and gaps. TOD
 
 ## Documentation Split
 
-**Direction:** User-facing docs must never reference project docs. Project docs may reference each other.
+Canonical declaration. User-facing docs must never reference project docs. Project docs may reference each other and user-facing docs.
 
 | Group | Files | Audience |
 |-------|-------|----------|
 | **User-facing** | README.md, BUILD_ZERO.md, TEST_ZERO.md, CONTRIBUTING.md, TODO.md | Contributors, users building/running Zero |
 | **Project** | UpdateZero.md, UpdateBuild.md, UpdateTests.md, UpdateFeatures.md, Zeronode_wallet.md, Subsidy.md, doc/files.md | Maintainers, status tracking, design decisions |
+
+CONTRIBUTING and README state placement rules only; neither mentions project docs.
 
 ---
 
@@ -133,6 +135,8 @@ bugs also present in HUSH3.
 | Tests | get_coinbase_address impl gap | listunspent with generated returns empty when nuparams activate early. Skip; fix would need Zero listunspent/generated behavior. |
 
 ### 4.5 Open Questions / Pending
+
+**Note:** TODO.md will be updated later.
 
 | Item | Status | Notes |
 |------|--------|------|

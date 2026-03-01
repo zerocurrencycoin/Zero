@@ -31,6 +31,10 @@ Read these documents:
 
 ---
 
+## Documentation
+
+When editing README, BUILD_ZERO, TEST_ZERO, CONTRIBUTING, or TODO: place content in the doc whose scope it matches; prefer references over duplication.
+
 ## Scope
 
 Zero is a Zcash-family node. Contributions that improve build, test, or documentation are welcome. Protocol or consensus changes require broader review.

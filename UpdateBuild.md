@@ -56,9 +56,11 @@ failed on macOS; it was removed.
 
 **macOS x86 (Intel):** Not supported. EOL.
 
-**configure~ cleanup:** Implemented. build-win.sh uses `sed -i.bak '...' configure && rm -f configure.bak`. Makefile.am clean-local removes `configure~` and `src/univalue/configure~`.
+**configure~ cleanup:** Implemented. build-win.sh uses `sed -i.bak '...' configure && rm -f configure.bak`. Makefile.am `clean-local` removes `configure~` and `src/univalue/configure~` when running `make clean` (Automake hook for extra clean rules).
 
 **Two scripts:** build.sh (Linux + Mac, native) and build-win.sh (Windows cross from Linux) are separate: different HOST, configure flags, make targets (.exe). Cannot merge.
+
+**After changing build docs or depends:** Update local clones and rebuild to verify. Sync BUILD_ZERO with any package or platform changes.
 
 ### 2.2 GCC / Toolchain
 
