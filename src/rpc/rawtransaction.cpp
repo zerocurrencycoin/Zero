@@ -152,6 +152,7 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
 {
     const uint256 txid = tx.GetHash();
     entry.push_back(Pair("txid", txid.GetHex()));
+    entry.push_back(Pair("size", (int)::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION)));
     entry.push_back(Pair("overwintered", tx.fOverwintered));
     entry.push_back(Pair("version", tx.nVersion));
     if (tx.fOverwintered) {

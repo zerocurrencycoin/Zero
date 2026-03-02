@@ -99,7 +99,7 @@ BOOST_AUTO_TEST_CASE(rpc_rawparams)
     BOOST_CHECK_NO_THROW(r = CallRPC(string("decoderawtransaction ")+rawtx));
     BOOST_CHECK_EQUAL(find_value(r.get_obj(), "version").get_int(), 1);
     BOOST_CHECK_EQUAL(find_value(r.get_obj(), "locktime").get_int(), 0);
-    BOOST_CHECK_EQUAL(find_value(r.get_obj(), "size").get_int(), 225);
+    BOOST_CHECK_EQUAL(find_value(r.get_obj(), "size").get_int(), 193);
     BOOST_CHECK_THROW(r = CallRPC(string("decoderawtransaction ")+rawtx+" extra"), runtime_error);
 
     BOOST_CHECK_THROW(CallRPC("signrawtransaction"), runtime_error);
