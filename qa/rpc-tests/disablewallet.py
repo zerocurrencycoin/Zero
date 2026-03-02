@@ -7,7 +7,6 @@
 # Exercise API with -disablewallet.
 #
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import initialize_chain_clean, start_nodes
@@ -16,7 +15,7 @@ from test_framework.util import initialize_chain_clean, start_nodes
 class DisableWalletTest (BitcoinTestFramework):
 
     def setup_chain(self):
-        print("Initializing test directory "+self.options.tmpdir)
+        print(("Initializing test directory "+self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 1)
 
     def setup_network(self, split=False):

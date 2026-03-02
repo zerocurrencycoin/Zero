@@ -3,7 +3,6 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
@@ -21,7 +20,7 @@ from time import sleep
 # Test wallet behaviour with Sapling addresses
 class MempoolLimit(BitcoinTestFramework):
     def setup_chain(self):
-        print("Initializing test directory " + self.options.tmpdir)
+        print(("Initializing test directory " + self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 4)
 
     def setup_nodes(self):
@@ -40,7 +39,7 @@ class MempoolLimit(BitcoinTestFramework):
             if len(mempool) != expected_size:
                 # print all nodes' mempools before failing
                 for i in range(4):
-                    print("Mempool for node {}: {}".format(i, mempool))
+                    print(("Mempool for node {}: {}".format(i, mempool)))
                 fail("Fail: Mempool for node {}: size={}, expected={}".format(i, len(mempool), expected_size))
 
     def run_test(self):

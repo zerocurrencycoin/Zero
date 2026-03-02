@@ -21,7 +21,7 @@ import subprocess
 import time
 import re
 
-from authproxy import AuthServiceProxy
+from .authproxy import AuthServiceProxy
 
 def p2p_port(n):
     return 11000 + n + os.getpid()%999
@@ -127,11 +127,11 @@ def initialize_chain(test_dir):
                 args.append("-connect=127.0.0.1:"+str(p2p_port(0)))
             bitcoind_processes[i] = subprocess.Popen(args)
             if os.getenv("PYTHON_DEBUG", ""):
-                print "initialize_chain: bitcoind started, calling bitcoin-cli -rpcwait getblockcount"
+                print("initialize_chain: bitcoind started, calling bitcoin-cli -rpcwait getblockcount")
             subprocess.check_call([ os.getenv("BITCOINCLI", "bitcoin-cli"), "-datadir="+datadir,
                                     "-rpcwait", "getblockcount"], stdout=devnull)
             if os.getenv("PYTHON_DEBUG", ""):
-                print "initialize_chain: bitcoin-cli -rpcwait getblockcount completed"
+                print("initialize_chain: bitcoin-cli -rpcwait getblockcount completed")
         devnull.close()
         rpcs = []
         for i in range(4):
@@ -186,7 +186,7 @@ def _rpchost_to_args(rpchost):
     if rpchost is None:
         return []
 
-    match = re.match('(\[[0-9a-fA-f:]+\]|[^:]+)(?::([0-9]+))?$', rpchost)
+    match = re.match(r'(\[[0-9a-fA-f:]+\]|[^:]+)(?::([0-9]+))?$', rpchost)
     if not match:
         raise ValueError('Invalid RPC host spec ' + rpchost)
 
@@ -217,12 +217,12 @@ def start_node(i, dirname, extra_args=None, rpchost=None, timewait=None, binary=
     bitcoind_processes[i] = subprocess.Popen(args)
     devnull = open("/dev/null", "w+")
     if os.getenv("PYTHON_DEBUG", ""):
-        print "start_node: bitcoind started, calling bitcoin-cli -rpcwait getblockcount"
+        print("start_node: bitcoind started, calling bitcoin-cli -rpcwait getblockcount")
     subprocess.check_call([ os.getenv("BITCOINCLI", "bitcoin-cli"), "-datadir="+datadir] +
                           _rpchost_to_args(rpchost)  +
                           ["-rpcwait", "getblockcount"], stdout=devnull)
     if os.getenv("PYTHON_DEBUG", ""):
-        print "start_node: calling bitcoin-cli -rpcwait getblockcount returned"
+        print("start_node: calling bitcoin-cli -rpcwait getblockcount returned")
     devnull.close()
     url = "http://rt:rt@%s:%d" % (rpchost or '127.0.0.1', rpc_port(i))
     if timewait is not None:
@@ -420,7 +420,7 @@ def fail(message=""):
 def wait_and_assert_operationid_status_result(node, myopid, in_status='success', in_errormsg=None, timeout=300):
     print('waiting for async operation {}'.format(myopid))
     result = None
-    for _ in xrange(1, timeout):
+    for _ in range(1, timeout):
         results = node.z_getoperationresult([myopid])
         if len(results) > 0:
             result = results[0]
@@ -454,18 +454,65 @@ def wait_and_assert_operationid_status(node, myopid, in_status='success', in_err
     else:
         return None
 
+# Zero COINBASE_MATURITY=720: listunspent only returns coinbase after 720 confirmations.
+# Tests need 720+ blocks before get_coinbase_address can succeed.
+# Set ZERO_MINE_COINBASE=1 to mine 1000 blocks when needed (slow; not used in main passing run).
+def should_mine_for_coinbase():
+    return os.getenv("ZERO_MINE_COINBASE", "") == "1"
+
+def mine_for_coinbase(node, blocks=1000):
+    """Mine blocks so coinbase matures. Call only when ZERO_MINE_COINBASE=1."""
+    if not should_mine_for_coinbase():
+        return False
+    print(("Mining %d blocks for coinbase maturity (ZERO_MINE_COINBASE=1)..." % blocks))
+    node.generate(blocks)
+    return True
+
+def ensure_coinbase_utxos(node, nodes=None, blocks=1000):
+    """If no mature coinbase: when ZERO_MINE_COINBASE=1, mine blocks and return True. Else return False.
+    If nodes is provided, sync_blocks(nodes) after mining."""
+    if has_coinbase_utxos(node):
+        return True
+    if should_mine_for_coinbase():
+        mine_for_coinbase(node, blocks)
+        if nodes:
+            sync_blocks(nodes)
+        return has_coinbase_utxos(node)
+    return False
+
+def _coinbase_diagnostic(node):
+    lu = node.listunspent()
+    gen = [u for u in lu if u.get('generated')]
+    try:
+        h = node.getblockcount()
+    except Exception:
+        h = None
+    return "listunspent=%d total, %d generated; getblockcount=%s (need 720+ for mature coinbase)" % (
+        len(lu), len(gen), h)
+
+def has_coinbase_utxos(node):
+    """Return True if node has any mature coinbase UTXOs (for skip checks)."""
+    return len([u for u in node.listunspent() if u.get('generated')]) > 0
+
+def coinbase_diagnostic(node):
+    """Return a string describing why get_coinbase_address might fail (for skip messages)."""
+    return _coinbase_diagnostic(node)
+
 # Find a coinbase address on the node, filtering by the number of UTXOs it has.
 # If no filter is provided, returns the coinbase address on the node containing
 # the greatest number of spendable UTXOs.
 # The default cached chain has one address per coinbase output.
 def get_coinbase_address(node, expected_utxos=None):
-    addrs = [utxo['address'] for utxo in node.listunspent() if utxo['generated']]
-    assert(len(set(addrs)) > 0)
+    addrs = [utxo['address'] for utxo in node.listunspent() if utxo.get('generated')]
+    if len(set(addrs)) == 0:
+        raise AssertionError("get_coinbase_address: no generated utxos. " + _coinbase_diagnostic(node))
 
     if expected_utxos is None:
         addrs = [(addrs.count(a), a) for a in set(addrs)]
         return sorted(addrs, reverse=True)[0][1]
 
     addrs = [a for a in set(addrs) if addrs.count(a) == expected_utxos]
-    assert(len(addrs) > 0)
+    if len(addrs) == 0:
+        raise AssertionError("get_coinbase_address: no address with %d utxos. %s" % (
+            expected_utxos, _coinbase_diagnostic(node)))
     return addrs[0]

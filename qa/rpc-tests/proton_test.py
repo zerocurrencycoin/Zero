@@ -13,7 +13,6 @@
 #     pip install python-qpid-proton
 #
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, bytes_to_hex_str, \
@@ -37,7 +36,7 @@ class Server(MessagingHandler):
         self.txidseq = -1
 
     def on_start(self, event):
-        print "Proton listening on:", self.url
+        print("Proton listening on:", self.url)
         self.container = event.container
         self.acceptor = event.container.listen(self.url)
 
@@ -106,7 +105,7 @@ class ProtonTest (BitcoinTestFramework):
         assert_equal(len(self.server.txids), self.numblocks)
 
         # verify that each block has the correct coinbase txid
-        for i in xrange(0, self.numblocks):
+        for i in range(0, self.numblocks):
             height = baseheight + i + 1
             blockhash = self.nodes[0].getblockhash(height)
             assert_equal(blockhash, self.server.blockhashes[i])

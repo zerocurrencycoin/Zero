@@ -5,7 +5,6 @@
 
 # This is a regression test for #1941.
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, initialize_chain_clean, \
@@ -21,7 +20,7 @@ starttime = 1531037936
 class Wallet1941RegressionTest (BitcoinTestFramework):
 
     def setup_chain(self):
-        print("Initializing test directory "+self.options.tmpdir)
+        print(("Initializing test directory "+self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 1)
 
     # Start nodes with -regtestprotectcoinbase to set fCoinbaseMustBeProtected to true.
@@ -45,7 +44,7 @@ class Wallet1941RegressionTest (BitcoinTestFramework):
         self.sync_all()
 
     def run_test (self):
-        print "Mining blocks..."
+        print("Mining blocks...")
 
         self.nodes[0].setmocktime(starttime)
         self.nodes[0].generate(721)

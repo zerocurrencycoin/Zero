@@ -3,13 +3,14 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
     assert_greater_than,
+    coinbase_diagnostic,
     connect_nodes_bi,
+    ensure_coinbase_utxos,
     get_coinbase_address,
     initialize_chain_clean,
     start_nodes,
@@ -22,7 +23,7 @@ from decimal import Decimal
 class WalletOverwinterTxTest (BitcoinTestFramework):
 
     def setup_chain(self):
-        print("Initializing test directory "+self.options.tmpdir)
+        print(("Initializing test directory "+self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 4)
 
     def setup_network(self, split=False):
@@ -45,9 +46,8 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         self.sync_all()
         # Node 0 has reward from blocks 1 to 95 which are spendable.
 
-        addrs = [utxo['address'] for utxo in self.nodes[0].listunspent() if utxo.get('generated')]
-        if not addrs:
-            print("Skipping wallet_overwintertx: get_coinbase_address fails (no generated utxos) - Zero impl gap, postponed")
+        if not ensure_coinbase_utxos(self.nodes[0], self.nodes, 1000):
+            print("Skipping wallet_overwintertx: " + coinbase_diagnostic(self.nodes[0]))
             return
         taddr0 = get_coinbase_address(self.nodes[0])
         taddr1 = self.nodes[1].getnewaddress()
@@ -61,7 +61,7 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         #
         bci = self.nodes[0].getblockchaininfo()
         if bci['consensus']['chaintip'] != '7361707a':
-            print("Skipping wallet_overwintertx: Zero regtest block count differs (chaintip %s, expected Sapling 7361707a)" % bci['consensus']['chaintip'])
+            print(("Skipping wallet_overwintertx: Zero regtest block count differs (chaintip %s, expected Sapling 7361707a)" % bci['consensus']['chaintip']))
             return
         assert_equal(bci['consensus']['chaintip'], '7361707a')  # Zero Sapling
         assert_equal(bci['consensus']['nextblock'], '7361707a')
@@ -119,22 +119,22 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         errorString = ""
         try:
             self.nodes[0].createrawtransaction([], {}, 0, 499999999)
-        except JSONRPCException,e:
+        except JSONRPCException as e:
             errorString = e.error['message']
         assert_equal("", errorString)
         try:
             self.nodes[0].createrawtransaction([], {}, 0, -1)
-        except JSONRPCException,e:
+        except JSONRPCException as e:
             errorString = e.error['message']
         assert_equal("Invalid parameter, expiryheight must be nonnegative and less than 500000000" in errorString, True)
         try:
             self.nodes[0].createrawtransaction([], {}, 0, 500000000)
-        except JSONRPCException,e:
+        except JSONRPCException as e:
             errorString = e.error['message']
         assert_equal("Invalid parameter, expiryheight must be nonnegative and less than 500000000" in errorString, True)
         try:
             self.nodes[0].createrawtransaction([], {}, 0, 200)
-        except JSONRPCException,e:
+        except JSONRPCException as e:
             errorString = e.error['message']
         assert_equal("Invalid parameter, expiryheight should be at least 203 to avoid transaction expiring soon" in errorString, True)
 

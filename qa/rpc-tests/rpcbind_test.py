@@ -7,8 +7,6 @@
 
 # Dependency: python-bitcoinrpc
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
-
 from test_framework.util import assert_equal, check_json_precision, \
     initialize_chain, start_nodes, stop_nodes, wait_bitcoinds, \
     bitcoind_processes, rpc_port
@@ -68,7 +66,7 @@ def run_test(tmpdir):
             break
     if non_loopback_ip is None:
         assert(not 'This test requires at least one non-loopback IPv4 interface')
-    print("Using interface %s for testing" % non_loopback_ip)
+    print(("Using interface %s for testing" % non_loopback_ip))
 
     defaultport = rpc_port(0)
 
@@ -123,7 +121,7 @@ def main():
 
     success = False
     try:
-        print("Initializing test directory "+options.tmpdir)
+        print(("Initializing test directory "+options.tmpdir))
         if not os.path.isdir(options.tmpdir):
             os.makedirs(options.tmpdir)
         initialize_chain(options.tmpdir)
@@ -133,9 +131,9 @@ def main():
         success = True
 
     except AssertionError as e:
-        print("Assertion failed: "+e.message)
+        print(("Assertion failed: "+str(e)))
     except Exception as e:
-        print("Unexpected exception caught during testing: "+str(e))
+        print(("Unexpected exception caught during testing: "+str(e)))
         traceback.print_tb(sys.exc_info()[2])
 
     if not options.nocleanup:

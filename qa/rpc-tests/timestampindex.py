@@ -5,7 +5,6 @@
 #
 # Test timestampindex generation and fetching for insightexplorer
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 import time
 
@@ -24,7 +23,7 @@ from test_framework.util import (
 class TimestampIndexTest(BitcoinTestFramework):
 
     def setup_chain(self):
-        print("Initializing test directory "+self.options.tmpdir)
+        print(("Initializing test directory "+self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 3)
 
     def setup_network(self):
@@ -41,7 +40,7 @@ class TimestampIndexTest(BitcoinTestFramework):
 
     def run_test(self):
         blockhashes = []
-        print "Mining blocks..."
+        print("Mining blocks...")
         for _ in range(8):
             blockhashes.extend(self.nodes[0].generate(1))
             time.sleep(1)

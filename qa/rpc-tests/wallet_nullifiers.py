@@ -3,7 +3,6 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, assert_true, bitcoind_processes, \
@@ -14,7 +13,7 @@ from decimal import Decimal
 
 class WalletNullifiersTest (BitcoinTestFramework):
     def setup_chain(self):
-        print("Initializing test directory "+self.options.tmpdir)
+        print(("Initializing test directory "+self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 4)
 
     def setup_nodes(self):
@@ -23,7 +22,7 @@ class WalletNullifiersTest (BitcoinTestFramework):
 
     def run_test (self):
 
-        print "Mining blocks..."
+        print("Mining blocks...")
         self.sync_all()
         self.nodes[3].generate(25)
         self.sync_all()

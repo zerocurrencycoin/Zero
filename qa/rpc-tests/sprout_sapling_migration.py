@@ -3,7 +3,6 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from decimal import Decimal
 from test_framework.test_framework import BitcoinTestFramework
@@ -65,7 +64,7 @@ class SproutSaplingMigration(BitcoinTestFramework):
         return start_nodes(4, self.options.tmpdir, extra_args)
 
     def setup_chain(self):
-        print("Initializing test directory " + self.options.tmpdir)
+        print(("Initializing test directory " + self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 4)
 
     def run_migration_test(self, node, sproutAddr, saplingAddr, target_height):
@@ -90,13 +89,13 @@ class SproutSaplingMigration(BitcoinTestFramework):
 
         # At 495 % 500 we should have an async operation
         operationstatus = node.z_getoperationstatus()
-        print("migration operation: {}".format(operationstatus))
+        print(("migration operation: {}".format(operationstatus)))
         assert_equal(1, len(operationstatus), "num async operations at 495  % 500")
         assert_equal('saplingmigration', operationstatus[0]['method'])
         assert_equal(target_height, operationstatus[0]['target_height'])
 
         result = wait_and_assert_operationid_status_result(node, operationstatus[0]['id'])
-        print("result: {}".format(result))
+        print(("result: {}".format(result)))
         assert_equal('saplingmigration', result['method'])
         assert_equal(target_height, result['target_height'])
         assert_equal(1, result['result']['num_tx_created'])
@@ -118,14 +117,14 @@ class SproutSaplingMigration(BitcoinTestFramework):
 
         # At 499 % 500 there will be a transaction in the mempool and the note will be locked
         mempool = node.getrawmempool()
-        print("mempool: {}".format(mempool))
+        print(("mempool: {}".format(mempool)))
         assert_equal(1, len(mempool), "mempool size at 499 % 500")
         assert_equal(node.z_getbalance(sproutAddr), Decimal('0'))
         assert_equal(node.z_getbalance(saplingAddr), Decimal('0'))
         assert_true(node.z_getbalance(saplingAddr, 0) > Decimal('0'), "Unconfirmed sapling balance at 499 % 500")
         # Check that unmigrated amount + unfinalized = starting balance - fee
         status = node.z_getmigrationstatus()
-        print("status: {}".format(status))
+        print(("status: {}".format(status)))
         assert_equal(Decimal('9.9999'), Decimal(status['unmigrated_amount']) + Decimal(status['unfinalized_migrated_amount']))
 
         # The transaction in the mempool should be the one listed in migration_txids,
@@ -142,7 +141,7 @@ class SproutSaplingMigration(BitcoinTestFramework):
         # At 0 % 500 funds will have moved
         sprout_balance = node.z_getbalance(sproutAddr)
         sapling_balance = node.z_getbalance(saplingAddr)
-        print("sprout balance: {}, sapling balance: {}".format(sprout_balance, sapling_balance))
+        print(("sprout balance: {}, sapling balance: {}".format(sprout_balance, sapling_balance)))
         assert_true(sprout_balance < Decimal('10'), "Should have less Sprout funds")
         assert_true(sapling_balance > Decimal('0'), "Should have more Sapling funds")
         assert_true(sprout_balance + sapling_balance, Decimal('9.9999'))

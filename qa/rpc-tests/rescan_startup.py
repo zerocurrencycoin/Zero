@@ -7,7 +7,6 @@
 # P2: Test -rescan on startup: node restarts with -rescan, chain and wallet intact
 #
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, initialize_chain_clean, \
@@ -17,7 +16,7 @@ from test_framework.util import assert_equal, initialize_chain_clean, \
 class RescanStartupTest(BitcoinTestFramework):
 
     def setup_chain(self):
-        print("Initializing test directory "+self.options.tmpdir)
+        print(("Initializing test directory "+self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 1)
 
     def setup_network(self):

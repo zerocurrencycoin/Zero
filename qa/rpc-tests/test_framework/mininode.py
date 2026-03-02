@@ -19,18 +19,24 @@
 
 import struct
 import socket
-import asyncore
+try:
+    import asyncore
+except ImportError:
+    from . import asyncore_compat as asyncore
 import binascii
 import time
 import sys
 import random
-import cStringIO
+import io
 import hashlib
 from threading import RLock
 from threading import Thread
 import logging
 import copy
-from pyblake2 import blake2b
+try:
+    from pyblake2 import blake2b
+except ImportError:
+    blake2b = hashlib.blake2b
 
 from .equihash import (
     gbp_basic,
@@ -96,42 +102,44 @@ def deser_string(f):
 
 
 def ser_string(s):
+    if isinstance(s, str):
+        s = s.encode('utf-8')
     if len(s) < 253:
-        return chr(len(s)) + s
+        return bytes([len(s)]) + s
     elif len(s) < 0x10000:
-        return chr(253) + struct.pack("<H", len(s)) + s
-    elif len(s) < 0x100000000L:
-        return chr(254) + struct.pack("<I", len(s)) + s
-    return chr(255) + struct.pack("<Q", len(s)) + s
+        return bytes([253]) + struct.pack("<H", len(s)) + s
+    elif len(s) < 0x100000000:
+        return bytes([254]) + struct.pack("<I", len(s)) + s
+    return bytes([255]) + struct.pack("<Q", len(s)) + s
 
 
 def deser_uint256(f):
-    r = 0L
-    for i in xrange(8):
+    r = 0
+    for i in range(8):
         t = struct.unpack("<I", f.read(4))[0]
         r += t << (i * 32)
     return r
 
 
 def ser_uint256(u):
-    rs = ""
-    for i in xrange(8):
-        rs += struct.pack("<I", u & 0xFFFFFFFFL)
+    rs = b""
+    for i in range(8):
+        rs += struct.pack("<I", u & 0xFFFFFFFF)
         u >>= 32
     return rs
 
 
 def uint256_from_str(s):
-    r = 0L
+    r = 0
     t = struct.unpack("<IIIIIIII", s[:32])
-    for i in xrange(8):
+    for i in range(8):
         r += t[i] << (i * 32)
     return r
 
 
 def uint256_from_compact(c):
     nbytes = (c >> 24) & 0xFF
-    v = (c & 0xFFFFFFL) << (8 * (nbytes - 3))
+    v = (c & 0xFFFFFF) << (8 * (nbytes - 3))
     return v
 
 
@@ -144,7 +152,7 @@ def deser_vector(f, c):
     elif nit == 255:
         nit = struct.unpack("<Q", f.read(8))[0]
     r = []
-    for i in xrange(nit):
+    for i in range(nit):
         t = c()
         t.deserialize(f)
         r.append(t)
@@ -152,15 +160,15 @@ def deser_vector(f, c):
 
 
 def ser_vector(l):
-    r = ""
+    r = b""
     if len(l) < 253:
-        r = chr(len(l))
+        r = bytes([len(l)])
     elif len(l) < 0x10000:
-        r = chr(253) + struct.pack("<H", len(l))
-    elif len(l) < 0x100000000L:
-        r = chr(254) + struct.pack("<I", len(l))
+        r = bytes([253]) + struct.pack("<H", len(l))
+    elif len(l) < 0x100000000:
+        r = bytes([254]) + struct.pack("<I", len(l))
     else:
-        r = chr(255) + struct.pack("<Q", len(l))
+        r = bytes([255]) + struct.pack("<Q", len(l))
     for i in l:
         r += i.serialize()
     return r
@@ -175,22 +183,22 @@ def deser_uint256_vector(f):
     elif nit == 255:
         nit = struct.unpack("<Q", f.read(8))[0]
     r = []
-    for i in xrange(nit):
+    for i in range(nit):
         t = deser_uint256(f)
         r.append(t)
     return r
 
 
 def ser_uint256_vector(l):
-    r = ""
+    r = b""
     if len(l) < 253:
-        r = chr(len(l))
+        r = bytes([len(l)])
     elif len(l) < 0x10000:
-        r = chr(253) + struct.pack("<H", len(l))
-    elif len(l) < 0x100000000L:
-        r = chr(254) + struct.pack("<I", len(l))
+        r = bytes([253]) + struct.pack("<H", len(l))
+    elif len(l) < 0x100000000:
+        r = bytes([254]) + struct.pack("<I", len(l))
     else:
-        r = chr(255) + struct.pack("<Q", len(l))
+        r = bytes([255]) + struct.pack("<Q", len(l))
     for i in l:
         r += ser_uint256(i)
     return r
@@ -205,22 +213,22 @@ def deser_string_vector(f):
     elif nit == 255:
         nit = struct.unpack("<Q", f.read(8))[0]
     r = []
-    for i in xrange(nit):
+    for i in range(nit):
         t = deser_string(f)
         r.append(t)
     return r
 
 
 def ser_string_vector(l):
-    r = ""
+    r = b""
     if len(l) < 253:
-        r = chr(len(l))
+        r = bytes([len(l)])
     elif len(l) < 0x10000:
-        r = chr(253) + struct.pack("<H", len(l))
-    elif len(l) < 0x100000000L:
-        r = chr(254) + struct.pack("<I", len(l))
+        r = bytes([253]) + struct.pack("<H", len(l))
+    elif len(l) < 0x100000000:
+        r = bytes([254]) + struct.pack("<I", len(l))
     else:
-        r = chr(255) + struct.pack("<Q", len(l))
+        r = bytes([255]) + struct.pack("<Q", len(l))
     for sv in l:
         r += ser_string(sv)
     return r
@@ -235,22 +243,22 @@ def deser_int_vector(f):
     elif nit == 255:
         nit = struct.unpack("<Q", f.read(8))[0]
     r = []
-    for i in xrange(nit):
+    for i in range(nit):
         t = struct.unpack("<i", f.read(4))[0]
         r.append(t)
     return r
 
 
 def ser_int_vector(l):
-    r = ""
+    r = b""
     if len(l) < 253:
-        r = chr(len(l))
+        r = bytes([len(l)])
     elif len(l) < 0x10000:
-        r = chr(253) + struct.pack("<H", len(l))
-    elif len(l) < 0x100000000L:
-        r = chr(254) + struct.pack("<I", len(l))
+        r = bytes([253]) + struct.pack("<H", len(l))
+    elif len(l) < 0x100000000:
+        r = bytes([254]) + struct.pack("<I", len(l))
     else:
-        r = chr(255) + struct.pack("<Q", len(l))
+        r = bytes([255]) + struct.pack("<Q", len(l))
     for i in l:
         r += struct.pack("<i", i)
     return r
@@ -265,24 +273,24 @@ def deser_char_vector(f):
     elif nit == 255:
         nit = struct.unpack("<Q", f.read(8))[0]
     r = []
-    for i in xrange(nit):
+    for i in range(nit):
         t = struct.unpack("<B", f.read(1))[0]
         r.append(t)
     return r
 
 
 def ser_char_vector(l):
-    r = ""
+    r = b""
     if len(l) < 253:
-        r = chr(len(l))
+        r = bytes([len(l)])
     elif len(l) < 0x10000:
-        r = chr(253) + struct.pack("<H", len(l))
-    elif len(l) < 0x100000000L:
-        r = chr(254) + struct.pack("<I", len(l))
+        r = bytes([253]) + struct.pack("<H", len(l))
+    elif len(l) < 0x100000000:
+        r = bytes([254]) + struct.pack("<I", len(l))
     else:
-        r = chr(255) + struct.pack("<Q", len(l))
+        r = bytes([255]) + struct.pack("<Q", len(l))
     for i in l:
-        r += chr(i)
+        r += bytes([i])
     return r
 
 
@@ -291,7 +299,7 @@ def ser_char_vector(l):
 class CAddress(object):
     def __init__(self):
         self.nServices = 1
-        self.pchReserved = "\x00" * 10 + "\xff" * 2
+        self.pchReserved = b"\x00" * 10 + b"\xff" * 2
         self.ip = "0.0.0.0"
         self.port = 0
 
@@ -302,7 +310,7 @@ class CAddress(object):
         self.port = struct.unpack(">H", f.read(2))[0]
 
     def serialize(self):
-        r = ""
+        r = b""
         r += struct.pack("<Q", self.nServices)
         r += self.pchReserved
         r += socket.inet_aton(self.ip)
@@ -320,7 +328,7 @@ class CInv(object):
         1: "TX",
         2: "Block"}
 
-    def __init__(self, t=0, h=0L):
+    def __init__(self, t=0, h=0):
         self.type = t
         self.hash = h
 
@@ -329,7 +337,7 @@ class CInv(object):
         self.hash = deser_uint256(f)
 
     def serialize(self):
-        r = ""
+        r = b""
         r += struct.pack("<i", self.type)
         r += ser_uint256(self.hash)
         return r
@@ -349,7 +357,7 @@ class CBlockLocator(object):
         self.vHave = deser_uint256_vector(f)
 
     def serialize(self):
-        r = ""
+        r = b""
         r += struct.pack("<i", self.nVersion)
         r += ser_uint256_vector(self.vHave)
         return r
@@ -377,7 +385,7 @@ class SpendDescription(object):
         self.spendAuthSig = f.read(64)
 
     def serialize(self):
-        r = ""
+        r = b""
         r += ser_uint256(self.cv)
         r += ser_uint256(self.anchor)
         r += ser_uint256(self.nullifier)
@@ -409,7 +417,7 @@ class OutputDescription(object):
         self.zkproof = f.read(192)
 
     def serialize(self):
-        r = ""
+        r = b""
         r += ser_uint256(self.cv)
         r += ser_uint256(self.cmu)
         r += ser_uint256(self.ephemeralKey)
@@ -460,11 +468,11 @@ class ZCProof(object):
         self.g_H = deser_g1(f)
 
     def serialize(self):
-        def ser_g1(self, p):
-            return chr(G1_PREFIX_MASK | p['y_lsb']) + p['x']
-        def ser_g2(self, p):
-            return chr(G2_PREFIX_MASK | p['y_gt']) + p['x']
-        r = ""
+        def ser_g1(p):
+            return bytes([G1_PREFIX_MASK | p['y_lsb']]) + p['x']
+        def ser_g2(p):
+            return bytes([G2_PREFIX_MASK | p['y_gt']]) + p['x']
+        r = b""
         r += ser_g1(self.g_A)
         r += ser_g1(self.g_A_prime)
         r += ser_g2(self.g_B)
@@ -548,7 +556,7 @@ class JSDescription(object):
             self.ciphertexts.append(f.read(ZC_NOTECIPHERTEXT_SIZE))
 
     def serialize(self):
-        r = ""
+        r = b""
         r += struct.pack("<q", self.vpub_old)
         r += struct.pack("<q", self.vpub_new)
         r += ser_uint256(self.anchor)
@@ -562,7 +570,7 @@ class JSDescription(object):
             r += ser_uint256(self.macs[i])
         r += self.proof.serialize()
         for i in range(ZC_NUM_JS_OUTPUTS):
-            r += ser_uint256(self.ciphertexts[i])
+            r += self.ciphertexts[i]
         return r
 
     def __repr__(self):
@@ -581,7 +589,7 @@ class COutPoint(object):
         self.n = struct.unpack("<I", f.read(4))[0]
 
     def serialize(self):
-        r = ""
+        r = b""
         r += ser_uint256(self.hash)
         r += struct.pack("<I", self.n)
         return r
@@ -591,7 +599,7 @@ class COutPoint(object):
 
 
 class CTxIn(object):
-    def __init__(self, outpoint=None, scriptSig="", nSequence=0):
+    def __init__(self, outpoint=None, scriptSig=b"", nSequence=0):
         if outpoint is None:
             self.prevout = COutPoint()
         else:
@@ -606,7 +614,7 @@ class CTxIn(object):
         self.nSequence = struct.unpack("<I", f.read(4))[0]
 
     def serialize(self):
-        r = ""
+        r = b""
         r += self.prevout.serialize()
         r += ser_string(self.scriptSig)
         r += struct.pack("<I", self.nSequence)
@@ -614,12 +622,12 @@ class CTxIn(object):
 
     def __repr__(self):
         return "CTxIn(prevout=%r scriptSig=%s nSequence=%i)" \
-            % (self.prevout, binascii.hexlify(self.scriptSig),
+            % (self.prevout, binascii.hexlify(self.scriptSig).decode('ascii'),
                self.nSequence)
 
 
 class CTxOut(object):
-    def __init__(self, nValue=0, scriptPubKey=""):
+    def __init__(self, nValue=0, scriptPubKey=b""):
         self.nValue = nValue
         self.scriptPubKey = scriptPubKey
 
@@ -628,7 +636,7 @@ class CTxOut(object):
         self.scriptPubKey = deser_string(f)
 
     def serialize(self):
-        r = ""
+        r = b""
         r += struct.pack("<q", self.nValue)
         r += ser_string(self.scriptPubKey)
         return r
@@ -636,7 +644,7 @@ class CTxOut(object):
     def __repr__(self):
         return "CTxOut(nValue=%i.%08i scriptPubKey=%s)" \
             % (self.nValue // 100000000, self.nValue % 100000000,
-               binascii.hexlify(self.scriptPubKey))
+               binascii.hexlify(self.scriptPubKey).decode('ascii'))
 
 
 class CTransaction(object):
@@ -722,7 +730,7 @@ class CTransaction(object):
                        self.nVersionGroupId == SAPLING_VERSION_GROUP_ID and
                        self.nVersion == 4)
 
-        r = ""
+        r = b""
         r += struct.pack("<I", header)
         if self.fOverwintered:
             r += struct.pack("<I", self.nVersionGroupId)
@@ -751,12 +759,12 @@ class CTransaction(object):
     def calc_sha256(self):
         if self.sha256 is None:
             self.sha256 = uint256_from_str(hash256(self.serialize()))
-        self.hash = hash256(self.serialize())[::-1].encode('hex_codec')
+        self.hash = hash256(self.serialize())[::-1].hex()
 
     def is_valid(self):
         self.calc_sha256()
         for tout in self.vout:
-            if tout.nValue < 0 or tout.nValue > 21000000L * 100000000L:
+            if tout.nValue < 0 or tout.nValue > 21000000 * 100000000:
                 return False
         return True
 
@@ -771,7 +779,7 @@ class CTransaction(object):
             r += " vJoinSplit=%r" % (self.vJoinSplit,)
             if len(self.vJoinSplit) > 0:
                 r += " joinSplitPubKey=%064x joinSplitSig=%064x" \
-                    (self.joinSplitPubKey, self.joinSplitSig)
+                    % (self.joinSplitPubKey, self.joinSplitSig)
         if len(self.shieldedSpends) > 0 or len(self.shieldedOutputs) > 0:
             r += " bindingSig=%064x" % (self.bindingSig,)
         r += ")"
@@ -820,7 +828,7 @@ class CBlockHeader(object):
         self.hash = None
 
     def serialize(self):
-        r = ""
+        r = b""
         r += struct.pack("<i", self.nVersion)
         r += ser_uint256(self.hashPrevBlock)
         r += ser_uint256(self.hashMerkleRoot)
@@ -833,7 +841,7 @@ class CBlockHeader(object):
 
     def calc_sha256(self):
         if self.sha256 is None:
-            r = ""
+            r = b""
             r += struct.pack("<i", self.nVersion)
             r += ser_uint256(self.hashPrevBlock)
             r += ser_uint256(self.hashMerkleRoot)
@@ -843,7 +851,7 @@ class CBlockHeader(object):
             r += ser_uint256(self.nNonce)
             r += ser_char_vector(self.nSolution)
             self.sha256 = uint256_from_str(hash256(r))
-            self.hash = hash256(r)[::-1].encode('hex_codec')
+            self.hash = hash256(r)[::-1].hex()
 
     def rehash(self):
         self.sha256 = None
@@ -866,7 +874,7 @@ class CBlock(CBlockHeader):
         self.vtx = deser_vector(f, CTransaction)
 
     def serialize(self):
-        r = ""
+        r = b""
         r += super(CBlock, self).serialize()
         r += ser_vector(self.vtx)
         return r
@@ -878,7 +886,7 @@ class CBlock(CBlockHeader):
             hashes.append(ser_uint256(tx.sha256))
         while len(hashes) > 1:
             newhashes = []
-            for i in xrange(0, len(hashes), 2):
+            for i in range(0, len(hashes), 2):
                 i2 = min(i+1, len(hashes)-1)
                 newhashes.append(hash256(hashes[i] + hashes[i2]))
             hashes = newhashes
@@ -961,7 +969,7 @@ class CUnsignedAlert(object):
         self.strReserved = deser_string(f)
 
     def serialize(self):
-        r = ""
+        r = b""
         r += struct.pack("<i", self.nVersion)
         r += struct.pack("<q", self.nRelayUntil)
         r += struct.pack("<q", self.nExpiration)
@@ -986,15 +994,15 @@ class CUnsignedAlert(object):
 
 class CAlert(object):
     def __init__(self):
-        self.vchMsg = ""
-        self.vchSig = ""
+        self.vchMsg = b""
+        self.vchSig = b""
 
     def deserialize(self, f):
         self.vchMsg = deser_string(f)
         self.vchSig = deser_string(f)
 
     def serialize(self):
-        r = ""
+        r = b""
         r += ser_string(self.vchMsg)
         r += ser_string(self.vchSig)
         return r
@@ -1011,7 +1019,7 @@ class msg_version(object):
     def __init__(self, protocol_version=SPROUT_PROTO_VERSION):
         self.nVersion = protocol_version
         self.nServices = 1
-        self.nTime = time.time()
+        self.nTime = int(time.time())
         self.addrTo = CAddress()
         self.addrFrom = CAddress()
         self.nNonce = random.getrandbits(64)
@@ -1042,7 +1050,7 @@ class msg_version(object):
             self.nStartingHeight = None
 
     def serialize(self):
-        r = ""
+        r = b""
         r += struct.pack("<i", self.nVersion)
         r += struct.pack("<Q", self.nServices)
         r += struct.pack("<q", self.nTime)
@@ -1070,7 +1078,7 @@ class msg_verack(object):
         pass
 
     def serialize(self):
-        return ""
+        return b""
 
     def __repr__(self):
         return "msg_verack()"
@@ -1103,7 +1111,7 @@ class msg_alert(object):
         self.alert.deserialize(f)
 
     def serialize(self):
-        r = ""
+        r = b""
         r += self.alert.serialize()
         return r
 
@@ -1167,7 +1175,7 @@ class msg_getblocks(object):
 
     def __init__(self):
         self.locator = CBlockLocator()
-        self.hashstop = 0L
+        self.hashstop = 0
 
     def deserialize(self, f):
         self.locator = CBlockLocator()
@@ -1175,7 +1183,7 @@ class msg_getblocks(object):
         self.hashstop = deser_uint256(f)
 
     def serialize(self):
-        r = ""
+        r = b""
         r += self.locator.serialize()
         r += ser_uint256(self.hashstop)
         return r
@@ -1230,7 +1238,7 @@ class msg_getaddr(object):
         pass
 
     def serialize(self):
-        return ""
+        return b""
 
     def __repr__(self):
         return "msg_getaddr()"
@@ -1246,7 +1254,7 @@ class msg_ping_prebip31(object):
         pass
 
     def serialize(self):
-        return ""
+        return b""
 
     def __repr__(self):
         return "msg_ping() (pre-bip31)"
@@ -1255,14 +1263,14 @@ class msg_ping_prebip31(object):
 class msg_ping(object):
     command = "ping"
 
-    def __init__(self, nonce=0L):
+    def __init__(self, nonce=0):
         self.nonce = nonce
 
     def deserialize(self, f):
         self.nonce = struct.unpack("<Q", f.read(8))[0]
 
     def serialize(self):
-        r = ""
+        r = b""
         r += struct.pack("<Q", self.nonce)
         return r
 
@@ -1273,14 +1281,14 @@ class msg_ping(object):
 class msg_pong(object):
     command = "pong"
 
-    def __init__(self, nonce=0L):
+    def __init__(self, nonce=0):
         self.nonce = nonce
 
     def deserialize(self, f):
         self.nonce = struct.unpack("<Q", f.read(8))[0]
 
     def serialize(self):
-        r = ""
+        r = b""
         r += struct.pack("<Q", self.nonce)
         return r
 
@@ -1298,7 +1306,7 @@ class msg_mempool(object):
         pass
 
     def serialize(self):
-        return ""
+        return b""
 
     def __repr__(self):
         return "msg_mempool()"
@@ -1313,7 +1321,7 @@ class msg_getheaders(object):
 
     def __init__(self):
         self.locator = CBlockLocator()
-        self.hashstop = 0L
+        self.hashstop = 0
 
     def deserialize(self, f):
         self.locator = CBlockLocator()
@@ -1321,7 +1329,7 @@ class msg_getheaders(object):
         self.hashstop = deser_uint256(f)
 
     def serialize(self):
-        r = ""
+        r = b""
         r += self.locator.serialize()
         r += ser_uint256(self.hashstop)
         return r
@@ -1357,36 +1365,36 @@ class msg_reject(object):
     command = "reject"
 
     def __init__(self):
-        self.message = ""
-        self.code = ""
-        self.reason = ""
-        self.data = 0L
+        self.message = b""
+        self.code = 0
+        self.reason = b""
+        self.data = 0
 
     def deserialize(self, f):
         self.message = deser_string(f)
         self.code = struct.unpack("<B", f.read(1))[0]
         self.reason = deser_string(f)
-        if (self.message == "block" or self.message == "tx"):
+        if (self.message == b"block" or self.message == b"tx"):
             self.data = deser_uint256(f)
 
     def serialize(self):
         r = ser_string(self.message)
         r += struct.pack("<B", self.code)
         r += ser_string(self.reason)
-        if (self.message == "block" or self.message == "tx"):
+        if (self.message == b"block" or self.message == b"tx"):
             r += ser_uint256(self.data)
         return r
 
     def __repr__(self):
         return "msg_reject: %s %d %s [%064x]" \
-            % (self.message, self.code, self.reason, self.data)
+            % (self.message.decode('ascii', 'replace'), self.code, self.reason.decode('ascii', 'replace'), self.data)
 
 
 class msg_filteradd(object):
     command = "filteradd"
 
     def __init__(self):
-        self.data = ""
+        self.data = b""
 
     def deserialize(self, f):
         self.data = deser_string(f)
@@ -1408,7 +1416,7 @@ class msg_filterclear(object):
         pass
 
     def serialize(self):
-        return ""
+        return b""
 
     def __repr__(self):
         return "msg_filterclear()"
@@ -1448,8 +1456,8 @@ class NodeConnCB(object):
             try:
                 self.cbmap[message.command](conn, message)
             except:
-                print "ERROR delivering %r (%s)" % (message,
-                                                    sys.exc_info()[0])
+                print("ERROR delivering %r (%s)" % (message,
+                                                    sys.exc_info()[0]))
 
     def on_version(self, conn, message):
         if message.nVersion >= 209:
@@ -1512,9 +1520,9 @@ class NodeConn(asyncore.dispatcher):
         "mempool": msg_mempool
     }
     MAGIC_BYTES = {
-        "mainnet": "\x24\xe9\x27\x64",   # mainnet
-        "testnet3": "\xfa\x1a\xf9\xbf",  # testnet3
-        "regtest": "\xaa\xe8\x3f\x5f"    # regtest
+        "mainnet": b"\x24\xe9\x27\x64",   # mainnet
+        "testnet3": b"\xfa\x1a\xf9\xbf",  # testnet3
+        "regtest": b"\xaa\xe8\x3f\x5f"    # regtest
     }
 
     def __init__(self, dstaddr, dstport, rpc, callback, net="regtest", protocol_version=SAPLING_PROTO_VERSION):
@@ -1523,8 +1531,8 @@ class NodeConn(asyncore.dispatcher):
         self.dstaddr = dstaddr
         self.dstport = dstport
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sendbuf = ""
-        self.recvbuf = ""
+        self.sendbuf = b""
+        self.recvbuf = b""
         self.ver_send = 209
         self.ver_recv = 209
         self.last_sent = 0
@@ -1540,8 +1548,8 @@ class NodeConn(asyncore.dispatcher):
         vt.addrFrom.ip = "0.0.0.0"
         vt.addrFrom.port = 0
         self.send_message(vt, True)
-        print 'MiniNode: Connecting to Bitcoin Node IP # ' + dstaddr + ':' \
-            + str(dstport) + ' using version ' + str(protocol_version)
+        print('MiniNode: Connecting to Bitcoin Node IP # ' + dstaddr + ':' \
+            + str(dstport) + ' using version ' + str(protocol_version))
 
         try:
             self.connect((dstaddr, dstport))
@@ -1560,8 +1568,8 @@ class NodeConn(asyncore.dispatcher):
         self.show_debug_msg("MiniNode: Closing Connection to %s:%d... "
                             % (self.dstaddr, self.dstport))
         self.state = "closed"
-        self.recvbuf = ""
-        self.sendbuf = ""
+        self.recvbuf = b""
+        self.sendbuf = b""
         try:
             self.close()
         except:
@@ -1603,7 +1611,7 @@ class NodeConn(asyncore.dispatcher):
             if self.ver_recv < 209:
                 if len(self.recvbuf) < 4 + 12 + 4:
                     return
-                command = self.recvbuf[4:4+12].split("\x00", 1)[0]
+                command = self.recvbuf[4:4+12].split(b"\x00", 1)[0].decode('ascii')
                 msglen = struct.unpack("<i", self.recvbuf[4+12:4+12+4])[0]
                 checksum = None
                 if len(self.recvbuf) < 4 + 12 + 4 + msglen:
@@ -1613,7 +1621,7 @@ class NodeConn(asyncore.dispatcher):
             else:
                 if len(self.recvbuf) < 4 + 12 + 4 + 4:
                     return
-                command = self.recvbuf[4:4+12].split("\x00", 1)[0]
+                command = self.recvbuf[4:4+12].split(b"\x00", 1)[0].decode('ascii')
                 msglen = struct.unpack("<i", self.recvbuf[4+12:4+12+4])[0]
                 checksum = self.recvbuf[4+12+4:4+12+4+4]
                 if len(self.recvbuf) < 4 + 12 + 4 + 4 + msglen:
@@ -1625,7 +1633,7 @@ class NodeConn(asyncore.dispatcher):
                     raise ValueError("got bad checksum %r" % (self.recvbuf,))
                 self.recvbuf = self.recvbuf[4+12+4+4+msglen:]
             if command in self.messagemap:
-                f = cStringIO.StringIO(msg)
+                f = io.BytesIO(msg)
                 t = self.messagemap[command]()
                 t.deserialize(f)
                 self.got_message(t)
@@ -1639,8 +1647,8 @@ class NodeConn(asyncore.dispatcher):
         command = message.command
         data = message.serialize()
         tmsg = self.MAGIC_BYTES[self.network]
-        tmsg += command
-        tmsg += "\x00" * (12 - len(command))
+        tmsg += command.encode('ascii')
+        tmsg += b"\x00" * (12 - len(command))
         tmsg += struct.pack("<I", len(data))
         if self.ver_send >= 209:
             th = sha256(data)

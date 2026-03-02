@@ -8,7 +8,6 @@
 # rpc/blockchain.cpp.
 #
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 import decimal
 
@@ -29,7 +28,7 @@ class BlockchainTest(BitcoinTestFramework):
     """
 
     def setup_chain(self):
-        print("Initializing test directory " + self.options.tmpdir)
+        print(("Initializing test directory " + self.options.tmpdir))
         initialize_chain(self.options.tmpdir)
 
     def setup_network(self, split=False):

@@ -37,7 +37,7 @@ class MergeToAddressHelper:
         self.utxos_in_tx2 = utxos_in_tx2
 
     def setup_chain(self, test):
-        print("Initializing test directory "+test.options.tmpdir)
+        print(("Initializing test directory "+test.options.tmpdir))
         initialize_chain_clean(test.options.tmpdir, 4)
 
     def setup_network(self, test, additional_args=[]):
@@ -56,7 +56,7 @@ class MergeToAddressHelper:
         test.sync_all()
 
     def run_test(self, test):
-        print "Mining blocks..."
+        print("Mining blocks...")
 
         test.nodes[0].generate(1)
         do_not_shield_taddr = test.nodes[0].getnewaddress()

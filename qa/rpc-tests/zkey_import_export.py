@@ -3,7 +3,6 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from decimal import Decimal
 from test_framework.test_framework import BitcoinTestFramework
@@ -19,7 +18,7 @@ fee = Decimal('0.0001') # constant (but can be changed within reason)
 class ZkeyImportExportTest (BitcoinTestFramework):
 
     def setup_chain(self):
-        print("Initializing test directory "+self.options.tmpdir)
+        print(("Initializing test directory "+self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 5)
 
     def setup_network(self, split=False):
@@ -53,8 +52,8 @@ class ZkeyImportExportTest (BitcoinTestFramework):
                 return cmp(b["amount"], a["amount"])
 
             txs.sort(cmp_confirmations_high_to_low)
-            print("Sorted txs", txs)
-            print("amts", amts)
+            print(("Sorted txs", txs))
+            print(("amts", amts))
 
             try:
                 assert_equal(amts, [tx["amount"] for tx in txs])

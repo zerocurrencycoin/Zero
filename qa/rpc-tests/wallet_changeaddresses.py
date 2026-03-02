@@ -3,11 +3,12 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
+    coinbase_diagnostic,
     connect_nodes_bi,
+    ensure_coinbase_utxos,
     get_coinbase_address,
     initialize_chain_clean,
     start_node,
@@ -20,7 +21,7 @@ from decimal import Decimal
 class WalletChangeAddressesTest(BitcoinTestFramework):
 
     def setup_chain(self):
-        print("Initializing test directory " + self.options.tmpdir)
+        print(("Initializing test directory " + self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 2)
 
     def setup_network(self):
@@ -41,9 +42,8 @@ class WalletChangeAddressesTest(BitcoinTestFramework):
         self.nodes[0].generate(110)
 
         # Obtain some transparent funds
-        addrs = [utxo['address'] for utxo in self.nodes[0].listunspent() if utxo.get('generated')]
-        if not addrs:
-            print("Skipping wallet_changeaddresses: get_coinbase_address fails (no generated utxos) - Zero impl gap, postponed")
+        if not ensure_coinbase_utxos(self.nodes[0], self.nodes, 1000):
+            print("Skipping wallet_changeaddresses: " + coinbase_diagnostic(self.nodes[0]))
             return
         midAddr = self.nodes[0].z_getnewaddress('sapling')
         myopid = self.nodes[0].z_shieldcoinbase(get_coinbase_address(self.nodes[0]), midAddr, 0)['opid']
@@ -78,22 +78,22 @@ class WalletChangeAddressesTest(BitcoinTestFramework):
                 tx1OutAddrs = tx1['vout'][i]['scriptPubKey']['addresses']
                 tx2OutAddrs = tx2['vout'][i]['scriptPubKey']['addresses']
                 if tx1OutAddrs != [target]:
-                    print('Source address:     %s' % taddrSource)
-                    print('TX1 change address: %s' % tx1OutAddrs[0])
-                    print('TX2 change address: %s' % tx2OutAddrs[0])
+                    print(('Source address:     %s' % taddrSource))
+                    print(('TX1 change address: %s' % tx1OutAddrs[0]))
+                    print(('TX2 change address: %s' % tx2OutAddrs[0]))
                     assert(tx1OutAddrs != tx2OutAddrs)
 
         taddr = self.nodes[0].getnewaddress()
         saplingAddr = self.nodes[0].z_getnewaddress('sapling')
         sproutAddr = self.nodes[0].z_getnewaddress('sprout')
 
-        print
+        print()
         print('Checking z_sendmany(taddr->Sapling)')
         check_change_taddr_reuse(saplingAddr)
-        print
+        print()
         print('Checking z_sendmany(taddr->Sprout)')
         check_change_taddr_reuse(sproutAddr)
-        print
+        print()
         print('Checking z_sendmany(taddr->taddr)')
         check_change_taddr_reuse(taddr)
 

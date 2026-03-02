@@ -5,10 +5,12 @@
 #   --all: everything including hang/crash (no exclusions; GTest may hang on WriteCryptedSaplingZkeyDirectToDb).
 #
 # Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--fail|--all|--full-suite|--full]
+# Env: ZERO_MINE_COINBASE=1 to mine 1000 blocks for get_coinbase_address tests (slow).
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
 # --no-python: skip Python RPC tests (qa/rpc-tests)
 # --build-checks: run make check-security (requires python in PATH; see UpdateTests.md §4.10, §8.4)
 # --jobs=N: run Python RPC tests in parallel (default 1). E.g. --jobs=4.
+# ZERO_MINE_COINBASE=1: mine 1000 blocks when tests need get_coinbase_address (slow; not used in main run).
 # --fail: pass + fail (exclude only hang/crash)
 # --all: everything including hang/crash (no exclusions)
 # --full-suite, --full: run qa/zcash/full_test_suite.py (btest, gtest, sec-hard, no-dot-so, util-test, secp256k1, univalue, rpc). On failure: report error and exit 1. Differs from --all: adds sec-hard, no-dot-so; uses full test_bitcoin -p, zero-gtest with no filter.
@@ -36,10 +38,10 @@ echo "Zero test validation - $TIMESTAMP"
 echo "Logs: $LOG_DIR"
 echo ""
 
-find_python2() {
+find_python3() {
     if [ -n "$PYTHON" ]; then echo "$PYTHON"; return; fi
-    if [ -x "$HOME/.pyenv/versions/2.7.18/bin/python" ]; then echo "$HOME/.pyenv/versions/2.7.18/bin/python"; return; fi
-    if command -v python2 &>/dev/null; then echo "python2"; return; fi
+    if command -v python3 &>/dev/null; then echo "python3"; return; fi
+    if command -v python &>/dev/null && python -c 'import sys; sys.exit(0 if sys.version_info >= (3,6) else 1)' 2>/dev/null; then echo "python"; return; fi
     echo ""
 }
 
@@ -89,23 +91,23 @@ if [ "$BUILD_CHECKS" -eq 1 ]; then
     PY_DIR=""
     if [ -n "$PYTHON" ] && [ -x "$PYTHON" ]; then
         PY_DIR="$(dirname "$PYTHON")"
-    elif [ -x "$HOME/.pyenv/versions/2.7.18/bin/python" ]; then
-        PY_DIR="$HOME/.pyenv/versions/2.7.18/bin"
-    elif command -v python2 &>/dev/null; then
-        PY_DIR="$(dirname "$(command -v python2)")"
+    elif command -v python3 &>/dev/null; then
+        PY_DIR="$(dirname "$(command -v python3)")"
+    elif command -v python &>/dev/null; then
+        PY_DIR="$(dirname "$(command -v python)")"
     fi
     if [ -n "$PY_DIR" ]; then
         run_cmd "check-security" env PATH="$PY_DIR:$PATH" make -C src check-security || true
     else
-        echo "Skipping check-security: no python in PATH (set PYTHON or use pyenv 2.7.18)"
+        echo "Skipping check-security: no python in PATH (set PYTHON or use python3)"
     fi
     echo ""
 fi
 
 if [ "$FULL_SUITE" -eq 1 ]; then
-    PY2=$(find_python2)
-    if [ -z "$PY2" ]; then
-        echo "FAIL: Python 2.7 required for full_test_suite"
+    PY3=$(find_python3)
+    if [ -z "$PY3" ]; then
+        echo "FAIL: Python 3.6+ required for full_test_suite"
         exit 1
     fi
     FULL_SUITE_SKIP=()
@@ -113,7 +115,7 @@ if [ "$FULL_SUITE" -eq 1 ]; then
         FULL_SUITE_SKIP=(--skip sec-hard --skip no-dot-so)
     fi
     echo "--- full_test_suite ---"
-    if ! run_cmd "full_test_suite" "$PY2" "$REPO_ROOT/qa/zcash/full_test_suite.py" "${FULL_SUITE_SKIP[@]}"; then
+    if ! run_cmd "full_test_suite" "$PY3" "$REPO_ROOT/qa/zcash/full_test_suite.py" "${FULL_SUITE_SKIP[@]}"; then
         echo "FAIL: full_test_suite exited with error"
         exit 1
     fi
@@ -168,19 +170,19 @@ fi
 
 if [ "$NO_PYTHON" -eq 0 ]; then
     echo ""
-    PY2=$(find_python2)
-    if [ -n "$PY2" ]; then
-        export PYTHON="$PY2"
+    PY3=$(find_python3)
+    if [ -n "$PY3" ]; then
+        export PYTHON="$PY3"
         if [ "$MODE" = "fail" ] || [ "$MODE" = "all" ]; then
             echo "--- Python RPC (all) ---"
             run_cmd "rpc-all" \
-                env PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -extended || true
+                env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -extended || true
         elif [ "$PYTHON_JOBS" -gt 1 ]; then
             echo "--- Python RPC (pass-only: ${#PYTHON_PASSING[@]} tests, jobs=$PYTHON_JOBS) ---"
             PIDS=()
             for t in "${PYTHON_PASSING[@]}"; do
                 pid=$(run_bg "rpc-$t" \
-                    env PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true)
+                    env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true)
                 PIDS+=("$pid")
                 while [ "$(jobs -r 2>/dev/null | wc -l)" -ge "$PYTHON_JOBS" ]; do sleep 1; done
             done
@@ -189,11 +191,11 @@ if [ "$NO_PYTHON" -eq 0 ]; then
             echo "--- Python RPC (pass-only: ${#PYTHON_PASSING[@]} verified) ---"
             for t in "${PYTHON_PASSING[@]}"; do
                 run_cmd "rpc-$t" \
-                    env PYTHON="$PY2" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true
+                    env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true
             done
         fi
     else
-        echo "Skipping Python RPC tests: Python 2.7 not found"
+        echo "Skipping Python RPC tests: Python 3.6+ not found"
     fi
 fi
 

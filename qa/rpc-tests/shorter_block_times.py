@@ -3,12 +3,13 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from decimal import Decimal
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
+    coinbase_diagnostic,
+    ensure_coinbase_utxos,
     get_coinbase_address,
     initialize_chain_clean,
     start_nodes,
@@ -25,20 +26,19 @@ class ShorterBlockTimes(BitcoinTestFramework):
         ]] * 4)
 
     def setup_chain(self):
-        print("Initializing test directory " + self.options.tmpdir)
+        print(("Initializing test directory " + self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 4)
 
     def run_test(self):
-        print "Mining blocks..."
+        print("Mining blocks...")
         self.nodes[0].generate(101)
         self.sync_all()
 
         # Sanity-check the block height
         assert_equal(self.nodes[0].getblockcount(), 101)
 
-        addrs = [utxo['address'] for utxo in self.nodes[0].listunspent() if utxo.get('generated')]
-        if not addrs:
-            print("Skipping shorter_block_times: get_coinbase_address fails (no generated utxos) - Zero impl gap, postponed")
+        if not ensure_coinbase_utxos(self.nodes[0], self.nodes, 1000):
+            print("Skipping shorter_block_times: " + coinbase_diagnostic(self.nodes[0]))
             return
         node0_taddr = get_coinbase_address(self.nodes[0])
         node0_zaddr = self.nodes[0].z_getnewaddress('sapling')
@@ -53,7 +53,7 @@ class ShorterBlockTimes(BitcoinTestFramework):
 
         self.nodes[0].generate(2)
         self.sync_all()
-        print "Mining last pre-Blossom blocks"
+        print("Mining last pre-Blossom blocks")
         # Activate blossom
         self.nodes[1].generate(1)
         self.sync_all()
@@ -61,7 +61,7 @@ class ShorterBlockTimes(BitcoinTestFramework):
         assert_equal(10, Decimal(self.nodes[1].getwalletinfo()['immature_balance']))
 
         # After blossom activation the block reward will be halved
-        print "Mining first Blossom block"
+        print("Mining first Blossom block")
         self.nodes[1].generate(1)
         self.sync_all()
         # Check that we received an additional Blossom mining reward

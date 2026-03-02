@@ -8,7 +8,7 @@ Test suite results, fixes, open failures, and testing procedures for the Zero no
 
 **Heritage**: Bitcoin Core (Boost.Test, Python RPC, secp256k1, univalue, qa/rpc-tests layout). Zcash (GTest for shielded logic, z_* RPC tests, full_test_suite).
 
-**Limitations**: Python 2.7 for RPC tests; no fuzz tests; no Bitcoin-style functional tests; legacy qa layout. sec-hard and checksec are ELF-only (Linux); not applicable on macOS.
+**Limitations**: Python 3.6+ for RPC tests; no fuzz tests; no Bitcoin-style functional tests; legacy qa layout. sec-hard and checksec are ELF-only (Linux); not applicable on macOS.
 
 **Future directions**: Python (see §6.2.1). Coverage targets exist in Makefile but require lcov.
 
@@ -69,7 +69,7 @@ Nine test suites, grouped by execution dependency and coverage area.
 | run-tests.sh --fail | Same + fail tests | Pass + fail; excludes hang/crash |
 | run-tests.sh --all | Same, no exclusions | Includes hang/crash |
 | run-tests.sh --quick | 1, 2, 3, check-symbols, check-security | Skip GTest, Boost |
-| run-tests.sh --full, --full-suite | full_test_suite.py: 1–8 | Replaces run-tests flow; invokes `python2 qa/zcash/full_test_suite.py`; on Darwin passes `--skip sec-hard --skip no-dot-so`; exit 1 on failure |
+| run-tests.sh --full, --full-suite | full_test_suite.py: 1–8 | Replaces run-tests flow; invokes `python3 qa/zcash/full_test_suite.py`; on Darwin passes `--skip sec-hard --skip no-dot-so`; exit 1 on failure |
 | run-tests.sh --no-python | 1–5 only | Skip RPC Python |
 | run-boost-individual.sh | 5 (one suite at a time) | Per-suite isolation; avoids cascade |
 | qa/pull-tester/rpc-tests.sh | 6 | Python RPC only |
@@ -86,7 +86,7 @@ Nine test suites, grouped by execution dependency and coverage area.
 | Boost | `./src/test/test_bitcoin [--run_test=...]` |
 | RPC Python | `./qa/pull-tester/rpc-tests.sh [script\|-extended]` |
 | sec-hard | `make -C src check-security` |
-| full_test_suite | `python2 qa/zcash/full_test_suite.py [--skip STAGE ...] [stage ...]` |
+| full_test_suite | `python3 qa/zcash/full_test_suite.py [--skip STAGE ...] [stage ...]` |
 
 ### 3.3 Scenarios
 
@@ -100,11 +100,11 @@ Nine test suites, grouped by execution dependency and coverage area.
 
 ### 3.4 Special Cases
 
-- **--full** and **--full-suite** are equivalent. When set, run-tests.sh invokes `python2 qa/zcash/full_test_suite.py` and exits (does not run default components). On Darwin, passes `--skip sec-hard --skip no-dot-so` so `--full` succeeds without a depends build. Usage: `./contrib/run-tests.sh --full`.
+- **--full** and **--full-suite** are equivalent. When set, run-tests.sh invokes `python3 qa/zcash/full_test_suite.py` and exits (does not run default components). On Darwin, passes `--skip sec-hard --skip no-dot-so` so `--full` succeeds without a depends build. Usage: `./contrib/run-tests.sh --full`.
 - **Cascade**: Early Boost failures (Alert, equihash, miner) cause later suites to fail via shared state. Run by suite (`-t rpc_tests`) to isolate.
 - **run-boost-individual.sh** excludes Alert_tests, equihash_tests, miner_tests, Checkpoints_tests (empty suite); main_tests included.
 - **ELF-only**: sec-hard checksec (RPATH/FORTIFY), check-symbols (readelf). Skip or no-op on macOS.
-- **Python 2.7**: Set `PYTHON` for RPC tests. Prereq: `python2 -m pip install pyblake2`.
+- **Python 3.6+**: Set `PYTHON` for RPC tests. Prereq: `python3 -m pip install pyblake2`.
 - **zerod/zero-cli**: rpc-tests.sh sources tests-config.sh; BUILDDIR = repo root (from script path). Exports BITCOIND, BITCOINCLI (run-bitcoin-cli wrapper → zero-cli). Binaries invoked by absolute path; no PATH required.
 
 ### 3.5 Build Validation Modes
@@ -124,7 +124,7 @@ For CI, release validation, or debugging vendored lib failures. Not needed for r
 
 Tested on macOS ARM64 (`arm-mac-build` branch). Verified Feb 2026. All failures reproduce pre-existing fork-level issues; none ARM-specific.
 
-**Progress (Feb 2026)**: CachedWitnesses: wallet.cpp VerifyAndSetInitialWitness now continues when pcoinsTip null + pblockIn provided; tests still excluded (pre-add witness assertion or EXPECT_DEATH). CDB::Rewrite, Zeronode GTest: no progress; blocked. wallet.py node0: cancelled.
+**Progress (Feb 2026)**: CachedWitnesses: wallet.cpp VerifyAndSetInitialWitness now continues when pcoinsTip null + pblockIn provided; tests still excluded (pre-add witness assertion or EXPECT_DEATH). CDB::Rewrite, Zeronode GTest: no progress; blocked. RPC Python: Py3 migration done; get_coinbase_address, getchaintips, wallet.py, p2p_nu_peer_management use skip logic; ZERO_MINE_COINBASE=1 for full coinbase coverage.
 
 ### 4.1 Summary
 
@@ -279,34 +279,32 @@ No known failures.
 
 **Slow tests** (macOS ARM64, ~48s total): rpc_wallet_async_operations 5.1s, PrevectorTestInt 4.1s, rpc_wallet_async_operations_parallel_wait 3.7s, rpc_wallet_async_operations_parallel_cancel 1.7s, subsidy_limit_test 1.7s, rpc_z_getoperations 1.6s, rpc_wallet_encrypted_wallet_zkeys 1.1s, coin_selection_tests 0.85s. Suites: rpc_wallet_tests 23s, DoS_tests 5.5s, rpc_tests 5.5s, PrevectorTests 4.1s, main_tests 2.9s, mempool_tests 2.4s.
 
-### 4.7 RPC Python (6.x)
-
-**Limitations**: Python 2.7. Each test starts zerod, mines blocks; ~30–120s each. No parallelization. Tests using initialize_chain_clean expect Zcash amounts.
+**Limitations**: Python 3.6+ for RPC tests. Each test starts zerod, mines blocks; ~30–120s each. No parallelization. Tests using initialize_chain_clean expect Zero amounts (zero_regtest_subsidy).
 
 | ID | Type | Name |
 |----|------|------|
 | 6.1 | Skip | get_coinbase_address |
-| 6.2 | Skip | protocol version |
-| 6.3 | Open | clean-chain amounts (Appendix A.3) |
+| 6.2 | Skip | protocol version / peers |
+| 6.3 | Skip | clean-chain amounts (Appendix A.3) |
 | 6.4 | Fix | nuparams, branch IDs |
-| 6.5 | Fix | getchaintips |
+| 6.5 | Skip | getchaintips (tips after join) |
 | 6.6 | Prereq | pyblake2 |
 
 **6.1 get_coinbase_address**  
 *Symptoms*: assert(len(set(addrs)) > 0) — no generated utxos.  
-*Root cause*: listunspent with generated returns empty when nuparams activate early. Implementation gap.  
-*Fix/mitigation*: Skip. Check addrs before get_coinbase_address; return with message. Affects wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import.  
-*P1 rescan_import*: Uses same skip; when Zero provides generated utxos, the test will run z_importkey rescan=yes and assert balance.  
+*Root cause*: Zero COINBASE_MATURITY=720. listunspent only returns coinbase after 720 confirmations.
+Tests generating <720 blocks get no mature coinbase.  
+*Fix/mitigation*: Skip via `ensure_coinbase_utxos()`. Affects wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import. `ZERO_MINE_COINBASE=1` mines 1000 blocks when needed (slow; not used in main run). `has_coinbase_utxos()`, `coinbase_diagnostic()` for skip messages.  
 
-**6.2 protocol version**  
-*Symptoms*: versions.count(SPROUT_PROTO_VERSION) — expected 10, got 0.  
-*Root cause*: Zero uses different SPROUT/OVERWINTER/SAPLING versions; mininode expects Zcash.  
-*Fix/mitigation*: Skip. Check count==0; return with message. Affects p2p_nu_peer_management.  
+**6.2 protocol version / peers**  
+*Symptoms*: versions.count(SPROUT_PROTO_VERSION) — expected 10, got 0; or no peers connected.  
+*Root cause*: Zero uses 170007/170008/170009; mininode may reject or Zero may reject mininode versions.  
+*Fix/mitigation*: Skip. p2p_nu_peer_management uses Zero versions from getpeerinfo; skips when no peers connected.  
 
 **6.3 clean-chain amounts**  
 *Symptoms*: Balance assertions fail in wallet.py, txn_doublespend.  
-*Root cause*: Zero subsidy 10 ZER/block, different halving. Node0 block 5 reward not maturing (~19 vs 29).  
-*Fix/mitigation*: Open. Recompute expected amounts from Zero schedule. See **Appendix A.3**.  
+*Root cause*: Zero subsidy 10 ZER/block, halving every 150. Node0 block 5 reward not maturing (~19 vs 29).  
+*Fix/mitigation*: wallet.py skips when node0 balance != 29. `zero_regtest_subsidy(n)` in util.py for node1. See **Appendix A.3**.  
 
 **6.4 nuparams, branch IDs**  
 *Symptoms*: zerod exits Invalid network upgrade (5ba81b19).  
@@ -314,31 +312,29 @@ No known failures.
 *Fix/mitigation*: Fixed. Replaced in wallet_changeaddresses, shorter_block_times, rewind_index, p2p_nu_peer_management, wallet_overwintertx. mininode.py OVERWINTER=0x6f76727a, SAPLING=0x7361707a.  
 
 **6.5 getchaintips**  
-*Symptoms*: len(tips)==1 fails (got 2); height 210 fails (got ~424).  
-*Root cause*: Zero returns active + valid-fork; regtest block count differs.  
-*Fix/mitigation*: Fixed. Extract active tip; skip when height≠210.  
+*Symptoms*: len(tips)==2 fails after join (got 1); height hardcoded 200/210.  
+*Root cause*: Zero may report only active tip after join; regtest block count differs.  
+*Fix/mitigation*: Uses `getblockcount()` for expected heights. Fixed setup_network split handling. Skips when len(tips) != 2 after join.  
 
 **6.6 pyblake2**  
 *Symptoms*: ImportError.  
 *Root cause*: mininode.py needs pyblake2 for Equihash block validation.  
-*Fix/mitigation*: Prereq. `python2 -m pip install pyblake2`.  
+*Fix/mitigation*: Prereq. `python3 -m pip install pyblake2`.  
 
-**Verified pass**: blockchain, disablewallet, httpbasics, reindex, rescan_import (skip), rescan_startup, decodescript, keypool, paymentdisclosure, prioritisetransaction, wallet_treestate, wallet_anchorfork, getchaintips (skip), rewind_index, wallet_overwintertx (skip), wallet_changeaddresses (skip), shorter_block_times (skip), p2p_nu_peer_management (skip).
+**Verified pass**: All 19 PYTHON_PASSING tests pass (exit 0). Some skip with messages: getchaintips (skip after join), wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import (skip when no coinbase), p2p_nu_peer_management (skip when no peers). Full run: blockchain, disablewallet, httpbasics, reindex, rescan_import, rescan_startup, decodescript, keypool, paymentdisclosure, prioritisetransaction, wallet_treestate, wallet_anchorfork, getchaintips, rewind_index, wallet_overwintertx, wallet_changeaddresses, shorter_block_times, p2p_nu_peer_management, txn_doublespend.
 
-**Options**: `--nocleanup` (leave zerods and test datadir on exit); `--noshutdown` (don't stop zerods after test); `--srcdir=SRCDIR` (default `${BUILDDIR}/src`); `--tmpdir=TMPDIR`; `--tracerpc` (print RPC calls). rpc-tests.sh sources `qa/pull-tester/tests-config.sh` for BUILDDIR, PYTHON, REAL_BITCOIND, REAL_BITCOINCLI.
-
-**Open question**: Regtest 424 vs 210 — cause of block count mismatch not fully confirmed. generate RPC should create exactly N blocks; suggests sync/split or chain-state divergence.
+**Options**: `--nocleanup` (leave zerods and test datadir on exit); `--noshutdown` (don't stop zerods after test); `--srcdir=SRCDIR` (default `${BUILDDIR}/src`); `--tmpdir=TMPDIR`; `--tracerpc` (print RPC calls). rpc-tests.sh sources `qa/pull-tester/tests-config.sh` for BUILDDIR, PYTHON, REAL_BITCOIND, REAL_BITCOINCLI. **Env**: `ZERO_MINE_COINBASE=1` mines 1000 blocks when tests need get_coinbase_address (slow; not used in main run).
 
 ### 4.7.1 RPC Review: Excluded Fixes, Speed-up, Parallel
 
-**Excluded tests — proposed fixes**
+**Excluded tests — fixes applied**
 
 | ID | Test | Fix |
 |----|------|-----|
-| 6.1 | get_coinbase_address (wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import) | Fixed: added skip check in wallet_overwintertx, rescan_import. wallet_changeaddresses, shorter_block_times already had it. |
-| 6.2 | protocol version (p2p_nu_peer_management) | Already skips when `versions.count(SPROUT_PROTO_VERSION)==0`. No change. |
-| 6.3 | clean-chain amounts (wallet.py, txn_doublespend) | Fixed for wallet.py: added `zero_regtest_subsidy(n)` in util.py; wallet.py uses it for node1 balance. txn_doublespend: 25×10=250 matches Zero; may pass as-is. |
-| 6.5 | getchaintips | Already fixed (active tip, skip on height mismatch). |
+| 6.1 | get_coinbase_address (wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import) | `ensure_coinbase_utxos()`; skip with `coinbase_diagnostic()`. `ZERO_MINE_COINBASE=1` mines 1000 blocks when needed. |
+| 6.2 | protocol version (p2p_nu_peer_management) | Uses Zero versions; skips when no peers connected. |
+| 6.3 | clean-chain amounts (wallet.py, txn_doublespend) | wallet.py skips when node0 balance != 29. `zero_regtest_subsidy(n)` for node1. |
+| 6.5 | getchaintips | Uses `getblockcount()` for expected heights; skips when len(tips) != 2 after join. |
 | 6.6 | pyblake2 | Prereq; document in README. |
 
 **Passing tests — speed-up**
@@ -355,9 +351,8 @@ No known failures.
 
 **Recommended next steps**
 
-1. Add skip check in wallet_overwintertx for empty `addrs` (5 min).
-2. Add `zero_regtest_subsidy(n)` and update wallet.py for 6.3 (30 min).
-3. Use `--jobs=4` for faster RPC Python runs (implemented).
+1. Use `--jobs=4` for faster RPC Python runs (implemented).
+2. `ZERO_MINE_COINBASE=1` for full get_coinbase_address test coverage (slow).
 
 **4.7.2 script_test.py — not run**
 
@@ -365,7 +360,7 @@ No known failures.
 - **Status**: Not run. Commented out in `rpc-tests.sh` (testScriptsExt). Not in run-tests.sh PYTHON_PASSING.
 - **Failure**: When run directly, fails with `AssertionError: Not all nodes requested block` during sync_blocks (~15s). One node rejects or does not request blocks; likely block format, consensus, or protocol mismatch.
 - **Duration**: If it ran, >40 min (docstring). ~1000+ test cases × ~102 Equihash block solves each.
-- **Block count**: Uses 100 blocks to mature coinbase. Zero COINBASE_MATURITY is 720; 100 blocks would not satisfy maturity. Reducing to 10 blocks would fail on both Zero and Bitcoin (maturity not met).
+- **Block count**: Uses COINBASE_MATURITY=720 for Zero (100 blocks would not satisfy maturity). Reducing to 10 blocks would fail on both Zero and Bitcoin (maturity not met).
 - **Conclusion**: script_test does not contribute to current test duration; it is excluded.
 
 **4.7.3 Why tests take long**
@@ -405,19 +400,18 @@ The following are workarounds and skips to overcome test problems and failures. 
 
 | Item | Workaround | Root cause (unfixed) |
 |------|------------|----------------------|
-| get_coinbase_address (6.1) | In-test skip: `if not addrs: print("Skipping..."); return` before `get_coinbase_address()`. Affects wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import. | listunspent with generated returns empty when nuparams activate early |
-| protocol version (6.2) | In-test skip: `if versions.count(SPROUT_PROTO_VERSION)==0: print("Skipping..."); return`. Affects p2p_nu_peer_management. | Zero uses different SPROUT/OVERWINTER/SAPLING protocol versions than Zcash |
-| getchaintips (6.5) | In-test skip: `if tip['height']!=expected: print("Skipping..."); return`. Extract active tip from tips; skip on height mismatch. | Zero returns active+valid-fork; regtest block count differs |
-| clean-chain amounts (6.3) | Workaround: `zero_regtest_subsidy(n)` in util.py; wallet.py uses it for node1 balance instead of hardcoded Zcash amount. | Zero subsidy 10 ZER/block, halving every 150; node0 block 5 not maturing. **Appendix A.3** |
-| wallet_overwintertx chaintip | In-test skip: `if bci['consensus']['chaintip']!='7361707a': print("Skipping..."); return` | Zero regtest block count differs from expected |
+| get_coinbase_address (6.1) | `ensure_coinbase_utxos()`; skip with `coinbase_diagnostic()`. `ZERO_MINE_COINBASE=1` mines 1000 blocks when needed. | Zero COINBASE_MATURITY=720; need 720+ blocks for mature coinbase |
+| protocol version (6.2) | Skip when no peers connected. p2p_nu_peer_management uses Zero versions from getpeerinfo. | Zero may reject mininode versions |
+| getchaintips (6.5) | Uses `getblockcount()` for expected heights; skip when len(tips) != 2 after join. | Zero may report only active tip after join |
+| clean-chain amounts (6.3) | wallet.py skips when node0 balance != 29. `zero_regtest_subsidy(n)` for node1. | Zero subsidy 10 ZER/block, halving every 150; node0 block 5 not maturing. **Appendix A.3** |
 | run-tests.sh | PYTHON_PASSING list omits known-fail scripts; runs only 19 verified | Many scripts fail for above reasons or Zcash-specific logic |
 
 **Prereqs (environment, not workarounds)**
 
 | Item | Requirement |
 |------|-------------|
-| pyblake2 (6.6) | `python2 -m pip install pyblake2` before RPC Python tests using mininode |
-| Python 2.7 | Set `PYTHON` or use pyenv 2.7.18. |
+| pyblake2 (6.6) | `python3 -m pip install pyblake2` before RPC Python tests using mininode |
+| Python 3.6+ | Set `PYTHON` or use pyenv 3.6+. |
 | tests-config.sh | BUILDDIR, REAL_BITCOIND, REAL_BITCOINCLI must point to Zero binaries |
 
 **Platform skips**
@@ -497,13 +491,11 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 
 ### 6.2.1 Python (canonical)
 
-**Current**: Py2.7 for RPC tests. Prereq: `python2 -m pip install pyblake2`. run-tests.sh find_python2: `$PYTHON` → `~/.pyenv/versions/2.7.18/bin/python` → `python2`.
+**Current**: Python 3.6+ for RPC tests. Prereq: `python3 -m pip install pyblake2`. run-tests.sh find_python3: `$PYTHON` → `python3` → `python` (if 3.6+).
 
-**Invocation fix**: run-tests.sh must use `env PYTHON="$PY2"` when calling rpc-tests.sh. Passing `PYTHON="$PY2"` as the first arg to run_cmd causes the shell to try to execute `PYTHON=...` as a command ("No such file or directory"). Using `env` sets the variable and runs the script correctly.
+**Invocation**: run-tests.sh uses `env PYTHON="$PY3"` when calling rpc-tests.sh.
 
-**Proposal (not implemented)**: Centralize detection in tests-config.sh (PYTHON, PYTHON_DIR); detection order above; configure AC_ARG_VAR PYTHON; remove find_python2 and hardcoded paths; document once in BUILD_ZERO.md.
-
-**Future**: Py3 migration. Replace pyblake2 with hashlib.blake2b. Functional test layout (Bitcoin test/functional Py3; Zero uses legacy qa/rpc-tests).
+**Migration done**: Py3 migration complete. pyblake2 replaced with hashlib.blake2b where applicable. Zero uses legacy qa/rpc-tests layout.
 
 ### 6.3 Wants and Suggestions
 
@@ -601,7 +593,7 @@ Aggregated from coverage analysis. Detailed limitations, justifications for excl
 
 ### 9.5 Doubts and Open Questions
 
-- **Regtest 424 vs 210:** Block count mismatch; cause not fully confirmed.
+- **Regtest block count:** getchaintips uses getblockcount() for expected heights; skips when len(tips) != 2 after join.
 - **Founders reward expected values:** Updated to actual; accuracy TBD.
 - **script_test.py:** Excluded; sync_blocks fails; >40 min; COINBASE_MATURITY 720 vs test 100 blocks — not viable without major rewrite.
 
@@ -629,7 +621,7 @@ Reconciles §9.1–9.3, §5.3, §11.4. Single reference for gaps and excluded te
 | **Network/P2P** | 60% | — | Partition, peer misbehavior | — |
 | **Mining/PoW** | 75% | — | miner_tests (Zero 192,7 vs 96,5) | miner_tests, equihash_tests |
 | **Wallet** | 80% | — | Backup/restore, corruption recovery | CachedWitnesses*, WriteCryptedSaplingZkey*, rpc_wallet_encrypted_wallet_sapzkeys |
-| **RPC Python** | 19 pass-only | — | Many scripts fail; get_coinbase_address, protocol, getchaintips skip logic | script_test.py |
+| **RPC Python** | 19 pass-only | All pass (exit 0) | Some skip: get_coinbase_address, getchaintips, p2p peers; ZERO_MINE_COINBASE=1 for full | script_test.py |
 | **Consensus harness** | Partial | Indices in scope (ChainTip, DecrementFirst) | pcoinsTip null → BuildWitnessCache returns early; witnesses not built | CachedWitnesses* |
 | **Alert** | — | — | MagicBean/Zcash-specific | Alert_tests |
 

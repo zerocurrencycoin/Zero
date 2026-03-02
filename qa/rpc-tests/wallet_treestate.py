@@ -3,7 +3,6 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
-import sys; assert sys.version_info < (3,), ur"This script does not run under Python 3. Please use Python 2.7.x."
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, initialize_chain_clean, \
@@ -16,7 +15,7 @@ from decimal import Decimal
 class WalletTreeStateTest (BitcoinTestFramework):
 
     def setup_chain(self):
-        print("Initializing test directory "+self.options.tmpdir)
+        print(("Initializing test directory "+self.options.tmpdir))
         initialize_chain_clean(self.options.tmpdir, 4)
 
     # Start nodes with -regtestprotectcoinbase to set fCoinbaseMustBeProtected to true.
@@ -29,7 +28,7 @@ class WalletTreeStateTest (BitcoinTestFramework):
         self.sync_all()
 
     def run_test (self):
-        print "Mining blocks..."
+        print("Mining blocks...")
 
         self.nodes[0].generate(100)
         walletinfo = self.nodes[0].getwalletinfo()
@@ -85,7 +84,7 @@ class WalletTreeStateTest (BitcoinTestFramework):
         myopid = self.nodes[0].z_sendmany(myzaddr, recipients)
 
         # Wait for Tx 2 to begin executing...
-        for x in xrange(1, 60):
+        for x in range(1, 60):
             results = self.nodes[0].z_getoperationstatus([myopid])
             status = results[0]["status"]
             if status == "executing":
