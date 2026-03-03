@@ -1,6 +1,7 @@
+# Version and URL must match zerowallet res/libsodium/libsodium-common.sh
 package=libsodium
 $(package)_version=1.0.21
-$(package)_download_path=https://download.libsodium.org/libsodium/releases/
+$(package)_download_path=https://github.com/jedisct1/libsodium/releases/download/$($(package)_version)-RELEASE/
 $(package)_file_name=$(package)-$($(package)_version).tar.gz
 $(package)_sha256_hash=9e4285c7a419e82dedb0be63a72eea357d6943bc3e28e6735bf600dd4883feaf
 $(package)_dependencies=

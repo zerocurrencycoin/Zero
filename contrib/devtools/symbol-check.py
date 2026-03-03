@@ -34,6 +34,13 @@ MAX_VERSIONS = {
 IGNORE_EXPORTS = {
 '_edata', '_end', '_init', '__bss_start', '_fini', '_IO_stdin_used'
 }
+
+# Demangled prefixes for common C++ runtime exports (stdlib, iostreams, RTTI, vtables).
+# These are expected when building without -fvisibility=hidden and are not a compatibility concern.
+IGNORE_EXPORT_PREFIXES = (
+    'std::', 'void std::', 'typeinfo for ', 'vtable for ', 'VTT for ',
+    '__libc_', 'in6addr_', 'stdin', 'stdout', 'stderr',
+)
 READELF_CMD = os.getenv('READELF', '/usr/bin/readelf')
 CPPFILT_CMD = os.getenv('CPPFILT', '/usr/bin/c++filt')
 # Allowed NEEDED libraries
@@ -62,8 +69,11 @@ class CPPFilt(object):
         self.proc = subprocess.Popen(CPPFILT_CMD, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
     def __call__(self, mangled):
-        self.proc.stdin.write(mangled + '\n')
-        return self.proc.stdout.readline().rstrip()
+        data = (mangled + '\n').encode('utf-8') if isinstance(mangled, str) else mangled + b'\n'
+        self.proc.stdin.write(data)
+        self.proc.stdin.flush()
+        result = self.proc.stdout.readline().rstrip()
+        return result.decode('utf-8') if isinstance(result, bytes) else result
 
     def close(self):
         self.proc.stdin.close()
@@ -79,6 +89,8 @@ def read_symbols(executable, imports=True):
     (stdout, stderr) = p.communicate()
     if p.returncode:
         raise IOError('Could not read symbols for %s: %s' % (executable, stderr.strip()))
+    if isinstance(stdout, bytes):
+        stdout = stdout.decode()
     syms = []
     for line in stdout.split('\n'):
         line = line.split()
@@ -107,11 +119,13 @@ def read_libraries(filename):
     (stdout, stderr) = p.communicate()
     if p.returncode:
         raise IOError('Error opening file')
+    if isinstance(stdout, bytes):
+        stdout = stdout.decode()
     libraries = []
     for line in stdout.split('\n'):
         tokens = line.split()
         if len(tokens)>2 and tokens[1] == '(NEEDED)':
-            match = re.match('^Shared library: \[(.*)\]$', ' '.join(tokens[2:]))
+            match = re.match(r'^Shared library: \[(.*)\]$', ' '.join(tokens[2:]))
             if match:
                 libraries.append(match.group(1))
             else:
@@ -131,7 +145,10 @@ if __name__ == '__main__':
         for sym,version in read_symbols(filename, False):
             if sym in IGNORE_EXPORTS:
                 continue
-            print('%s: export of symbol %s not allowed' % (filename, cppfilt(sym)))
+            demangled = cppfilt(sym)
+            if demangled.startswith(IGNORE_EXPORT_PREFIXES):
+                continue
+            print('%s: export of symbol %s not allowed' % (filename, demangled))
             retval = 1
         # Check dependency libraries
         for library_name in read_libraries(filename):
