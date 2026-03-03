@@ -109,7 +109,7 @@ Nine test suites, grouped by execution dependency and coverage area.
 
 ### 3.5 Build Validation Modes
 
-For CI, release validation, or debugging vendored lib failures. Not needed for routine test runs.
+For release validation or debugging vendored lib failures. Not needed for routine test runs.
 
 | Test / Mode | Validates | Invocation |
 |-------------|-----------|------------|
@@ -410,7 +410,7 @@ The following are workarounds and skips to overcome test problems and failures. 
 
 | Item | Requirement |
 |------|-------------|
-| pyblake2 (6.6) | `python3 -m pip install pyblake2` before RPC Python tests using mininode |
+| pyblake2 (6.6) | Optional with Python 3.6+ (hashlib.blake2b); `python3 -m pip install pyblake2` if mininode needs it |
 | Python 3.6+ | Set `PYTHON` or use pyenv 3.6+. |
 | tests-config.sh | BUILDDIR, REAL_BITCOIND, REAL_BITCOINCLI must point to Zero binaries |
 
@@ -491,11 +491,36 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 
 ### 6.2.1 Python (canonical)
 
-**Current**: Python 3.6+ for RPC tests. Prereq: `python3 -m pip install pyblake2`. run-tests.sh find_python3: `$PYTHON` → `python3` → `python` (if 3.6+).
+**Python 3.6 dependency:** `hashlib.blake2b` was added in Python 3.6 (PEP 3155). mininode.py uses blake2b for Equihash block validation (person strings in `zcash_person(n,k)`). It tries `from pyblake2 import blake2b` first, falls back to `hashlib.blake2b` on ImportError. With Python 3.6+, no external pyblake2 is required; hashlib provides it. The 3.6 minimum is for that stdlib availability.
 
-**Invocation**: run-tests.sh uses `env PYTHON="$PY3"` when calling rpc-tests.sh.
+**Platforms supported:** macOS ARM64, Ubuntu 24.04. Other Linux not supported.
 
-**Migration done**: Py3 migration complete. pyblake2 replaced with hashlib.blake2b where applicable. Zero uses legacy qa/rpc-tests layout.
+**System and OS versioning (verified):**
+
+| Platform | OS version | Python shipped | Current (tested) |
+|----------|------------|----------------|-----------------|
+| macOS ARM64 | Tahoe 26, Sequoia 15 | 3.9.6 | 3.9.6 at `/usr/bin/python3` (Xcode CLT); Tahoe 26.3, Sequoia 15.x both ship 3.9.6 |
+| Ubuntu 24.04 | Noble Numbat (Apr 2024) | 3.12 | 3.12.3 on 24.04.3 LTS |
+
+macOS: `/usr/bin/python3` comes from Xcode Command Line Tools; Apple does not bump it per macOS release. Ubuntu: `python3` from distro; 24.04 LTS ships 3.12.
+
+**Install locations and PATH struggles:** Multiple Pythons often coexist: `/usr/bin/python3` (system), `/usr/local/bin/python3` (Homebrew), `~/.pyenv/shims/python3` (pyenv). `which python3` depends on PATH order. Common issues: (1) system Python is 3.9.6, older than desired; (2) Homebrew and system both provide `python3`, leading to wrong interpreter; (3) scripts with shebangs or `python3` in PATH may pick an unexpected binary; (4) pip installs go to whichever Python `python3` resolves to. Set `PYTHON` explicitly or ensure PATH order matches intent.
+
+**pyenv (recommended):** Version manager: install multiple Python versions, switch globally or per-directory. Benefits: no sudo, isolated site-packages per version, explicit version selection via `.python-version` or `pyenv global`. Mechanics: `pyenv install 3.12.12`; `pyenv global 3.12.12` or `pyenv local 3.12.12`; shims in `~/.pyenv/shims` intercept `python3` when pyenv is in PATH. **Current use:** Project maintainers use pyenv (e.g. 3.12.12 on macOS); run-tests.sh `find_python3()` picks `python3` from PATH, which may resolve to pyenv shims. full_test_suite.py has legacy pyenv 2.7.18 fallback; run-tests.sh overrides with `$PY3`.
+
+**Full status:**
+
+| Area | Status |
+|------|--------|
+| run-tests.sh | `find_python3()`: `$PYTHON` → `python3` → `python` (if ≥3.6). Uses `env PYTHON="$PY3"` for rpc-tests.sh, full_test_suite.py, bitcoin-util-test.py. |
+| check-security (--build-checks) | Requires python in PATH; uses PY_DIR from python3/python. Skips if none. |
+| RPC tests (qa/rpc-tests) | Invoked via rpc-tests.sh with PYTHON env. mininode.py: pyblake2 or hashlib.blake2b. |
+| full_test_suite.py | python2 shebang; pyenv 2.7.18 fallback in script. run-tests.sh overrides with `$PY3`. |
+| Scripts with python2 shebang | amqp_sub.py, zmq_sub.py, test-security-check.py |
+| Scripts with python shebang | symbol-check.py, optimize-pngs.py, fix-copyright-headers.py, security-check.py, spendfrom.py, gen_base58_test_vectors.py, generate-seeds.py, linearize-hashes.py, linearize-data.py, makeseeds.py |
+| Migration | Incomplete. run-tests.sh and RPC flow use Py3; many contrib scripts unchanged. |
+
+**Prereq:** `python3 -m pip install pyblake2` only if using Python &lt;3.6 or if mininode fails to use hashlib.blake2b. With 3.6+, optional.
 
 ### 6.3 Wants and Suggestions
 
@@ -538,7 +563,7 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 | univalue | ✓ | ✓ | ✓ | ✓ | |
 | GTest | ✓ 1.16.0 | — | ✓ 1.12.1 | ✓ 1.8.0 | |
 | Boost | ✓ | ✓ | ✓ | ✓ | |
-| Python RPC | ✓ Py2 | functional Py3 | ✓ | ✓ | |
+| Python RPC | ✓ Py3 | functional Py3 | ✓ | ✓ | |
 | full_test_suite | ✓ | — | ✓ | ✓ | |
 | Fuzz | ✗ | ✓ | — | — | |
 | Integration tests | in-tree qa | — | separate repo | — | |

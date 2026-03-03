@@ -7,7 +7,7 @@ How to run the Zero node test suite. Procedures, commands, and expected results.
 ## Prerequisites
 
 - **Build complete:** `zerod`, `zero-cli` built. See [BUILD_ZERO.md](BUILD_ZERO.md).
-- **Python 2.7** (for RPC tests): `python2 -m pip install pyblake2`. Set `PYTHON` or use pyenv 2.7.18; run-tests.sh auto-detects.
+- **Python 3.6+** (for RPC tests): run-tests.sh auto-detects `python3` or `python` (if 3.6+). Set `PYTHON` to override. Optional: `python3 -m pip install pyblake2` if mininode needs it; Python 3.6+ has hashlib.blake2b.
 - **Working directory:** Run from repo root. `contrib/run-tests.sh` resolves root from its path.
 
 ---
@@ -93,7 +93,7 @@ Runs Util, secp256k1, univalue, GTest (filtered), Boost (pass-only), RPC Python 
 
 ## Troubleshooting
 
-- **ImportError pyblake2:** `python2 -m pip install pyblake2`
+- **ImportError pyblake2:** `python3 -m pip install pyblake2` (or use Python 3.6+ which has hashlib.blake2b; mininode falls back automatically)
 - **"PYTHON=...: No such file or directory":** Fixed in run-tests.sh (uses `env PYTHON=...`). Upgrade if you see this.
 - **GTest/Boost cascade:** Run by suite (e.g. `-t rpc_tests`) to isolate
 - **RPC tests fail:** Ensure `BUILDDIR`, `BITCOIND`, `BITCOINCLI` point to Zero binaries (tests-config.sh)

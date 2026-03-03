@@ -12,8 +12,8 @@ Canonical declaration. User-facing docs must never reference project docs. Proje
 
 | Group | Files | Audience |
 |-------|-------|----------|
-| **User-facing** | README.md, BUILD_ZERO.md, TEST_ZERO.md, CONTRIBUTING.md, TODO.md | Contributors, users building/running Zero |
-| **Project** | UpdateZero.md, UpdateBuild.md, UpdateTests.md, UpdateFeatures.md, Zeronode_wallet.md, Subsidy.md, doc/files.md | Maintainers, status tracking, design decisions |
+| **User-facing** | README.md, BUILD_ZERO.md, TEST_ZERO.md, CONTRIBUTING.md, TODO.md | Contributors, users building/running Zero. Current state only; no future plans. |
+| **Project** | UpdateZero.md, UpdateBuild.md, UpdateTests.md, UpdateFeatures.md, Zeronode_wallet.md, Subsidy.md, doc/files.md | Maintainers, status tracking, design decisions, plans, futures. |
 
 CONTRIBUTING and README state placement rules only; neither mentions project docs.
 
@@ -70,9 +70,10 @@ Place content in the document whose scope it matches. Avoid duplication: referen
 
 ## 2. Branch
 
-- **Active branches**: `arm-mac-build` (ARM Mac), `mac_linux_boost188` (Boost 1.88, Mac+Linux). Both based on `origin/zeronode_wallet` or `origin/master`.
+- **Main line**: `zero-merge`. Future work: branch from and merge into `zero-merge`.
+- **Legacy/feature branches**: `arm-mac-build` (ARM Mac), `mac_linux_boost188` (Boost 1.88), `p3-tests` (Python 3 migration, incomplete). These were based on `origin/zeronode_wallet` or `origin/master`; reconcile into `zero-merge` as needed.
 - Remote: `https://github.com/zerocurrencycoin/Zero`
-- Workflow: Do not push or merge to upstream. Commit only to a feature branch or fork.
+- Workflow: Do not push or merge to upstream. Commit to feature branches; merge to `zero-merge`.
 
 ## 3. Status Summary
 
@@ -140,9 +141,11 @@ bugs also present in HUSH3.
 
 | Item | Status | Notes |
 |------|--------|------|
-| PYTHON detection in tests-config.sh | Done | pyenv 2.7.18 or python2 if unset |
+| PYTHON detection in tests-config.sh | Done | BUILDDIR set; PYTHON from run-tests.sh |
 | Regtest block count fix | Open | Test uses actual block count vs Zero -regtestblocktime; needs decision |
-| Python 3 migration | Planned | When feasible; hashlib.blake2b replaces pyblake2 |
+| Cursor harmonization | Pending | Harmonize Cursor settings between Zero and zerowallet: rules (.cursor/rules/*.mdc), AGENTS.md, CLAUDE.md. Decide placement of directions across local, project, repo, and user file locations. See UpdateWallet §Futures and Wants (Tooling). |
+| Python 3 migration | Incomplete | run-tests.sh uses Py3; many scripts still python2 shebang; full_test_suite.py has 2.7.18 fallback. See UpdateTests §6.2.1. |
+| Python in install scripts | — | contrib/ci-workers/unix.yml (Ansible, installs Python); contrib/ci-workers/tasks/install-pip.yml (runs get-pip.py). CI relocated to ~/Work/ZK/CI. |
 | GTest 1.12.1 upgrade | Pending | C++14 min; cross-fork validation |
 
 ### 4.6 Documented Mismatches (Subsidy §11.1)
@@ -161,13 +164,13 @@ bugs also present in HUSH3.
 **Issues:**
 - **Zcash branding:** Security (z.cash/support/security), user guide (Zcash wiki), params (download.z.cash) all point to Zcash. Zero should either host its own equivalents or explicitly state these are Zcash resources.
 - **Security:** README links to z.cash/support/security for security info. Zero should have its own security page or clearly label as Zcash guidance.
-- **Issue template:** .github/ISSUE_TEMPLATE.md still references security@z.cash and Zcash GPG keys; should be Zero-specific.
+- **Issue template:** Moved to ~/Work/ZK/CI/Zero/. When implemented, should be Zero-specific (security contact, GPG keys).
 - **Stale links:** bitcointalk, jenkins.bluematt.me, googlecode.com, and other legacy URLs may be dead.
 - **No Zero security contact:** No documented Zero-specific security contact or GPG key.
 
 **Recommendations:**
 - Add or link to a Zero-specific security page (or explicitly label Zcash as shared guidance).
-- Update .github/ISSUE_TEMPLATE.md with Zero security contact and keys.
+- Update CI/Zero ISSUE_TEMPLATE.md with Zero security contact and keys when CI is implemented.
 - Audit and remove/replace broken links.
 - Consider hosting params on a Zero-controlled mirror.
 
