@@ -37,7 +37,7 @@ Nine test suites, grouped by execution dependency and coverage area.
 | 3 | **univalue** | JSON library | Univalue | PASS |
 | 4 | **GTest** | Consensus, wallet, shielded, Sapling/Sprout | Consensus, shielded | 201 pass, 5 excl |
 | 5 | **Boost** | RPC, script, serialization, crypto, alerts, mining | RPC, script, serialization | 47 suites pass (excl 3) |
-| 6 | **RPC Python** | Multi-node, regtest, zerod/zero-cli | Integration, RPC flows | 19 pass-only (verified) |
+| 6 | **RPC Python** | Multi-node, regtest, zerod/zero-cli | Integration, RPC flows | 19 run; skip-logic instances rate as fail (§4.8.1) |
 | 7 | **sec-hard** | PIE, NX, RELRO, Canary; RPATH/FORTIFY (ELF) | Build security | System-specific: ELF only |
 | 8 | **no-dot-so** | depends/.so check | Deterministic build | full_test_suite only |
 | 9 | **check** | Recursive make check | Overlaps 1–5 | Use secp256k1-check, univalue-check for isolated |
@@ -396,15 +396,15 @@ The following are workarounds and skips to overcome test problems and failures. 
 | rpc_wallet_encrypted_wallet_sapzkeys | Excluded via `--run_test='!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'` | CDB::Rewrite deadlock (same as GTest WriteCryptedSaplingZkey*; §6.4). **Appendix A.2** |
 | run-tests.sh, run-boost-individual.sh | Pass-only filter excludes above | Cascade from shared state |
 
-**RPC Python**
+**RPC Python — skip logic (rate as fail, not run)**
 
-| Item | Workaround | Root cause (unfixed) |
-|------|------------|----------------------|
-| get_coinbase_address (6.1) | `ensure_coinbase_utxos()`; skip with `coinbase_diagnostic()`. `ZERO_MINE_COINBASE=1` mines 1000 blocks when needed. | Zero COINBASE_MATURITY=720; need 720+ blocks for mature coinbase |
-| protocol version (6.2) | Skip when no peers connected. p2p_nu_peer_management uses Zero versions from getpeerinfo. | Zero may reject mininode versions |
-| getchaintips (6.5) | Uses `getblockcount()` for expected heights; skip when len(tips) != 2 after join. | Zero may report only active tip after join |
-| clean-chain amounts (6.3) | wallet.py skips when node0 balance != 29. `zero_regtest_subsidy(n)` for node1. | Zero subsidy 10 ZER/block, halving every 150; node0 block 5 not maturing. **Appendix A.3** |
-| run-tests.sh | PYTHON_PASSING list omits known-fail scripts; runs only 19 verified | Many scripts fail for above reasons or Zcash-specific logic |
+| Item | Skip logic | Root cause |
+|------|------------|------------|
+| get_coinbase_address (6.1) | Skip with `coinbase_diagnostic()`; `ZERO_MINE_COINBASE=1` mines 1000 blocks when needed | Zero COINBASE_MATURITY=720 |
+| protocol version (6.2) | Skip when no peers connected | Zero may reject mininode versions |
+| getchaintips (6.5) | Skip when len(tips) != 2 after join | Zero may report only active tip |
+| clean-chain amounts (6.3) | wallet.py skips when node0 balance != 29; `zero_regtest_subsidy(n)` for node1 | Zero subsidy 10 ZER/block, halving 150; node0 block 5 not maturing. **Appendix A.3** |
+| run-tests.sh | PYTHON_PASSING omits known-fail scripts; runs only 19 | Many scripts fail; effectively not run. Rate as fail. |
 
 **Prereqs (environment, not workarounds)**
 
@@ -420,6 +420,10 @@ The following are workarounds and skips to overcome test problems and failures. 
 |------|----------|
 | sec-hard checksec | ELF only; skips on macOS (Mach-O) |
 | check-symbols | readelf; Linux only |
+
+### 4.8.1 Skip-logic summary (P1, Regtest)
+
+**Rate as fail, not run:** Tests that use skip logic instead of asserting — get_coinbase_address, getchaintips, clean-chain amounts, protocol version. PYTHON_PASSING omits scripts that would fail; those are not run. Do not count as pass for coverage.
 
 ### 4.9 sec-hard, no-dot-so (7.x, 8.x)
 

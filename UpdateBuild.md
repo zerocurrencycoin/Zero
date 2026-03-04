@@ -101,11 +101,10 @@ OpenSSL 1.1.1a to 1.1.1w.
 
 ### 3.3 rust.mk
 
-**Decision:** Pin a modern Rust version (e.g. 1.81+). Deterministic, CI-ready.
+**Policy:** Prefer system Rust when recent enough (e.g. 1.70+); avoid undue pinning in depends for Linux/Windows. Confirm system version before use.
 
-- Rust 1.32.0 (Jan 2019) has no `aarch64-apple-darwin` binaries.
-- Current workaround: on native ARM Mac builds, symlink system `rustc`/`cargo` into the depends tree. Adequate for local dev only.
-- Target: update `rust.mk` to download a pinned modern Rust (1.81+ or current stable) with `aarch64-apple-darwin` hashes for all platforms.
+- **macOS ARM64:** Rust 1.32.0 has no `aarch64-apple-darwin` binaries. rust.mk symlinks system `rustc`/`cargo` into depends. Adequate.
+- **Linux/Windows:** Currently uses 1.32.0 from depends. Consider system Rust when available and recent enough; no need to pin 1.32.0 if system suffices.
 - librustzcash at commit `06da3b9` uses Rust edition 2015, compatible with modern Rust.
 
 ### 3.4 bdb.mk

@@ -57,6 +57,10 @@ CONTRIBUTING and README state placement rules only; neither mentions project doc
 
 Place content in the document whose scope it matches. Avoid duplication: reference other docs (e.g. "See UpdateBuild §5") rather than repeating. Remove content when it becomes obsolete or moves elsewhere. Update\*.md files may reference each other; user-facing docs must not reference Update\* or other project docs.
 
+### Update and partition rules (prevent gaps like #70)
+
+When fixing code or changing behavior: (1) Update the project doc that owns that scope — UpdateBuild (depends, build), UpdateTests (suites, procedures), UpdateFeatures (architecture), UpdateZero (status, TODOs). (2) If an item is in §5 (Filed/Referenced Issues) or an Open Question, mark it Done or update notes when fixed. (3) Remove or archive obsolete TODO text; do not leave "TODO" for completed work. (4) Partition: each doc has clear scope; avoid cross-doc duplication; when in doubt, put in UpdateZero and reference from others.
+
 ### Workflows
 
 | Workflow | Where to look |
@@ -74,6 +78,12 @@ Place content in the document whose scope it matches. Avoid duplication: referen
 - **Legacy/feature branches**: `arm-mac-build` (ARM Mac), `mac_linux_boost188` (Boost 1.88), `p3-tests` (Python 3 migration, incomplete). These were based on `origin/zeronode_wallet` or `origin/master`; reconcile into `zero-merge` as needed.
 - Remote: `https://github.com/zerocurrencycoin/Zero`
 - Workflow: Do not push or merge to upstream. Commit to feature branches; merge to `zero-merge`.
+
+### 2.1 Cursor configuration (documented; resolution delayed)
+
+**Current:** Zero and zerowallet each have `.cursor/rules/mainline-branches.mdc` (alwaysApply: true). Zero has CLAUDE.md; zerowallet does not.
+
+**Issues to resolve (later):** (1) Rule placement: local vs project vs repo vs user; which directions go where. (2) AGENTS.md: neither repo has it; decide if needed. (3) Harmonization: rules, CLAUDE.md, AGENTS.md across Zero and zerowallet. (4) Duplication: mainline-branches.mdc identical in both repos; consider shared or single source. (5) File-specific rules: none yet; globs for *.cpp, *.sh, etc. not defined.
 
 ## 3. Status Summary
 
@@ -109,14 +119,14 @@ bugs also present in HUSH3.
 | Module | Item | Notes |
 |--------|------|-------|
 | Build | Platform regression | Verify build and pass on Linux x86_64, Windows |
-| Tests | Fix-now items | pyblake2 prereq, nuparams, rpc_wallet founders %, block_subsidy. z_getnewaddress extra-args fix applied. |
+| Tests | Fix-now items | Skip-logic instances (rate as fail, not run): get_coinbase_address, getchaintips, clean-chain amounts, protocol version; PYTHON_PASSING omits scripts. See UpdateTests §4.8.1. z_getnewaddress extra-args fix applied. |
 
 ### 4.2 P2 — Delayed
 
 | Module | Item | Notes |
 |--------|------|-------|
-| Dependencies | OpenSSL | 1.1.1w EOL. Options: keep short-term; remove (audit call sites); migrate to 3.x. Requires audit before proceeding. |
-| Dependencies | Rust | Pin modern version (1.81+). rust.mk currently 1.32.0; ARM Mac uses system symlink (no aarch64-apple-darwin binaries for 1.32.0). Target: update rust.mk for pinned modern Rust. |
+| Dependencies | OpenSSL | Settled on 1.1.1w (final 1.1.1 LTS). Migration to 3.x postponed. |
+| Dependencies | Rust | Prefer system Rust when recent enough (e.g. 1.70+); avoid undue pinning in depends for Linux/Windows. macOS ARM64: rust.mk symlinks system (no aarch64-apple-darwin in 1.32.0). |
 | Tests | Failing tests | GTest CachedWitnesses*, WriteCryptedSaplingZkey; Boost Alert, equihash, miner; RPC Python get_coinbase_address, clean-chain amounts. |
 
 ### 4.3 P3 — Deferred
@@ -142,11 +152,23 @@ bugs also present in HUSH3.
 | Item | Status | Notes |
 |------|--------|------|
 | PYTHON detection in tests-config.sh | Done | BUILDDIR set; PYTHON from run-tests.sh |
-| Regtest block count fix | Open | Test uses actual block count vs Zero -regtestblocktime; needs decision |
-| Cursor harmonization | Pending | Harmonize Cursor settings between Zero and zerowallet: rules (.cursor/rules/*.mdc), AGENTS.md, CLAUDE.md. Decide placement of directions across local, project, repo, and user file locations. See UpdateWallet §Futures and Wants (Tooling). |
+| Regtest block count | Open | See §4.5.1 |
+| Cursor harmonization | Documented; delayed | See §2.1. Full issue list documented; resolution postponed. |
 | Python 3 migration | Incomplete | run-tests.sh uses Py3; many scripts still python2 shebang; full_test_suite.py has 2.7.18 fallback. See UpdateTests §6.2.1. |
 | Python in install scripts | — | contrib/ci-workers/unix.yml (Ansible, installs Python); contrib/ci-workers/tasks/install-pip.yml (runs get-pip.py). CI relocated to ~/Work/ZK/CI. |
-| GTest 1.12.1 upgrade | Pending | C++14 min; cross-fork validation |
+| GTest 1.12.1 upgrade | Pending | Cross-fork alignment; Zero uses 1.16.0. See §4.5.2. |
+
+### 4.5.1 Regtest — skip logic (rate as fail, not run)
+
+**Skip-logic instances:** getchaintips (skip when len(tips) != 2); wallet.py clean-chain (skip when node0 balance != 29); zero_regtest_subsidy for node1. These are effectively not run; rate as fail for coverage. See UpdateTests §4.8.1.
+
+**Context:** Zcash-style 200-block chain vs Zero (subsidy 10 ZER/block, halving 150, COINBASE_MATURITY=720). Decisions deferred: cached chain, align expectations, reduce blocks.
+
+### 4.5.2 GTest exclusions (documented)
+
+**CachedWitnesses* (4 tests):** CreateValidBlock harness lacks pcoinsTip, ReadBlockFromDisk; BuildWitnessCache returns early when pcoinsTip null. Excluded. **WriteCryptedSaplingZkey*:** CDB::Rewrite deadlock. Excluded.
+
+**Version:** Zero uses GTest 1.16.0 (C++14). Zcash 1.12.1 is lower bound / known-good; prefer current latest (1.16) unless precluded. 1.17.0 requires C++17; stay on 1.16 until C++17 migration.
 
 ### 4.6 Documented Mismatches (Subsidy §11.1)
 
@@ -184,7 +206,7 @@ Index of external issues and in-code refs. Order: actionable, then pending, then
 
 | ID | Context |
 |----|---------|
-| #70 | getrawtransaction missing "size" and "fees" — §5.6 (size), §5.7 (fees deferred) |
+| #70 | getrawtransaction: size done (§5.6); fees deferred (§5.7) |
 | #71 (PR) | Raspberry Pi 5 ARM64 build — §5.8 |
 | Zcash #1614 | Sprout anchor selection — wallet.cpp:3249 — §5.9 |
 | #966 | test_checktransaction.cpp — §5.3 |
@@ -192,25 +214,11 @@ Index of external issues and in-code refs. Order: actionable, then pending, then
 | #1354 | asyncrpcoperation.cpp — §5.2 |
 | #1366 | asyncrpcoperation_common.cpp — §5.2 |
 
-### 5.6 TODO: getrawtransaction size (Issue #70)
+### 5.6 getrawtransaction size (Issue #70) — Done
 
-**Issue:** [zerocurrencycoin/Zero#70](https://github.com/zerocurrencycoin/Zero/issues/70) — `getrawtransaction "txid" 1` and `decoderawtransaction "hex"` return verbose JSON without `size`. `fees` deferred (§5.7).
+**Issue:** [zerocurrencycoin/Zero#70](https://github.com/zerocurrencycoin/Zero/issues/70) — `getrawtransaction "txid" 1` and `decoderawtransaction "hex"` return verbose JSON without `size`.
 
-**Fix:** Add `size` to `TxToJSONExpanded` (the function that builds verbose JSON for both RPCs). Same change fixes both.
-
-| Item | Detail |
-|------|--------|
-| **File** | `src/rpc/rawtransaction.cpp` |
-| **Function** | `TxToJSONExpanded` (lines 150–247) |
-| **Insert after** | Line 154: `entry.push_back(Pair("txid", txid.GetHex()));` |
-| **Add** | `entry.push_back(Pair("size", (int)::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION)));` |
-| **Reference** | `TxToJSON` (same file, line 255) already has this pattern |
-
-**Affected RPCs:** `getrawtransaction` (verbose), `decoderawtransaction` — both call `TxToJSONExpanded` (lines 444, 775).
-
-**Test:** `src/test/rpc_tests.cpp` — `rpc_rawparams` (lines 99–102). Assertion: `BOOST_CHECK_EQUAL(find_value(r.get_obj(), "size").get_int(), 225);` for known 225-byte rawtx. Run: `./src/test/test_bitcoin -t rpc_rawparams` or via `contrib/run-tests.sh`.
-
-**Backward compatibility:** Additive JSON key; no schema validation; existing consumers access specific keys only. Safe.
+**Status:** Fixed. `TxToJSONExpanded` (rawtransaction.cpp) adds `size` via `GetSerializeSize`. Test: `rpc_rawparams` asserts `find_value(r.get_obj(), "size").get_int() == 193`. `fees` deferred (§5.7).
 
 ### 5.7 TODO: getrawtransaction fees (Issue #70, deferred)
 
@@ -288,7 +296,6 @@ Index of external issues and in-code refs. Order: actionable, then pending, then
 | main.cpp | 4594 | TODO | Deal better with return value for duplicate |
 | main.cpp | 6633 | TODO | Prohibit joinsplits/shielded from mapOrphans |
 | main.cpp | 6728 | TODO | Optimize: if pindexLast is ancestor, continue |
-| rpc/rawtransaction.cpp | 154 | TODO | Add size to TxToJSONExpanded (#70). §5.6. |
 | rpc/blockchain.cpp | 863 | TODO | mempool.pruneSpent should be done by CCoinsViewMemPool |
 | rpc/mining.cpp | 500 | TODO | Re-enable coinbasevalue once spec written |
 | rpc/mining.cpp | 605 | TODO | Recheck connections/IBD; send expires-immediately template |
