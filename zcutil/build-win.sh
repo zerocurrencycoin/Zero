@@ -1,7 +1,20 @@
 #!/usr/bin/env bash
 # Copyright 2026 Zero Developers
 # Windows cross-compile from Linux. Output: src/zerod.exe, zero-cli.exe, zero-tx.exe
+# Requires MXE with x86_64-w64-mingw32.static-gcc. Set MXE_ROOT or pass -m/--mxe.
 set -e -u -o pipefail
+
+# Parse MXE path before other setup (depends and configure need it on PATH)
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -m|--mxe) MXE_ROOT="$2"; shift 2 ;;
+    *) break ;;
+  esac
+done
+MXE_ROOT="${MXE_ROOT:-$HOME/mxe}"
+MXE_PATH="${MXE_ROOT}/usr/bin"
+export PATH="$MXE_PATH:$PATH"
+
 # shellcheck disable=SC2034
 ME="build-win"
 # shellcheck disable=SC1091
@@ -11,11 +24,12 @@ cd "$REPO_ROOT"
 show_build_win_help() {
   local log="${1:-logs/build-win.log}"
   cat <<EOF
-Usage: $ME [ -L | --log PATH ] [ MAKEARGS... ]
+Usage: $ME [ -m/--mxe PATH ] [ -L | --log PATH ] [ MAKEARGS... ]
   Cross-compile zerod for Windows (x86_64) from Linux.
   Output: src/zerod.exe, src/zero-cli.exe, src/zero-tx.exe
 
   -h, --help      show this help and exit
+  -m, --mxe PATH  MXE root (default: $HOME/mxe)
   -L, --log PATH  capture build log (default: $log)
 
   MAKEARGS: -jN parallel jobs, capped at 4. Default: -j\$(detect_jobs).
@@ -36,8 +50,9 @@ parse_build_win_args() {
 
 resolve_host_win() {
   HOST=x86_64-w64-mingw32
-  CXX=x86_64-w64-mingw32-g++-posix
-  CC=x86_64-w64-mingw32-gcc-posix
+  CC=$(command -v x86_64-w64-mingw32.static-gcc 2>/dev/null) || { echo "build-win: x86_64-w64-mingw32.static-gcc not found. Set MXE_ROOT (e.g. export MXE_ROOT=\$HOME/mxe)" >&2; exit 1; }
+  CXX="${CC%gcc}g++"
+  WINDRES=$(command -v x86_64-w64-mingw32.static-windres 2>/dev/null) || { echo "build-win: windres not found" >&2; exit 1; }
   PREFIX="$PWD/depends/$HOST"
   if [[ -z "${MAKE:-}" ]]; then MAKE=make; fi
   if [[ -z "${BUILD:-}" ]]; then BUILD="$(./depends/config.guess)"; fi
@@ -56,7 +71,7 @@ run_configure_win() {
 
 run_make_win() {
   cd src
-  run_log env CC="$CC" CXX="$CXX" "$MAKE" V=1 "${MAKEARGS[@]}" zerod.exe zero-cli.exe zero-tx.exe
+  run_log env CC="$CC" CXX="$CXX" WINDRES="$WINDRES" "$MAKE" V=1 "${MAKEARGS[@]}" zerod.exe zero-cli.exe zero-tx.exe
 }
 
 parse_build_win_args "logs/build-win.log" "$@"
