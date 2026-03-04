@@ -40,7 +40,13 @@ Used in: `boost.mk`, `openssl.mk`, `bdb.mk`. The `bdb.mk` previously had a
 redundant `sed -i -e` line (duplicate of an earlier replacement) that
 failed on macOS; it was removed.
 
-### 1.2 set -e and conditional assignments
+### 1.2 fetch_file test path quoting (dash)
+
+On Ubuntu (dash as /bin/sh), `test -f` with an unquoted path can fail with "unexpected operator"
+when the path expands in a way that splits into multiple arguments. `depends/funcs.mk` fetch_file
+now quotes the path: `test -f "$$($(1)_source_dir)/$(4)"`.
+
+### 1.3 set -e and conditional assignments
 
 Build scripts use `set -e`. The pattern `[[ condition ]] && action` is unsafe:
 when the condition is false, the command returns non-zero and the script exits.
@@ -70,7 +76,7 @@ not propagate.
 
 **configure~ cleanup:** Implemented. build-win.sh uses `sed -i.bak '...' configure && rm -f configure.bak`. Makefile.am `clean-local` removes `configure~` and `src/univalue/configure~` when running `make clean` (Automake hook for extra clean rules).
 
-**Two scripts:** build.sh (Linux + Mac, native) and build-win.sh (Windows cross from Linux) are separate: different HOST, configure flags, make targets (.exe). Cannot merge.
+**Two scripts:** build.sh (Linux + Mac, native) and build-win.sh (Windows cross from Linux) are separate: different HOST, configure flags, make targets (.exe). Cannot merge. build-win aligned with build-native: resolve_host_win sets BUILD, MAKE; build_depends_win passes HOST, BUILD, NO_PROTON=1, uses $MAKE and -C ./depends/; cleanup_secp256k1_la (from fzero.sh) runs after depends; run_make_win uses $MAKE.
 
 **After changing build docs or depends:** Update local clones and rebuild to verify. Sync BUILD_ZERO with any package or platform changes.
 
