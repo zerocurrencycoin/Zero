@@ -62,7 +62,7 @@ resolve_host_win
 trap 'build_fail "build failed"' ERR
 set -x
 notice "HOST=$HOST ${MAKEARGS[*]}"
-[ -n "${LOG_FILE:-}" ] && notice "Log: $LOG_FILE"
+if [ -n "${LOG_FILE:-}" ]; then notice "Log: $LOG_FILE"; fi
 
 section "Build depends"
 build_depends_win

@@ -57,14 +57,14 @@ parse_build_args() {
 }
 
 resolve_host_native() {
-  [[ -z "${CC:-}" ]] && CC=gcc
-  [[ -z "${CXX:-}" ]] && CXX=g++
+  if [[ -z "${CC:-}" ]]; then CC=gcc; fi
+  if [[ -z "${CXX:-}" ]]; then CXX=g++; fi
   export CC CXX
-  [[ -z "${MAKE:-}" ]] && MAKE=make
-  [[ -z "${BUILD:-}" ]] && BUILD="$(./depends/config.guess)"
-  [[ -z "${HOST:-}" ]] && HOST="$BUILD"
-  [[ -z "${CONFIGURE_FLAGS:-}" ]] && CONFIGURE_FLAGS=""
-  [[ "$(uname -s)" == "Darwin" ]] && export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-15.0}"
+  if [[ -z "${MAKE:-}" ]]; then MAKE=make; fi
+  if [[ -z "${BUILD:-}" ]]; then BUILD="$(./depends/config.guess)"; fi
+  if [[ -z "${HOST:-}" ]]; then HOST="$BUILD"; fi
+  if [[ -z "${CONFIGURE_FLAGS:-}" ]]; then CONFIGURE_FLAGS=""; fi
+  if [[ "$(uname -s)" == "Darwin" ]]; then export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-15.0}"; fi
 }
 
 build_depends_native() {

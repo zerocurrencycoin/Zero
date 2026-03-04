@@ -79,7 +79,16 @@ When fixing code or changing behavior: (1) Update the project doc that owns that
 - Remote: `https://github.com/zerocurrencycoin/Zero`
 - Workflow: Do not push or merge to upstream. Commit to feature branches; merge to `zero-merge`.
 
-### 2.1 Cursor configuration (documented; resolution delayed)
+### 2.2 Update other Zero repo instances
+
+```bash
+cd /path/to/other/Zero
+git fetch origin
+git checkout zero-merge
+git pull origin zero-merge
+```
+
+### 2.3 Cursor configuration (documented; resolution delayed)
 
 **Current:** Zero and zerowallet each have `.cursor/rules/mainline-branches.mdc` (alwaysApply: true). Zero has CLAUDE.md; zerowallet does not.
 
@@ -153,7 +162,7 @@ bugs also present in HUSH3.
 |------|--------|------|
 | PYTHON detection in tests-config.sh | Done | BUILDDIR set; PYTHON from run-tests.sh |
 | Regtest block count | Open | See §4.5.1 |
-| Cursor harmonization | Documented; delayed | See §2.1. Full issue list documented; resolution postponed. |
+| Cursor harmonization | Documented; delayed | See §2.3. Full issue list documented; resolution postponed. |
 | Python 3 migration | Incomplete | run-tests.sh uses Py3; many scripts still python2 shebang; full_test_suite.py has 2.7.18 fallback. See UpdateTests §6.2.1. |
 | Python in install scripts | — | contrib/ci-workers/unix.yml (Ansible, installs Python); contrib/ci-workers/tasks/install-pip.yml (runs get-pip.py). CI relocated to ~/Work/ZK/CI. |
 | GTest 1.12.1 upgrade | Pending | Cross-fork alignment; Zero uses 1.16.0. See §4.5.2. |

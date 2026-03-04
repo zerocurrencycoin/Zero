@@ -40,6 +40,18 @@ Used in: `boost.mk`, `openssl.mk`, `bdb.mk`. The `bdb.mk` previously had a
 redundant `sed -i -e` line (duplicate of an earlier replacement) that
 failed on macOS; it was removed.
 
+### 1.2 set -e and conditional assignments
+
+Build scripts use `set -e`. The pattern `[[ condition ]] && action` is unsafe:
+when the condition is false, the command returns non-zero and the script exits.
+Use `if [[ condition ]]; then action; fi` so the condition's exit status does
+not propagate.
+
+**Updated files:**
+- `zcutil/build-native.sh`: resolve_host_native() — CC, CXX, MAKE, BUILD, HOST, CONFIGURE_FLAGS, MACOSX_DEPLOYMENT_TARGET (8 lines)
+- `zcutil/fzero.sh`: detect_jobs(), makeargs_from_argv() — job cap (2 lines)
+- `zcutil/build-win.sh`: LOG_FILE notice (1 line)
+
 ## 2. Platform Setup
 
 **Version targets** (e.g. OpenSSL 1.1.1w, libsodium 1.0.20) are upgrade targets until compatibility is verified. Build with current library versions first; upgrade after validation.

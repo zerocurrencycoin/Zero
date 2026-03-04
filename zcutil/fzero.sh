@@ -71,7 +71,7 @@ detect_jobs() {
   elif [[ "$(uname -s)" == "Darwin" ]] && command -v sysctl &>/dev/null; then
     n=$(sysctl -n hw.ncpu 2>/dev/null || echo 2)
   fi
-  [[ "$n" -gt 4 ]] && n=4
+  if [[ "$n" -gt 4 ]]; then n=4; fi
   echo "$n"
 }
 
@@ -81,7 +81,7 @@ makeargs_from_argv() {
   for arg in "$@"; do
     if [[ "$arg" =~ ^-j([0-9]+)$ ]]; then
       n="${BASH_REMATCH[1]}"
-      [[ "$n" -gt 4 ]] && n=4
+      if [[ "$n" -gt 4 ]]; then n=4; fi
       MAKEARGS+=("-j$n")
       HAS_JOBS=1
     else
