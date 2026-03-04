@@ -39,10 +39,12 @@ resolve_host_win() {
   CXX=x86_64-w64-mingw32-g++-posix
   CC=x86_64-w64-mingw32-gcc-posix
   PREFIX="$PWD/depends/$HOST"
+  if [[ -z "${MAKE:-}" ]]; then MAKE=make; fi
+  if [[ -z "${BUILD:-}" ]]; then BUILD="$(./depends/config.guess)"; fi
 }
 
 build_depends_win() {
-  run_log make -C depends HOST="$HOST" V=1 "${MAKEARGS[@]}"
+  run_log env HOST="$HOST" BUILD="$BUILD" NO_PROTON=1 "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
 }
 
 run_configure_win() {
@@ -54,7 +56,7 @@ run_configure_win() {
 
 run_make_win() {
   cd src
-  run_log env CC="$CC" CXX="$CXX" make V=1 "${MAKEARGS[@]}" zerod.exe zero-cli.exe zero-tx.exe
+  run_log env CC="$CC" CXX="$CXX" "$MAKE" V=1 "${MAKEARGS[@]}" zerod.exe zero-cli.exe zero-tx.exe
 }
 
 parse_build_win_args "logs/build-win.log" "$@"
@@ -66,6 +68,7 @@ if [ -n "${LOG_FILE:-}" ]; then notice "Log: $LOG_FILE"; fi
 
 section "Build depends"
 build_depends_win
+cleanup_secp256k1_la
 
 section "Configure"
 run_autogen

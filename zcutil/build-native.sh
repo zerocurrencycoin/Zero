@@ -83,22 +83,12 @@ run_make_native() {
   run_log "$MAKE" "${MAKEARGS[@]}" V=1
 }
 
-cleanup_secp256k1_la() {
-  if [[ -f src/secp256k1/libsecp256k1.la ]] && [[ -d "depends/$HOST" ]]; then
-    local la_host
-    la_host=$(grep 'dependency_libs' src/secp256k1/libsecp256k1.la 2>/dev/null | sed -n 's|.*depends/\([^/]*\)/.*|\1|p')
-    if [[ -n "$la_host" ]] && [[ "$la_host" != "$HOST" ]]; then
-      rm -f src/secp256k1/libsecp256k1.la src/secp256k1/config.status
-    fi
-  fi
-}
-
 parse_build_args "logs/build-native.log" "$@"
 resolve_host_native
 trap 'build_fail "build failed"' ERR
 set -x
 notice "HOST=$HOST ${MAKEARGS[*]}"
-[ -n "${LOG_FILE:-}" ] && notice "Log: $LOG_FILE"
+if [ -n "${LOG_FILE:-}" ]; then notice "Log: $LOG_FILE"; fi
 
 section "Build depends"
 build_depends_native

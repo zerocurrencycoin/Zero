@@ -3,7 +3,7 @@
 # Shared build helpers for Zero node (build-native, build-win).
 # Usage: ME="script-name"; . "$(dirname "${BASH_SOURCE[0]}")/fzero.sh"
 # Provides: SCRIPT_DIR, REPO_ROOT, section, log_capture, analyze_build_log, build_fail,
-#           run_log, parse_log_opts, detect_jobs, makeargs_from_argv, export_config_site, run_autogen
+#           run_log, parse_log_opts, detect_jobs, makeargs_from_argv, export_config_site, run_autogen, cleanup_secp256k1_la
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -99,4 +99,15 @@ export_config_site() { export CONFIG_SITE="$PWD/depends/$HOST/share/config.site"
 # Run autogen. Call from repo root.
 run_autogen() {
   ./autogen.sh
+}
+
+# Remove stale secp256k1 .la when HOST changed (e.g. native vs cross). Call from repo root.
+cleanup_secp256k1_la() {
+  if [[ -f src/secp256k1/libsecp256k1.la ]] && [[ -d "depends/$HOST" ]]; then
+    local la_host
+    la_host=$(grep 'dependency_libs' src/secp256k1/libsecp256k1.la 2>/dev/null | sed -n 's|.*depends/\([^/]*\)/.*|\1|p')
+    if [[ -n "$la_host" ]] && [[ "$la_host" != "$HOST" ]]; then
+      rm -f src/secp256k1/libsecp256k1.la src/secp256k1/config.status
+    fi
+  fi
 }
