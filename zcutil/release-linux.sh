@@ -78,12 +78,13 @@ cp README.md     "$PKGDIR/"
 step_done "Copy and strip (tarball)"
 
 mkdir -p artifacts
-(cd "bin/zero-v${VERSION}" && tar czf "$REPO_ROOT/artifacts/linux-zero-v${VERSION}.tgz" .) || err "tar failed"
+(cd "bin/zero-v${VERSION}" && tar czf "$REPO_ROOT/artifacts/linux-zero-v${VERSION}.tgz" zerod zero-cli zero-tx README.md) || err "tar failed"
 step_done "Create tarball"
 
 [ ! -f "artifacts/linux-zero-v${VERSION}.tgz" ] && err "Tarball not created"
+TAR_LIST="$(tar tzf "artifacts/linux-zero-v${VERSION}.tgz")"
 for f in zerod zero-cli zero-tx README.md; do
-  tar tf "artifacts/linux-zero-v${VERSION}.tgz" | grep -qE "^(\./)?${f}$" || err "package missing $f"
+  echo "$TAR_LIST" | grep -qxF "$f" || err "package missing $f"
 done
 step_done "Package contents"
 
