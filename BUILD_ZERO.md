@@ -1,14 +1,20 @@
 # BUILD_ZERO
 
-Build guide for the Zero node (zerod). Quick Start, data directory layout, and developer build knowledge.
+Build guide for the Zero node (zerod).
+
+**Quick Start:** §2 — clone, install packages, run build script.  
+**Data directory:** §3 — `.zero` location, params, files.  
+**Developer:** §4 — versions, build flow, config.site, build.sh flags.  
+**Per-platform:** §5 — manual configure, platform quirks (see §2 for basic commands).  
+**Troubleshooting:** §6 — params, BDB, memory, clean rebuild.
 
 ---
 
 ## 1. Introduction
 
-Zero is a Zcash-family cryptocurrency node. This document describes how to build zerod from source on Linux, macOS ARM64, and Windows (generic). Dev and test target is Ubuntu 24.04; moving forward is the overarching goal, not a design decision. The build uses autotools with a `depends/` system for deterministic dependency builds. Each platform has specific toolchain and configure requirements.
+Zero is a Zcash-family cryptocurrency node. Build zerod from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). Tested: Ubuntu 24.04, macOS 24.5.0. Autotools with `depends/` for deterministic dependency builds.
 
-**Requirements:** Full build: Mac &lt;6 GB, Linux &lt;5 GB disk. 4-core 16 GB RAM compiles promptly; 2 CPU 4 GB manages. GCC 7.0+, GNU Make 4.0+, Python 3.6+, Git 2.0+. C++14 required (Boost 1.88).
+**Requirements:** Mac &lt;6 GB, Linux &lt;5 GB disk. 4-core 16 GB RAM. GCC 7.0+, GNU Make 4.0+, Python 3.6+, Git 2.0+. C++14 (Boost 1.88).
 
 ---
 
@@ -20,10 +26,10 @@ Zero is a Zcash-family cryptocurrency node. This document describes how to build
 git clone https://github.com/zerocurrencycoin/Zero.git
 cd Zero
 ./zcutil/fetch-params.sh
-./zcutil/build.sh
+./zcutil/build.sh -j4
 ```
 
-Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. Optional: `src/zerowallet` (Qt GUI) if built with `--with-gui=qt5`.
+Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. zerowallet is a separate application (zerowalletmac, zerowalletlinux, zerowalletwin repos).
 
 ### 2.2 Linux x86_64
 
@@ -31,20 +37,16 @@ Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. Optional: `src/zerowallet`
 
 **Packages:**
 ```bash
+sudo apt update
 sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib \
   autoconf libtool ncurses-dev unzip git python3 python3-zmq \
   zlib1g-dev wget bsdmainutils automake cmake curl
 ```
 
-**GUI (optional):** On Ubuntu 22.04+ `qt5-default` is deprecated; use:
-```bash
-sudo apt install qtbase5-dev qtbase5-dev-tools qttools5-dev-tools libqt5websockets5-dev
-```
-
 **Build:**
 ```bash
 ./zcutil/fetch-params.sh
-./zcutil/build.sh
+./zcutil/build.sh -j$(nproc)
 ```
 
 **Output:** `src/zerod`, `src/zero-cli`, `src/zero-tx`.
@@ -58,12 +60,10 @@ sudo apt install qtbase5-dev qtbase5-dev-tools qttools5-dev-tools libqt5websocke
 brew install automake cmake pkg-config coreutils
 ```
 
-**GUI (optional):** For zerowallet: `brew install qt5`; add `$(brew --prefix qt5)/bin` to PATH if needed.
-
 **Build:**
 ```bash
 ./zcutil/fetch-params.sh
-./zcutil/build.sh
+./zcutil/build.sh -j4
 ```
 
 **Output:** `src/zerod`, `src/zero-cli`, `src/zero-tx`.
@@ -92,13 +92,13 @@ export PATH="$MXE_PATH:$PATH"
 Or manually:
 ```bash
 HOST=x86_64-w64-mingw32
-cd depends && make HOST=$HOST && cd ..
+cd depends && make HOST=$HOST -j$(nproc) && cd ..
 ./autogen.sh
 CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
   CXXFLAGS="-DPTW32_STATIC_LIB -DCURVE_ALT_BN128 -fopenmp -pthread" \
   ./configure --prefix=$PWD/depends/$HOST --host=$HOST --enable-static --disable-shared --disable-zmq --disable-rust
 sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure
-cd src && make CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix zerod.exe zero-cli.exe zero-tx.exe
+cd src && make CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix -j$(nproc) zerod.exe zero-cli.exe zero-tx.exe
 ```
 
 Binaries: `src/zerod.exe`, `src/zero-cli.exe`, `src/zero-tx.exe`.
@@ -116,9 +116,21 @@ If MXE is not yet built:
 export MXE_ROOT="${MXE_ROOT:-$HOME/mxe}"
 sudo apt install -y autoconf automake autopoint bash bison bzip2 flex g++ g++-multilib gettext git gperf intltool libc6-dev-i386 libgdk-pixbuf2.0-dev libltdl-dev libssl-dev libtool-bin libxml-parser-perl make openssl p7zip-full patch perl pkg-config python3-mako python3-setuptools python3-tk python3-venv ruby sed unzip wget xz-utils zstd
 git clone https://github.com/mxe/mxe.git "$MXE_ROOT"
-cd "$MXE_ROOT" && make MXE_TARGETS='x86_64-w64-mingw32.static' gcc
+cd "$MXE_ROOT" && make MXE_TARGETS='x86_64-w64-mingw32.static' gcc -j$(nproc)
 ```
 Then build Zero as above.
+
+### 2.5 Packaging (Linux)
+
+**Binary tarball:** After building, package binaries for distribution:
+
+```bash
+./zcutil/mkrelease-linux.sh
+```
+
+Output: `artifacts/zero-<VERSION>-linux-<arch>.tgz` (zerod, zero-cli, zero-tx if built, README, fetch-params.sh). Version in the archive name is semver only (e.g. 4.0.0; githash stripped). Use `-v X.Y.Z` to override; `-s` or `--no-strip` to skip stripping; `-L` to capture log.
+
+**Debian package:** `./zcutil/build-debian-package.sh` produces a .deb in the repo root (legacy Zcash naming; see script).
 
 ---
 
@@ -198,17 +210,31 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 
 **zcutil/build.sh** runs steps 1–4 in one command. It sets `HOST` via `depends/config.guess`, builds depends, runs autogen, configure, and make.
 
-### 4.3 zcutil/build.sh
+### 4.3 config.site
+
+`depends/$HOST/share/config.site` is generated from `depends/config.site.in` when depends is built. It is sourced by `./configure` when `CONFIG_SITE` is set. It preconfigures:
+
+- **CC, CXX:** Host compiler (from `depends/hosts/*.mk`). For Windows: `x86_64-w64-mingw32-gcc-posix`, `x86_64-w64-mingw32-g++-posix`.
+- **CFLAGS, CXXFLAGS, CPPFLAGS, LDFLAGS:** From host config.
+- **PKG_CONFIG_LIBDIR, PKG_CONFIG_PATH:** Point to `depends/$HOST/lib/pkgconfig` and `share/pkgconfig`.
+- **Prefix:** `-I$depends_prefix/include`, `-L$depends_prefix/lib` so configure finds depends-built libraries.
+
+Without `CONFIG_SITE`, configure would use system compilers and paths.
+
+**Source:** `depends/config.site.in`; template variables `@CC@`, `@CXX@`, `@host_os@`, etc. are substituted by `depends/Makefile` when building `depends/$HOST/share/config.site`.
+
+### 4.4 zcutil/build.sh
 
 ```
-./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ MAKEARGS... ]
+./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon ] [ MAKEARGS... ]
 ```
 
-- Flags must come before make args.
-- `-jN` is optional on every platform. Omit to use auto-detected jobs (capped at 4). Use `-jN` only when overriding default behavior.
+- `--daemon`: `--disable-zmq --disable-rust` for configure. Aligns with build-win.sh.
+- Flags must come before `-jN` and other make args. Example: `./zcutil/build.sh --disable-mining -j4` (correct); `./zcutil/build.sh -j4 --disable-mining` (wrong — flag passed to make).
+- `-jN` capped at 4 by default. Linux: `nproc`; macOS: `sysctl -n hw.ncpu` or `gnproc` (from `brew install coreutils`).
 - `CONFIGURE_FLAGS` passed to configure; multi-word values need escaping, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-enum-constexpr-conversion'`.
 
-### 4.4 Variables and Overrides
+### 4.5 Variables and Overrides
 
 | Variable | Purpose |
 |----------|---------|
@@ -219,19 +245,17 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 | `CONFIGURE_FLAGS` | Extra configure options |
 | `CCACHE_DIR` | ccache cache (optional). ccache 4.12.2 in depends; `ccache -M 5G` for size. |
 
-### 4.5 Intermediate Results
+### 4.6 Intermediate Results
 
-- Depends: `depends/$HOST/` (e.g. `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin24.5.0`).
-- Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. GUI: `src/qt/zerowallet` if built with `--with-gui=qt5`.
+- Depends: `depends/$HOST/` (e.g. `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin25.3.0`).
+- Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`.
 - Tests: `contrib/run-tests.sh`; logs in `test-logs/`. See [TEST_ZERO.md](TEST_ZERO.md).
 
-### 4.6 Configure Options
+### 4.7 Configure Options
 
 | Option | Purpose |
 |--------|---------|
 | `--disable-wallet` | Daemon only (servers) |
-| `--with-gui=qt5` | Build zerowallet (Qt5) |
-| `--without-gui` | Daemon only |
 | `--enable-debug` | Debug symbols |
 | `--disable-mining` | Exclude mining code |
 | `--enable-ccache` | Use ccache (default: auto) |
@@ -242,41 +266,27 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 
 ### 5.1 Linux x86_64
 
-**Compiler:** GCC. `zcutil/build.sh` prefers GCC-11 if available (Boost compatibility). Install: `sudo apt install gcc-11 g++-11`.
+**Compiler:** GCC 7.0+ for C++14.
 
-**Depends:** `make -C depends/` uses `config.guess` for HOST. Output: `depends/x86_64-unknown-linux-gnu/`.
-
-**Configure:** `CONFIG_SITE=$PWD/depends/x86_64-unknown-linux-gnu/share/config.site ./configure --enable-hardening`.
-
-**Portable sed:** Depends use `sed -i.old` for in-place edits (BSD/GNU compatible).
+**Manual build** (if not using build.sh): `make -C depends/` (HOST from config.guess), then `CONFIG_SITE=$PWD/depends/x86_64-unknown-linux-gnu/share/config.site ./configure --enable-hardening`, then `make`.
 
 ### 5.2 macOS ARM64
 
-**Compiler:** Apple Clang. No GCC.
+**Compiler:** Apple Clang.
 
-**Prerequisites:** `automake`, `cmake`, `pkg-config`, `coreutils` (for `gnproc`).
+**Manual build:** HOST from `./depends/config.guess`. Configure with `--enable-proton=no` (Proton incompatible with CMake 4.x) and `CXXFLAGS="-g -Wno-enum-constexpr-conversion"` (Boost/Clang 17). See §2.3 for prerequisites.
 
-**Host triplet:** `aarch64-apple-darwin24.5.0` (config.guess 2025).
+**Rust:** Depends uses system Rust on ARM64 (1.32.0 has no aarch64 binaries).
 
-**Configure:**
-```bash
-CONFIG_SITE=$PWD/depends/aarch64-apple-darwin24.5.0/share/config.site \
-./configure --enable-hardening --enable-proton=no --enable-mining \
-  CXXFLAGS="-g -Wno-enum-constexpr-conversion"
-```
-
-- `--enable-proton=no`: Qpid Proton incompatible with CMake 4.x.
-- `-Wno-enum-constexpr-conversion`: Boost/Clang 17 compatibility.
-
-**Rust:** Depends pins current system Rust on macOS ARM64 (1.32.0 has no aarch64 binaries). Test same pinned approach on Windows and Linux.
-
-**BDB:** If `database` mutex crash: `rm -rf "$HOME/Library/Application Support/zero/database"`.
+**BDB mutex crash:** See §6.2.
 
 ### 5.3 Windows
 
-**Cross-compile:** `HOST=x86_64-w64-mingw32`. Requires MXE with `x86_64-w64-mingw32-gcc-posix` and `x86_64-w64-mingw32-g++-posix`. Set `MXE_ROOT` (default `$HOME/mxe`; `MXE_PATH=$MXE_ROOT/usr/bin`). See §2.4 for full steps.
+**Cross-compile:** `HOST=x86_64-w64-mingw32`. Requires MXE with `x86_64-w64-mingw32.static-gcc`. Set `MXE_ROOT` (default `$HOME/mxe`; `MXE_PATH=$MXE_ROOT/usr/bin`). See §2.4 for full steps.
 
-**Native/WSL:** Use Linux instructions inside WSL2.
+**Manual build:** (1) `make HOST=x86_64-w64-mingw32` in depends; (2) configure with CONFIG_SITE (see §4.3), `--host=x86_64-w64-mingw32 --enable-static --disable-shared --disable-zmq --disable-rust`, CXXFLAGS for PTW32_STATIC_LIB, CURVE_ALT_BN128; (3) sed fix: `sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure`; (4) make in src/ with `CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix`.
+
+**WSL2:** Use Linux instructions.
 
 ---
 
@@ -292,52 +302,44 @@ Run `./zcutil/fetch-params.sh` before starting zerod.
 
 ### 6.2 Berkeley DB
 
-**Version:** BDB 6.2.32 only (from `depends/packages/bdb.mk`). Used for wallet storage (`wallet/walletdb.cpp`, `wallet/db.cpp`).
+BDB 6.2.32 (depends). Used for wallet storage.
 
 **Not found:** Ensure depends built: `ls depends/$HOST/lib/libdb*`.
 
-**Mutex crash (macOS):** Remove `database/` in data dir and restart.
+**Mutex crash (macOS):** `rm -rf "$HOME/Library/Application Support/zero/database"` and restart.
 
 ### 6.3 Boost / GCC
 
-**GCC 13+ warnings:** Install GCC-11 or use `CC=gcc-11 CXX=g++-11 ./zcutil/build.sh`.
-
-**GCC too old:** Need GCC 7.0+. Update or use `update-alternatives` to switch.
+**GCC too old:** Need GCC 7.0+ for C++14.
 
 ### 6.4 Memory Exhausted
 
-**"virtual memory exhausted" or "killed":** Override jobs: `make -j1 zerod`. Or add swap.
+**"virtual memory exhausted" or "killed":** Reduce jobs: `make -j1 zerod`. Or add swap.
 
 ### 6.5 Mining Disabled
 
 With `--disable-mining`, `test_miner` is excluded from tests. Equihash template instantiations are guarded by `ENABLE_MINING`.
 
-### 6.6 Qt/GUI Not Found
+### 6.6 zerowallet
 
-Install Qt5: `sudo apt install qtbase5-dev qtbase5-dev-tools qttools5-dev-tools libqt5websockets5-dev` (Ubuntu 22.04+; `qt5-default` deprecated). Or `brew install qt5` on macOS.
+zerowallet (Qt GUI) is built from separate repos (zerowalletmac, zerowalletlinux, zerowalletwin). This repo builds only zerod, zero-cli, zero-tx.
+
+**zerod vs zerowallet toolchains:** zerod uses system GCC (Linux), Clang (macOS), mingw-w64 (Windows). Zerowallet uses Qt; Windows may use MXE for static Qt; static Qt on Linux for Linux may require gcc-11 (Qt struggles with GCC 13 on Ubuntu 24.04).
 
 ### 6.7 Clean Rebuild
 
-**Depends:** The `depends/` Makefile has no `clean` target. Remove artifacts manually:
-
-| Level | Command | Use case |
-|-------|---------|----------|
-| BDB only | `rm -rf depends/work/build/*/bdb depends/built/*/bdb` | BDB package change (e.g. bdb.mk CFLAGS) |
-| All depends | `rm -rf depends/work depends/built` | Rebuild all packages |
-| Full tree | `rm -rf depends/work depends/built depends/$HOST` | Staging dir corrupted or HOST changed |
-
-**Full clean rebuild:**
 ```bash
 make clean && make distclean
-rm -rf depends/work depends/built depends/$(./depends/config.guess)
+cd depends && make clean && cd ..
 ./autogen.sh
-./zcutil/build.sh
+CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure ...
+make -j4
 ```
 
 ### 6.8 Build Log
 
 ```bash
-make 2>&1 | tee build.log
+make -j4 2>&1 | tee build.log
 grep -i error build.log
 ```
 
