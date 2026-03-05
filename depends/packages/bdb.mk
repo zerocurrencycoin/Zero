@@ -11,6 +11,7 @@ $(package)_config_opts_mingw32=--enable-mingw
 $(package)_config_opts_linux=--with-pic
 $(package)_config_opts_freebsd=--with-pic
 $(package)_config_opts_aarch64=--disable-atomicsupport
+$(package)_cflags_darwin=-Wno-deprecated-non-prototype
 $(package)_cxxflags=-std=c++14
 endef
 

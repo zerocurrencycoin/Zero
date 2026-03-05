@@ -23,7 +23,7 @@ Usage: $ME [ -L | --log PATH ] [ --enable-lcov | --disable-tests ] [ --disable-m
   --disable-mining omit mining code (default: mining built)
   --enable-proton Apache Qpid Proton AMQP (default: off)
 
-  MAKEARGS: -jN parallel jobs, capped at 4. Default: -j\$(detect_jobs).
+  MAKEARGS: -jN optional, use only when overriding auto-detected number of CPU cores, capped at 4
 EOF
 }
 

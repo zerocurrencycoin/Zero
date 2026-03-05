@@ -57,6 +57,10 @@ CONTRIBUTING and README state placement rules only; neither mentions project doc
 
 Place content in the document whose scope it matches. Avoid duplication: reference other docs (e.g. "See UpdateBuild §5") rather than repeating. Remove content when it becomes obsolete or moves elsewhere. Update\*.md files may reference each other; user-facing docs must not reference Update\* or other project docs.
 
+**Level of detail:** User-facing docs cover at a level appropriate for users (how to run, troubleshoot, fix). Project docs add content only when there is significant additional, non-duplicate, lasting project information (design, status, cross-fork, implementation notes). If user-facing covers it adequately, do not duplicate in project docs.
+
+**Documentation examples:** Do not add optional arguments to examples unless they demonstrate a specific point (e.g. override, glitch workaround). When describing mkrelease-*.sh or similar packaging scripts, include remarks on versions (APP_VERSION source, inferability) and sizes (zerod, artifacts) where relevant.
+
 ### Update and partition rules (prevent gaps like #70)
 
 When fixing code or changing behavior: (1) Update the project doc that owns that scope — UpdateBuild (depends, build), UpdateTests (suites, procedures), UpdateFeatures (architecture), UpdateZero (status, TODOs). (2) If an item is in §5 (Filed/Referenced Issues) or an Open Question, mark it Done or update notes when fixed. (3) Remove or archive obsolete TODO text; do not leave "TODO" for completed work. (4) Partition: each doc has clear scope; avoid cross-doc duplication; when in doubt, put in UpdateZero and reference from others.
@@ -93,6 +97,39 @@ git pull origin zero-merge
 **Current:** Zero and zerowallet each have `.cursor/rules/mainline-branches.mdc` (alwaysApply: true). Zero has CLAUDE.md; zerowallet does not.
 
 **Issues to resolve (later):** (1) Rule placement: local vs project vs repo vs user; which directions go where. (2) AGENTS.md: neither repo has it; decide if needed. (3) Harmonization: rules, CLAUDE.md, AGENTS.md across Zero and zerowallet. (4) Duplication: mainline-branches.mdc identical in both repos; consider shared or single source. (5) File-specific rules: none yet; globs for *.cpp, *.sh, etc. not defined.
+
+### 2.4 Versioning (locations, values, influences)
+
+| Type | Repo | Location | Value | Influence |
+|------|------|----------|-------|-----------|
+| **APP_VERSION** | zerowallet | `src/version.h` | `"4.0.0"` | zerowallet UI, mkrelease artifacts |
+| **CLIENT_VERSION** | Zero | `configure.ac` → `bitcoin-config.h` | 4.0.0 (4000050) | RPC `version`; subversion string |
+| **CLIENT_NAME** | Zero | `src/clientversion.cpp` | `"Gaua"` | P2P subversion; RPC `subversion` |
+| **PROTOCOL_VERSION** | Zero | `src/version.h` | 170009 | Serialization; P2P; zeronode; RPC |
+| **MIN_PEER_PROTO_VERSION** | Zero | `src/version.h` | 170007 | Peer disconnect threshold |
+| **MIN_PEER_PROTO_VERSION_ENFORCEMENT** | Zero | `src/version.h` | 170008 | `ActiveProtocol()`; zeronode payments |
+| **vUpgrades[].nProtocolVersion** | Zero | `src/chainparams.cpp` | 170002–170009 | Per-epoch peer rejection |
+| **walletversion** | Zero | `CWallet::GetVersion()` | 10500+ | Wallet DB format; RPC `getinfo` |
+
+**zerowallet:** `APP_VERSION` in `zerowalletmac/src/version.h`. Used by `mainwindow.cpp`, `main.cpp`, `rpc.cpp`, `websockets.cpp`, mkrelease scripts. zerowallet displays node values (CLIENT_NAME, CLIENT_VERSION, PROTOCOL_VERSION, walletversion) via RPC; it does not set them.
+
+**Inter-node P2P implications**
+
+- **PROTOCOL_VERSION (170009):** Sent in `version` message; used in `ssSend.SetVersion(min(peer, PROTOCOL_VERSION))` so both peers use the lower version for wire messages. Bumping to 170010 alone: backward compatible (min() keeps 170009 with existing peers). Bumping with a new `vUpgrades` entry: enables new epoch; peers below that `nProtocolVersion` are rejected.
+- **MIN_PEER_PROTO_VERSION (170007):** `main.cpp` disconnects peers with `nVersion < 170007`. Raising excludes older nodes.
+- **MIN_PEER_PROTO_VERSION_ENFORCEMENT (170008):** Returned by `ActiveProtocol()`. Used by zeronode payments (`zeronode/payments.cpp`), budget (`zeronode/budget.cpp`), sync (`zeronode/zeronode-sync.cpp`). Zeronodes require `protocolVersion >= ActiveProtocol()`. Raising excludes older zeronodes from governance.
+- **vUpgrades[].nProtocolVersion:** `main.cpp` rejects peers with `nVersion < vUpgrades[currentEpoch].nProtocolVersion`. To bump to 170010, add a new upgrade in `chainparams.cpp` with `nProtocolVersion = 170010` and `nActivationHeight`; otherwise 170010 has no effect.
+- **CLIENT_NAME:** `contrib/seeds/makeseeds.py` `PATTERN_AGENT` must match (currently `/Gaua:.../`).
+
+**Node internals**
+
+- **PROTOCOL_VERSION:** Passed to `CDataStream`, `GetSerializeSize`, `CHashWriter` for blocks, tx, addresses, keys, witnesses, zeronode data. Serialization format depends on it; changing it can break parsing of data produced by other nodes or stored on disk.
+- **walletversion:** Wallet DB schema; `SetMinVersion`/`SetMaxVersion` control feature flags. Independent of P2P.
+
+**Unit and validation tests**
+
+- **PROTOCOL_VERSION:** Used in serialize, bloom, policyestimator, transaction, block, pmt, alert tests. Tests assume current format; bumping may require regenerating fixtures (e.g. `alert_tests.raw`).
+- **CLIENT_NAME:** `alert_tests.cpp` uses `FormatSubVersion(CLIENT_NAME, ...)`. Alert system deprecated; raw data may need regeneration if CLIENT_NAME changes.
 
 ## 3. Status Summary
 
@@ -163,7 +200,7 @@ bugs also present in HUSH3.
 | PYTHON detection in tests-config.sh | Done | BUILDDIR set; PYTHON from run-tests.sh |
 | Regtest block count | Open | See §4.5.1 |
 | Cursor harmonization | Documented; delayed | See §2.3. Full issue list documented; resolution postponed. |
-| Python 3 migration | Incomplete | run-tests.sh uses Py3; many scripts still python2 shebang; full_test_suite.py has 2.7.18 fallback. See UpdateTests §6.2.1. |
+| Python 3 migration | Incomplete | run-tests.sh uses Py3; 10 scripts have python2 shebang; full_test_suite.py has 2.7.18 fallback; CI requires Py2.7 for Ansible. Transition plan: UpdateTests §6.2.1. |
 | Python in install scripts | — | contrib/ci-workers/unix.yml (Ansible, installs Python); contrib/ci-workers/tasks/install-pip.yml (runs get-pip.py). CI relocated to ~/Work/ZK/CI. |
 | GTest 1.12.1 upgrade | Pending | Cross-fork alignment; Zero uses 1.16.0. See §4.5.2. |
 
@@ -185,8 +222,7 @@ bugs also present in HUSH3.
 |----------|-------|
 | `src/amount.h` | `MAX_MONEY = 16.95M ZER`; Zero total supply ~25.6M ZER exceeds this; validation uses per-subsidy `MoneyRange` only, not cumulative |
 | `TODO.md`, `TEST_ZERO.md` | Outdated `338665500000000` total subsidy reference; Zero total ≈ 2.56e15 zatoshi |
-| `README.md` | "Stable supply is 3888 ZER, after first halfing" — ambiguous; 3888 ≈ daily emission (720×5.4) after first halving, not total supply |
-| `doc/tor.md` | `"subver" : "/MagicBean:1.0.0/"` — legacy; Zero uses Ambrym |
+| `doc/tor.md` | `"subver" : "/MagicBean:1.0.0/"` — legacy; Zero uses Gaua |
 
 ### 4.7 User-Facing Documentation Review (Area to Improve)
 

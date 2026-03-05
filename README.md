@@ -140,7 +140,7 @@ Disabledeprecation flag has been removed. Nodes running release 3.3.1 will autom
 sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib autoconf libtool ncurses-dev unzip git python3 python3-zmq zlib1g-dev wget bsdmainutils automake cmake curl
 git clone https://github.com/zerocurrencycoin/Zero.git && cd Zero
 ./zcutil/fetch-params.sh
-./zcutil/build.sh -j$(nproc)
+./zcutil/build.sh
 ./src/zerod -daemon
 ```
 

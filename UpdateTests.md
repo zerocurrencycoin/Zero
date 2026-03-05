@@ -232,7 +232,7 @@ No known failures.
 
 **5.1 Alert_tests**  
 *Symptoms*: MagicBean subver mismatch; PartitionAlert expectedSlow wrong; AlertDisablesRPC may fail.  
-*Root cause*: alertTests.raw MagicBean/Zcash-specific; Zero uses Ambrym. PoWTargetSpacing 120 vs Zcash 150. Alert system deprecated.  
+*Root cause*: alertTests.raw MagicBean/Zcash-specific; Zero uses Gaua. PoWTargetSpacing 120 vs Zcash 150. Alert system deprecated.  
 *Fix/mitigation*: Excluded. Set aside.
 
 **5.2 equihash_tests**  
@@ -390,7 +390,7 @@ The following are workarounds and skips to overcome test problems and failures. 
 
 | Item | Workaround | Root cause (unfixed) |
 |------|------------|----------------------|
-| Alert_tests | Excluded via `--run_test='!Alert_tests'` | MagicBean/Zcash-specific alerts; Zero uses Ambrym |
+| Alert_tests | Excluded via `--run_test='!Alert_tests'` | MagicBean/Zcash-specific alerts; Zero uses Gaua |
 | equihash_tests | Excluded via `--run_test='!equihash_tests'` | Zero (192,7) vs test (96,5); suite skips when nEquihashN!=96 |
 | miner_tests | Excluded via `--run_test='!miner_tests'` | Zero (192,7) vs test (96,5) |
 | rpc_wallet_encrypted_wallet_sapzkeys | Excluded via `--run_test='!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'` | CDB::Rewrite deadlock (same as GTest WriteCryptedSaplingZkey*; §6.4). **Appendix A.2** |
@@ -520,9 +520,21 @@ macOS: `/usr/bin/python3` comes from Xcode Command Line Tools; Apple does not bu
 | check-security (--build-checks) | Requires python in PATH; uses PY_DIR from python3/python. Skips if none. |
 | RPC tests (qa/rpc-tests) | Invoked via rpc-tests.sh with PYTHON env. mininode.py: pyblake2 or hashlib.blake2b. |
 | full_test_suite.py | python2 shebang; pyenv 2.7.18 fallback in script. run-tests.sh overrides with `$PY3`. |
-| Scripts with python2 shebang | amqp_sub.py, zmq_sub.py, test-security-check.py |
-| Scripts with python shebang | symbol-check.py, optimize-pngs.py, fix-copyright-headers.py, security-check.py, spendfrom.py, gen_base58_test_vectors.py, generate-seeds.py, linearize-hashes.py, linearize-data.py, makeseeds.py |
+| Scripts with python2 shebang | full_test_suite.py, test_framework.py, comptool.py, netutil.py, txindex.py, getrawtransaction_insight.py, amqp_sub.py, zmq_sub.py, test-security-check.py, make-release.py, test-depends-sources-mirror.py |
+| Scripts with python shebang | symbol-check.py, optimize-pngs.py, fix-copyright-headers.py, security-check.py, spendfrom.py, gen_base58_test_vectors.py, generate-seeds.py, linearize-hashes.py, linearize-data.py, makeseeds.py, qa/rpc-tests/*.py (many), bitcoin-util-test.py, buildenv.py.in |
+| CI (contrib/ci-workers) | unix.yml: installs Python 2.7 for Ansible; requires ansible_python_interpreter. Archlinux.yml: python2-pip. |
 | Migration | Incomplete. run-tests.sh and RPC flow use Py3; many contrib scripts unchanged. |
+
+**zerowallet Python:** Build deps only; no runtime, no tests. install_mxe.sh: python3-mako, python3-setuptools. Dockerfile (ubuntu:16.04): apt-installs `python` (→ python2 on that base). See UpdateWallet §System Install.
+
+**Transition plan (complete Py2 removal):**
+
+| Phase | Action |
+|-------|--------|
+| 1. Shebangs | Change python2 → python3 in all 10 scripts listed above. Remove full_test_suite.py 2.7.18 fallback. |
+| 2. Generic python | Change `#!/usr/bin/env python` → `#!/usr/bin/env python3` in contrib/, qa/ scripts that must run under Py3. Verify each: some may need Py2 compat or are unused. |
+| 3. CI/Ansible | Upgrade to Ansible 3+ (Python 3) or set ansible_python_interpreter to python3 if supported. Remove python2-pip from Archlinux.yml. |
+| 4. Verification | Run `contrib/run-tests.sh`; run each contrib script manually; confirm CI passes. |
 
 **Prereq:** `python3 -m pip install pyblake2` only if using Python &lt;3.6 or if mininode fails to use hashlib.blake2b. With 3.6+, optional.
 

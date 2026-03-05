@@ -295,7 +295,7 @@ BOOST_AUTO_TEST_CASE(AlertApplies)
 
     BOOST_CHECK(alerts.size() >= 3);
 
-    // Matches: use CLIENT_NAME (Ambrym). Alert system deprecated; raw data may need regeneration.
+    // Matches: use CLIENT_NAME (Gaua). Alert system deprecated; raw data may need regeneration.
     const std::string subVer_0_1_0 = FormatSubVersion(CLIENT_NAME, 10050, std::vector<std::string>());
     const std::string subVer_0_2_0 = FormatSubVersion(CLIENT_NAME, 20050, std::vector<std::string>());
     const std::string subVer_11_11_11 = FormatSubVersion(CLIENT_NAME, 11111, std::vector<std::string>());

@@ -258,8 +258,7 @@ void FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, CTxOut& txFounder
 | (removed) | `338665500000000` — outdated total subsidy (zatoshi); Zero total ≈ 2.56e15. |
 | `TODO.md` | Same `338665500000000` reference. |
 | `TEST.md` | Same `338665500000000` reference. |
-| `README.md` | "Stable supply is 3888 ZER, after first halfing" — ambiguous; 3888 ≈ daily emission (720×5.4) after first halving, not total supply. |
-| `doc/tor.md` | `"subver" : "/MagicBean:1.0.0/"` — legacy; Zero uses Ambrym. |
+| `doc/tor.md` | `"subver" : "/MagicBean:1.0.0/"` — legacy; Zero uses Gaua. |
 
 ### 11.2 RPC Python tests (`qa/rpc-tests/`)
 

@@ -20,7 +20,7 @@ Zero is a Zcash-family cryptocurrency node. This document describes how to build
 git clone https://github.com/zerocurrencycoin/Zero.git
 cd Zero
 ./zcutil/fetch-params.sh
-./zcutil/build.sh -j4
+./zcutil/build.sh
 ```
 
 Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. Optional: `src/zerowallet` (Qt GUI) if built with `--with-gui=qt5`.
@@ -44,7 +44,7 @@ sudo apt install qtbase5-dev qtbase5-dev-tools qttools5-dev-tools libqt5websocke
 **Build:**
 ```bash
 ./zcutil/fetch-params.sh
-./zcutil/build.sh -j$(nproc)
+./zcutil/build.sh
 ```
 
 **Output:** `src/zerod`, `src/zero-cli`, `src/zero-tx`.
@@ -63,7 +63,7 @@ brew install automake cmake pkg-config coreutils
 **Build:**
 ```bash
 ./zcutil/fetch-params.sh
-./zcutil/build.sh -j4
+./zcutil/build.sh
 ```
 
 **Output:** `src/zerod`, `src/zero-cli`, `src/zero-tx`.
@@ -92,13 +92,13 @@ export PATH="$MXE_PATH:$PATH"
 Or manually:
 ```bash
 HOST=x86_64-w64-mingw32
-cd depends && make HOST=$HOST -j$(nproc) && cd ..
+cd depends && make HOST=$HOST && cd ..
 ./autogen.sh
 CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
   CXXFLAGS="-DPTW32_STATIC_LIB -DCURVE_ALT_BN128 -fopenmp -pthread" \
   ./configure --prefix=$PWD/depends/$HOST --host=$HOST --enable-static --disable-shared --disable-zmq --disable-rust
 sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure
-cd src && make CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix -j$(nproc) zerod.exe zero-cli.exe zero-tx.exe
+cd src && make CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix zerod.exe zero-cli.exe zero-tx.exe
 ```
 
 Binaries: `src/zerod.exe`, `src/zero-cli.exe`, `src/zero-tx.exe`.
@@ -116,7 +116,7 @@ If MXE is not yet built:
 export MXE_ROOT="${MXE_ROOT:-$HOME/mxe}"
 sudo apt install -y autoconf automake autopoint bash bison bzip2 flex g++ g++-multilib gettext git gperf intltool libc6-dev-i386 libgdk-pixbuf2.0-dev libltdl-dev libssl-dev libtool-bin libxml-parser-perl make openssl p7zip-full patch perl pkg-config python3-mako python3-setuptools python3-tk python3-venv ruby sed unzip wget xz-utils zstd
 git clone https://github.com/mxe/mxe.git "$MXE_ROOT"
-cd "$MXE_ROOT" && make MXE_TARGETS='x86_64-w64-mingw32.static' gcc -j$(nproc)
+cd "$MXE_ROOT" && make MXE_TARGETS='x86_64-w64-mingw32.static' gcc
 ```
 Then build Zero as above.
 
@@ -204,8 +204,8 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 ./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ MAKEARGS... ]
 ```
 
-- Flags must come before `-jN` and other make args.
-- `-jN` capped at 4 by default; use `-j$(nproc)` or `-j$(sysctl -n hw.ncpu)` to override.
+- Flags must come before make args.
+- `-jN` is optional on every platform. Omit to use auto-detected jobs (capped at 4). Use `-jN` only when overriding default behavior.
 - `CONFIGURE_FLAGS` passed to configure; multi-word values need escaping, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-enum-constexpr-conversion'`.
 
 ### 4.4 Variables and Overrides
@@ -306,7 +306,7 @@ Run `./zcutil/fetch-params.sh` before starting zerod.
 
 ### 6.4 Memory Exhausted
 
-**"virtual memory exhausted" or "killed":** Reduce jobs: `make -j1 zerod`. Or add swap.
+**"virtual memory exhausted" or "killed":** Override jobs: `make -j1 zerod`. Or add swap.
 
 ### 6.5 Mining Disabled
 
@@ -318,18 +318,26 @@ Install Qt5: `sudo apt install qtbase5-dev qtbase5-dev-tools qttools5-dev-tools 
 
 ### 6.7 Clean Rebuild
 
+**Depends:** The `depends/` Makefile has no `clean` target. Remove artifacts manually:
+
+| Level | Command | Use case |
+|-------|---------|----------|
+| BDB only | `rm -rf depends/work/build/*/bdb depends/built/*/bdb` | BDB package change (e.g. bdb.mk CFLAGS) |
+| All depends | `rm -rf depends/work depends/built` | Rebuild all packages |
+| Full tree | `rm -rf depends/work depends/built depends/$HOST` | Staging dir corrupted or HOST changed |
+
+**Full clean rebuild:**
 ```bash
 make clean && make distclean
-cd depends && make clean && cd ..
+rm -rf depends/work depends/built depends/$(./depends/config.guess)
 ./autogen.sh
-CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure ...
-make -j4
+./zcutil/build.sh
 ```
 
 ### 6.8 Build Log
 
 ```bash
-make -j4 2>&1 | tee build.log
+make 2>&1 | tee build.log
 grep -i error build.log
 ```
 

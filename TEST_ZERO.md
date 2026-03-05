@@ -98,3 +98,4 @@ Runs Util, secp256k1, univalue, GTest (filtered), Boost (pass-only), RPC Python 
 - **GTest/Boost cascade:** Run by suite (e.g. `-t rpc_tests`) to isolate
 - **RPC tests fail:** Ensure `BUILDDIR`, `BITCOIND`, `BITCOINCLI` point to Zero binaries (tests-config.sh)
 - **macOS --full:** Skips sec-hard and no-dot-so; suite completes
+- **macOS orphaned zerod:** RPC tests spawn zerod in temp dirs (`/var/folders/.../T/test*`). When interrupted (Ctrl+C, crash), zerod can be left running. `contrib/run-tests.sh` kills them before Python RPC on Darwin. Manual: `pkill -f "zerod -datadir=/var/folders"`

@@ -61,7 +61,7 @@ parse_log_opts() {
   if [ -n "$LOG_FILE" ]; then mkdir -p "$(dirname "$LOG_FILE")"; fi
 }
 
-# Cap -jN at 4. nproc (Linux), gnproc (Mac coreutils), sysctl (Mac native).
+# Optional -jN. Jobs auto-detected (nproc/gnproc/sysctl); capped at 4. Pass -jN only to override.
 detect_jobs() {
   local n=2
   if command -v nproc &>/dev/null; then

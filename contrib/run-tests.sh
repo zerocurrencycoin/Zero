@@ -170,6 +170,13 @@ fi
 
 if [ "$NO_PYTHON" -eq 0 ]; then
     echo ""
+    if [ "$(uname -s)" = "Darwin" ]; then
+        orphaned=$(pgrep -f "zerod -datadir=/var/folders" 2>/dev/null | wc -l)
+        if [ "$orphaned" -gt 0 ]; then
+            echo "--- Killing $orphaned orphaned zerod ---"
+            pkill -f "zerod -datadir=/var/folders" 2>/dev/null || true
+        fi
+    fi
     PY3=$(find_python3)
     if [ -n "$PY3" ]; then
         export PYTHON="$PY3"

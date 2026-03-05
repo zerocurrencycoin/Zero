@@ -243,7 +243,6 @@ def build():
     base_dir = os.getcwd()
     depends_dir = os.path.join(base_dir, 'depends')
     src_dir = os.path.join(base_dir, 'src')
-    nproc = sh_out('nproc').strip()
     sh_progress([
         'Staging boost...',
         'Staging libevent...',
@@ -260,7 +259,7 @@ def build():
         'test/equihash_tests.cpp',
         'test/util_tests.cpp',
         "Leaving directory '%s'" % src_dir,
-        ], './zcutil/build.sh', '-j', nproc)
+        ], './zcutil/build.sh')
 
 
 @phase('Generating manpages.')

@@ -32,7 +32,7 @@ Usage: $ME [ -m/--mxe PATH ] [ -L | --log PATH ] [ MAKEARGS... ]
   -m, --mxe PATH  MXE root (default: $HOME/mxe)
   -L, --log PATH  capture build log (default: $log)
 
-  MAKEARGS: -jN parallel jobs, capped at 4. Default: -j\$(detect_jobs).
+  MAKEARGS: -jN optional, use only when overriding auto-detected number of CPU cores, capped at 4
 EOF
 }
 

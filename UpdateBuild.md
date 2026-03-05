@@ -84,6 +84,8 @@ not propagate.
 
 zerod uses system GCC (Linux), Clang (macOS), mingw-w64 (Windows). GCC 7.0+ required for C++14. zerowallet toolchains: BUILD_ZERO §6.6.
 
+**Stripping:** Zero build scripts do not strip; `src/zerod`, `src/zero-cli` are debug-sized. Gitian descriptors strip for release. zerowallet mkrelease strips on Linux/Windows by default; `-S`/`--no-strip` to skip. macOS zerowallet not stripped. UpdateWallet §How zerod Gets Bundled.
+
 ### 2.3 Autoconf Macros
 
 **Version history:** Zero uses autoconf-archive macros in `build-aux/m4/`. Versions (serial numbers) vary; some are from 2019–2023.
@@ -96,6 +98,8 @@ zerod uses system GCC (Linux), Clang (macOS), mingw-w64 (Windows). GCC 7.0+ requ
 - **ax_cxx_compile_stdcxx.m4:** Serial 4; supports C++14/17. Adequate.
 - **config.guess/config.sub:** Use 2025 versions (see §3.6).
 - **AC_PREREQ:** configure.ac requires 2.60; consider 2.69+ for better portability.
+
+**System autoconf (from PATH):** macOS Tahoe 1.72; Ubuntu 24.04 2.71.
 
 ## 3. Depends Changes
 
@@ -196,7 +200,7 @@ intermediate SHA-256 result, then copies to `output.data()`.
 
 **Issue:** `ld: warning: object file ... was built for newer 'macOS' version than being linked` — googletest built with default SDK, main app uses `-mmacosx-version-min`.
 
-**Fix:** `depends/packages/googletest.mk` uses `$(OSX_MIN_VERSION)` (15.0) for darwin. Requires `make -C depends clean` and rebuild to take effect.
+**Fix:** `depends/packages/googletest.mk` uses `$(OSX_MIN_VERSION)` (15.0) for darwin. Requires `rm -rf depends/work depends/built` and rebuild to take effect. See [BUILD_ZERO.md](BUILD_ZERO.md) §6.7.
 
 ### 4.5 Build Warnings (non-fatal)
 
@@ -492,5 +496,5 @@ Build system architecture and platform support across Zcash-family and Bitcoin.
 | **Parity** | Verify `build.sh --daemon` and `build-win.sh` use same configure options (`--disable-zmq`, `--disable-rust`). |
 | **Depended** | Depends build for HOST succeeds: `make -C depends HOST=x86_64-w64-mingw32` (Linux). Minimal validation before full build. |
 
-**Under consideration:** config.site presence check, configure `--help` options drift check, Windows binary format (PE32+), depends clean+rebuild.
+**Under consideration:** config.site presence check, configure `--help` options drift check, Windows binary format (PE32+).
 
