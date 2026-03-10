@@ -13,7 +13,7 @@ Canonical declaration. User-facing docs must never reference project docs. Proje
 | Group | Files | Audience |
 |-------|-------|----------|
 | **User-facing** | README.md, BUILD_ZERO.md, TEST_ZERO.md, CONTRIBUTING.md, TODO.md | Contributors, users building/running Zero. Current state only; no future plans. |
-| **Project** | UpdateZero.md, UpdateBuild.md, UpdateTests.md, UpdateFeatures.md, Zeronode_wallet.md, Subsidy.md, doc/files.md | Maintainers, status tracking, design decisions, plans, futures. |
+| **Project** | UpdateZero.md, UpdateBuild.md, UpdateTests.md, UpdateFeatures.md, Zeronode_wallet.md, Subsidy.md, ZeroCoin.md, doc/files.md | Maintainers, status tracking, design decisions, plans, futures. |
 
 CONTRIBUTING and README state placement rules only; neither mentions project docs.
 
@@ -47,6 +47,7 @@ CONTRIBUTING and README state placement rules only; neither mentions project doc
 | **UpdateFeatures** | Architecture, production code, cross-fork analysis |
 | **Zeronode_wallet** | Wallet abstraction for zeronode |
 | **Subsidy** | Block subsidy, halving algorithm |
+| **ZeroCoin** | Chain, coin, ops reference (history, consensus, subsidy, zeronodes, supply, operations). External reference for miners, pools, exchanges, DEX. Fill from Subsidy, README, doc/. |
 | **doc/files** | Data directory layout |
 | **ZKs/Comparison** | Cross-project: difficulty, Equihash, toolchain (outside repo) |
 | **TODO** | User-facing items with design and timelines |
@@ -218,11 +219,14 @@ bugs also present in HUSH3.
 
 ### 4.6 Documented Mismatches (Subsidy §11.1)
 
-| Location | Issue |
-|----------|-------|
-| `src/amount.h` | `MAX_MONEY = 16.95M ZER`; Zero total supply ~25.6M ZER exceeds this; validation uses per-subsidy `MoneyRange` only, not cumulative |
-| `TODO.md`, `TEST_ZERO.md` | Outdated `338665500000000` total subsidy reference; Zero total ≈ 2.56e15 zatoshi |
-| `doc/tor.md` | `"subver" : "/MagicBean:1.0.0/"` — legacy; Zero uses Gaua |
+| Location | Issue | Triage |
+|----------|-------|--------|
+| `src/amount.h` | `MAX_MONEY = 16.95M ZER`; Zero total supply ~25.6M ZER exceeds this; validation uses per-subsidy `MoneyRange` only, not cumulative | → ZeroCoin.md |
+| Subsidy.md §11.3 | Founders value `338665500000000<?>` wrong; correct and sync docs | → Subsidy.md |
+| `TODO.md`, `TEST_ZERO.md` | Outdated `338665500000000` total subsidy reference; Zero total ≈ 2.56e15 zatoshi | → Subsidy.md |
+| README.md | "Stable supply is 3888 ZER, after first halfing" — ambiguous; 3888 ≈ daily emission (720×5.4), not total supply | → README.md, ZeroCoin.md |
+| `doc/tor.md` | `"subver" : "/MagicBean:1.0.0/"` — legacy; Zero uses Gaua/Ambrym | → doc/tor.md |
+| P2P alert code | alertkeys.h, sendalert.cpp, alert_tests.cpp still present (Zcash removed Aug 2025). Decide: keep or remove | → Subsidy.md §15.5 or ZeroCoin.md §11 |
 
 ### 4.7 User-Facing Documentation Review (Area to Improve)
 
@@ -471,3 +475,49 @@ Status tracking. For build instructions, see referenced docs.
 **Upstream:** Zclassic, zen use same host triplets; Zcash no build-windows doc; Bitcoin/Zcash depends `download-win` target.
 
 **Items and notes (pending Windows build confirmation on Linux):** Update zerowallet BUILD.md to reference BUILD_ZERO for zerod/Windows. Determine whether UpdateWallet retains Windows zerowallet-specific info.
+
+---
+
+## 10. From zerowallet (transferred for triage)
+
+Material from zerowallet ZERO_TODO and UpdateWallet §Detected Errors / §Zero Full Node. zerowallet does not maintain Zero’s TODO.
+
+**Docs:** **ZeroCoin.md** (this repo) = single reference for chain, coin, ops. Fill from Subsidy.md, README, doc/, UpdateZero. Keep Subsidy.md as source of truth; ZeroCoin.md = external reference for miners, pools, exchanges, DEX.
+
+**Context:** zerowallet TODO stays in zerowallet (build, wallet UI, deps). Zero chain/consensus issues belong here (this file, issues, or TODO).
+
+---
+
+## 11. Items for other documents or other repos
+
+*Route each to the right place. For review when merging.*
+
+### → ZeroCoin.md (Zero repo)
+
+- Consolidate all chain history, consensus and economic parameters, subsidy, halving, zeronodes, supply, post-halving, operations, addresses, security.
+- Document MAX_MONEY vs total supply (~25.6M ZER) and per-subsidy MoneyRange in §Consensus / §Supply.
+- Clarify “3888 ZER” (total supply vs daily emission) in §Supply or §README.
+
+### → Subsidy.md (Zero repo)
+
+- §11.3: Correct founders value `338665500000000<?>`; sync with UpdateZero §4.6.
+- §15.5 (or new): Document P2P alert code decision (keep or remove; Zcash removed Aug 2025).
+
+### → README.md (Zero repo)
+
+- "Stable supply is 3888 ZER, after first halfing" — clarify: total supply vs emission rate (3888 ≈ daily emission).
+
+### → doc/tor.md (Zero repo)
+
+- Update subver from legacy `/MagicBean:1.0.0/` to Gaua/Ambrym (or remove if obsolete).
+
+### → zerowallet (no transfer)
+
+- No items to send to zerowallet. Zerowallet scope: wallet UI, build, release; references Zero for chain/coin.
+
+---
+
+## 12. Remainder for further disposition
+
+- **Ownership:** ZeroCoin.md lives in Zero repo only; zerowallet does not host chain/coin reference after transfer.
+- **Ongoing:** Detected-issues table (§4.6) to be triaged into fixes (code/docs), into ZeroCoin.md, or closed. Any item not yet routed stays in UpdateZero until disposition.
