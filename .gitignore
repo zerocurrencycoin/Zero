@@ -42,6 +42,10 @@ src/config/bitcoin-config.h.in
 src/config/stamp-h1
 share/setup.nsi
 
+artifacts/
+bin/
+debug/
+release/
 build-logs/
 logs/
 cache/
