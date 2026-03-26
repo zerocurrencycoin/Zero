@@ -32,7 +32,7 @@ Usage: $ME [ -m/--mxe PATH ] [ -L | --log PATH ] [ MAKEARGS... ]
   -m, --mxe PATH  MXE root (default: $HOME/mxe)
   -L, --log PATH  capture build log (default: $log)
 
-  MAKEARGS: -jN optional, use only when overriding auto-detected number of CPU cores, capped at 4
+  MAKEARGS: -jN optional; auto job count capped at FZERO_MAX_JOBS (see zcutil/fzero.sh)
 EOF
 }
 
@@ -59,13 +59,15 @@ resolve_host_win() {
 }
 
 build_depends_win() {
-  run_log env HOST="$HOST" BUILD="$BUILD" NO_PROTON=1 "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
+  # Proton off: NO_PROTON=1 matches depends/Makefile (same convention as build-native.sh without --enable-proton).
+  run_log env NO_PROTON=1 HOST="$HOST" BUILD="$BUILD" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
 }
 
 run_configure_win() {
   export_config_site
   run_log env CXXFLAGS="-DPTW32_STATIC_LIB -DCURVE_ALT_BN128 -fopenmp -pthread" \
-    ./configure --prefix="$PREFIX" --host="$HOST" --enable-static --disable-shared --disable-zmq --disable-rust
+    ./configure --prefix="$PREFIX" --host="$HOST" --enable-static --disable-shared --disable-zmq --disable-rust --disable-proton
+  # Portable in-place edit: GNU sed wants -i or -i''; BSD sed requires a backup suffix. -i.bak works on both; then drop .bak.
   sed -i.bak 's/-lboost_system-mt /-lboost_system-mt-s /' configure && rm -f configure.bak
 }
 

@@ -39,7 +39,7 @@ void pre_wallet_load()
 {
     LogPrintf("%s: In progress...\n", __func__);
     if (ShutdownRequested())
-        throw new std::runtime_error("The node is shutting down");
+        throw std::runtime_error("The node is shutting down");
 
     if (pwalletMain)
         pwalletMain->Flush(false);
@@ -489,7 +489,7 @@ public:
             case SAPLING:
                 return saplingTree.root();
             default:
-                throw new std::runtime_error("Unknown shielded type");
+                throw std::runtime_error("Unknown shielded type");
         }
     }
 
@@ -515,7 +515,7 @@ double benchmark_connectblock_slow()
     SelectParams(CBaseChainParams::MAIN);
     CBlock block;
     FILE* fp = fopen((GetDataDir() / "benchmark/block-107134.dat").string().c_str(), "rb");
-    if (!fp) throw new std::runtime_error("Failed to open block data file");
+    if (!fp) throw std::runtime_error("Failed to open block data file");
     CAutoFile blkFile(fp, SER_DISK, CLIENT_VERSION);
     blkFile >> block;
     blkFile.fclose();

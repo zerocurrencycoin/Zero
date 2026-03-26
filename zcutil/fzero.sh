@@ -2,11 +2,15 @@
 # Copyright 2026 Zero Developers
 # Shared build helpers for Zero node (build-native, build-win).
 # Usage: ME="script-name"; . "$(dirname "${BASH_SOURCE[0]}")/fzero.sh"
-# Provides: SCRIPT_DIR, REPO_ROOT, section, log_capture, analyze_build_log, build_fail,
+# Provides: SCRIPT_DIR, REPO_ROOT, FZERO_MAX_JOBS, section, log_capture, analyze_build_log, build_fail,
 #           run_log, parse_log_opts, detect_jobs, makeargs_from_argv, export_config_site, run_autogen, cleanup_secp256k1_la
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Max parallel jobs for depends + top-level make when -j is omitted or above this cap.
+# Tune here for slow hosts (e.g. 2), or override per run: FZERO_MAX_JOBS=2 ./zcutil/build.sh
+: "${FZERO_MAX_JOBS:=8}"
 
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fmessage.sh"
@@ -61,7 +65,7 @@ parse_log_opts() {
   if [ -n "$LOG_FILE" ]; then mkdir -p "$(dirname "$LOG_FILE")"; fi
 }
 
-# Optional -jN. Jobs auto-detected (nproc/gnproc/sysctl); capped at 4. Pass -jN only to override.
+# Optional -jN. Jobs auto-detected (nproc/gnproc/sysctl); capped at FZERO_MAX_JOBS (default 8 in this file).
 detect_jobs() {
   local n=2
   if command -v nproc &>/dev/null; then
@@ -71,7 +75,7 @@ detect_jobs() {
   elif [[ "$(uname -s)" == "Darwin" ]] && command -v sysctl &>/dev/null; then
     n=$(sysctl -n hw.ncpu 2>/dev/null || echo 2)
   fi
-  if [[ "$n" -gt 4 ]]; then n=4; fi
+  if [[ "$n" -gt "$FZERO_MAX_JOBS" ]]; then n="$FZERO_MAX_JOBS"; fi
   echo "$n"
 }
 
@@ -81,7 +85,7 @@ makeargs_from_argv() {
   for arg in "$@"; do
     if [[ "$arg" =~ ^-j([0-9]+)$ ]]; then
       n="${BASH_REMATCH[1]}"
-      if [[ "$n" -gt 4 ]]; then n=4; fi
+      if [[ "$n" -gt "$FZERO_MAX_JOBS" ]]; then n="$FZERO_MAX_JOBS"; fi
       MAKEARGS+=("-j$n")
       HAS_JOBS=1
     else

@@ -33,7 +33,7 @@ Single reference for all chain history, consensus and economic parameters, subsi
 *Fill from: Subsidy.md, consensus code, src/amount.h.*
 
 - **Block time, difficulty, max supply.**
-- **Block subsidy:** Curve (initial reward, halving interval). Founders reward (e.g. 7.5%); correct value per Subsidy.md §11.3, UpdateZero §4.6.
+- **Block subsidy:** Curve (initial reward, halving interval). Founders reward (e.g. 7.5%); correct value per Subsidy.md §11.3, UpdateZero §5.
 - **Zeronode payments:** Percentage range (e.g. 20–40%), eligibility, lock/commit rules.
 - **MAX_MONEY / MoneyRange:** Per-subsidy validation; total supply (~25.6M ZER) vs cap (amount.h). Document or align.
 - **Supply clarification:** README “3888 ZER” — clarify total supply vs daily emission (e.g. 720×5.4); fix ambiguity.

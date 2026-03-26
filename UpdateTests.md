@@ -26,7 +26,7 @@ Nine test suites, grouped by execution dependency and coverage area.
 | Pirate v5.9.0 | 1.8.0 | |
 | Latest | 1.17.0 | C++17 |
 
-**Platforms tested**: macOS ARM64 (`arm-mac-build`), Ubuntu 24.04 x86_64 (`linux_build188`). All test failures reproduce pre-existing fork-level issues; none are platform-specific. Verified Feb 2026.
+**Platforms tested**: macOS ARM64 (`arm-mac-build`), Ubuntu 24.04 x86_64 (`linux_build188`). All test failures reproduce pre-existing fork-level issues; none are platform-specific. Verified March 2026.
 
 ### 2.1 Nine Suites
 
@@ -122,9 +122,9 @@ For release validation or debugging vendored lib failures. Not needed for routin
 
 ## 4. Status
 
-Tested on macOS ARM64 (`arm-mac-build` branch). Verified Feb 2026. All failures reproduce pre-existing fork-level issues; none ARM-specific.
+Tested on macOS ARM64 (`arm-mac-build` branch). Verified March 2026. All failures reproduce pre-existing fork-level issues; none ARM-specific.
 
-**Progress (Feb 2026)**: CachedWitnesses: wallet.cpp VerifyAndSetInitialWitness now continues when pcoinsTip null + pblockIn provided; tests still excluded (pre-add witness assertion or EXPECT_DEATH). CDB::Rewrite, Zeronode GTest: no progress; blocked. RPC Python: Py3 migration done; get_coinbase_address, getchaintips, wallet.py, p2p_nu_peer_management use skip logic; ZERO_MINE_COINBASE=1 for full coinbase coverage.
+**Progress (March 2026)**: CachedWitnesses: wallet.cpp VerifyAndSetInitialWitness now continues when pcoinsTip null + pblockIn provided; tests still excluded (pre-add witness assertion or EXPECT_DEATH). CDB::Rewrite, Zeronode GTest: no progress; blocked. RPC Python: Py3 migration done; get_coinbase_address, getchaintips, wallet.py, p2p_nu_peer_management use skip logic; ZERO_MINE_COINBASE=1 for full coinbase coverage.
 
 ### 4.1 Summary
 
