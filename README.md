@@ -104,7 +104,7 @@ See important security warnings on the
 
 📒 Deprecation Policy
 ------------------
-Disabledeprecation flag has been removed. Nodes running release 3.3.1 will automatically shut down in ten years (June 2032).
+Disabledeprecation flag has been removed. Nodes running release 4.0.x will automatically shut down in ten years (June 2032).
 
 
 📚 Documentation

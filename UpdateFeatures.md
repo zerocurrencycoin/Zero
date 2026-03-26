@@ -41,8 +41,7 @@ Used by: Zcash, Fluxd, Horizen/Zen, Zclassic.
 
 ### 1.3 Zero's Custom Approach
 
-In February 2020, cryptoforge replaced `IncrementNoteWitnesses` with two
-new functions:
+In February 2020 `IncrementNoteWitnesses` replaced with two new functions:
 
 **`VerifyAndSetInitialWitness`**: For each wallet note, validates the
 existing witness against the Sapling/Sprout Merkle root at its recorded
@@ -60,9 +59,6 @@ Key properties:
 - Reads Merkle tree roots via `pcoinsTip->GetSaplingAnchorAt`.
 - Multi-threaded witness building via `BuildSingleSaplingWitness`.
 - Designed for resilience during IBD on wallets with many notes.
-
-Introduced in commit `bf12a78d4` ("Delete & Witnesses", 2020-02-06) and
-cleaned up in `b6d25dd2d` ("Witness rework cleanup", 2020-02-13).
 
 ### 1.4 Production Code Fixes
 
@@ -82,7 +78,7 @@ the function uses the caller's block instead of calling `ReadBlockFromDisk`.
 This follows the same pattern Zcash uses in `IncrementNoteWitnesses`.
 In production the parameter defaults to `nullptr` and behavior is unchanged.
 
-**Files**: `src/wallet/wallet.cpp`, `src/wallet/wallet.h`
+**Files**: `src/wallet/wallet.h and .cpp`
 
 ### 1.5 Pre-existing Test Incompatibilities
 
@@ -104,8 +100,6 @@ latent failures.
 
 ### 1.6 Cross-Fork Comparison
 
-**Broader analysis:** ZKs/Comparison.md covers difficulty algorithms, Equihash parameters, PoW variations (RandomX, ZelHash), and C/C++ toolchain across Bitcoin, Zero, Zcash, Pirate, HUSH, Zclassic, Horizen, Flux.
-
 | Project | Witness Strategy | Functions | Status |
 |---------|-----------------|-----------|--------|
 | Zcash | Per-block incremental | `IncrementNoteWitnesses` | Active, maintained |
@@ -115,16 +109,11 @@ latent failures.
 | HUSH3 | Full-chain rebuild | `VerifyAndSetInitialWitness`, `BuildWitnessCache` | Active, same bugs unfixed |
 | Pirate | Rust-backed SaplingWallet | `IncrementSaplingWallet`, `DecrementSaplingWallet` | Active; old functions commented out |
 
-**Origin**: Zero's custom witness code was written by cryptoforge in Feb
-2020. HUSH3's repo (shallow clone, Duke, Jul 2025) contains identical
-code with the same bugs. Both projects share the same developer. Pirate's
-repo (shallow clone, Cryptoforge, Sep 2024) has all three functions
-commented out, replaced by a Rust `SaplingWallet` object that maintains
-Merkle tree state in Rust with C++ feeding it commitments.
-
-**HUSH3 bugs**: The three null-dereference bugs fixed in Zero
-(`pprev`, `pcoinsTip`, `nullifier`) are present and unfixed in HUSH3's
-current codebase.
+**Origin**: Zero's custom witness code dates to Feb 2020. HUSH3's repo
+(shallow clone, Jul 2025) contains identical code with the same bugs.
+Pirate's repo (shallow clone, Sep 2024) has all three functions commented
+out, replaced by a Rust `SaplingWallet` object that maintains Merkle tree
+state in Rust with C++ feeding it commitments.
 
 ### 1.7 Architectural Assessment
 
@@ -141,19 +130,19 @@ current codebase.
 - `ReadBlockFromDisk` calls inside witness building duplicate I/O that
   `ChainTip` already performed.
 - Main while-loop in `BuildWitnessCache` has unguarded `pprev` and
-  `pcoinsTip` accesses (safe in production, fragile in principle).
+  `pcoinsTip` accesses (appears safe in production but fragile in principle).
 
 **Options** (design only; not reviewed for necessity, benefit, effort, or timeline):
 1. **Keep current code, fix bugs** (done). Minimum change.
 2. **Restore `IncrementNoteWitnesses` as secondary path**. Enables
    tests, provides fallback, reduces upstream divergence.
-3. **Adopt Pirate's Rust SaplingWallet approach**. Forward-looking but
-   major architectural change.
-4. **Revert to upstream `IncrementNoteWitnesses` entirely**. Simplest
+3. **Revert to upstream `IncrementNoteWitnesses` entirely**. Simplest
    maintenance path but discards performance work for IBD scenarios.
+4. **Adopt Pirate's Rust SaplingWallet approach**. Forward-looking but
+   major architectural change.
 
 Current decision: option 1. Options 2–4 are future work for additional
-capabilities; not tracked until reviewed.
+capabilities.
 
 ## 2. Equihash State API
 
@@ -169,22 +158,16 @@ The new API is part of Zcash's progressive migration of crypto primitives
 to Rust via CXX interop. No other fork has adopted it. Adopting it would
 require the full `rustcxx` build infrastructure and updated `librustzcash`.
 
-**Decision**: Stay on old C API. Functionally equivalent. Used by every
-other fork.
+**Decision**: Stay on old C API. Functionally equivalent and used by every other fork.
 
 ## 3. Branding
 
-Incomplete rebranding from original Zcash fork. Runtime-facing code
-mostly says "ZERO" but autotools config, copyright headers, and some test
-strings still say "Zcash" or "Bitcoin". Not a functional issue unless it
-causes confusion in user-facing output (RPC help, logs, deprecation
-warnings). Low priority; address opportunistically when touching affected
-files.
+Incomplete rebranding from original Zcash fork. Runtime-facing code mostly says
+"ZERO" but some autotools config, and test strings may still say "Zcash" or "Bitcoin".
+Not a functional issue unless it causes confusion in user-facing output (RPC help, logs,
+deprecation warnings). Low priority; address opportunistically when touching affected files.
 
 ## 4. Library Dependencies with Feature Impact
-
-Some library upgrades or removals have implications beyond build
-configuration.
 
 ### 4.1 BerkeleyDB and Wallet Compatibility
 
@@ -194,13 +177,13 @@ Bitcoin Core has migrated entirely from BDB to SQLite-backed descriptor wallets.
 
 ### 4.2 OpenSSL and TLS
 
-**Postponed.** Separate effort. Requires detailed validation strategy.
-
 **Current understanding:**
 - Zero uses OpenSSL for RPC TLS and legacy crypto paths.
 - 1.1.1w is EOL (Sep 2023); no further security fixes.
-- Zcash, Bitcoin: removed. HUSH: WolfSSL. Zero, Horizen, Fluxd, Zclassic: still carry 1.1.1x.
-- Options: keep 1.1.1w; remove (audit call sites, libsodium+libsecp256k1); migrate to 3.5.x LTS.
+- Zcash, Bitcoin: removed. HUSH: WolfSSL. Zero, Horizen, Fluxd, Zclassic: still carry 1.1.1? version.
+- Options:
+    + keep 1.1.1w
+    + migrate to 3.5.x LTS.
 
-**Before proceeding:** Audit all OpenSSL call sites; document TLS/crypto usage; define validation strategy (unit tests, integration tests, TLS handshake verification). Do not mix with Boost or other upgrades.
+**Before proceeding:** Audit all OpenSSL call sites; document TLS/crypto usage; define validation strategy (unit tests, integration tests, TLS handshake verification).
 

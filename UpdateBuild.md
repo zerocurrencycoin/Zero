@@ -55,7 +55,7 @@ not propagate.
 
 **Updated files:**
 - `zcutil/build-native.sh`: resolve_host_native() — CC, CXX, MAKE, BUILD, HOST, CONFIGURE_FLAGS, MACOSX_DEPLOYMENT_TARGET (8 lines)
-- `zcutil/fzero.sh`: detect_jobs(), makeargs_from_argv() — job cap (2 lines)
+- `zcutil/fzero.sh`: `FZERO_MAX_JOBS` (default 8 in file), `detect_jobs()`, `makeargs_from_argv()` — cap auto and explicit `-jN`
 - `zcutil/build-win.sh`: LOG_FILE notice (1 line)
 
 ## 2. Platform Setup
@@ -290,7 +290,7 @@ endif
 
 | Package | Current | Target | Status |
 |---------|---------|--------|--------|
-| ccache | 4.12.2 | 4.12.2 | ✓ At target |
+| ccache | 4.13.1 | 4.13.1 | ✓ At target |
 | utfcpp | 3.1 | 4.0.9 | Deferred |
 | Qpid Proton | 0.26.0 | 0.39.0 | Disabled |
 
@@ -346,9 +346,9 @@ BDB version and license context:
 
 **Done.** `zeromq.mk` at 4.3.5.
 
-### 6.5 ccache 3.3.1 → 4.12.2
+### 6.5 ccache 3.3.1 → 4.13.1
 
-**Done.** `native_ccache.mk` at 4.12.2.
+**Done.** `native_ccache.mk` at 4.13.1.
 
 ### 6.6 Boost
 
@@ -403,7 +403,7 @@ How each Zcash-family project versions its core dependencies.
 | libsodium | 1.0.21 | 1.0.20 | 1.0.18 | 1.0.18 | 1.0.15 | 1.0.15 | 1.0.18 | — | 1.0.21 | ✓ |
 | libevent | 2.1.12 | 2.1.12 | 2.1.8 | 2.1.12 | 2.1.12 | 2.1.8 | 2.1.8 | 2.1.12 | 2.1.12 | ✓ |
 | ZeroMQ | 4.3.5 | 4.3.5 | 4.3.4 | 4.3.1 | 4.3.1 | 4.3.1 | (removed) | 4.3.5 | 4.3.5 | ✓ |
-| ccache | 4.12.2 | 4.11.3 | 3.3.1 | — | 3.3.1 | 3.3.1 | 3.3.1 | — | 4.12.2 | ✓ |
+| ccache | 4.13.1 | 4.11.3 | 3.3.1 | — | 3.3.1 | 3.3.1 | 3.3.1 | — | 4.13.1 | ✓ |
 | Boost | 1.88.0 | 1.83.0 | 1.82.0 | 1.83.0 | 1.70.0 | 1.80.0 | 1.72.0 | 1.88.0 | 1.90.0 | ✓ |
 | Rust | 1.32.0 / symlink | 1.81.0 | 1.70.0 | 1.69.0 | 1.32.0 | 1.32.0 | 1.32.0 | — | 1.93.1 | pin modern |
 | OpenSSL | 1.1.1w | (removed) | 1.1.1w | — | 1.1.1a | 1.1.1a | (none) | (removed) | 3.6.1 | TBD |

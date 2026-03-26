@@ -23,7 +23,7 @@ Usage: $ME [ -L | --log PATH ] [ --enable-lcov | --disable-tests ] [ --disable-m
   --disable-mining omit mining code (default: mining built)
   --enable-proton Apache Qpid Proton AMQP (default: off)
 
-  MAKEARGS: -jN optional, use only when overriding auto-detected number of CPU cores, capped at 4
+  MAKEARGS: -jN optional; auto job count capped at FZERO_MAX_JOBS (see zcutil/fzero.sh, default 8; override with env)
 EOF
 }
 
@@ -40,7 +40,9 @@ parse_build_args() {
   HARDENING_ARG='--enable-hardening'
   TEST_ARG=''
   MINING_ARG=''
-  PROTON_ARG='--enable-proton=no'
+  # Align with depends/Makefile: NO_PROTON=1 omits proton packages; empty includes them (same as build-win.sh when proton off).
+  PROTON_CONFIGURE='--disable-proton'
+  BUILD_PROTON_IN_DEPENDS=0
   DAEMON_ARG=''
   i=0
   while [[ $i -lt ${#REMAINING_ARGS[@]} ]]; do
@@ -48,7 +50,7 @@ parse_build_args() {
       --enable-lcov)   LCOV_ARG='--enable-lcov'; HARDENING_ARG='--disable-hardening'; i=$((i+1)) ;;
       --disable-tests) TEST_ARG='--enable-tests=no'; i=$((i+1)) ;;
       --disable-mining) MINING_ARG='--enable-mining=no'; i=$((i+1)) ;;
-      --enable-proton) PROTON_ARG=''; i=$((i+1)) ;;
+      --enable-proton) PROTON_CONFIGURE=''; BUILD_PROTON_IN_DEPENDS=1; i=$((i+1)) ;;
       --daemon)        DAEMON_ARG='--disable-zmq --disable-rust'; i=$((i+1)) ;;
       *) break ;;
     esac
@@ -71,12 +73,16 @@ build_depends_native() {
   eval "$MAKE" --version
   as --version
   ld -v
-  run_log env HOST="$HOST" BUILD="$BUILD" NO_PROTON="$PROTON_ARG" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
+  if [[ "$BUILD_PROTON_IN_DEPENDS" -eq 1 ]]; then
+    run_log env HOST="$HOST" BUILD="$BUILD" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
+  else
+    run_log env NO_PROTON=1 HOST="$HOST" BUILD="$BUILD" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
+  fi
 }
 
 run_configure_native() {
   export_config_site
-  run_log ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" $PROTON_ARG $DAEMON_ARG $CONFIGURE_FLAGS CXXFLAGS='-g'
+  run_log ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" $PROTON_CONFIGURE $DAEMON_ARG $CONFIGURE_FLAGS CXXFLAGS='-g'
 }
 
 run_make_native() {

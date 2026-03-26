@@ -92,12 +92,13 @@ export PATH="$MXE_PATH:$PATH"
 Or manually:
 ```bash
 HOST=x86_64-w64-mingw32
-cd depends && make HOST=$HOST -j$(nproc) && cd ..
+cd depends && env NO_PROTON=1 make HOST=$HOST -j$(nproc) && cd ..
 ./autogen.sh
 CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
   CXXFLAGS="-DPTW32_STATIC_LIB -DCURVE_ALT_BN128 -fopenmp -pthread" \
-  ./configure --prefix=$PWD/depends/$HOST --host=$HOST --enable-static --disable-shared --disable-zmq --disable-rust
-sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure
+  ./configure --prefix=$PWD/depends/$HOST --host=$HOST --enable-static --disable-shared --disable-zmq --disable-rust --disable-proton
+# Prefer ./zcutil/build-win.sh (uses sed -i.bak for GNU vs BSD sed). On Linux-only, sed -i may work without backup.
+sed -i.bak 's/-lboost_system-mt /-lboost_system-mt-s /' configure && rm -f configure.bak
 cd src && make CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix -j$(nproc) zerod.exe zero-cli.exe zero-tx.exe
 ```
 
@@ -122,15 +123,17 @@ Then build Zero as above.
 
 ### 2.5 Packaging (Linux)
 
-**Binary tarball:** After building, package binaries for distribution:
+**Recommended (current Zero naming):** After building, run:
 
 ```bash
-./zcutil/mkrelease-linux.sh
+./zcutil/release-linux.sh
 ```
 
-Output: `artifacts/zero-<VERSION>-linux-<arch>.tgz` (zerod, zero-cli, zero-tx if built, README, fetch-params.sh). Version in the archive name is semver only (e.g. 4.0.0; githash stripped). Use `-v X.Y.Z` to override; `-s` or `--no-strip` to skip stripping; `-L` to capture log.
+Output: `artifacts/linux-zero-v<VERSION>.tgz` and `artifacts/linux-zero-v<VERSION>.deb` (`Package: zero`, includes `zero-fetch-params` when `zcutil/fetch-params.sh` is present). Version is semver from `src/zerod --version` unless `-v X.Y.Z`. Use `-s` to skip stripping; `-L` to capture log.
 
-**Debian package:** `./zcutil/build-debian-package.sh` produces a .deb in the repo root (legacy Zcash naming; see script).
+**Legacy Debian builder:** `./zcutil/build-debian-package.sh` — Zcash-era package name (`zcash`), paths, and metadata. Kept for reference; do not mix with `release-linux.sh` outputs without reading both scripts. See **TODO.md** (Active) for consolidation task.
+
+**fetch-params script:** `zcutil/fetch-params.sh` still follows upstream Zcash naming and download URLs; modernization tracked in **TODO.md**.
 
 ---
 
@@ -196,7 +199,7 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 | libsodium | 1.0.21 |
 | libevent | 2.1.12 |
 | ZeroMQ | 4.3.5 |
-| ccache | 4.12.2 |
+| ccache | 4.13.1 |
 | Rust (depends) | Pinned current (macOS ARM64); 1.32.0 (Linux/Win). Note: test pinned Rust on Windows and Linux. |
 
 **ZMQ:** ZeroMQ 4.3.5 is built and used by default for block/tx notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, etc.). AMQP 1.0 (via Qpid Proton 0.26.0) would provide the same role with `-amqppub*`; we do not use it. Proton is not built or downloaded; disabled since 2017 (gcc/CMake issues).
@@ -230,20 +233,22 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 ```
 
 - `--daemon`: `--disable-zmq --disable-rust` for configure. Aligns with build-win.sh.
+- `--enable-proton`: native builds include Proton in `depends/` and configure (default without this flag: `NO_PROTON=1` for `depends` and `--disable-proton` for configure — same convention as Windows cross, which always omits Proton from depends and passes `--disable-proton`).
 - Flags must come before `-jN` and other make args. Example: `./zcutil/build.sh --disable-mining -j4` (correct); `./zcutil/build.sh -j4 --disable-mining` (wrong — flag passed to make).
-- `-jN` capped at 4 by default. Linux: `nproc`; macOS: `sysctl -n hw.ncpu` or `gnproc` (from `brew install coreutils`).
+- Parallel jobs: `zcutil/fzero.sh` sets **`FZERO_MAX_JOBS`** (default **8** at top of that file). Auto-detected CPU count is capped to that value; pass `-jN` to override (still capped). Per-run override without editing the file: `FZERO_MAX_JOBS=2 ./zcutil/build.sh`. Detection: Linux `nproc`; macOS `sysctl -n hw.ncpu` or `gnproc` (Homebrew coreutils).
 - `CONFIGURE_FLAGS` passed to configure; multi-word values need escaping, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-enum-constexpr-conversion'`.
 
 ### 4.5 Variables and Overrides
 
 | Variable | Purpose |
 |----------|---------|
+| `FZERO_MAX_JOBS` | Cap for auto `-j` and for explicit `-jN` when N exceeds cap (`zcutil/fzero.sh`; default 8 in file) |
 | `MXE_ROOT` | MXE install root; `MXE_PATH=$MXE_ROOT/usr/bin` (default `$HOME/mxe`; use `/usr/lib/mxe` for system) |
 | `CC`, `CXX` | Compiler (e.g. `gcc-11`, `g++-11`) |
 | `MAKE` | Make command (e.g. `gmake`) |
 | `BUILD`, `HOST` | Triplet for porters |
 | `CONFIGURE_FLAGS` | Extra configure options |
-| `CCACHE_DIR` | ccache cache (optional). ccache 4.12.2 in depends; `ccache -M 5G` for size. |
+| `CCACHE_DIR` | ccache cache (optional). ccache 4.13.1 in depends; `ccache -M 5G` for size. |
 
 ### 4.6 Intermediate Results
 
@@ -284,7 +289,7 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 
 **Cross-compile:** `HOST=x86_64-w64-mingw32`. Requires MXE with `x86_64-w64-mingw32.static-gcc`. Set `MXE_ROOT` (default `$HOME/mxe`; `MXE_PATH=$MXE_ROOT/usr/bin`). See §2.4 for full steps.
 
-**Manual build:** (1) `make HOST=x86_64-w64-mingw32` in depends; (2) configure with CONFIG_SITE (see §4.3), `--host=x86_64-w64-mingw32 --enable-static --disable-shared --disable-zmq --disable-rust`, CXXFLAGS for PTW32_STATIC_LIB, CURVE_ALT_BN128; (3) sed fix: `sed -i 's/-lboost_system-mt /-lboost_system-mt-s /' configure`; (4) make in src/ with `CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix`.
+**Manual build:** (1) `make HOST=x86_64-w64-mingw32` in depends; (2) configure with CONFIG_SITE (see §4.3), `--host=x86_64-w64-mingw32 --enable-static --disable-shared --disable-zmq --disable-rust --disable-proton`, CXXFLAGS for PTW32_STATIC_LIB, CURVE_ALT_BN128; (3) Boost `-mt` → `-mt-s` fix: use `sed -i.bak '…' configure && rm -f configure.bak` for macOS/Linux portability (see `zcutil/build-win.sh`); (4) make in src/ with `CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix`.
 
 **WSL2:** Use Linux instructions.
 
