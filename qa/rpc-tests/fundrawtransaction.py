@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (c) 2014 The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
@@ -193,7 +193,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         matchingOuts = 0
         for i, out in enumerate(dec_tx['vout']):
             totalOut += out['value']
-            if outputs.has_key(out['scriptPubKey']['addresses'][0]):
+            if out['scriptPubKey']['addresses'][0] in outputs:
                 matchingOuts+=1
             else:
                 assert_equal(i, rawtxfund['changepos'])
@@ -233,7 +233,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         matchingOuts = 0
         for out in dec_tx['vout']:
             totalOut += out['value']
-            if outputs.has_key(out['scriptPubKey']['addresses'][0]):
+            if out['scriptPubKey']['addresses'][0] in outputs:
                 matchingOuts+=1
 
         assert_equal(matchingOuts, 1)
@@ -275,7 +275,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         matchingOuts = 0
         for out in dec_tx['vout']:
             totalOut += out['value']
-            if outputs.has_key(out['scriptPubKey']['addresses'][0]):
+            if out['scriptPubKey']['addresses'][0] in outputs:
                 matchingOuts+=1
 
         assert_equal(matchingOuts, 2)

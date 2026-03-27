@@ -44,7 +44,8 @@ JSON_TEST_FILES = \
   test/data/merkle_commitments_sapling.json \
   test/data/sapling_key_components.json
 
-RAW_TEST_FILES = test/data/alertTests.raw
+# P2P alert tests disabled (obsolete Bitcoin alert system; see run-tests.sh BOOST_EXCLUDE).
+RAW_TEST_FILES =
 
 GENERATED_TEST_FILES = $(JSON_TEST_FILES:.json=.json.h) $(RAW_TEST_FILES:.raw=.raw.h)
 
@@ -52,7 +53,6 @@ BITCOIN_TESTS =\
   test/arith_uint256_tests.cpp \
   test/bignum.h \
   test/addrman_tests.cpp \
-  test/alert_tests.cpp \
   test/allocator_tests.cpp \
   test/base32_tests.cpp \
   test/base64_tests.cpp \

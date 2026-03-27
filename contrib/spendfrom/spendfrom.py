@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Use the raw transactions API to spend bitcoins received on particular addresses,
 # and send any change back to that same address.
@@ -244,7 +244,7 @@ def main():
 
     if options.amount is None:
         address_summary = list_available(bitcoind)
-        for address,info in address_summary.iteritems():
+        for address,info in address_summary.items():
             n_transactions = len(info['outputs'])
             if n_transactions > 1:
                 print("%s %.8f %s (%d transactions)"%(address, info['total'], info['account'], n_transactions))

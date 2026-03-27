@@ -1,7 +1,7 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # Copyright (c) 2014-2016 The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
-# file COPYING or https://www.opensource.org/licenses/mit-license.php .
+# file COPYING or https://opensource.org/licenses/mit-license.php .
 
 import array
 import binascii
@@ -12,37 +12,37 @@ port = 28332
 
 zmqContext = zmq.Context()
 zmqSubSocket = zmqContext.socket(zmq.SUB)
-zmqSubSocket.setsockopt(zmq.SUBSCRIBE, "hashblock")
-zmqSubSocket.setsockopt(zmq.SUBSCRIBE, "hashtx")
-zmqSubSocket.setsockopt(zmq.SUBSCRIBE, "rawblock")
-zmqSubSocket.setsockopt(zmq.SUBSCRIBE, "rawtx")
-zmqSubSocket.setsockopt(zmq.SUBSCRIBE, "checkedblock")
+zmqSubSocket.setsockopt(zmq.SUBSCRIBE, b"hashblock")
+zmqSubSocket.setsockopt(zmq.SUBSCRIBE, b"hashtx")
+zmqSubSocket.setsockopt(zmq.SUBSCRIBE, b"rawblock")
+zmqSubSocket.setsockopt(zmq.SUBSCRIBE, b"rawtx")
+zmqSubSocket.setsockopt(zmq.SUBSCRIBE, b"checkedblock")
 zmqSubSocket.connect("tcp://127.0.0.1:%i" % port)
 
 try:
     while True:
         msg = zmqSubSocket.recv_multipart()
-        topic = str(msg[0])
+        topic = msg[0].decode('ascii')
         body = msg[1]
-        sequence = "Unknown";
+        sequence = "Unknown"
         if len(msg[-1]) == 4:
           msgSequence = struct.unpack('<I', msg[-1])[-1]
           sequence = str(msgSequence)
         if topic == "hashblock":
-            print '- HASH BLOCK ('+sequence+') -'
-            print binascii.hexlify(body)
+            print('- HASH BLOCK ('+sequence+') -')
+            print(binascii.hexlify(body).decode('ascii'))
         elif topic == "hashtx":
-            print '- HASH TX  ('+sequence+') -'
-            print binascii.hexlify(body)
+            print('- HASH TX  ('+sequence+') -')
+            print(binascii.hexlify(body).decode('ascii'))
         elif topic == "rawblock":
-            print '- RAW BLOCK HEADER ('+sequence+') -'
-            print binascii.hexlify(body[:80])
+            print('- RAW BLOCK HEADER ('+sequence+') -')
+            print(binascii.hexlify(body[:80]).decode('ascii'))
         elif topic == "rawtx":
-            print '- RAW TX ('+sequence+') -'
-            print binascii.hexlify(body)
+            print('- RAW TX ('+sequence+') -')
+            print(binascii.hexlify(body).decode('ascii'))
         elif topic == "checkedblock":
-            print '- CHECKED BLOCK ('+sequence+') -'
-            print binascii.hexlify(body[:80])
+            print('- CHECKED BLOCK ('+sequence+') -')
+            print(binascii.hexlify(body[:80]).decode('ascii'))
 
 except KeyboardInterrupt:
     zmqContext.destroy()

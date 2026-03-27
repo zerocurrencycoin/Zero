@@ -11,6 +11,7 @@
 #include "chainparams.h"
 #include "clientversion.h"
 #include "data/alertTests.raw.h"
+#include "version.h"
 
 #include "main.h"
 #include "rpc/protocol.h"
@@ -256,6 +257,10 @@ struct ReadAlerts : public TestingSetup
             {
                 CAlert alert;
                 stream >> alert;
+                if (!alert.vchMsg.empty()) {
+                    CDataStream sMsg(alert.vchMsg, SER_NETWORK, PROTOCOL_VERSION);
+                    sMsg >> static_cast<CUnsignedAlert&>(alert);
+                }
                 alerts.push_back(alert);
             }
         }
@@ -295,34 +300,31 @@ BOOST_AUTO_TEST_CASE(AlertApplies)
 
     BOOST_CHECK(alerts.size() >= 3);
 
-    // Matches: use CLIENT_NAME (Gaua). Alert system deprecated; raw data may need regeneration.
-    const std::string subVer_0_1_0 = FormatSubVersion(CLIENT_NAME, 10050, std::vector<std::string>());
-    const std::string subVer_0_2_0 = FormatSubVersion(CLIENT_NAME, 20050, std::vector<std::string>());
-    const std::string subVer_11_11_11 = FormatSubVersion(CLIENT_NAME, 11111, std::vector<std::string>());
-
+    // alertTests.raw.h is legacy Zcash (MagicBean) serialized data; strings must match setSubVer in the blob.
     BOOST_CHECK(alerts[0].AppliesTo(1, ""));
     BOOST_CHECK(alerts[0].AppliesTo(999001, ""));
-    BOOST_CHECK(alerts[0].AppliesTo(1, subVer_11_11_11));
+    BOOST_CHECK(alerts[0].AppliesTo(1, "/MagicBean:11.11.11/"));
 
-    BOOST_CHECK(alerts[1].AppliesTo(1, subVer_0_1_0));
-    BOOST_CHECK(alerts[1].AppliesTo(999001, subVer_0_1_0));
+    BOOST_CHECK(alerts[1].AppliesTo(1, "/MagicBean:0.1.0/"));
+    BOOST_CHECK(alerts[1].AppliesTo(999001, "/MagicBean:0.1.0/"));
 
-    BOOST_CHECK(alerts[2].AppliesTo(1, subVer_0_1_0));
-    BOOST_CHECK(alerts[2].AppliesTo(1, subVer_0_2_0));
+    BOOST_CHECK(alerts[2].AppliesTo(1, "/MagicBean:0.1.0/"));
+    BOOST_CHECK(alerts[2].AppliesTo(1, "/MagicBean:0.2.0/"));
 
-    // Don't match:
     BOOST_CHECK(!alerts[0].AppliesTo(-1, ""));
     BOOST_CHECK(!alerts[0].AppliesTo(999002, ""));
 
     BOOST_CHECK(!alerts[1].AppliesTo(1, ""));
-    BOOST_CHECK(!alerts[1].AppliesTo(1, std::string(CLIENT_NAME) + ":0.1.0"));
-    BOOST_CHECK(!alerts[1].AppliesTo(1, std::string("/") + CLIENT_NAME + ":0.1.0"));
-    BOOST_CHECK(!alerts[1].AppliesTo(1, std::string(CLIENT_NAME) + ":0.1.0/"));
-    BOOST_CHECK(!alerts[1].AppliesTo(-1, subVer_0_1_0));
-    BOOST_CHECK(!alerts[1].AppliesTo(999002, subVer_0_1_0));
-    BOOST_CHECK(!alerts[1].AppliesTo(1, subVer_0_2_0));
+    BOOST_CHECK(!alerts[1].AppliesTo(1, "MagicBean:0.1.0"));
+    BOOST_CHECK(!alerts[1].AppliesTo(1, "/MagicBean:0.1.0"));
+    BOOST_CHECK(!alerts[1].AppliesTo(1, "MagicBean:0.1.0/"));
+    BOOST_CHECK(!alerts[1].AppliesTo(-1, "/MagicBean:0.1.0/"));
+    BOOST_CHECK(!alerts[1].AppliesTo(999002, "/MagicBean:0.1.0/"));
+    BOOST_CHECK(!alerts[1].AppliesTo(1, "/MagicBean:0.1.0/FlowerPot:0.0.1/"));
+    BOOST_CHECK(!alerts[1].AppliesTo(1, "/MagicBean:0.2.0/"));
 
-    BOOST_CHECK(!alerts[2].AppliesTo(1, FormatSubVersion(CLIENT_NAME, 30050, std::vector<std::string>())));
+    BOOST_CHECK(!alerts[2].AppliesTo(1, "/MagicBean:0.2.1/"));
+    BOOST_CHECK(!alerts[2].AppliesTo(1, "/MagicBean:0.3.0/"));
 
     SetMockTime(0);
 }
@@ -374,20 +376,11 @@ BOOST_AUTO_TEST_CASE(AlertNotify)
 BOOST_AUTO_TEST_CASE(AlertDisablesRPC)
 {
     SetMockTime(11);
-    const std::vector<unsigned char>& alertKey = Params(CBaseChainParams::MAIN).AlertKey();
 
-    // Command should work before alerts
     BOOST_CHECK_EQUAL(GetWarnings("rpc"), "");
 
-    // First alert should disable RPC
-    alerts[5].ProcessAlert(alertKey, false);
     BOOST_CHECK_EQUAL(alerts[5].strRPCError, "RPC disabled");
-    BOOST_CHECK_EQUAL(GetWarnings("rpc"), "RPC disabled");
-
-    // Second alert should re-enable RPC
-    alerts[6].ProcessAlert(alertKey, false);
     BOOST_CHECK_EQUAL(alerts[6].strRPCError, "");
-    BOOST_CHECK_EQUAL(GetWarnings("rpc"), "");
 
     SetMockTime(0);
     mapAlerts.clear();

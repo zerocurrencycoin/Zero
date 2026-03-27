@@ -10,23 +10,13 @@ Test suite results, fixes, open failures, and testing procedures for the Zero no
 
 **Limitations**: Python 3.6+ for RPC tests; no fuzz tests; no Bitcoin-style functional tests; legacy qa layout. sec-hard and checksec are ELF-only (Linux); not applicable on macOS.
 
-**Future directions**: Python (see §6.2.1). Coverage targets exist in Makefile but require lcov.
+**Future directions:** Python hygiene in contrib scripts; coverage via lcov when enabled in the build.
 
 ## 2. Suites
 
 Nine test suites, grouped by execution dependency and coverage area.
 
-**GTest 1.16.0** (depends/packages/googletest.mk). Last C++14 release; avoids 1.17.0 C++17 requirement.
-
-| Project | GTest | Notes |
-|---------|-------|-------|
-| Zero | 1.16.0 | |
-| Zcash v6.11.0 | 1.12.1 | |
-| Horizen (Zen) v6.0.0 | 1.13.0 | |
-| Pirate v5.9.0 | 1.8.0 | |
-| Latest | 1.17.0 | C++17 |
-
-**Platforms tested**: macOS ARM64 (`arm-mac-build`), Ubuntu 24.04 x86_64 (`linux_build188`). All test failures reproduce pre-existing fork-level issues; none are platform-specific. Verified March 2026.
+**GTest** is pinned to **1.16.0** in **`depends/packages/googletest.mk`** (C++14; 1.17+ expects C++17).
 
 ### 2.1 Nine Suites
 
@@ -104,7 +94,7 @@ Nine test suites, grouped by execution dependency and coverage area.
 - **Cascade**: Early Boost failures (Alert, equihash, miner) cause later suites to fail via shared state. Run by suite (`-t rpc_tests`) to isolate.
 - **run-boost-individual.sh** excludes Alert_tests, equihash_tests, miner_tests, Checkpoints_tests (empty suite); main_tests included.
 - **ELF-only**: sec-hard checksec (RPATH/FORTIFY), check-symbols (readelf). Skip or no-op on macOS.
-- **Python 3.6+**: Set `PYTHON` for RPC tests. Prereq: `python3 -m pip install pyblake2`.
+- **Python 3.6+**: Set **`PYTHON`** for RPC tests. **`pyblake2`** pip install only if **`hashlib.blake2b`** path fails (**§6.2**).
 - **zerod/zero-cli**: rpc-tests.sh sources tests-config.sh; BUILDDIR = repo root (from script path). Exports BITCOIND, BITCOINCLI (run-bitcoin-cli wrapper → zero-cli). Binaries invoked by absolute path; no PATH required.
 
 ### 3.5 Build Validation Modes
@@ -122,9 +112,7 @@ For release validation or debugging vendored lib failures. Not needed for routin
 
 ## 4. Status
 
-Tested on macOS ARM64 (`arm-mac-build` branch). Verified March 2026. All failures reproduce pre-existing fork-level issues; none ARM-specific.
-
-**Progress (March 2026)**: CachedWitnesses: wallet.cpp VerifyAndSetInitialWitness now continues when pcoinsTip null + pblockIn provided; tests still excluded (pre-add witness assertion or EXPECT_DEATH). CDB::Rewrite, Zeronode GTest: no progress; blocked. RPC Python: Py3 migration done; get_coinbase_address, getchaintips, wallet.py, p2p_nu_peer_management use skip logic; ZERO_MINE_COINBASE=1 for full coinbase coverage.
+Failures called out below are fork-level (Zero params, harness gaps, or excluded suites), not host-specific. **CachedWitnesses\*** remains excluded: partial **`pblockIn`** / index lifetime fixes are insufficient vs **`EXPECT_DEATH`** and ordering. **CDB::Rewrite** deadlock still blocks **`WriteCryptedSaplingZkey*`** and **`rpc_wallet_encrypted_wallet_sapzkeys`**. RPC Python pass list uses skips for maturity, peers, and balance shape; **`ZERO_MINE_COINBASE=1`** enables stricter coinbase coverage at a large time cost.
 
 ### 4.1 Summary
 
@@ -136,7 +124,7 @@ Tested on macOS ARM64 (`arm-mac-build` branch). Verified March 2026. All failure
 | GTest | 206 | 201 | 5 (4 CachedWitnesses*, 1 WriteCryptedSaplingZkey*) |
 | Boost (pass-only) | 47 suites | all | 3 excl (Alert, equihash, miner) |
 | Boost (full) | 50 suites, 260 cases | ~15 | ~277 (cascade) |
-| RPC Python (pass-only) | 19 scripts | 19 pass (verified) | — |
+| RPC Python (pass-only) | 19 scripts | 19 pass | — |
 | RPC Python (-extended) | ~100 scripts | varies | Many fail |
 
 ### 4.2 Util (1.x)
@@ -277,9 +265,11 @@ No known failures.
 
 **Pass-only filter**: `--run_test='!Alert_tests:!equihash_tests:!miner_tests:!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'`
 
-**Slow tests** (macOS ARM64, ~48s total): rpc_wallet_async_operations 5.1s, PrevectorTestInt 4.1s, rpc_wallet_async_operations_parallel_wait 3.7s, rpc_wallet_async_operations_parallel_cancel 1.7s, subsidy_limit_test 1.7s, rpc_z_getoperations 1.6s, rpc_wallet_encrypted_wallet_zkeys 1.1s, coin_selection_tests 0.85s. Suites: rpc_wallet_tests 23s, DoS_tests 5.5s, rpc_tests 5.5s, PrevectorTests 4.1s, main_tests 2.9s, mempool_tests 2.4s.
+**Slow tests (Boost, indicative):** **`rpc_wallet_tests`** dominates; several single cases exceed ~1s (async wallet RPC, **`PrevectorTests`**, **`subsidy_limit_test`**, …).
 
-**Limitations**: Python 3.6+ for RPC tests. Each test starts zerod, mines blocks; ~30–120s each. No parallelization. Tests using initialize_chain_clean expect Zero amounts (zero_regtest_subsidy).
+### 4.7 RPC Python
+
+**Limitations:** Python **3.6+** for RPC tests. Each script starts **`zerod`**, mines Equihash blocks, tears down—tens of seconds to minutes per script unless parallelized. Tests using **`initialize_chain_clean`** expect Zero subsidy helpers (**`zero_regtest_subsidy`**).
 
 | ID | Type | Name |
 |----|------|------|
@@ -318,61 +308,16 @@ Tests generating <720 blocks get no mature coinbase.
 
 **6.6 pyblake2**  
 *Symptoms*: ImportError.  
-*Root cause*: mininode.py needs pyblake2 for Equihash block validation.  
-*Fix/mitigation*: Prereq. `python3 -m pip install pyblake2`.  
+*Root cause*: **`mininode.py`** prefers **`pyblake2`** then falls back to **`hashlib.blake2b`** (Python 3.6+).  
+*Fix/mitigation*: Use Python ≥3.6; install **`pyblake2`** only if the fallback path fails.  
 
-**Verified pass**: All 19 PYTHON_PASSING tests pass (exit 0). Some skip with messages: getchaintips (skip after join), wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import (skip when no coinbase), p2p_nu_peer_management (skip when no peers). Full run: blockchain, disablewallet, httpbasics, reindex, rescan_import, rescan_startup, decodescript, keypool, paymentdisclosure, prioritisetransaction, wallet_treestate, wallet_anchorfork, getchaintips, rewind_index, wallet_overwintertx, wallet_changeaddresses, shorter_block_times, p2p_nu_peer_management, txn_doublespend.
+**Pass-only run:** All 19 **`PYTHON_PASSING`** scripts exit 0; several skip with messages: getchaintips (skip after join), wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import (skip when no coinbase), p2p_nu_peer_management (skip when no peers). Full run: blockchain, disablewallet, httpbasics, reindex, rescan_import, rescan_startup, decodescript, keypool, paymentdisclosure, prioritisetransaction, wallet_treestate, wallet_anchorfork, getchaintips, rewind_index, wallet_overwintertx, wallet_changeaddresses, shorter_block_times, p2p_nu_peer_management, txn_doublespend.
 
 **Options**: `--nocleanup` (leave zerods and test datadir on exit); `--noshutdown` (don't stop zerods after test); `--srcdir=SRCDIR` (default `${BUILDDIR}/src`); `--tmpdir=TMPDIR`; `--tracerpc` (print RPC calls). rpc-tests.sh sources `qa/pull-tester/tests-config.sh` for BUILDDIR, PYTHON, REAL_BITCOIND, REAL_BITCOINCLI. **Env**: `ZERO_MINE_COINBASE=1` mines 1000 blocks when tests need get_coinbase_address (slow; not used in main run).
 
-### 4.7.1 RPC Review: Excluded Fixes, Speed-up, Parallel
+**Throughput:** Default RPC Python run is sequential per script. **`./contrib/run-tests.sh --jobs=N`** runs multiple scripts in parallel (port offset by PID; cap **N** to avoid exhausting the machine). Prefer **`initialize_chain`** (cached chain) over **`initialize_chain_clean`** where the scenario allows.
 
-**Excluded tests — fixes applied**
-
-| ID | Test | Fix |
-|----|------|-----|
-| 6.1 | get_coinbase_address (wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import) | `ensure_coinbase_utxos()`; skip with `coinbase_diagnostic()`. `ZERO_MINE_COINBASE=1` mines 1000 blocks when needed. |
-| 6.2 | protocol version (p2p_nu_peer_management) | Uses Zero versions; skips when no peers connected. |
-| 6.3 | clean-chain amounts (wallet.py, txn_doublespend) | wallet.py skips when node0 balance != 29. `zero_regtest_subsidy(n)` for node1. |
-| 6.5 | getchaintips | Uses `getblockcount()` for expected heights; skips when len(tips) != 2 after join. |
-| 6.6 | pyblake2 | Prereq; document in README. |
-
-**Passing tests — speed-up**
-
-- **Bottlenecks**: Each test starts zerod(s), mines blocks (generate), runs, stops. ~30–120s per test. Main cost: block generation (Equihash PoW) and node startup.
-- **Options**: (1) Use `initialize_chain` (cached 200-block chain) where test logic allows; keypool, blockchain already do. (2) Reduce blocks where safe: e.g. prioritisetransaction needs fewer blocks for maturity. (3) `-keypool=1` already set; keep. (4) Consider `-regtest`-specific faster PoW if Zero supports (e.g. low nBits for instant solve); not implemented.
-- **Low-effort**: Ensure tests that can use cached chain do so; audit `initialize_chain_clean` vs `initialize_chain` usage.
-
-**Parallel and shared node**
-
-- **Current**: `contrib/run-tests.sh` runs Python tests sequentially: `for t in PYTHON_PASSING; do run_cmd "rpc-$t" ...`. Each test gets fresh tmpdir, starts its own zerod(s).
-- **Parallel**: `--jobs=N` implemented in run-tests.sh. Each test uses `p2p_port(n) + os.getpid()%999` and `rpc_port(n) + os.getpid()%999` — different PIDs from parallel runs give different ports. Cap at 4–8 to avoid resource exhaustion.
-- **Shared node**: Bitcoin Core func tests use isolated datadirs per test; no shared node. Sharing one zerod across tests would require: (a) test isolation (reset state between tests), (b) no conflicting ports, (c) tests written for shared setup. Current tests assume clean chain and full control. **Verdict**: Shared node is high effort; parallel execution is feasible with separate processes.
-
-**Recommended next steps**
-
-1. Use `--jobs=4` for faster RPC Python runs (implemented).
-2. `ZERO_MINE_COINBASE=1` for full get_coinbase_address test coverage (slow).
-
-**4.7.2 script_test.py — not run**
-
-- **Location**: `qa/rpc-tests/script_test.py`. Uses `script_valid.json` and `script_invalid.json`; end-to-end script validation via two nodes.
-- **Status**: Not run. Commented out in `rpc-tests.sh` (testScriptsExt). Not in run-tests.sh PYTHON_PASSING.
-- **Failure**: When run directly, fails with `AssertionError: Not all nodes requested block` during sync_blocks (~15s). One node rejects or does not request blocks; likely block format, consensus, or protocol mismatch.
-- **Duration**: If it ran, >40 min (docstring). ~1000+ test cases × ~102 Equihash block solves each.
-- **Block count**: Uses COINBASE_MATURITY=720 for Zero (100 blocks would not satisfy maturity). Reducing to 10 blocks would fail on both Zero and Bitcoin (maturity not met).
-- **Conclusion**: script_test does not contribute to current test duration; it is excluded.
-
-**4.7.3 Why tests take long**
-
-| Component | Time | Cause |
-|-----------|------|-------|
-| RPC Python (19 pass-only) | ~5–20 min | Main bottleneck. Each test starts zerod, mines Equihash blocks, runs, stops. ~30–120s per test; sequential by default. |
-| Boost (pass-only) | ~48s | rpc_wallet_tests ~23s, DoS_tests 5.5s, rpc_tests 5.5s, etc. |
-| GTest (201 tests) | varies | Many tests; runtime hardware-dependent. |
-| Util, secp256k1, univalue | fast | — |
-
-**Speed-up**: Use `./contrib/run-tests.sh --jobs=4` for parallel RPC Python. GTest and Boost already run in parallel via run_bg.
+**script_test.py:** Excluded from **`PYTHON_PASSING`** and from extended **`rpc-tests.sh`** lists. A direct run fails during **`sync_blocks`**; a full run would require redesign for Zero consensus and Equihash cost.
 
 ### 4.8 Workarounds and Skips
 
@@ -453,94 +398,37 @@ Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `m
 
 **Prioritization**: P1 (core shielded): z_sendmany, z_shieldcoinbase, z_getnewaddress, z_getbalance, z_gettotalbalance, z_listaddresses, z_listunspent, z_mergetoaddress — covered by rpc_wallet_tests, Python RPC. P2 (zeronode): 15 RPCs covered (rpc_zeronode_tests, rpc_zeronode_budget_tests); gaps in §11.4. P3 (zero_exclusive): zs_*, getalldata, getsupply — no coverage. P4 (shared): getblock, getblockcount, generate, getbalance, listunspent, createrawtransaction — covered.
 
-### 5.3 Coverage Gaps
+### 5.3 Coverage gaps
 
-- zeronode RPCs: Partial coverage (rpc_zeronode_tests, rpc_zeronode_budget_tests); see §11.4. Gaps: zeronodecurrent, zeronodedebug, getzeronodeoutputs, startzeronode, getzeronodewinners, getzeronodescores, zeronode/znbudget super, znbudgetrawvote, znfinalbudget, getbudgetvotes, checkbudgets.
-- zero_exclusive (zs_*, getalldata, getsupply): No coverage.
-- zero_experimental (getsaplingwitness*): No coverage.
-- decodescript: rpc_tests (Boost) only.
+- **Zeronode RPC:** Boost suites cover read-only and many param paths; logic, SwiftTX, spork, and several RPCs remain untested—**§11.4**, **§9.6**.
+- **zero_exclusive / zero_experimental:** No automated coverage.
+- **decodescript:** Boost **`rpc_tests`** only.
 
-### 5.4 Potential Additions (Zcash/Pirate)
+### 5.4 Cross-project RPC options
 
-**From Zcash**: z_gettreestate, z_getsubtreesbyindex, getmemoryinfo, getexperimentalfeatures, setlogfilter, importpubkey, listaddresses, walletconfirmbackup, z_converttex, z_getnewaccount, z_getaddressforaccount, z_listaccounts, z_listunifiedreceivers, z_getbalanceforviewingkey, z_getbalanceforaccount, z_getnotescount. (Unified Address / Orchard; Zcash evolution.)
-
-**From Pirate** (Komodo; mostly not applicable): getpeerlist, coinsupply, crosschain/*, z_sendmany_prepare_offline, z_sign_offline, rescan, etc.
-
-**Zero-specific** (not in Zcash/Pirate): zeronode (18), zs_* (5), getalldata, getsupply, getsaplingwitness*, estimatefee, estimatepriority.
-
+Zcash-, Pirate-, and Bitcoin-only RPCs and CLI options are enumerated in **`RPCs_extended.csv`** / **`Options_extended.csv`** (**§10**), not here.
 
 ## 6. Notes
 
-### 6.1 Build Log
-
-**autogen**: GZIP_ENV, distcleancheck overrides; $as_echo obsolete (Autoconf 2.70+).
-
-**configure**: brew not in PATH (optional); -single_module obsolete (Darwin ld); static flag no (expected on Darwin).
-
-**depends**: Rust checksum for x86 cross-compile — added rust_std_sha256_hash_x86_64-apple-darwin in depends/packages/rust.mk.
-
-**compile**: zeronode.h:229 memcpy -Wfortify-source. Fixed: `memcpy(&n, (char*)&hash + slice * 8, 8)`. Original `&hash + slice*64` wrong pointer arithmetic; 64 bytes into uint64_t overflow. SliceHash is dead code.
-
-**budget.cpp:35**: Implicit conversion 4070908800 → int. Intentional sentinel for "OFF"; overflow produces desired modulo. Fix: INT_MAX to silence warning.
-
-### 6.2 Subject Coverage
+### 6.1 Subject coverage
 
 **Global state in GTest**: CreateValidBlock inserts into mapBlockIndex and chainActive. Callers must clean up (CachedWitnessesEmptyChain teardown pattern).
 
 **Manual witness pattern**: For synthetic Sapling notes: (1) append commitments to SaplingMerkleTree; (2) capture saplingTree.witness() at target note; (3) append subsequent commitments; (4) store in mapSaplingNoteData. Bypasses BuildWitnessCache.
 
-**pyblake2**: mininode.py uses for Equihash person strings. Python 3.6+ has hashlib.blake2b. See §6.2.1.
+**pyblake2 / blake2b:** See **§6.2**.
 
 **nuparams**: Overwinter 0x6f76727a, Sapling 0x7361707a (Zero). Zcash: 0x5BA81B19, 0x76B809BB.
 
-### 6.2.1 Python (canonical)
+### 6.2 Python for tests
 
-**Python 3.6 dependency:** `hashlib.blake2b` was added in Python 3.6 (PEP 3155). mininode.py uses blake2b for Equihash block validation (person strings in `zcash_person(n,k)`). It tries `from pyblake2 import blake2b` first, falls back to `hashlib.blake2b` on ImportError. With Python 3.6+, no external pyblake2 is required; hashlib provides it. The 3.6 minimum is for that stdlib availability.
+RPC and **`full_test_suite.py`** are driven under Python **3.6+**. **`contrib/run-tests.sh`** resolves **`$PYTHON`**, else **`python3`**, else **`python`** if the version is sufficient, and exports that for **`rpc-tests.sh`**, **`full_test_suite.py`**, and **`bitcoin-util-test.py`**. Some **`contrib/`** scripts still carry **`python2`** shebangs; **`run-tests.sh`** forces Python **3** for the test entrypoints. Set **`PYTHON`** explicitly when multiple interpreters are on **`PATH`**.
 
-**Platforms supported:** macOS ARM64, Ubuntu 24.04. Other Linux not supported.
-
-**System and OS versioning (verified):**
-
-| Platform | OS version | Python shipped | Current (tested) |
-|----------|------------|----------------|-----------------|
-| macOS ARM64 | Tahoe 26, Sequoia 15 | 3.9.6 | 3.9.6 at `/usr/bin/python3` (Xcode CLT); Tahoe 26.3, Sequoia 15.x both ship 3.9.6 |
-| Ubuntu 24.04 | Noble Numbat (Apr 2024) | 3.12 | 3.12.3 on 24.04.3 LTS |
-
-macOS: `/usr/bin/python3` comes from Xcode Command Line Tools; Apple does not bump it per macOS release. Ubuntu: `python3` from distro; 24.04 LTS ships 3.12.
-
-**Install locations and PATH struggles:** Multiple Pythons often coexist: `/usr/bin/python3` (system), `/usr/local/bin/python3` (Homebrew), `~/.pyenv/shims/python3` (pyenv). `which python3` depends on PATH order. Common issues: (1) system Python is 3.9.6, older than desired; (2) Homebrew and system both provide `python3`, leading to wrong interpreter; (3) scripts with shebangs or `python3` in PATH may pick an unexpected binary; (4) pip installs go to whichever Python `python3` resolves to. Set `PYTHON` explicitly or ensure PATH order matches intent.
-
-**pyenv (recommended):** Version manager: install multiple Python versions, switch globally or per-directory. Benefits: no sudo, isolated site-packages per version, explicit version selection via `.python-version` or `pyenv global`. Mechanics: `pyenv install 3.12.12`; `pyenv global 3.12.12` or `pyenv local 3.12.12`; shims in `~/.pyenv/shims` intercept `python3` when pyenv is in PATH. **Current use:** Project maintainers use pyenv (e.g. 3.12.12 on macOS); run-tests.sh `find_python3()` picks `python3` from PATH, which may resolve to pyenv shims. full_test_suite.py has legacy pyenv 2.7.18 fallback; run-tests.sh overrides with `$PY3`.
-
-**Full status:**
-
-| Area | Status |
-|------|--------|
-| run-tests.sh | `find_python3()`: `$PYTHON` → `python3` → `python` (if ≥3.6). Uses `env PYTHON="$PY3"` for rpc-tests.sh, full_test_suite.py, bitcoin-util-test.py. |
-| check-security (--build-checks) | Requires python in PATH; uses PY_DIR from python3/python. Skips if none. |
-| RPC tests (qa/rpc-tests) | Invoked via rpc-tests.sh with PYTHON env. mininode.py: pyblake2 or hashlib.blake2b. |
-| full_test_suite.py | python2 shebang; pyenv 2.7.18 fallback in script. run-tests.sh overrides with `$PY3`. |
-| Scripts with python2 shebang | full_test_suite.py, test_framework.py, comptool.py, netutil.py, txindex.py, getrawtransaction_insight.py, amqp_sub.py, zmq_sub.py, test-security-check.py, make-release.py, test-depends-sources-mirror.py |
-| Scripts with python shebang | symbol-check.py, optimize-pngs.py, fix-copyright-headers.py, security-check.py, spendfrom.py, gen_base58_test_vectors.py, generate-seeds.py, linearize-hashes.py, linearize-data.py, makeseeds.py, qa/rpc-tests/*.py (many), bitcoin-util-test.py, buildenv.py.in |
-| CI (contrib/ci-workers) | unix.yml: installs Python 2.7 for Ansible; requires ansible_python_interpreter. Archlinux.yml: python2-pip. |
-| Migration | Incomplete. run-tests.sh and RPC flow use Py3; many contrib scripts unchanged. |
-
-**zerowallet Python:** Build deps only; no runtime, no tests. install_mxe.sh: python3-mako, python3-setuptools. Dockerfile (ubuntu:16.04): apt-installs `python` (→ python2 on that base). See UpdateWallet §System Install.
-
-**Transition plan (complete Py2 removal):**
-
-| Phase | Action |
-|-------|--------|
-| 1. Shebangs | Change python2 → python3 in all 10 scripts listed above. Remove full_test_suite.py 2.7.18 fallback. |
-| 2. Generic python | Change `#!/usr/bin/env python` → `#!/usr/bin/env python3` in contrib/, qa/ scripts that must run under Py3. Verify each: some may need Py2 compat or are unused. |
-| 3. CI/Ansible | Upgrade to Ansible 3+ (Python 3) or set ansible_python_interpreter to python3 if supported. Remove python2-pip from Archlinux.yml. |
-| 4. Verification | Run `contrib/run-tests.sh`; run each contrib script manually; confirm CI passes. |
-
-**Prereq:** `python3 -m pip install pyblake2` only if using Python &lt;3.6 or if mininode fails to use hashlib.blake2b. With 3.6+, optional.
+**mininode:** Blake2b for Equihash persons—**`pyblake2`** if installed, else **`hashlib.blake2b`**.
 
 ### 6.3 Wants and Suggestions
 
-- **Python**: See §6.2.1.
+- **Python shebang cleanup:** See **§6.2**.
 - **zeronode RPC tests**: Partial (Groups A+B); add Groups C–F per §11.4.
 - **Fuzz tests**: Zero has none; Bitcoin has src/test/fuzz/.
 - **Coverage (make cov)**: Postponed; requires CFLAGS --coverage, lcov.
@@ -625,27 +513,20 @@ Aggregated from coverage analysis. Detailed limitations, justifications for excl
 
 **Low:** Performance benchmarking; cross-platform behavior.
 
-### 9.4 Recent Fixes (June 2025)
-
-- **Founders reward:** Halving (9,10), 11 addresses, subsidy 338665500000000. Accuracy TBD.
-- **Alert:** Placeholder keys; verification disabled; deprecated.
-- **Tx size:** Sapling limits validated.
-- **PTHREAD_STACK_MIN:** configure.ac, depends; threading compatibility.
-
-### 9.5 Doubts and Open Questions
+### 9.4 Open questions
 
 - **Regtest block count:** getchaintips uses getblockcount() for expected heights; skips when len(tips) != 2 after join.
 - **Founders reward expected values:** Updated to actual; accuracy TBD.
-- **script_test.py:** Excluded; sync_blocks fails; >40 min; COINBASE_MATURITY 720 vs test 100 blocks — not viable without major rewrite.
+- **script_test.py:** Excluded; fails early in **`sync_blocks`**; not viable without consensus-aware redesign.
 
-### 9.6 Future Directions
+### 9.5 Future directions
 
-- Python: See §6.2.1.
+- Python: **§6.2**.
 - Zeronode test suite (see 9.2).
 - Fuzz tests (Zero has none; Bitcoin has src/test/fuzz/).
 - Coverage targets (make cov; requires lcov).
 
-### 9.7 Consolidated Coverage Gaps (by Area)
+### 9.6 Consolidated coverage gaps (by area)
 
 Reconciles §9.1–9.3, §5.3, §11.4. Single reference for gaps and excluded tests. Implementation plan: §11.5.
 
@@ -668,53 +549,9 @@ Reconciles §9.1–9.3, §5.3, §11.4. Single reference for gaps and excluded te
 
 ---
 
-## 10. Options and RPCs: Cross-Project Comparison
+## 10. RPC and option inventories
 
-Source: `Options_extended.csv`, `RPCs_extended.csv`. Columns: bitcoin, zcash, pirate, zero.
-
-### 10.1 Missing or Lacking (Zero Has No Implementation)
-
-**Options:** None. Zero implements all options present in the CSV.
-
-**RPCs Zero lacks** (zero=n; present in Bitcoin and/or Zcash and/or Pirate):
-
-| Type | RPCs |
-|------|------|
-| Bitcoin-only (B) | getrpcinfo, uptime, getblockstats, getblockfrompeer, getdeploymentinfo, pruneblockchain, preciousblock, scantxoutset, scanblocks, getdescriptoractivity, getblockfilter, dumptxoutset, loadtxoutset, getchainstates, waitfornewblock, waitforblock, waitforblockheight, setnetworkactive, getnodeaddresses, getaddrmaninfo, signmessagewithprivkey, deriveaddresses, getdescriptorinfo, getindexinfo, estimatesmartfee, estimaterawfee, mockscheduler, echo, echojson, signrawtransactionwithkey, signrawtransactionwithwallet, combinerawtransaction, decodepsbt, combinepsbt, finalizepsbt, createpsbt, converttopsbt, utxoupdatepsbt, descriptorprocesspsbt, joinpsbts, analyzepsbt, testmempoolaccept, submitpackage, getmempoolancestors, getmempooldescendants, getmempoolentry, gettxspendingprevout, importmempool, savemempool, getorphantxs, getprioritisedtransactions, submitheader, generatetoaddress, generatetodescriptor, generateblock, createwallet, restorewallet, loadwallet, unloadwallet, bumpfee, psbtbumpfee, send, sendall, logging |
-| Zcash-only (Z) | setlogfilter, getexperimentalfeatures, z_gettreestate, z_getsubtreesbyindex, importpubkey, listaddresses, z_converttex, z_getnewaccount, z_getaddressforaccount, z_listaccounts, z_listunifiedreceivers, z_getbalanceforviewingkey, z_getbalanceforaccount, z_getnotescount, walletconfirmbackup |
-| Pirate-only (P) | coinsupply, getlastsegidstakes, notaries, minerids, kvsearch, kvupdate, getpeerlist, genminingCSV, z_getnewaddresskey, z_setprimaryspendingkey, z_exportseedphrase, z_sendmany_prepare_offline, z_sign_offline, convertpassphrase, rescan, consolidationstatus, getiguanajson, getnotarysendmany, geterablockheights, MoMoMdata, calc_MoM, height_MoM, assetchainproof, crosschainproof |
-
-### 10.2 Zero Has, Zcash Lacks (Grouped)
-
-**Zeronode options:**
-- zeronode, znconf, znconflock, zeronodeprivkey, zeronodeaddr, budgetvotemode
-- (sporkkey, litemode: Zcash has these)
-
-**Zeronode RPCs:**
-- getzeronodecount, zeronodeconnect, zeronodecurrent, zeronodedebug, createzeronodekey, getzeronodeoutputs, startzeronode, startalias, getzeronodestatus, listzeronodes, listzeronodeconf, getzeronodewinners, getzeronodescores, zeronode, znsync, zeronodestats
-- znbudget, preparebudget, submitbudget, znbudgetvote, znbudgetrawvote, znfinalbudget, getbudgetvotes, getnextsuperblock, getbudgetprojection, getbudgetinfo, checkbudgets
-
-**Wallet options:**
-- deletetx, deleteinterval, keeptxnum, keeptxfornblocks
-
-**Wallet RPCs:**
-- move, zcrawreceive
-- zs_listtransactions, zs_gettransaction, zs_listspentbyaddress, zs_listreceivedbyaddress, zs_listsentbyaddress, getalldata, getsupply
-- getsaplingwitness, getsaplingwitnessatheight, getsaplingblocks
-
-**Util RPCs:**
-- estimatefee, estimatepriority
-
-### 10.3 Pirate Has, Zcash Lacks (Grouped)
-
-**Blockchain/network:**
-- coinsupply, getlastsegidstakes, notaries, minerids, kvsearch, kvupdate, getpeerlist, genminingCSV
-
-**Wallet:**
-- z_getnewaddresskey, z_setprimaryspendingkey, z_exportseedphrase, z_sendmany_prepare_offline, z_sign_offline, convertpassphrase, rescan, consolidationstatus
-
-**Control/crosschain:**
-- getiguanajson, getnotarysendmany, geterablockheights, MoMoMdata, calc_MoM, height_MoM, assetchainproof, crosschainproof
+Machine-readable comparison (Bitcoin / Zcash / Pirate / Zero columns) lives in **`Options_extended.csv`** and **`RPCs_extended.csv`** in the repo. Regenerate or filter there; do not maintain parallel long lists in this doc.
 
 ---
 
@@ -823,7 +660,7 @@ See §11.5 for prioritized implementation.
 | **Mining/PoW** | miner_tests excluded | Equihash (192,7) vs test (96,5). Add Zero-specific test vectors or skip when nEquihashN!=192. |
 | **addressindex** | rpc_tests only | getaddressmempool, getaddressutxos, etc. — add error-path tests; coverage in rpc_tests. |
 | **Fuzz** | None | Defer. Bitcoin src/test/fuzz; requires libFuzzer/infra. |
-| **Functional** | Legacy qa | Defer. See §6.2.1. |
+| **Functional** | Legacy qa | Defer. See **§6.2**. |
 
 ### 11.5 Implementation Plan (Prioritized)
 
@@ -844,7 +681,7 @@ Organized by group/area. Priorities: P1 (high impact, low effort), P2 (high impa
 | **P3** | Wallet | — | Backup/restore, corruption recovery tests | Boost + Python | Medium | Resilience |
 | **P3** | addressindex | — | Error-path tests for getaddressmempool, getaddressutxos, etc. | Boost | Low | rpc_tests only |
 | **P4** | Fuzz | — | libFuzzer infra; seed from Bitcoin src/test/fuzz | Fuzz | High | New infra |
-| **P4** | Functional | — | See §6.2.1 | Python 3 | High | Depends on Py3 migration |
+| **P4** | Functional | — | See **§6.2** | Python 3 | High | Depends on contrib shebang cleanup |
 | **P4** | decodescript | — | Expand beyond rpc_tests | Boost | Low | Minor gap |
 
 **Workflow:** P1 first (quick wins). P2 in parallel where harness work (C, D, consensus) can inform each other. P3 after P2. P4 deferred.
@@ -1028,27 +865,10 @@ Organized by group/area. Priorities: P1 (high impact, low effort), P2 (high impa
 |-----|-----|--------|
 | doc/man/zerod.1 | -reindex, -rescan, -zapwallettxes→rescan | consolidation, deletetx, deleteinterval, keeptxnum, keeptxfornblocks, consolidationtxfee, consolidatesaplingaddress |
 | src/init.cpp | Full help for all | — |
-| UpdateZero.md | -reindex for Windows sync | — |
 
-### 12.7 RPC and options (cross-project)
+Cross-project option/RPC flags for these features: **`Options_extended.csv`**, **`RPCs_extended.csv`** (**§10**).
 
-| Type | Name | B | Z | P | Zero | Notes |
-|------|------|---|---|-----|------|-------|
-| Option | reindex | ✓ | ✓ | ✓ | ✓ | Chain |
-| Option | rescan | ✓ | ✓ | ✓ | ✓ | Wallet startup |
-| Option | deletetx | ✗ | ✗ | ✗ | ✓ | Zero-only |
-| Option | deleteinterval | ✗ | ✗ | ✗ | ✓ | Zero-only |
-| Option | keeptxnum | ✗ | ✗ | ✗ | ✓ | Zero-only |
-| Option | keeptxfornblocks | ✗ | ✗ | ✗ | ✓ | Zero-only |
-| Option | consolidation | ✗ | ✓ | ✓ | ✓ | |
-| Option | consolidationtxfee | ✗ | ✓ | ✓ | ✓ | |
-| Option | consolidatesaplingaddress | ✗ | ✓ | ✓ | ✓ | |
-| RPC | rescan | ✗ | ✗ | ✓ | ✗ | Pirate standalone RPC |
-| RPC | consolidationstatus | ✗ | ✗ | ✓ | ✗ | Pirate |
-
-B=Bitcoin, Z=Zcash, P=Pirate. Source: Options_extended.csv, RPCs_extended.csv.
-
-### 12.8 Planning and prioritization
+### 12.7 Planning and prioritization
 
 | Priority | Item | Type | Effort | Rationale |
 |----------|------|------|--------|-----------|
@@ -1062,7 +882,7 @@ B=Bitcoin, Z=Zcash, P=Pirate. Source: Options_extended.csv, RPCs_extended.csv.
 | **P4** | Add rescan RPC (Pirate has; Zero does not) | Feature | Medium | Optional; import RPCs cover main use |
 | **P4** | Add consolidationstatus RPC | Feature | Low | Optional; status query |
 
-### 12.9 Gaps summary
+### 12.8 Gaps summary
 
 | Gap | Severity | Action |
 |-----|----------|--------|

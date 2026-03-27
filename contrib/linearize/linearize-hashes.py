@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # linearize-hashes.py:  List blocks in a linear, no-fork version of the chain.
 #

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 '''
 Generate valid and invalid base58 address and private key test vectors.
 
