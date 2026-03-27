@@ -1,6 +1,6 @@
 # UpdateFeatures
 
-In-repo **design choices** that diverge from upstream Zcash or affect behavior. Dependency versions: **UpdateBuild.md §1**. Tests and harness limits: **UpdateTests.md**.
+In-repo **design choices** that diverge from upstream Zcash or affect behavior. Dependency versions: **BUILD_ZERO.md** §4.1. Fork comparison matrix: **UpdateBuild.md** §5. How to run tests: **TEST_ZERO.md**. Witness exclusions and harness archaeology: **UpdateTests.md**.
 
 ---
 
@@ -12,7 +12,7 @@ In-repo **design choices** that diverge from upstream Zcash or affect behavior. 
 
 **Production fixes applied:** Null checks for **`pprev`** / **`pcoinsTip`**, optional **`pblockIn`**, nullifier guards, **`nWitnessCacheSize`** reset in **`ClearNoteWitnessCache`**. Implementation: **`src/wallet/wallet.cpp`**, **`wallet.h`**.
 
-**Tradeoff:** Stronger runtime coupling and harder unit testing than the incremental API. **UpdateTests.md** documents GTest exclusions and harness gaps for witness-heavy cases.
+**Tradeoff:** Stronger runtime coupling and harder unit testing than the incremental API. GTest exclusions and harness gaps: **UpdateTests.md** §4; commands/filters: **TEST_ZERO.md**.
 
 ---
 

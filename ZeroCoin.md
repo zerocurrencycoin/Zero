@@ -1,6 +1,6 @@
 # ZeroCoin — Chain, coin, and operations reference
 
-Single reference for all chain history, consensus and economic parameters, subsidy, halving, zeronodes, supply, operations, addresses, and security. Fill from Subsidy.md, README.md, doc/, UpdateZero.md, block explorers, and operators.
+Single reference for all chain history, consensus and economic parameters, subsidy, halving, zeronodes, supply, operations, addresses, and security. Fill from Subsidy.md, README.md, doc/, maintainer release notes, block explorers, and operators.
 
 **Audience:** Miners, pool operators, node operators, exchanges, DEX, developers.
 
@@ -19,12 +19,12 @@ Single reference for all chain history, consensus and economic parameters, subsi
 
 ## 2. Chain history and stages
 
-*Fill from: Subsidy.md, README, UpdateZero.md, repo tags.*
+*Fill from: Subsidy.md, README, repo tags, and maintainer release notes.*
 
 - **Genesis / launch:** Block 0 date, mainnet parameters.
 - **Major upgrades / hard forks:** Dates, block heights, rule changes (subsidy, zeronodes).
 - **Halving schedule:** Block heights and dates for each halving; block reward before/after.
-- **References:** Repo tags, Subsidy.md, UpdateZero.md.
+- **References:** Repo tags, Subsidy.md, maintainer release notes.
 
 ---
 
@@ -33,7 +33,7 @@ Single reference for all chain history, consensus and economic parameters, subsi
 *Fill from: Subsidy.md, consensus code, src/amount.h.*
 
 - **Block time, difficulty, max supply.**
-- **Block subsidy:** Curve (initial reward, halving interval). Founders reward (e.g. 7.5%); correct value per Subsidy.md §11.3, UpdateZero §5.
+- **Block subsidy:** Curve (initial reward, halving interval). Founders reward (e.g. 7.5%); correct value per Subsidy.md §11.3 and consensus code.
 - **Zeronode payments:** Percentage range (e.g. 20–40%), eligibility, lock/commit rules.
 - **MAX_MONEY / MoneyRange:** Per-subsidy validation; total supply (~25.6M ZER) vs cap (amount.h). Document or align.
 - **Supply clarification:** README “3888 ZER” — clarify total supply vs daily emission (e.g. 720×5.4); fix ambiguity.
@@ -111,7 +111,7 @@ Single reference for all chain history, consensus and economic parameters, subsi
 
 ## 11. Security and upgrades
 
-*Fill from: UpdateZero.md, consensus process.*
+*Fill from: maintainer release process and consensus change policy.*
 
 - **Consensus-critical:** Upgrade process, activation heights, rollback policy (if any).
 - **P2P alert code:** alertkeys.h, sendalert.cpp, alert_tests.cpp — Zcash removed Aug 2025; document Zero’s decision (keep or remove) here or in Subsidy.md §15.5.
@@ -134,7 +134,7 @@ Single reference for all chain history, consensus and economic parameters, subsi
 | Document | Role |
 |----------|------|
 | Subsidy.md | Source of truth for subsidy, halving, founders, zeronodes. ZeroCoin.md reflects it for external reference. |
-| UpdateZero.md | Project status, plans, triage (e.g. detected issues from zerowallet). |
+| Maintainer release notes | Project status, plans, triage (e.g. detected issues from zerowallet). |
 | README.md | High-level; link to ZeroCoin.md for full chain/coin/ops reference. |
 | doc/ | Operational how-to; ZeroCoin.md can link into specific doc/ files. |
 

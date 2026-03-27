@@ -15,17 +15,10 @@ from test_framework.util import assert_equal, assert_greater_than, \
 import struct
 import binascii
 import json
-import StringIO
+import io
 from decimal import Decimal
-
-try:
-    import http.client as httplib
-except ImportError:
-    import httplib
-try:
-    import urllib.parse as urlparse
-except ImportError:
-    import urlparse
+import http.client as httplib
+from urllib.parse import urlparse
 
 def deser_uint256(f):
     r = 0
@@ -42,17 +35,27 @@ def http_get_call(host, port, path, response_object = 0):
     if response_object:
         return conn.getresponse()
 
-    return conn.getresponse().read()
+    body = conn.getresponse().read()
+    if isinstance(body, bytes):
+        return body.decode('utf-8')
+    return body
 
 # allows simple http post calls with a request body
-def http_post_call(host, port, path, requestdata = '', response_object = 0):
+def http_post_call(host, port, path, requestdata = b'', response_object = 0):
+    if requestdata == '' or requestdata is None:
+        requestdata = b''
+    elif isinstance(requestdata, str):
+        requestdata = requestdata.encode('utf-8')
     conn = httplib.HTTPConnection(host, port)
     conn.request('POST', path, requestdata)
 
     if response_object:
         return conn.getresponse()
 
-    return conn.getresponse().read()
+    body = conn.getresponse().read()
+    if isinstance(body, bytes):
+        return body.decode('utf-8')
+    return body
 
 class RESTTest (BitcoinTestFramework):
     FORMAT_SEPARATOR = "."
@@ -70,7 +73,7 @@ class RESTTest (BitcoinTestFramework):
         self.sync_all()
 
     def run_test(self):
-        url = urlparse.urlparse(self.nodes[0].url)
+        url = urlparse(self.nodes[0].url)
         print("Mining blocks...")
 
         self.nodes[0].generate(1)
@@ -150,7 +153,9 @@ class RESTTest (BitcoinTestFramework):
         binaryRequest += struct.pack("i", 0);
 
         bin_response = http_post_call(url.hostname, url.port, '/rest/getutxos'+self.FORMAT_SEPARATOR+'bin', binaryRequest)
-        output = StringIO.StringIO()
+        if isinstance(bin_response, str):
+            bin_response = bin_response.encode('latin-1')
+        output = io.BytesIO()
         output.write(bin_response)
         output.seek(0)
         chainHeight = struct.unpack("i", output.read(4))[0]

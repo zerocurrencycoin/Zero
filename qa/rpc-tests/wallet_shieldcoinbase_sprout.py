@@ -3,11 +3,10 @@
 import inspect
 import os
 
-# To keep pyflakes happy
-WalletShieldCoinbaseTest = object
-
 cwd = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-execfile(os.path.join(cwd, 'wallet_shieldcoinbase.py'))
+_path = os.path.join(cwd, 'wallet_shieldcoinbase.py')
+with open(_path, 'r', encoding='utf-8') as _f:
+    exec(compile(_f.read(), _path, 'exec'), globals())
 
 class WalletShieldCoinbaseSprout(WalletShieldCoinbaseTest):
     def __init__(self):

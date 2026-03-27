@@ -12,7 +12,7 @@ from test_framework.blocktools import create_coinbase, create_block
 from test_framework.comptool import TestInstance, TestManager
 from test_framework.script import CScript
 from binascii import unhexlify
-import cStringIO
+import io
 
 
 '''
@@ -48,7 +48,7 @@ class BIP66Test(ComparisonTestFramework):
         rawtx = node.createrawtransaction(inputs, outputs)
         signresult = node.signrawtransaction(rawtx)
         tx = CTransaction()
-        f = cStringIO.StringIO(unhexlify(signresult['hex']))
+        f = io.BytesIO(unhexlify(signresult['hex']))
         tx.deserialize(f)
         return tx
 

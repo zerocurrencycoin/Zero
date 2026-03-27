@@ -1,20 +1,34 @@
 # BUILD_ZERO
 
-Build guide for the Zero node (zerod).
+Build guide for the Zero full node binary `zerod`.
 
-**Quick Start:** §2 — clone, install packages, run build script.  
+**Quick Start:** §2 — clone, install packages, and build variants for Linux, macOS, Windows, and packaging.  
 **Data directory:** §3 — `.zero` location, params, files.  
-**Developer:** §4 — versions, build flow, config.site, build.sh flags.  
-**Per-platform:** §5 — manual configure, platform quirks (see §2 for basic commands).  
+**Developer:** §4 — pinned dependency versions, depends layout for porting, `config.site`, `build.sh` flags.  
+**Per-platform:** §5 — manual configure and platform quirks; basic commands are in §2.  
+**Testing:** [TEST_ZERO.md](TEST_ZERO.md) — runners, filters, RPC scripts, full suite.  
 **Troubleshooting:** §6 — params, BDB, memory, clean rebuild.
 
 ---
 
 ## 1. Introduction
 
-Zero is a Zcash-family cryptocurrency node. Build zerod from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). Tested: Ubuntu 24.04, macOS 24.5.0. Autotools with `depends/` for deterministic dependency builds.
+Zero is a Zcash-family cryptocurrency node. Build `zerod` from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). **OS coverage tested for builds:** Ubuntu 24.04, macOS 24.5.0. The tree uses Autotools with **`depends/`** for deterministic dependency builds.
 
-**Requirements:** Mac &lt;6 GB, Linux &lt;5 GB disk. 4-core 16 GB RAM. GCC 7.0+, GNU Make 4.0+, Python 3.6+, Git 2.0+. C++14 (Boost 1.88).
+### 1.1 System requirements
+
+| Category | Requirement |
+|----------|-------------|
+| **Disk (build)** | Mac &lt;6 GB, Linux &lt;5 GB for toolchain + object files (more for `depends/` caches). |
+| **Disk (runtime)** | Full node datadir and params: see §3. |
+| **RAM** | ~4 cores / 16 GB RAM comfortable for parallel `make`; reduce `-j` if the linker is OOM-killed. |
+| **Toolchain** | **C++14:** GCC 7.0+ (Linux), Apple Clang (macOS), MXE mingw-w64 (Windows cross). **GNU Make** 4.0+. **Git** 2.0+. |
+| **Boost (from depends)** | 1.88.x (see §4.1). |
+| **Python** | **3.10+** for `depends` scripts, RPC tests, and `qa/zcash/full_test_suite.py`. Maintainer validation uses **Python 3.12**; use 3.10+ for supported behavior. |
+
+**Build variants:** commands, packages, and outputs are in **§2**, **§5**, and **§2.4** for Windows. This document is the canonical place for full install lists and script options.
+
+**Porting to other Linux distros or unfamiliar hosts:** Most linked libraries are built from **`depends/`** as hashed tarballs, not the distro package manager. You need a working toolchain and build utilities; see **§2.2.1**, **§4.8**, and **§4.9** for version choices and recipe notes. Cross-project dependency version comparisons are maintainer-only and are not part of this guide.
 
 ---
 
@@ -50,6 +64,12 @@ sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib \
 ```
 
 **Output:** `src/zerod`, `src/zero-cli`, `src/zero-tx`.
+
+### 2.2.1 Other Linux distributions
+
+CI and docs are oriented to **Debian/Ubuntu** package names (§2.2). On **Fedora/RHEL**, **openSUSE**, **Arch**, **Alpine**, etc., install the **same role** of tools: a C++14-capable GCC or Clang, GNU Make, Autoconf/Automake/Libtool, pkg-config, Python **3.10+**, Git, patch, curl/wget, and typical build headers (`zlib`, `ncurses` where the recipe expects them—match the Ubuntu list as closely as possible). Wallet-enabled builds still expect **Berkeley DB** to come from **`depends/`** (BDB 6.2.x), not necessarily from the distro.
+
+If **`make -C depends`** fails on a new host, check **§4.8** for hash commands, portable `sed`, and the triplet from **`depends/config.guess`**, and **§4.9** for recipe-specific notes.
 
 ### 2.3 macOS ARM64
 
@@ -121,7 +141,7 @@ cd "$MXE_ROOT" && make MXE_TARGETS='x86_64-w64-mingw32.static' gcc -j$(nproc)
 ```
 Then build Zero as above.
 
-### 2.5 Packaging (Linux)
+### 2.5 Packaging on Linux
 
 **Recommended (current Zero naming):** After building, run:
 
@@ -130,6 +150,8 @@ Then build Zero as above.
 ```
 
 Output: `artifacts/linux-zero-v<VERSION>.tgz` and `artifacts/linux-zero-v<VERSION>.deb` (`Package: zero`, includes `zero-fetch-params` when `zcutil/fetch-params.sh` is present). Version is semver from `src/zerod --version` unless `-v X.Y.Z`. Use `-s` to skip stripping; `-L` to capture log.
+
+**Stripping:** Default **`zcutil/build.sh`** outputs are **not** stripped (larger binaries, easier debugging). Release packaging may strip unless you pass **`-s`** to **`release-linux.sh`** to skip strip.
 
 **Legacy Debian builder:** `./zcutil/build-debian-package.sh` — Zcash-era package name (`zcash`), paths, and metadata. Kept for reference; do not mix with `release-linux.sh` outputs without reading both scripts. See **TODO.md** (Active) for consolidation task.
 
@@ -189,20 +211,27 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 
 ## 4. Developer Knowledge
 
-### 4.1 Versions Used
+### 4.1 Dependency versions and porting notes
 
-| Package | Version |
-|---------|---------|
-| BerkeleyDB | 6.2.32 |
-| Boost | 1.88.0 |
-| OpenSSL | 1.1.1w |
-| libsodium | 1.0.21 |
-| libevent | 2.1.12 |
-| ZeroMQ | 4.3.5 |
-| ccache | 4.13.1 |
-| Rust (depends) | Pinned current (macOS ARM64); 1.32.0 (Linux/Win). Note: test pinned Rust on Windows and Linux. |
+Dependencies are pinned in **`depends/packages/*.mk`** (and related `native_*` / `crate_*` recipes). **Policy:** reproducibility (hashed tarballs), known breakage on specific hosts, or CI determinism. Local developers may sometimes use system tools where this doc says so (e.g. Rust on macOS ARM64).
 
-**ZMQ:** ZeroMQ 4.3.5 is built and used by default for block/tx notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, etc.). AMQP 1.0 (via Qpid Proton 0.26.0) would provide the same role with `-amqppub*`; we do not use it. Proton is not built or downloaded; disabled since 2017 (gcc/CMake issues).
+| Component | Version | Recipe / lock | Notes for builders / porters |
+|-----------|---------|---------------|------------------------------|
+| BerkeleyDB | 6.2.32 | `bdb.mk` | Wallet format 6.2.x; **6.2.32** fixes ARM64 mutex issues vs 6.2.23. AGPLv3. Built via depends, not optional for default wallet. |
+| Boost | 1.88.0 | `boost.mk` | Node + tests. Darwin needs **`--toolset=clang`** and often **`-Wno-enum-constexpr-conversion`** (§5.2). |
+| OpenSSL | 1.1.1w | `openssl.mk` | RPC TLS and legacy EVP call sites. **1.1.1 is EOL**; moving to 3.x or dropping requires an audited code + test pass (maintainer queue). |
+| libsodium | 1.0.21 | `libsodium.mk` | Crypto; URL pinned to GitHub releases. |
+| libevent | 2.1.12 | `libevent.mk` | Network stack. |
+| ZeroMQ | 4.3.5 | `zeromq.mk` | Default **ZMQ** notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, …). |
+| ccache | 4.13.1 | `native_ccache.mk` | Optional faster rebuilds; **`CCACHE_DIR`**, **`--enable-ccache`**. |
+| Rust (depends) | 1.32.0 download | `rust.mk` | **Linux/Windows:** toolchain from depends. **macOS ARM64:** no upstream 1.32.0 tarball for **`aarch64-apple-darwin`**—depends **symlinks host `rustc`/`cargo`** (install Rust from rustup/Homebrew). **Target:** one modern pinned toolchain for all hosts (deferred). |
+| librustzcash | snapshot `06da3b9` | `crate_*.mk`, `Cargo.lock` | Consensus-linked; upgrade only with protocol work. |
+| Googletest | 1.16.0 | `googletest.mk` | Last GTest line on **C++14**; 1.17+ expects C++17. |
+| utfcpp | 3.1 | `utfcpp.mk` | Header-only; UTF-8 checks in wallet RPC paths. |
+| Qpid Proton | 0.26.0 recipe; **off** | `proton.mk`, configure | **AMQP** would duplicate ZMQ’s role (`-amqppub*`); recipe exists but **`--enable-proton=no`** / **`NO_PROTON=1`** default—CMake/toolchain friction. |
+| config.guess / config.sub | vendor drop | `depends/config.*` | **Apple Silicon** must resolve to **`aarch64-apple-darwin*`**, not **`arm-apple-darwin`**. |
+
+**ZMQ vs AMQP:** Proton is not downloaded in default depends builds. Do not enable Proton unless you are actively reviving the AMQP path; that workflow is outside the scope of this guide.
 
 ### 4.2 Build Flow
 
@@ -226,7 +255,17 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 
 **Source:** `depends/config.site.in`; template variables `@CC@`, `@CXX@`, `@host_os@`, etc. are substituted by `depends/Makefile` when building `depends/$HOST/share/config.site`.
 
-### 4.4 zcutil/build.sh
+### 4.4 Depends layout and host portability
+
+When **`./zcutil/build.sh`** or **`make -C depends`** runs:
+
+- Each third-party library is a **`depends/packages/<name>.mk`** recipe (version, URL, hash, per-host flags).
+- **`depends/Makefile`** and **`depends/builders/*.mk`** define **`build_`*** helpers (compiler, flags, staging). **Linux** typically uses **`sha256sum`**; **Darwin** uses **`shasum -a 256`** for checksums—custom builders must not assume one or the other.
+- **Portable `sed`:** recipes use **`build_SED_INPLACE`** from **`depends/Makefile`** (**`sed -i.old`** style) because **BSD** `sed` requires a backup extension and **GNU** `sed` allows **`-i`**. If you patch **`.mk`** files, avoid bare **`sed -i`** without the project pattern.
+- **`depends/funcs.mk`** **`fetch_file`** uses quoted paths so **`dash`** as **`/bin/sh`** does not break on spaces.
+- Native vs cross: **`zcutil/build-native.sh`**, **`zcutil/fzero.sh`** (job cap **`FZERO_MAX_JOBS`**), and **`zcutil/build-win.sh`** are separate entrypoints; **`HOST`** and artifacts differ (§2.4, §5.3).
+
+### 4.5 zcutil/build.sh
 
 ```
 ./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon ] [ MAKEARGS... ]
@@ -238,7 +277,7 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 - Parallel jobs: `zcutil/fzero.sh` sets **`FZERO_MAX_JOBS`** (default **8** at top of that file). Auto-detected CPU count is capped to that value; pass `-jN` to override (still capped). Per-run override without editing the file: `FZERO_MAX_JOBS=2 ./zcutil/build.sh`. Detection: Linux `nproc`; macOS `sysctl -n hw.ncpu` or `gnproc` (Homebrew coreutils).
 - `CONFIGURE_FLAGS` passed to configure; multi-word values need escaping, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-enum-constexpr-conversion'`.
 
-### 4.5 Variables and Overrides
+### 4.6 Variables and Overrides
 
 | Variable | Purpose |
 |----------|---------|
@@ -250,13 +289,13 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 | `CONFIGURE_FLAGS` | Extra configure options |
 | `CCACHE_DIR` | ccache cache (optional). ccache 4.13.1 in depends; `ccache -M 5G` for size. |
 
-### 4.6 Intermediate Results
+### 4.7 Intermediate results
 
-- Depends: `depends/$HOST/` (e.g. `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin25.3.0`).
-- Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`.
-- Tests: `contrib/run-tests.sh`; logs in `test-logs/`. See [TEST_ZERO.md](TEST_ZERO.md).
+- **Depends:** `depends/$HOST/` (e.g. `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin25.3.0`).
+- **Binaries:** `src/zerod`, `src/zero-cli`, `src/zero-tx`.
+- **Tests:** With the default configure, the build also produces **`src/test/test_bitcoin`** (Boost) and **`src/zero-gtest`** (GoogleTest). How to run them, pass-only filters, `contrib/run-tests.sh` and `qa/zcash/full_test_suite.py`, RPC Python lists, and how to add tests are all documented in **[TEST_ZERO.md](TEST_ZERO.md)**—not duplicated here.
 
-### 4.7 Configure Options
+### 4.8 Configure Options
 
 | Option | Purpose |
 |--------|---------|
@@ -264,6 +303,19 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 | `--enable-debug` | Debug symbols |
 | `--disable-mining` | Exclude mining code |
 | `--enable-ccache` | Use ccache (default: auto) |
+
+### 4.9 Depends recipe troubleshooting
+
+These repeat §4.1 / §5 in recipe-specific form—useful when **`make -C depends`** stops in one package.
+
+| Package | What to know |
+|---------|----------------|
+| **Boost** | Darwin bootstrap uses **`--toolset=clang`**; **`$(build_SED_INPLACE)`** adjusts the toolset line in **`boost.mk`**. If **`AX_BOOST_THREAD`** fails on Darwin+Clang, ensure **`boost_thread`** can link (static archive path). |
+| **OpenSSL** | Recipe preprocesses with **`build_SED_INPLACE`**. **aarch64** Darwin uses OpenSSL’s **`darwin64-arm64-cc`** target. |
+| **Berkeley DB** | **6.2.32**; recipe must stay on portable **`sed`** patterns—GNU-only **`sed -i -e`** in patches breaks **macOS** (and is wrong for any strict BSD **`sed`**). |
+| **Rust / librustzcash** | **Linux/Windows:** pinned download in depends. **macOS ARM64:** **system** **`rustc`**/**`cargo`** on **`PATH`**. **`librustzcash`** builds with the toolchain that actually runs **`cargo`**. |
+| **Googletest** | If you change macOS deployment targets or see link warnings about **OSX** version, **`googletest.mk`** aligns **`OSX_MIN_VERSION`** with the rest of the graph—**rebuild depends** after changing it. |
+| **libsodium, libevent, ZeroMQ, ccache** | Routine version bumps: update version + hash in **`.mk`**, then full depends rebuild and smoke test. |
 
 ---
 
@@ -273,7 +325,9 @@ Without `CONFIG_SITE`, configure would use system compilers and paths.
 
 **Compiler:** GCC 7.0+ for C++14.
 
-**Manual build** (if not using build.sh): `make -C depends/` (HOST from config.guess), then `CONFIG_SITE=$PWD/depends/x86_64-unknown-linux-gnu/share/config.site ./configure --enable-hardening`, then `make`.
+**Other distros:** See **§2.2.1** for Fedora/Arch/Alpine-style hosts; triplet may be **`x86_64-unknown-linux-gnu`** or similar—use the **`depends/$HOST/`** directory that **`config.guess`** produces, not only the Ubuntu example path below.
+
+**Manual build** (if not using build.sh): `make -C depends/` (HOST from `depends/config.guess`), then `CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure --enable-hardening` (substitute your **`$HOST`**), then `make`.
 
 ### 5.2 macOS ARM64
 
@@ -321,9 +375,9 @@ BDB 6.2.32 (depends). Used for wallet storage.
 
 **"virtual memory exhausted" or "killed":** Reduce jobs: `make -j1 zerod`. Or add swap.
 
-### 6.5 Mining Disabled
+### 6.5 Mining disabled builds
 
-With `--disable-mining`, `test_miner` is excluded from tests. Equihash template instantiations are guarded by `ENABLE_MINING`.
+With **`./configure --disable-mining`**, mining code is omitted from the binary; Equihash template instantiations follow **`ENABLE_MINING`**. Impact on **test targets** (e.g. `test_miner`, GTest/Boost suites) is described in **[TEST_ZERO.md](TEST_ZERO.md)**.
 
 ### 6.6 zerowallet
 
