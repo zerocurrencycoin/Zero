@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
@@ -195,7 +195,7 @@ class ScriptTest(ComparisonTestFramework):
 
     # This generates the tests for TestManager.
     def get_tests(self):
-        self.tip = int ("0x" + self.nodes[0].getbestblockhash() + "L", 0)
+        self.tip = int("0x" + self.nodes[0].getbestblockhash(), 0)
         self.block_time = 1333230000  # before the BIP16 switchover
 
         '''
@@ -230,7 +230,7 @@ class ScriptTest(ComparisonTestFramework):
                 self.nodes[0].invalidateblock(self.nodes[0].getblockhash(COINBASE_MATURITY + 2))
                 self.nodes[1].invalidateblock(self.nodes[1].getblockhash(COINBASE_MATURITY + 2))
 
-            self.tip = int ("0x" + self.nodes[0].getbestblockhash() + "L", 0)
+            self.tip = int("0x" + self.nodes[0].getbestblockhash(), 0)
 
             [scriptsig, scriptpubkey, flags] = script_test[0:3]
             flags = ParseScriptFlags(flags)

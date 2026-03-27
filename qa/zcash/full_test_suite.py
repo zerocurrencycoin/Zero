@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 #
 # Execute all of the automated tests related to Zcash.
 #
@@ -32,7 +32,8 @@ RE_FORTIFY_USED = re.compile('Binary compiled with FORTIFY_SOURCE support.*Yes')
 
 def test_rpath_runpath(filename):
     output = subprocess.check_output(
-        [repofile('qa/zcash/checksec.sh'), '--file', repofile(filename)]
+        [repofile('qa/zcash/checksec.sh'), '--file', repofile(filename)],
+        universal_newlines=True,
     )
     if RE_RPATH_RUNPATH.search(output):
         print('PASS: %s has no RPATH or RUNPATH.' % filename)
@@ -46,6 +47,7 @@ def test_fortify_source(filename):
     proc = subprocess.Popen(
         [repofile('qa/zcash/checksec.sh'), '--fortify-file', repofile(filename)],
         stdout=subprocess.PIPE,
+        universal_newlines=True,
     )
     line1 = proc.stdout.readline()
     line2 = proc.stdout.readline()
@@ -58,14 +60,12 @@ def test_fortify_source(filename):
         return False
 
 def _env_for_make():
-    """Return env with python in PATH so security-check.py (shebang: python) can run."""
+    """Return env with python in PATH so security-check.py can run."""
     env = os.environ.copy()
     python_dir = None
     py = os.environ.get('PYTHON')
     if py and os.path.isabs(py) and os.path.isfile(py):
         python_dir = os.path.dirname(py)
-    elif os.path.isfile(os.path.expanduser('~/.pyenv/versions/2.7.18/bin/python')):
-        python_dir = os.path.expanduser('~/.pyenv/versions/2.7.18/bin')
     elif sys.executable:
         python_dir = os.path.dirname(os.path.abspath(sys.executable))
     if python_dir:
@@ -119,7 +119,10 @@ def ensure_nodotso_depends():
                 arch_dir = arch_dirs[0]
 
     if not os.path.isdir(arch_dir):
-        print "Skipping no-dot-so: no depends arch dir (run 'make' in depends/ for Linux/macOS depends build)"
+        print(
+            "Skipping no-dot-so: no depends arch dir "
+            "(run 'make' in depends/ for Linux/macOS depends build)"
+        )
         return True
 
     exit_code = 0
@@ -127,13 +130,13 @@ def ensure_nodotso_depends():
     libraries = os.listdir(lib_dir)
     for lib in libraries:
         if lib.find(".so") != -1:
-            print lib
+            print(lib)
             exit_code = 1
 
     if exit_code == 0:
-        print "PASS."
+        print("PASS.")
     else:
-        print "FAIL."
+        print("FAIL.")
 
     return exit_code == 0
 
@@ -179,7 +182,7 @@ STAGE_COMMANDS = {
 def run_stage(stage):
     print('Running stage %s' % stage)
     print('=' * (len(stage) + 14))
-    print
+    print()
 
     cmd = STAGE_COMMANDS[stage]
     if type(cmd) == type([]):
@@ -187,10 +190,10 @@ def run_stage(stage):
     else:
         ret = cmd()
 
-    print
+    print()
     print('-' * (len(stage) + 15))
     print('Finished stage %s' % stage)
-    print
+    print()
 
     return ret
 

@@ -1,7 +1,7 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # Copyright (c) 2017-2019 The Zcash developers
 # Distributed under the MIT software license, see the accompanying
-# file COPYING or https://www.opensource.org/licenses/mit-license.php .
+# file COPYING or https://opensource.org/licenses/mit-license.php .
 
 # Requirements:
 #  pip install python-qpid-proton
@@ -19,7 +19,7 @@ class Server(MessagingHandler):
         self.senders = {}
 
     def on_start(self, event):
-        print "Listening on:", self.url
+        print("Listening on:", self.url)
         self.container = event.container
         self.acceptor = event.container.listen(self.url)
 
@@ -29,20 +29,19 @@ class Server(MessagingHandler):
         body = m.body
         sequence = str( m.properties['x-opt-sequence-number'] )
         if topic == "hashablock":
-            print '- HASH BLOCK ('+sequence+') -'
-            print binascii.hexlify(body)
+            print('- HASH BLOCK ('+sequence+') -')
+            print(binascii.hexlify(body).decode('ascii'))
         elif topic == "hashtx":
-            print '- HASH TX ('+sequence+') -'
-            print binascii.hexlify(body)
+            print('- HASH TX ('+sequence+') -')
+            print(binascii.hexlify(body).decode('ascii'))
         elif topic == "rawblock":
-            print '- RAW BLOCK HEADER ('+sequence+') -'
-            print binascii.hexlify(body[:80])
+            print('- RAW BLOCK HEADER ('+sequence+') -')
+            print(binascii.hexlify(body[:80]).decode('ascii'))
         elif topic == "rawtx":
-            print '- RAW TX ('+sequence+') -'
-            print binascii.hexlify(body)
+            print('- RAW TX ('+sequence+') -')
+            print(binascii.hexlify(body).decode('ascii'))
 
 try:
     Container(Server("127.0.0.1:%i" % port)).run()
 except KeyboardInterrupt:
     pass
-

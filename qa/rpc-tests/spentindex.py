@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (c) 2019 The Zcash developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
@@ -110,7 +110,7 @@ class SpentIndexTest(BitcoinTestFramework):
         try:
             self.nodes[1].getspentinfo({'txid': txid2, 'index': 0})
             fail('getspentinfo should have thrown an exception')
-        except JSONRPCException, e:
+        except JSONRPCException as e:
             assert_equal(e.error['message'], "Unable to get spent info")
 
         block_hash_next = self.nodes[0].generate(1)

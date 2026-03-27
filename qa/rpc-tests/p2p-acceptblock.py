@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
@@ -152,7 +152,7 @@ class AcceptBlockTest(BitcoinTestFramework):
 
         # 1. Have both nodes mine a block (leave IBD)
         [ n.generate(1) for n in self.nodes ]
-        tips = [ int ("0x" + n.getbestblockhash() + "L", 0) for n in self.nodes ]
+        tips = [ int("0x" + n.getbestblockhash(), 0) for n in self.nodes ]
 
         # 2. Send one block that builds on each tip.
         # This should be accepted.

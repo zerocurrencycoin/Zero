@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
@@ -66,8 +66,8 @@ class BIP65Test(ComparisonTestFramework):
         self.coinbase_blocks = self.nodes[0].generate(1)
         self.nodes[0].generate(100)
         hashTip = self.nodes[0].getbestblockhash()
-        hashFinalSaplingRoot = int("0x" + self.nodes[0].getblock(hashTip)['finalsaplingroot'] + "L", 0)
-        self.tip = int ("0x" + hashTip + "L", 0)
+        hashFinalSaplingRoot = int("0x" + self.nodes[0].getblock(hashTip)['finalsaplingroot'], 0)
+        self.tip = int("0x" + hashTip, 0)
         self.nodeaddress = self.nodes[0].getnewaddress()
 
         '''Check that the rules are enforced.'''

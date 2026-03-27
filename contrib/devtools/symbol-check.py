@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (c) 2014 Wladimir J. van der Laan
 # Copyright (c) 2016-2019 The Zcash developers
 # Distributed under the MIT software license, see the accompanying
