@@ -3,7 +3,7 @@
 #             and for constructing a getheaders message
 #
 
-from mininode import CBlock, CBlockHeader, CBlockLocator, CTransaction, msg_block, msg_headers, msg_tx
+from test_framework.mininode import CBlock, CBlockHeader, CBlockLocator, CTransaction, msg_block, msg_headers, msg_tx
 
 import sys
 import io

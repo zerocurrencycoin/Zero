@@ -134,7 +134,7 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
 
 **User types:** New to Zero? Run the Quick Start below. Building on macOS or Windows? See [BUILD_ZERO.md](BUILD_ZERO.md). Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-### Quick Start (Linux)
+### Quick start on Linux
 
 ```bash
 sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib autoconf libtool ncurses-dev unzip git python3 python3-zmq zlib1g-dev wget bsdmainutils automake cmake curl
@@ -158,18 +158,18 @@ echo "rpcpassword=`head -c 32 /dev/urandom | base64`" >> ~/.zero/zero.conf
 echo "rpcport=23801" >> ~/.zero/zero.conf
 ```
 
-### Enable CPU mining (optional)
+### Optional CPU mining
 ```
 echo 'gen=1' >> ~/.zero/zero.conf
 echo "genproclimit=1" >> ~/.zero/zero.conf
 echo 'equihashsolver=tromp' >> ~/.zero/zero.conf
 ```
 
-### An earlier sample of zero.conf
+### Earlier zero.conf sample
 ```
 ./contrib/zero.conf
 ```
-### A sample demonstrating many command line options
+### zero.conf sample with many options
 ```
 ./contrib/debian/examples/zero.conf
 ```

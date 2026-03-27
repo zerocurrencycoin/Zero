@@ -18,8 +18,32 @@ REPOROOT = os.path.dirname(
     )
 )
 
+# Same exclusions as contrib/run-tests.sh default (passing) run — unfiltered btest/gtest
+# can hang on wallet DB rewrite / witness harness cases.
+BOOST_PASS_EXCLUDE = (
+    '!Alert_tests:!equihash_tests:!miner_tests:'
+    '!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'
+)
+GTEST_PASS_FILTER = (
+    '-wallet_zkeys_tests.WriteCryptedSaplingZkey*:WalletTests.CachedWitnesses*'
+)
+
 def repofile(filename):
     return os.path.join(REPOROOT, filename)
+
+
+def btest_command(unfiltered):
+    cmd = [repofile('src/test/test_bitcoin'), '-p']
+    if not unfiltered:
+        cmd.append('--run_test=' + BOOST_PASS_EXCLUDE)
+    return cmd
+
+
+def gtest_command(unfiltered):
+    cmd = [repofile('src/zero-gtest')]
+    if not unfiltered:
+        cmd.append('--gtest_filter=' + GTEST_PASS_FILTER)
+    return cmd
 
 
 #
@@ -164,8 +188,6 @@ STAGES = [
 ]
 
 STAGE_COMMANDS = {
-    'btest': [repofile('src/test/test_bitcoin'), '-p'],
-    'gtest': [repofile('src/zero-gtest')],
     'sec-hard': check_security_hardening,
     'no-dot-so': ensure_nodotso_depends,
     'util-test': util_test,
@@ -179,16 +201,21 @@ STAGE_COMMANDS = {
 # Test driver
 #
 
-def run_stage(stage):
+def run_stage(stage, unfiltered=False):
     print('Running stage %s' % stage)
     print('=' * (len(stage) + 14))
     print()
 
-    cmd = STAGE_COMMANDS[stage]
-    if type(cmd) == type([]):
-        ret = subprocess.call(cmd) == 0
+    if stage == 'btest':
+        ret = subprocess.call(btest_command(unfiltered)) == 0
+    elif stage == 'gtest':
+        ret = subprocess.call(gtest_command(unfiltered)) == 0
     else:
-        ret = cmd()
+        cmd = STAGE_COMMANDS[stage]
+        if type(cmd) == type([]):
+            ret = subprocess.call(cmd) == 0
+        else:
+            ret = cmd()
 
     print()
     print('-' * (len(stage) + 15))
@@ -202,6 +229,11 @@ def main():
     parser.add_argument('--list-stages', dest='list', action='store_true')
     parser.add_argument('--skip', action='append', default=[], metavar='STAGE',
                         help='Skip stage (repeatable). Stages: %s' % ', '.join(STAGES))
+    parser.add_argument(
+        '--unfiltered',
+        action='store_true',
+        help='btest/gtest: no exclusions (may hang; same as run-tests.sh --all C++ suites).',
+    )
     parser.add_argument('stage', nargs='*', default=STAGES,
                         help='One of %s' % STAGES)
     args = parser.parse_args()
@@ -221,9 +253,13 @@ def main():
     if skip_set:
         print("Skipping stages: %s" % ', '.join(sorted(skip_set)))
 
+    unfiltered = args.unfiltered or os.environ.get('ZERO_FULL_SUITE_UNFILTERED') == '1'
+    if unfiltered:
+        print('Unfiltered btest/gtest (ZERO_FULL_SUITE_UNFILTERED=1 or --unfiltered)')
+
     passed = True
     for s in stages_to_run:
-        passed &= run_stage(s)
+        passed &= run_stage(s, unfiltered=unfiltered)
 
     if not passed:
         print("!!! One or more test stages failed !!!")

@@ -34,8 +34,8 @@ These files **must not** name or link **`Update*.md`** (readers should never dep
 | Doc | Role (current; may shrink as user docs absorb content) |
 |-----|----------------------------------------------------------|
 | **UpdateZero.md** | This map, branch/version, consensus notes, release process, tags, **§12–§13** rollout and tracking |
-| **UpdateBuild.md** | Depends pins, platforms, build-system rationale |
-| **UpdateTests.md** | Suite orchestration, exclusions, harness limits, RPC test development plan |
+| **UpdateBuild.md** | Peer dep snapshot, in-tree build archaeology, deferred upgrades (pins: **BUILD_ZERO** §4) |
+| **UpdateTests.md** | Exclusions, harness archaeology, RPC test development plan; runbook **TEST_ZERO.md** |
 | **UpdateFeatures.md** | Fork-specific architecture deltas (e.g. witness path, Equihash API) |
 
 **Zeronode_wallet.md:** Specialized note on **`CZeronodeWalletInterface`** / wallet-optional builds—most developers never touch it. **Placement:** (a) keep standalone near **`src/zeronode/`**, (b) fold into **UpdateZero** or **UpdateFeatures** as a section, or (c) move a short summary into **BUILD_ZERO** (“wallet-disabled build”) with detail in one maintainer file. Pick one on next doc pass.
@@ -49,7 +49,7 @@ These files **must not** name or link **`Update*.md`** (readers should never dep
 | Running tests, CI-like validation | **TEST_ZERO** |
 | Checklists, known doc debt, small tasks | **TODO** |
 | Subsidy math, halving tables, zeronode %, `MAX_MONEY` caveats, coin selection, RPC/operational depth | **ZERO_COIN** |
-| Dependency version matrix, GTest exclusion archaeology | **UpdateBuild** / **UpdateTests** |
+| Dependency version matrix (canonical) | **BUILD_ZERO** §4.1 · Peer comparison: **UpdateBuild** §5 · GTest archaeology: **UpdateTests** |
 | Branch id / internal triage, release tags | **UpdateZero** |
 
 ---
@@ -68,19 +68,11 @@ git pull --ff-only origin zero-merge
 
 ### 2.2 Version strings
 
-Release identity in **`configure.ac`** (`_CLIENT_VERSION_*`, release build rules), generated **`src/config/bitcoin-config.h`**, and aligned fallbacks in **`src/clientversion.h`**. **Pinned dependency versions and upgrade rationale:** **UpdateBuild.md §1**.
+Release identity in **`configure.ac`** (`_CLIENT_VERSION_*`, release build rules), generated **`src/config/bitcoin-config.h`**, and aligned fallbacks in **`src/clientversion.h`**. **Pinned dependency versions and upgrade rationale:** **BUILD_ZERO.md** §4.1; deferred queue **UpdateBuild.md** §4.
 
 ### 2.3 Validation after a version bump
 
-```bash
-./autogen.sh
-./configure --without-gui   # or your usual flags
-make -j"$(nproc)" -C src zerod zero-cli zero-tx 2>&1 | tee build.log
-./src/test/test_bitcoin --run_test=rpc_rawparams   # Boost smoke; adjust as needed
-./src/zerod -version
-```
-
-Confirm **`zerod -version`** (or `getnetworkinfo` subversion) matches the intended release.
+Build and smoke steps: **BUILD_ZERO.md**; test pass and expectations: **TEST_ZERO.md**. Confirm **`zerod -version`** (or `getnetworkinfo` subversion) matches the intended release.
 
 ---
 
@@ -106,7 +98,7 @@ Overwinter+ transactions bind a **consensus branch id** into the **signature has
 
 Audit **`nExpiryHeight`**, **`GetExpiryHeight`**, **`TX_EXPIRY_HEIGHT_THRESHOLD`**, and RPC height parsing at boundaries. Prefer explicit casts and a single signed policy (e.g. **`int64_t`**) for “any chain height” in new code.
 
-**Tests:** Boundary cases (expiry vs height, zero expiry vs ZIP-203, threshold edges) belong in the test suite; see **UpdateTests.md** for harness limits.
+**Tests:** Boundary cases (expiry vs height, zero expiry vs ZIP-203, threshold edges) belong in the test suite; runbook **TEST_ZERO.md**; harness limits **UpdateTests.md** §4.
 
 ---
 
@@ -148,7 +140,7 @@ Use **`throw std::runtime_error("…");`**, not **`throw new std::runtime_error(
 
 **Further review:** Diff **`swifttx.cpp`**, **`budget.cpp`**, **`payments.cpp`** vs upstream forks for post-fork security fixes.
 
-**Automated tests:** Zeronode RPC and gaps—**UpdateTests.md**.
+**Automated tests:** How to run—**TEST_ZERO.md**; zeronode RPC gaps and exclusions—**UpdateTests.md**.
 
 ---
 
@@ -162,7 +154,7 @@ Verbose **`getrawtransaction`** / **`decoderawtransaction`** use **`TxToJSONExpa
 
 | Tag | Topic |
 |-----|--------|
-| **REL-4.0.1** | Release validation (**§2.3**), **`throw new`** cleanup (**§7**), zeronode iterator (**§8**) |
+| **REL-4.0.1** | Release validation (**§2.3** → **BUILD_ZERO** / **TEST_ZERO**), **`throw new`** cleanup (**§7**), zeronode iterator (**§8**) |
 | **NUM-01** | Integer subsidy audit (**§5**) |
 | **NU-01** | Branch id documentation / optional CI (**§3**) |
 | **REL-HOST** | Params mirror, bootstrap policy, checksums/signing (**§6**) |
@@ -171,7 +163,7 @@ Verbose **`getrawtransaction`** / **`decoderawtransaction`** use **`TxToJSONExpa
 
 ## 11. Roadmap
 
-**REL-4.0.1:** In-tree: version strings, **`throw new`** removal, zeronode **`CheckAndRemove`** fix. Open: run **§2.3**, optional stress/ASAN on zeronode paths (**UpdateTests.md**).
+**REL-4.0.1:** In-tree: version strings, **`throw new`** removal, zeronode **`CheckAndRemove`** fix. Open: run **§2.3** (**BUILD_ZERO** / **TEST_ZERO**), optional stress/ASAN on zeronode paths (**UpdateTests.md**).
 
 **Backlog**
 
@@ -200,7 +192,7 @@ Verbose **`getrawtransaction`** / **`decoderawtransaction`** use **`TxToJSONExpa
 | **B** | **ZERO_COIN.md** | Create file; merge **`Subsidy.md`** + **`ZeroCoin.md`** content; add sections for operational technicalities (coin selection, fee/relay behavior pointers, key RPCs)—cited to code where needed. |
 | **C** | **BUILD_ZERO** / **TEST_ZERO** / **TODO** | Align with **§1.2** roles; move any orphan technical ops from README into **BUILD_ZERO** or **ZERO_COIN**; keep **TODO** as the running checklist (including doc debt). |
 | **D** | **Cutover** | README links only to **ZERO_COIN** for chain economics; deprecate or remove **`Subsidy.md`** / **`ZeroCoin.md`** after redirect note or single release cycle. |
-| **E** | **Update\*** | Re-read **UpdateBuild** / **UpdateTests** / **UpdateFeatures**; strip paragraphs now duplicated in user docs; keep pins, test archaeology, and internal triage only. |
+| **E** | **Update\*** | Re-read **UpdateBuild** / **UpdateTests** / **UpdateFeatures**; strip paragraphs now duplicated in user docs; keep peer snapshot, source-tree archaeology, and internal triage only (pins: **BUILD_ZERO** §4). |
 | **F** | **Zeronode_wallet** | Resolve placement (**§1.3**); if folded, leave a one-line pointer from **BUILD_ZERO** (`--disable-wallet`). |
 
 **Online properties (outside repo):** GitHub org/repo description, website, Twitter/X, Reddit, Medium, Discord, Telegram should **mirror** README messaging and visuals after Phase **A**–**B** (see **§13.1**). Same vocabulary: ticker, tagline, links, download path.

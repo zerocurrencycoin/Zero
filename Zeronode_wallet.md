@@ -119,7 +119,7 @@ At line 339, `if (pwalletMain)` is redundant: `GetRequestCount` returns 0 when `
 ### 4.5 Coverage Gaps
 
 - No dedicated GTest or Boost tests for the interface.
-- Zeronode RPCs: partial automated coverage (rpc_zeronode_tests, rpc_zeronode_budget_tests). Logic/integration: none. See UpdateTests §11.4.
+- Zeronode RPCs: partial automated coverage (rpc_zeronode_tests, rpc_zeronode_budget_tests). Logic and integration coverage gaps are tracked in the maintainer test plan, not in this note.
 - SwiftTX path is exercised manually or via full-node sync, not isolated.
 
 ### 4.6 Test Commands Summary

@@ -1,114 +1,118 @@
 # UpdateTests
 
-Test suite results, fixes, open failures, and testing procedures for the Zero node.
+Maintainer notes: **exclusion root causes**, harness limits, workarounds, RPC coverage planning, appendices.  
+**User-facing runbook** (commands, modes, filters, `full_test_suite`, troubleshooting): **[TEST_ZERO.md](TEST_ZERO.md)** — not duplicated here. **RPC tier listings, expected counts, extended-RPC taxonomy, upstream notes, fix/skip/abandon proposals:** **§2** below.
 
 ## 1. Framework
 
-**Purpose**: Test framework for the Zero node covering consensus, shielded transactions, RPC, and integration. Supports incremental build validation, release validation, feature verification, and crash debugging.
+**Purpose:** Same stack as **TEST_ZERO.md** (consensus, shielded, RPC, integration).
 
-**Heritage**: Bitcoin Core (Boost.Test, Python RPC, secp256k1, univalue, qa/rpc-tests layout). Zcash (GTest for shielded logic, z_* RPC tests, full_test_suite).
+**Heritage:** Bitcoin Core (Boost.Test, Python RPC, secp256k1, univalue, qa/rpc-tests). Zcash (GTest shielded, z_* RPC, full_test_suite).
 
-**Limitations**: Python 3.6+ for RPC tests; no fuzz tests; no Bitcoin-style functional tests; legacy qa layout. sec-hard and checksec are ELF-only (Linux); not applicable on macOS.
+**Limitations:** No fuzz tests; no Bitcoin-style functional tests; legacy qa layout. Python **3.10+** (maintainers validate with **3.12** per **BUILD_ZERO.md** §1.1, **TEST_ZERO.md**). sec-hard checksec extras are ELF-only; not applicable on macOS.
 
-**Future directions:** Python hygiene in contrib scripts; coverage via lcov when enabled in the build.
+**Future directions:** Coverage via lcov when enabled; optional fuzz/functional infra.
 
-## 2. Suites
+## 2. Suite names, tiers, group listings, and status
 
-Nine test suites, grouped by execution dependency and coverage area.
+Util, secp256k1, univalue, GTest (`zero-gtest`), Boost (`test_bitcoin`), RPC Python, sec-hard / check-security, `no-dot-so`, recursive `make check`. **GTest** pin: **BUILD_ZERO.md** §4.1 (`googletest.mk`, C++14). **Commands and runners:** **TEST_ZERO.md**.
 
-**GTest** is pinned to **1.16.0** in **`depends/packages/googletest.mk`** (C++14; 1.17+ expects C++17).
+### 2.1 Tier A — release gate
 
-### 2.1 Nine Suites
+**Definition:** What **`contrib/run-tests.sh`** runs by default: pass-only C++ filters plus **`PYTHON_PASSING`** in that script only.
 
-| # | Name | Purpose | Coverage | Status |
-|---|------|---------|----------|--------|
-| 1 | **Util** (bitcoin-util-test) | Base58, key handling, JSON test cases | Utility functions | PASS |
-| 2 | **secp256k1** | Elliptic-curve crypto (Bitcoin curve) | Crypto | PASS |
-| 3 | **univalue** | JSON library | Univalue | PASS |
-| 4 | **GTest** | Consensus, wallet, shielded, Sapling/Sprout | Consensus, shielded | 201 pass, 5 excl |
-| 5 | **Boost** | RPC, script, serialization, crypto, alerts, mining | RPC, script, serialization | 47 suites pass (excl 3) |
-| 6 | **RPC Python** | Multi-node, regtest, zerod/zero-cli | Integration, RPC flows | 19 run; skip-logic instances rate as fail (§4.8.1) |
-| 7 | **sec-hard** | PIE, NX, RELRO, Canary; RPATH/FORTIFY (ELF) | Build security | System-specific: ELF only |
-| 8 | **no-dot-so** | depends/.so check | Deterministic build | full_test_suite only |
-| 9 | **check** | Recursive make check | Overlaps 1–5 | Use secp256k1-check, univalue-check for isolated |
+**Expected outcome** (counts drift when tests are added or removed):
 
-**Order and grouping**: 1–3 (fast, no chain); 4–6 (main suites); 7–8 (build checks, system-specific); 9 (orchestration).
+| Layer | Expectation |
+|-------|-------------|
+| Util, secp256k1, univalue | All pass |
+| check-symbols / check-security | Run when `zerod` exists; may no-op or warn on some hosts |
+| GTest | **201** pass with pass-only filter; **5** excluded |
+| Boost | All suites matching pass-only **`--run_test`** pass; on the order of **270+** cases |
+| RPC Python | **19** scripts below; each exit **0**; several use **skip** logic for maturity / peers / tips |
 
-**sec-hard** (full_test_suite stage): (a) `make check-security` — PIE, RELRO, Canary, NX (ELF) or HIGH_ENTROPY_VA, NX, DYNAMIC_BASE (PE); cross-platform. (b) On ELF only: checksec RPATH/RUNPATH and FORTIFY_SOURCE. Skips (b) on macOS (not ELF). Document as system-specific; not a problem or concern.
+**Tier A RPC script names** (basenames for `rpc-tests.sh`; same order as **`PYTHON_PASSING`** in **`contrib/run-tests.sh`**):
 
-**Tests vs orchestration**: Suites 1–8 execute tests. run-tests.sh, run-boost-individual.sh, full_test_suite.py, rpc-tests.sh orchestrate them. make check recursively invokes 1, 2, 3, 5.
+`blockchain` · `disablewallet` · `httpbasics` · `reindex` · `rescan_import` · `rescan_startup` · `decodescript` · `keypool` · `paymentdisclosure` · `prioritisetransaction` · `wallet_treestate` · `wallet_anchorfork` · `getchaintips` · `rewind_index` · `wallet_overwintertx` · `wallet_changeaddresses` · `shorter_block_times` · `p2p_nu_peer_management` · `txn_doublespend`
 
-### 2.2 Application and Coverage
+**Status:** Treat as **green = shippable** for RPC smoke. Skips inside a script still count as exit 0; see **§4.8.1** for “rate as fail, not run” nuance for coverage accounting.
 
-| Area | Suites | Notes |
-|------|--------|-------|
-| Consensus | GTest, Boost (main, pow; equihash excluded) | PoW, halving, chain rules |
-| Shielded | GTest, Boost rpc_wallet z_* | Witness, spend proofs, addresses |
-| RPC/CLI | Boost rpc_tests, rpc_wallet_tests, RPC Python | API correctness, integration |
-| Integration | RPC Python | Multi-node, zerod spawn |
+### 2.2 Tier B — default `rpc-tests.sh` bulk list
+
+**Definition:** **`qa/pull-tester/rpc-tests.sh`** with **no arguments** runs every entry in the **`testScripts`** array in that file, then optional ZMQ/Proton additions when enabled.
+
+**Canonical list:** **`qa/pull-tester/rpc-tests.sh`** lines **`testScripts=(`** through **`);`** — do not duplicate the full array here; it changes with upstream merges.
+
+**Rough grouping** (for triage; filenames are `.py`):
+
+| Group | Examples | Typical failure drivers on Zero |
+|-------|----------|----------------------------------|
+| Wallet / shield / merge | `wallet_*`, `mergetoaddress_*`, `walletbackup`, `zcjoinsplit*` | **720** coinbase maturity, subsidy shape, Sprout/Sapling assumptions |
+| Mempool / raw tx | `mempool_*`, `rawtransactions`, `getrawtransaction_insight` | Immature coinbase, expiry, Zero fee rules |
+| Indexes / REST | `addressindex`, `spentindex`, `timestampindex`, `merkle_blocks`, `rest` | Feature parity + maturity/mining depth |
+| P2P / BIP | `bip65-cltv-p2p`, `bipdersig-p2p`, `p2p_*` | **`getblocktemplate`** / “ZERO is not connected”, mininode versions |
+| Infra / misc | `proxy_test`, `fundrawtransaction`, `getblocktemplate` | RPC gating, Python harness drift |
+
+**Status:** **Not a release gate.** Many scripts **fail** without further porting; **`full_test_suite.py`** **`rpc`** stage uses this tier and will **exit 1** if any script fails.
+
+### 2.3 Tier C — `rpc-tests.sh -extended`
+
+**Definition:** **`testScriptsExt`** in **`rpc-tests.sh`** — only when invoked with **`-extended`** or **`--fail`** / **`--all`** paths in **`run-tests.sh`** that call **`-extended`**.
+
+**Canonical list:** same file, **`testScriptsExt=(`** … **`);`**.
+
+**Status:** **Lower priority than Tier B** for Zero porting; includes pruning, longpoll, forknotify, large reorg-style tests. **Abandon for CI** until Tier B is under control.
+
+### 2.4 Extended RPC failure taxonomy
+
+| Type | Log signal | Cause | Mitigation |
+|------|------------|-------|------------|
+| **A** | `execfile`, `StringIO`, `Queue`, `No module named 'mininode'` | Python 2 or broken **`test_framework`** imports | Port to Py3 / **`test_framework.*`** imports; several fixes already in-tree |
+| **B** | `need 720+ for mature coinbase`, `Insufficient funds`, `bad-txns-premature-spend-of-coinbase` | **`COINBASE_MATURITY = 720`** in **`src/consensus/consensus.h`** vs Bitcoin/Zcash **100** | Mine **≥720**, **`ZERO_MINE_COINBASE=1`**, or skip script |
+| **C** | `getbalance` / merge / mempool assertion mismatches | Regtest subsidy, halving, founders vs Zcash/Bitcoin assumptions | Use **`zero_regtest_subsidy`**; adjust expected values |
+| **D** | e.g. **`ZERO is not connected!`** on **`getblocktemplate`** | Zero mining / sync RPC differs from Bitcoin | Rewrite setup or skip |
+| **E** | **`Assertion failed`** in **`wallet.cpp`** | Wallet bug or bad test sequence | Debug line cited; blocker for that script |
+| **F** | `AttributeError` on test object | Harness / class setup | Fix test or delist |
+
+### 2.5 Upstream comparison
+
+| Source | Use for Zero | Caution |
+|--------|----------------|---------|
+| **Bitcoin Core** `test/functional` | Rare cherry-picks | Maturity **100**, no shielded coinbase flow |
+| **Zcash** `qa/rpc-tests` | **Preferred** source for harness + shielded patterns | Still **100** maturity upstream; Zero **720** |
+| **ZK-family clones** | Compare **`consensus.h`** / **`chainparams.cpp`** before copying tests | Subsidy and maturity may still not match Zero |
+
+### 2.6 Proposed actions: fix, skip, mark broken, abandon
+
+**Fix in-tree when product needs the behavior**
+
+- Any script planned for **Tier A** promotion: add **720+** mining or **`ZERO_MINE_COINBASE`**; fix **`nuparams`** / branch IDs; align balances with **`util.py`** helpers.
+- **`rest.py`**: update mining depth and balance assertions for **720** and Zero subsidy if REST remains supported.
+- **`wallet_protectcoinbase.py`**: **`UpdateSproutNullifierNoteMapWithTx`** assert — **code or test** fix before re-enabling.
+- **`wallet_nullifiers.py`**: repair **`BitcoinTestFramework`** / **`self.nodes`** setup or **delete** script.
+
+**Skip in default bulk run — keep file, do not invest**
+
+- Scripts that only validate **Bitcoin 100-block** economics with no Zero-specific value until rewritten: most **Tier B** wallet/mempool tests that only fail for **type B** without a maintainer owner.
+- **`bip65-cltv-p2p` / `bipdersig-p2p`** until **`getblocktemplate`** / mininode story is defined: **skip** or move to optional job.
+
+**Mark broken / abandon work**
+
+| Item | Rationale |
+|------|-----------|
+| **`script_test.py`** | Already commented out in **`testScriptsExt`**; **`sync_blocks`** / consensus cost — **abandon** unless rewritten for Equihash/Zero. |
+| **Tier C bulk** | **No CI** until Tier B pass rate is acceptable; **abandon** active porting of `pruning.py`, `forknotify.py`, etc., for now. |
+| **Proton / ZMQ tests** | Only if build disables feature; **skip** by configuration, not deep fix. |
+| **Alert / MagicBean-era P2P tests** | Zero branding and alert deprecation — **do not resurrect**; Boost **`Alert_tests`** already excluded. |
+
+**Process proposal**
+
+1. Add **`qa/rpc-tests/DISABLED.md`** or comments at top of abandoned scripts listing **tier** and **reason** — optional follow-up; until then, this section is the record.
+2. **`full_test_suite`**: consider **`rpc`** stage calling **`rpc-tests.sh`** with an explicit **allowlist** file instead of full **`testScripts`** so **`--full`** can succeed while Tier B rots gracefully — **product decision**.
 
 ## 3. Usage
 
-**Working directory**: run-tests.sh resolves repo root from its path and `cd`'s there, so it works from any directory. Manual invocation of individual commands (./src/zero-gtest, ./qa/pull-tester/rpc-tests.sh, etc.) requires repo root. `make -C src` uses src as build dir.
-
-### 3.1 Runners
-
-| Runner | Suites | Notes |
-|--------|--------|-------|
-| run-tests.sh (default) | 1, 2, 3, 4 (filtered), 5 (excl Alert/equihash/miner), 6 (pass-only) | Pass-only; continues on failure; LOG_DIR (default test-logs/) for all modes |
-| run-tests.sh --fail | Same + fail tests | Pass + fail; excludes hang/crash |
-| run-tests.sh --all | Same, no exclusions | Includes hang/crash |
-| run-tests.sh --quick | 1, 2, 3, check-symbols, check-security | Skip GTest, Boost |
-| run-tests.sh --full, --full-suite | full_test_suite.py: 1–8 | Replaces run-tests flow; invokes `python3 qa/zcash/full_test_suite.py`; on Darwin passes `--skip sec-hard --skip no-dot-so`; exit 1 on failure |
-| run-tests.sh --no-python | 1–5 only | Skip RPC Python |
-| run-boost-individual.sh | 5 (one suite at a time) | Per-suite isolation; avoids cascade |
-| qa/pull-tester/rpc-tests.sh | 6 | Python RPC only |
-| make -C src check | 1, 2, 3, 5 (all) | Recursive |
-
-### 3.2 Direct Invocation
-
-| Suite | Invocation |
-|-------|------------|
-| Util | `cd src && srcdir=$(pwd) PYTHONPATH=$(pwd)/test python3 test/bitcoin-util-test.py` |
-| secp256k1 | `make -C src/secp256k1 check` |
-| univalue | `make -C src/univalue check` |
-| GTest | `./src/zero-gtest [--gtest_filter=...]` |
-| Boost | `./src/test/test_bitcoin [--run_test=...]` |
-| RPC Python | `./qa/pull-tester/rpc-tests.sh [script\|-extended]` |
-| sec-hard | `make -C src check-security` |
-| full_test_suite | `python3 qa/zcash/full_test_suite.py [--skip STAGE ...] [stage ...]` |
-
-### 3.3 Scenarios
-
-| Scenario | Invocation |
-|----------|------------|
-| Validate incremental build | `./contrib/run-tests.sh --quick` |
-| Full build or release validation | `./contrib/run-tests.sh --full` |
-| Verify feature | `./src/test/test_bitcoin -t rpc_tests` or `./qa/pull-tester/rpc-tests.sh wallet_sapling` (from repo root) |
-| Debug crash | `./src/zero-gtest --gtest_filter='WalletTests.CachedWitnessesEmptyChain' --gtest_break_on_failure`; lldb `bt` |
-| Run pass-only | `./contrib/run-tests.sh` |
-
-### 3.4 Special Cases
-
-- **--full** and **--full-suite** are equivalent. When set, run-tests.sh invokes `python3 qa/zcash/full_test_suite.py` and exits (does not run default components). On Darwin, passes `--skip sec-hard --skip no-dot-so` so `--full` succeeds without a depends build. Usage: `./contrib/run-tests.sh --full`.
-- **Cascade**: Early Boost failures (Alert, equihash, miner) cause later suites to fail via shared state. Run by suite (`-t rpc_tests`) to isolate.
-- **run-boost-individual.sh** excludes Alert_tests, equihash_tests, miner_tests, Checkpoints_tests (empty suite); main_tests included.
-- **ELF-only**: sec-hard checksec (RPATH/FORTIFY), check-symbols (readelf). Skip or no-op on macOS.
-- **Python 3.6+**: Set **`PYTHON`** for RPC tests. **`pyblake2`** pip install only if **`hashlib.blake2b`** path fails (**§6.2**).
-- **zerod/zero-cli**: rpc-tests.sh sources tests-config.sh; BUILDDIR = repo root (from script path). Exports BITCOIND, BITCOINCLI (run-bitcoin-cli wrapper → zero-cli). Binaries invoked by absolute path; no PATH required.
-
-### 3.5 Build Validation Modes
-
-For release validation or debugging vendored lib failures. Not needed for routine test runs.
-
-| Test / Mode | Validates | Invocation |
-|-------------|-----------|------------|
-| secp256k1-check | Vendored secp256k1 compiles and passes | `make -C src secp256k1-check` |
-| univalue-check | Vendored univalue compiles and passes | `make -C src univalue-check` |
-| no-dot-so | depends/ has no .so (deterministic build) | full_test_suite stage; skipped on Darwin |
-| sec-hard | PIE, RELRO, NX, Canary (ELF) or HIGH_ENTROPY_VA, DYNAMIC_BASE (PE) | `make -C src check-security` |
-| --quick | Incremental build (util, secp256k1, univalue, check-symbols, check-security) | `./contrib/run-tests.sh --quick` |
-| --full | Release build + full suite | `./contrib/run-tests.sh --full` |
+Runner tables, direct invocations, scenarios, and validation-mode commands: **TEST_ZERO.md**. **Tier definitions, RPC group status, failure taxonomy, and abandon/fix proposals:** **§2** above.
 
 ## 4. Status
 
@@ -199,7 +203,7 @@ No known failures.
 *Root cause*: Platform-dependent; PartialEnd never reached for Equihash<48,5> with test input 0x00.  
 *Fix/mitigation*: Fixed. try/catch accepts either exception or normal return.
 
-**Exclusion filter**: `--gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkey*:WalletTests.CachedWitnesses*'`
+**Exclusion filter** (exact string): **TEST_ZERO.md**.
 
 ### 4.6 Boost (5.x)
 
@@ -263,13 +267,13 @@ No known failures.
 *Root cause*: AmountFromValue throws UniValue/JSONRPCError.  
 *Fix/mitigation*: Fixed. try/catch; diagnostic logs typeid/e.what().
 
-**Pass-only filter**: `--run_test='!Alert_tests:!equihash_tests:!miner_tests:!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'`
+**Pass-only Boost filter:** **TEST_ZERO.md**.
 
 **Slow tests (Boost, indicative):** **`rpc_wallet_tests`** dominates; several single cases exceed ~1s (async wallet RPC, **`PrevectorTests`**, **`subsidy_limit_test`**, …).
 
 ### 4.7 RPC Python
 
-**Limitations:** Python **3.6+** for RPC tests. Each script starts **`zerod`**, mines Equihash blocks, tears down—tens of seconds to minutes per script unless parallelized. Tests using **`initialize_chain_clean`** expect Zero subsidy helpers (**`zero_regtest_subsidy`**).
+**Runtime / env** (Python version, **`PYTHON`**, parallel jobs, rpc-tests options, pass-only script list): **TEST_ZERO.md**. **Limitations:** Each script starts **`zerod`**, mines Equihash blocks, tears down—tens of seconds to minutes per script unless parallelized. Tests using **`initialize_chain_clean`** expect Zero subsidy helpers (**`zero_regtest_subsidy`**).
 
 | ID | Type | Name |
 |----|------|------|
@@ -308,14 +312,10 @@ Tests generating <720 blocks get no mature coinbase.
 
 **6.6 pyblake2**  
 *Symptoms*: ImportError.  
-*Root cause*: **`mininode.py`** prefers **`pyblake2`** then falls back to **`hashlib.blake2b`** (Python 3.6+).  
-*Fix/mitigation*: Use Python ≥3.6; install **`pyblake2`** only if the fallback path fails.  
+*Root cause*: **`mininode.py`** prefers **`pyblake2`** then falls back to **`hashlib.blake2b`** (Python 3.10+).  
+*Fix/mitigation*: Python **3.10+**; install **`pyblake2`** only if the **`hashlib.blake2b`** fallback path fails (**TEST_ZERO.md**).
 
-**Pass-only run:** All 19 **`PYTHON_PASSING`** scripts exit 0; several skip with messages: getchaintips (skip after join), wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import (skip when no coinbase), p2p_nu_peer_management (skip when no peers). Full run: blockchain, disablewallet, httpbasics, reindex, rescan_import, rescan_startup, decodescript, keypool, paymentdisclosure, prioritisetransaction, wallet_treestate, wallet_anchorfork, getchaintips, rewind_index, wallet_overwintertx, wallet_changeaddresses, shorter_block_times, p2p_nu_peer_management, txn_doublespend.
-
-**Options**: `--nocleanup` (leave zerods and test datadir on exit); `--noshutdown` (don't stop zerods after test); `--srcdir=SRCDIR` (default `${BUILDDIR}/src`); `--tmpdir=TMPDIR`; `--tracerpc` (print RPC calls). rpc-tests.sh sources `qa/pull-tester/tests-config.sh` for BUILDDIR, PYTHON, REAL_BITCOIND, REAL_BITCOINCLI. **Env**: `ZERO_MINE_COINBASE=1` mines 1000 blocks when tests need get_coinbase_address (slow; not used in main run).
-
-**Throughput:** Default RPC Python run is sequential per script. **`./contrib/run-tests.sh --jobs=N`** runs multiple scripts in parallel (port offset by PID; cap **N** to avoid exhausting the machine). Prefer **`initialize_chain`** (cached chain) over **`initialize_chain_clean`** where the scenario allows.
+**Pass-only script set, rpc-tests flags, `ZERO_MINE_COINBASE`, parallel `--jobs`:** **TEST_ZERO.md**.
 
 **script_test.py:** Excluded from **`PYTHON_PASSING`** and from extended **`rpc-tests.sh`** lists. A direct run fails during **`sync_blocks`**; a full run would require redesign for Zero consensus and Equihash cost.
 
@@ -327,19 +327,19 @@ The following are workarounds and skips to overcome test problems and failures. 
 
 | Item | Workaround | Root cause (unfixed) |
 |------|------------|----------------------|
-| CachedWitnesses* (4 tests) | Excluded via `--gtest_filter='-WalletTests.CachedWitnesses*'` | Partial: indices in scope; wallet.cpp pblockIn path when pcoinsTip null. Still fail: pre-add witnesses or EXPECT_DEATH. §4.1, **Appendix A.1** |
-| WriteCryptedSaplingZkey* | Excluded via `--gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkey*'` | CDB::Rewrite deadlock; first wallet never closed (§6.4). **Appendix A.2** |
-| run-tests.sh | Uses filtered zero-gtest invocation | Above exclusions |
+| CachedWitnesses* (4 tests) | Excluded (filter in **TEST_ZERO.md**) | Partial: indices in scope; wallet.cpp pblockIn path when pcoinsTip null. Still fail: pre-add witnesses or EXPECT_DEATH. §4.1, **Appendix A.1** |
+| WriteCryptedSaplingZkey* | Excluded (filter in **TEST_ZERO.md**) | CDB::Rewrite deadlock; first wallet never closed (§6.4). **Appendix A.2** |
+| run-tests.sh | Filtered zero-gtest | Above exclusions |
 
 **Boost**
 
 | Item | Workaround | Root cause (unfixed) |
 |------|------------|----------------------|
-| Alert_tests | Excluded via `--run_test='!Alert_tests'` | MagicBean/Zcash-specific alerts; Zero uses Gaua |
-| equihash_tests | Excluded via `--run_test='!equihash_tests'` | Zero (192,7) vs test (96,5); suite skips when nEquihashN!=96 |
-| miner_tests | Excluded via `--run_test='!miner_tests'` | Zero (192,7) vs test (96,5) |
-| rpc_wallet_encrypted_wallet_sapzkeys | Excluded via `--run_test='!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'` | CDB::Rewrite deadlock (same as GTest WriteCryptedSaplingZkey*; §6.4). **Appendix A.2** |
-| run-tests.sh, run-boost-individual.sh | Pass-only filter excludes above | Cascade from shared state |
+| Alert_tests | Excluded (filter in **TEST_ZERO.md**) | MagicBean/Zcash-specific alerts; Zero uses Gaua |
+| equihash_tests | Excluded (filter in **TEST_ZERO.md**) | Zero (192,7) vs test (96,5); suite skips when nEquihashN!=96 |
+| miner_tests | Excluded (filter in **TEST_ZERO.md**) | Zero (192,7) vs test (96,5) |
+| rpc_wallet_encrypted_wallet_sapzkeys | Excluded (filter in **TEST_ZERO.md**) | CDB::Rewrite deadlock (same as GTest WriteCryptedSaplingZkey*; §6.4). **Appendix A.2** |
+| run-tests.sh, run-boost-individual.sh | Pass-only filter | Cascade from shared state |
 
 **RPC Python — skip logic (rate as fail, not run)**
 
@@ -355,32 +355,18 @@ The following are workarounds and skips to overcome test problems and failures. 
 
 | Item | Requirement |
 |------|-------------|
-| pyblake2 (6.6) | Optional with Python 3.6+ (hashlib.blake2b); `python3 -m pip install pyblake2` if mininode needs it |
-| Python 3.6+ | Set `PYTHON` or use pyenv 3.6+. |
-| tests-config.sh | BUILDDIR, REAL_BITCOIND, REAL_BITCOINCLI must point to Zero binaries |
+| pyblake2 (6.6) | Optional with Python 3.10+ (`hashlib.blake2b`); **TEST_ZERO.md** |
+| Python | **3.10+**; **`PYTHON`**, **tests-config.sh**: **TEST_ZERO.md** / **BUILD_ZERO.md** §1.1 |
 
-**Platform skips**
-
-| Item | Behavior |
-|------|----------|
-| sec-hard checksec | ELF only; skips on macOS (Mach-O) |
-| check-symbols | readelf; Linux only |
+**Platform skips** (sec-hard, check-symbols, Darwin `--full`): **TEST_ZERO.md**
 
 ### 4.8.1 Skip-logic summary (P1, Regtest)
 
 **Rate as fail, not run:** Tests that use skip logic instead of asserting — get_coinbase_address, getchaintips, clean-chain amounts, protocol version. PYTHON_PASSING omits scripts that would fail; those are not run. Do not count as pass for coverage.
 
-### 4.9 sec-hard, no-dot-so (7.x, 8.x)
+### 4.9 sec-hard, no-dot-so, make check (7.x–9.x)
 
-**7.x sec-hard**: System-specific. ELF only; skips on macOS. make check-security is cross-platform; checksec (RPATH/FORTIFY) is ELF-only. Document applicability; not a problem.
-
-**8.x no-dot-so**: full_test_suite stage. Ensures depends/x86_64-*/lib (or x86_64-apple-darwin*, aarch64-apple-darwin*) has no .so. Fails if any .so. If no arch dir exists, skips (returns success) instead of exit 2; allows `--full` on macOS without a depends build.
-
-**OS-based skips**: full_test_suite supports `--skip STAGE` (repeatable). run-tests.sh passes `--skip sec-hard --skip no-dot-so` on Darwin when invoking `--full`, so the full suite completes successfully on macOS.
-
-### 4.10 check (9.x)
-
-Recursive make check invokes 1, 2, 3, 5. Use `make -C src secp256k1-check` or `make -C src univalue-check` for isolated runs. Full check runs test_bitcoin + bitcoin-util-test + secp256k1 + univalue.
+Behavior, Darwin `--full` skips, and isolated **`secp256k1-check` / `univalue-check`**: **TEST_ZERO.md**.
 
 ## 5. RPC
 
@@ -416,19 +402,17 @@ Zcash-, Pirate-, and Bitcoin-only RPCs and CLI options are enumerated in **`RPCs
 
 **Manual witness pattern**: For synthetic Sapling notes: (1) append commitments to SaplingMerkleTree; (2) capture saplingTree.witness() at target note; (3) append subsequent commitments; (4) store in mapSaplingNoteData. Bypasses BuildWitnessCache.
 
-**pyblake2 / blake2b:** See **§6.2**.
+**pyblake2 / blake2b:** **TEST_ZERO.md** / **BUILD_ZERO.md** §1.1.
 
 **nuparams**: Overwinter 0x6f76727a, Sapling 0x7361707a (Zero). Zcash: 0x5BA81B19, 0x76B809BB.
 
 ### 6.2 Python for tests
 
-RPC and **`full_test_suite.py`** are driven under Python **3.6+**. **`contrib/run-tests.sh`** resolves **`$PYTHON`**, else **`python3`**, else **`python`** if the version is sufficient, and exports that for **`rpc-tests.sh`**, **`full_test_suite.py`**, and **`bitcoin-util-test.py`**. Some **`contrib/`** scripts still carry **`python2`** shebangs; **`run-tests.sh`** forces Python **3** for the test entrypoints. Set **`PYTHON`** explicitly when multiple interpreters are on **`PATH`**.
-
-**mininode:** Blake2b for Equihash persons—**`pyblake2`** if installed, else **`hashlib.blake2b`**.
+Minimum **3.10+**, interpreter selection, and **`pyblake2`**: **TEST_ZERO.md** and **BUILD_ZERO.md** §1.1. This file does not duplicate the runbook.
 
 ### 6.3 Wants and Suggestions
 
-- **Python shebang cleanup:** See **§6.2**.
+- **Python shebang cleanup:** **TEST_ZERO.md** / contrib scripts.
 - **zeronode RPC tests**: Partial (Groups A+B); add Groups C–F per §11.4.
 - **Fuzz tests**: Zero has none; Bitcoin has src/test/fuzz/.
 - **Coverage (make cov)**: Postponed; requires CFLAGS --coverage, lcov.
@@ -446,9 +430,7 @@ RPC and **`full_test_suite.py`** are driven under Python **3.6+**. **`contrib/ru
 
 ### 6.5 System-Specific
 
-**sec-hard, checksec**: ELF only. Applicable on Linux; skips on macOS (zerod is Mach-O). Document platform applicability; not a problem.
-
-**check-symbols**: readelf, GLIBC_BACK_COMPAT; Linux only.
+ELF vs Mach-O for sec-hard / check-symbols: **TEST_ZERO.md** and **BUILD_ZERO.md**.
 
 ## 7. References (External)
 
@@ -521,7 +503,7 @@ Aggregated from coverage analysis. Detailed limitations, justifications for excl
 
 ### 9.5 Future directions
 
-- Python: **§6.2**.
+- Python env / runners: **TEST_ZERO.md**.
 - Zeronode test suite (see 9.2).
 - Fuzz tests (Zero has none; Bitcoin has src/test/fuzz/).
 - Coverage targets (make cov; requires lcov).
@@ -628,7 +610,7 @@ Original order. For prioritized execution, see §11.5.
 
 **Covered:** None.
 
-**Additional tests:** Lock conflict, activation, backward compat. **How:** GTest; consensus rules in `zeronode/swifttx.cpp`, `zeronode/spork.cpp`. Requires `chainActive`, `mapBlockIndex`; adapt `CreateValidBlock` pattern from §6.2.
+**Additional tests:** Lock conflict, activation, backward compat. **How:** GTest; consensus rules in `zeronode/swifttx.cpp`, `zeronode/spork.cpp`. Requires `chainActive`, `mapBlockIndex`; adapt `CreateValidBlock` pattern from §6.1.
 
 **Group E — Integration (pending)**
 
@@ -660,7 +642,7 @@ See §11.5 for prioritized implementation.
 | **Mining/PoW** | miner_tests excluded | Equihash (192,7) vs test (96,5). Add Zero-specific test vectors or skip when nEquihashN!=192. |
 | **addressindex** | rpc_tests only | getaddressmempool, getaddressutxos, etc. — add error-path tests; coverage in rpc_tests. |
 | **Fuzz** | None | Defer. Bitcoin src/test/fuzz; requires libFuzzer/infra. |
-| **Functional** | Legacy qa | Defer. See **§6.2**. |
+| **Functional** | Legacy qa | Defer. See **TEST_ZERO.md**. |
 
 ### 11.5 Implementation Plan (Prioritized)
 
@@ -672,7 +654,7 @@ Organized by group/area. Priorities: P1 (high impact, low effort), P2 (high impa
 | **P1** | Zeronode RPC | B | Add zeronode super, znbudget super subcommand validation | Boost | Low | 2 tests; completes Group B |
 | **P1** | zero_experimental | — | Param validation for getsaplingwitness, getsaplingwitnessatheight, getsaplingblocks | Boost | Low | May need chain state; try param-only first |
 | **P2** | Zeronode logic | C | GTest: payment calculation, budget validation, collateral check. Mock znodeman, budget, zeronodeSync | GTest | Medium | Core zeronode; requires harness |
-| **P2** | SwiftTX, Spork | D | GTest: lock conflict, activation, backward compat. Adapt CreateValidBlock | GTest | Medium | Consensus-critical; depends on §6.2 harness |
+| **P2** | SwiftTX, Spork | D | GTest: lock conflict, activation, backward compat. Adapt CreateValidBlock | GTest | Medium | Consensus-critical; depends on §6.1 harness patterns |
 | **P2** | Zeronode integration | E | Python RPC: multi-node regtest, budget vote flow | Python RPC | Medium | End-to-end; follow wallet_sapling.py |
 | **P2** | Wallet | — | Fix or bypass CDB::Rewrite deadlock; re-enable WriteCryptedSaplingZkey*, rpc_wallet_encrypted_wallet_sapzkeys | GTest, Boost | Medium | Unblocks 3 excluded tests |
 | **P2** | Consensus harness | — | Populate pcoinsTip; or manual witness build; or BuildWitnessCache test path. (Dangling ptr fix applied: indices in scope.) | GTest | Medium | Unblocks 4 excluded tests |
@@ -681,7 +663,7 @@ Organized by group/area. Priorities: P1 (high impact, low effort), P2 (high impa
 | **P3** | Wallet | — | Backup/restore, corruption recovery tests | Boost + Python | Medium | Resilience |
 | **P3** | addressindex | — | Error-path tests for getaddressmempool, getaddressutxos, etc. | Boost | Low | rpc_tests only |
 | **P4** | Fuzz | — | libFuzzer infra; seed from Bitcoin src/test/fuzz | Fuzz | High | New infra |
-| **P4** | Functional | — | See **§6.2** | Python 3 | High | Depends on contrib shebang cleanup |
+| **P4** | Functional | — | See **TEST_ZERO.md** | Python 3.10+ | High | Depends on contrib shebang cleanup |
 | **P4** | decodescript | — | Expand beyond rpc_tests | Boost | Low | Minor gap |
 
 **Workflow:** P1 first (quick wins). P2 in parallel where harness work (C, D, consensus) can inform each other. P3 after P2. P4 deferred.

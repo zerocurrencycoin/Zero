@@ -5,7 +5,7 @@
 Dummy Socks5 server for testing.
 '''
 from __future__ import print_function, division, unicode_literals
-import socket, threading, Queue
+import socket, threading, queue
 import traceback, sys
 
 ### Protocol constants
@@ -85,9 +85,9 @@ class Socks5Connection(object):
                 if ver != 0x01:
                     raise IOError('Invalid auth packet version %i' % ver)
                 ulen = recvall(self.conn, 1)[0]
-                username = str(recvall(self.conn, ulen))
+                username = recvall(self.conn, ulen).decode('utf-8')
                 plen = recvall(self.conn, 1)[0]
-                password = str(recvall(self.conn, plen))
+                password = recvall(self.conn, plen).decode('utf-8')
                 # Send authentication response
                 self.conn.sendall(bytearray([0x01, 0x00]))
 
@@ -102,7 +102,7 @@ class Socks5Connection(object):
                 addr = recvall(self.conn, 4)
             elif atyp == AddressType.DOMAINNAME:
                 n = recvall(self.conn, 1)[0]
-                addr = str(recvall(self.conn, n))
+                addr = recvall(self.conn, n).decode('ascii')
             elif atyp == AddressType.IPV6:
                 addr = recvall(self.conn, 16)
             else:
@@ -132,7 +132,7 @@ class Socks5Server(object):
         self.s.listen(5)
         self.running = False
         self.thread = None
-        self.queue = Queue.Queue() # report connections and exceptions to client
+        self.queue = queue.Queue() # report connections and exceptions to client
 
     def run(self):
         while self.running:

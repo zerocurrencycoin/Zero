@@ -8,7 +8,7 @@
 # Env: ZERO_MINE_COINBASE=1 to mine 1000 blocks for get_coinbase_address tests (slow).
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
 # --no-python: skip Python RPC tests (qa/rpc-tests)
-# --build-checks: run make check-security (requires python in PATH; see UpdateTests.md §4.10, §8.4)
+# --build-checks: run make check-security (requires python on PATH; see TEST_ZERO.md)
 # --jobs=N: run Python RPC tests in parallel (default 1). E.g. --jobs=4.
 # ZERO_MINE_COINBASE=1: mine 1000 blocks when tests need get_coinbase_address (slow; not used in main run).
 # --fail: pass + fail (exclude only hang/crash)
@@ -40,8 +40,8 @@ echo ""
 
 find_python3() {
     if [ -n "$PYTHON" ]; then echo "$PYTHON"; return; fi
-    if command -v python3 &>/dev/null; then echo "python3"; return; fi
-    if command -v python &>/dev/null && python -c 'import sys; sys.exit(0 if sys.version_info >= (3,6) else 1)' 2>/dev/null; then echo "python"; return; fi
+    if command -v python3 &>/dev/null && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' 2>/dev/null; then echo "python3"; return; fi
+    if command -v python &>/dev/null && python -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' 2>/dev/null; then echo "python"; return; fi
     echo ""
 }
 
@@ -107,7 +107,7 @@ fi
 if [ "$FULL_SUITE" -eq 1 ]; then
     PY3=$(find_python3)
     if [ -z "$PY3" ]; then
-        echo "FAIL: Python 3.6+ required for full_test_suite"
+        echo "FAIL: Python 3.10+ required for full_test_suite"
         exit 1
     fi
     FULL_SUITE_SKIP=()
@@ -202,7 +202,7 @@ if [ "$NO_PYTHON" -eq 0 ]; then
             done
         fi
     else
-        echo "Skipping Python RPC tests: Python 3.6+ not found"
+        echo "Skipping Python RPC tests: Python 3.10+ not found"
     fi
 fi
 
