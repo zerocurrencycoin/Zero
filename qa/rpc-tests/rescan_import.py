@@ -12,8 +12,7 @@ from decimal import Decimal
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
-    coinbase_diagnostic,
-    ensure_coinbase_utxos,
+    ensure_mature_coinbase_or_skip,
     get_coinbase_address,
     start_nodes,
     wait_and_assert_operationid_status,
@@ -31,8 +30,7 @@ class RescanImportTest(BitcoinTestFramework):
         # Sanity-check the test harness
         assert_equal(self.nodes[0].getblockcount(), 200)
 
-        if not ensure_coinbase_utxos(self.nodes[0], self.nodes, 1000):
-            print("Skipping rescan_import: " + coinbase_diagnostic(self.nodes[0]))
+        if not ensure_mature_coinbase_or_skip(self.nodes[0], self.nodes, "rescan_import"):
             return
         taddr = get_coinbase_address(self.nodes[0])
 

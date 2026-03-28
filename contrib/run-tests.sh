@@ -4,7 +4,8 @@
 #   --fail: pass + fail; excludes only hang/crash.
 #   --all: everything including hang/crash (no exclusions; GTest may hang on WriteCryptedSaplingZkeyDirectToDb).
 #
-# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--fail|--all|--full-suite|--full]
+# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|--full-suite|--full]
+# --strict: after all selected steps, exit 1 if any failed (default: exit 0 with WARNING if any failed).
 # Env: ZERO_MINE_COINBASE=1 to mine 1000 blocks for get_coinbase_address tests (slow).
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
 # --no-python: skip Python RPC tests (qa/rpc-tests)
@@ -13,7 +14,7 @@
 # ZERO_MINE_COINBASE=1: mine 1000 blocks when tests need get_coinbase_address (slow; not used in main run).
 # --fail: pass + fail (exclude only hang/crash)
 # --all: everything including hang/crash (no exclusions)
-# --full-suite, --full: run qa/zcash/full_test_suite.py (btest, gtest, sec-hard, no-dot-so, util-test, secp256k1, univalue, rpc). On failure: report error and exit 1. Differs from --all: adds sec-hard, no-dot-so; uses full test_bitcoin -p, zero-gtest with no filter.
+# --full-suite, --full: run qa/zcash/full_test_suite.py (btest, gtest, sec-hard, no-dot-so, util-test, secp256k1, univalue, rpc). On failure: exit 1. btest/gtest use same pass-only exclusions as default run unless ZERO_FULL_SUITE_UNFILTERED=1 or --unfiltered (see TEST_ZERO.md).
 
 set -e
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,7 +25,7 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
 
-BOOST_EXCLUDE='!Alert_tests:!equihash_tests:!miner_tests:!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'
+BOOST_EXCLUDE='!Alert_tests:!miner_tests:!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'
 
 PYTHON_PASSING=(
     blockchain disablewallet httpbasics reindex rescan_import rescan_startup decodescript keypool
@@ -51,17 +52,24 @@ NO_PYTHON=0
 FULL_SUITE=0
 BUILD_CHECKS=0
 PYTHON_JOBS=1
+STRICT=0
+OVERALL_FAIL=0
 for arg in "$@"; do
     case "$arg" in
         --quick) QUICK=1 ;;
         --no-python) NO_PYTHON=1 ;;
         --build-checks) BUILD_CHECKS=1 ;;
+        --strict) STRICT=1 ;;
         --fail) MODE=fail ;;
         --all) MODE=all ;;
         --full-suite|--full) FULL_SUITE=1 ;;
         --jobs=*) PYTHON_JOBS="${arg#--jobs=}" ;;
     esac
 done
+
+bump_fail() {
+    OVERALL_FAIL=1
+}
 
 run_cmd() {
     local name="$1"
@@ -81,7 +89,7 @@ run_bg() {
     local name="$1"
     shift
     local log="$LOG_PREFIX-$name.log"
-    echo "=== $name (background) ==="
+    echo "=== $name (background) ===" >&2
     ("$@" 2>&1 | tee "$log") &
     echo $!
 }
@@ -124,15 +132,25 @@ if [ "$FULL_SUITE" -eq 1 ]; then
 fi
 
 echo "--- Quick tests ---"
-run_cmd "bitcoin-util-test" \
-    bash -c "cd \"$REPO_ROOT/src\" && srcdir=\$(pwd) PYTHONPATH=\$(pwd)/test python3 test/bitcoin-util-test.py" || true
+if ! run_cmd "bitcoin-util-test" \
+    bash -c "cd \"$REPO_ROOT/src\" && srcdir=\$(pwd) PYTHONPATH=\$(pwd)/test python3 test/bitcoin-util-test.py"; then
+    bump_fail
+fi
 
-run_cmd "secp256k1-check" make -C src secp256k1-check || true
-run_cmd "univalue-check" make -C src univalue-check || true
+if ! run_cmd "secp256k1-check" make -C src secp256k1-check; then
+    bump_fail
+fi
+if ! run_cmd "univalue-check" make -C src univalue-check; then
+    bump_fail
+fi
 
 if [ -x "src/zerod" ]; then
-    run_cmd "check-symbols" make -C src check-symbols 2>/dev/null || true
-    run_cmd "check-security" make -C src check-security 2>/dev/null || true
+    if ! run_cmd "check-symbols" make -C src check-symbols 2>/dev/null; then
+        bump_fail
+    fi
+    if ! run_cmd "check-security" make -C src check-security 2>/dev/null; then
+        bump_fail
+    fi
 fi
 
 if [ "$QUICK" -eq 0 ]; then
@@ -156,7 +174,7 @@ if [ "$QUICK" -eq 0 ]; then
             echo "--- Boost (all) ---"
             BTEST_PID=$(run_bg "test_bitcoin" ./src/test/test_bitcoin --log_level=test_suite 2>&1)
         else
-            echo "--- Boost (pass-only: exclude Alert, equihash, miner) ---"
+            echo "--- Boost (pass-only: exclude Alert, miner, rpc_wallet_encrypted_wallet_sapzkeys) ---"
             BTEST_PID=$(run_bg "test_bitcoin" ./src/test/test_bitcoin --run_test="$BOOST_EXCLUDE" --log_level=test_suite 2>&1)
         fi
     fi
@@ -164,8 +182,14 @@ if [ "$QUICK" -eq 0 ]; then
     echo "zero-gtest PID: $GTEST_PID"
     echo "test_bitcoin PID: $BTEST_PID"
     echo "Waiting for background tests..."
-    [ -n "$GTEST_PID" ] && wait $GTEST_PID 2>/dev/null || true
-    [ -n "$BTEST_PID" ] && wait $BTEST_PID 2>/dev/null || true
+    if [ -n "$GTEST_PID" ] && ! wait "$GTEST_PID" 2>/dev/null; then
+        echo "FAIL: zero-gtest (see $LOG_PREFIX-zero-gtest.log)"
+        bump_fail
+    fi
+    if [ -n "$BTEST_PID" ] && ! wait "$BTEST_PID" 2>/dev/null; then
+        echo "FAIL: test_bitcoin (see $LOG_PREFIX-test_bitcoin.log)"
+        bump_fail
+    fi
 fi
 
 if [ "$NO_PYTHON" -eq 0 ]; then
@@ -182,23 +206,37 @@ if [ "$NO_PYTHON" -eq 0 ]; then
         export PYTHON="$PY3"
         if [ "$MODE" = "fail" ] || [ "$MODE" = "all" ]; then
             echo "--- Python RPC (all) ---"
-            run_cmd "rpc-all" \
-                env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -extended || true
+            if ! run_cmd "rpc-all" \
+                env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -extended; then
+                bump_fail
+            fi
         elif [ "$PYTHON_JOBS" -gt 1 ]; then
             echo "--- Python RPC (pass-only: ${#PYTHON_PASSING[@]} tests, jobs=$PYTHON_JOBS) ---"
             PIDS=()
+            PYNAMES=()
             for t in "${PYTHON_PASSING[@]}"; do
                 pid=$(run_bg "rpc-$t" \
-                    env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true)
+                    env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t")
                 PIDS+=("$pid")
+                PYNAMES+=("$t")
                 while [ "$(jobs -r 2>/dev/null | wc -l)" -ge "$PYTHON_JOBS" ]; do sleep 1; done
             done
-            for p in "${PIDS[@]}"; do wait "$p" 2>/dev/null || true; done
+            pi=0
+            for p in "${PIDS[@]}"; do
+                name="${PYNAMES[$pi]}"
+                pi=$((pi + 1))
+                if ! wait "$p" 2>/dev/null; then
+                    echo "FAIL: parallel RPC rpc-$name (PID $p, log $LOG_PREFIX-rpc-$name.log)"
+                    bump_fail
+                fi
+            done
         else
             echo "--- Python RPC (pass-only: ${#PYTHON_PASSING[@]} verified) ---"
             for t in "${PYTHON_PASSING[@]}"; do
-                run_cmd "rpc-$t" \
-                    env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t" || true
+                if ! run_cmd "rpc-$t" \
+                    env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t"; then
+                    bump_fail
+                fi
             done
         fi
     else
@@ -209,3 +247,10 @@ fi
 echo ""
 echo "--- Done. Logs in $LOG_DIR ---"
 echo "Review: ls -la $LOG_PREFIX-*.log"
+if [ "$OVERALL_FAIL" -eq 1 ]; then
+    if [ "$STRICT" -eq 1 ]; then
+        echo "FAIL: one or more steps failed (--strict)"
+        exit 1
+    fi
+    echo "WARNING: one or more steps failed. Use --strict to exit with code 1."
+fi

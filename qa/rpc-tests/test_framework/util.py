@@ -480,6 +480,28 @@ def ensure_coinbase_utxos(node, nodes=None, blocks=1000):
         return has_coinbase_utxos(node)
     return False
 
+def mine_until_node_has_mature_coinbase(node, nodes=None, batch=50, max_blocks=2000):
+    """Mine regtest blocks until node has at least one mature coinbase UTXO (Zero: 720 confs)."""
+    if has_coinbase_utxos(node):
+        return True
+    total = 0
+    while not has_coinbase_utxos(node) and total < max_blocks:
+        node.generate(batch)
+        total += batch
+        if nodes is not None:
+            sync_blocks(nodes)
+    return has_coinbase_utxos(node)
+
+
+def ensure_mature_coinbase_or_skip(node, nodes, label):
+    """Incremental mining, then ZERO_MINE_COINBASE bulk path; print skip and return False if still no mature coinbase."""
+    if mine_until_node_has_mature_coinbase(node, nodes):
+        return True
+    if ensure_coinbase_utxos(node, nodes, 1000):
+        return True
+    print("Skipping %s: %s" % (label, coinbase_diagnostic(node)))
+    return False
+
 def _coinbase_diagnostic(node):
     lu = node.listunspent()
     gen = [u for u in lu if u.get('generated')]

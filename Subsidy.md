@@ -75,7 +75,7 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 
 ---
 
-## 4. Reward Transition Block (nFeeStartBlockHeight)
+## 4. Reward transition block — nFeeStartBlockHeight
 
 **Location:** `src/chainparams.cpp:87, 258, 418`
 
@@ -140,7 +140,7 @@ int Params::GetLastFoundersRewardBlockHeight(int nHeight) const {
 
 ---
 
-## 7. Founders Reward (7.5%)
+## 7. Founders reward — 7.5%
 
 **Location:** `src/zeronode/payments.cpp:306–320`, `src/zeronode/budget.cpp:536–545`
 
@@ -154,7 +154,7 @@ CAmount vFoundersReward = blockValue * 7.5 / 100;
 
 ---
 
-## 8. Zeronode Payments (20–40%)
+## 8. Zeronode payments — 20–40%
 
 **Location:** `src/main.cpp:2129`
 
@@ -260,7 +260,7 @@ void FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, CTxOut& txFounder
 | `TEST.md` | Same `338665500000000` reference. |
 | `doc/tor.md` | `"subver" : "/MagicBean:1.0.0/"` — legacy; Zero uses Gaua. |
 
-### 11.2 RPC Python tests (`qa/rpc-tests/`)
+### 11.2 RPC Python tests — qa/rpc-tests
 
 | File | Status |
 |------|--------|
@@ -310,7 +310,7 @@ if ((nHeight >= consensusParams.nFeeStartBlockHeight) && (nHeight <= consensusPa
 
 Reference of hardcoded addresses and keys, their locations, and purpose.
 
-### 15.1 Founders Reward (Developer Fund) Addresses
+### 15.1 Founders reward addresses — developer fund
 
 **Location:** `src/chainparams.cpp:230–241` (mainnet), `390–402` (testnet), `530` (regtest)
 
@@ -349,7 +349,7 @@ Reference of hardcoded addresses and keys, their locations, and purpose.
 | **Mainnet** | `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP` |
 | **Testnet** | `ztestsaplingXXX` (placeholder) |
 
-### 15.4 Test Private Keys (zerod)
+### 15.4 Test private keys — zerod
 
 **Location:** `src/test/rpc_tests.cpp:132–133`
 

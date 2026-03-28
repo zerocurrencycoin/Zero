@@ -11,6 +11,8 @@
 #include "chainparams.h"
 #include "crypto/sha256.h"
 #include "crypto/equihash.h"
+#include "pow.h"
+#include "primitives/block.h"
 #include "test/test_bitcoin.h"
 #include "uint256.h"
 
@@ -210,6 +212,36 @@ BOOST_AUTO_TEST_CASE(validator_testvectors) {
     TestEquihashValidator(96, 5, "Equihash is an asymmetric PoW based on the Generalised Birthday problem.", 1,
   {2261, 15185, 36112, 104243, 23779, 118390, 118332, 130041, 32642, 69878, 76925, 80080, 45858, 116805, 92842, 111026, 2261, 15185, 36112, 104243, 23779, 118390, 118332, 130041, 32642, 69878, 76925, 80080, 45858, 116805, 92842, 111026},
                 false);
+}
+
+BOOST_AUTO_TEST_CASE(zero_mainnet_genesis_equihash_192_7_valid) {
+    SelectParams(CBaseChainParams::MAIN);
+    const Consensus::Params& consensus = Params().GetConsensus();
+    BOOST_CHECK_EQUAL(consensus.nEquihashN, 192u);
+    BOOST_CHECK_EQUAL(consensus.nEquihashK, 7u);
+    const CBlock& genesis = Params().GenesisBlock();
+    CBlockHeader hdr = genesis.GetBlockHeader();
+    BOOST_CHECK(CheckEquihashSolution(&hdr, consensus));
+}
+
+BOOST_AUTO_TEST_CASE(zero_mainnet_genesis_equihash_rejects_corrupt_solution) {
+    SelectParams(CBaseChainParams::MAIN);
+    CBlock genesisMut = Params().GenesisBlock();
+    BOOST_REQUIRE(!genesisMut.nSolution.empty());
+    genesisMut.nSolution[0] ^= 0xff;
+    CBlockHeader hdr = genesisMut.GetBlockHeader();
+    BOOST_CHECK(!CheckEquihashSolution(&hdr, Params().GetConsensus()));
+}
+
+BOOST_AUTO_TEST_CASE(zero_regtest_genesis_equihash_48_5_valid) {
+    SelectParams(CBaseChainParams::REGTEST);
+    const Consensus::Params& consensus = Params().GetConsensus();
+    BOOST_CHECK_EQUAL(consensus.nEquihashN, 48u);
+    BOOST_CHECK_EQUAL(consensus.nEquihashK, 5u);
+    const CBlock& genesis = Params().GenesisBlock();
+    CBlockHeader hdr = genesis.GetBlockHeader();
+    BOOST_CHECK(CheckEquihashSolution(&hdr, consensus));
+    SelectParams(CBaseChainParams::MAIN);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

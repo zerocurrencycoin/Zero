@@ -18,7 +18,8 @@ Read these documents:
 
 1. Build: follow [BUILD_ZERO.md](BUILD_ZERO.md).
 2. Run tests: `./contrib/run-tests.sh` (see [TEST_ZERO.md](TEST_ZERO.md)).
-3. Ensure pass-only tests complete before submitting.
+3. Before submitting, run **`./contrib/run-tests.sh --strict`** so any failed step exits non-zero (matches [`.github/workflows/tests.yml`](.github/workflows/tests.yml) on push/PR when CI is enabled).
+4. Without **`--strict`**, the script may exit **0** even when a step logged **FAIL**—see [TEST_ZERO.md](TEST_ZERO.md) (Interpreting results).
 
 ---
 
