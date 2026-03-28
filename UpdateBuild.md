@@ -15,7 +15,7 @@ Maintainer hub: **peer dependency snapshot**, **in-tree build archaeology**, **d
 
 ---
 
-## 2. Autoconf macros (maintainer)
+## 2. Autoconf macros — maintainer
 
 **`build-aux/m4/`** — when refreshing **`ax_pthread.m4`** or other vendored macros, prefer **`AS_ECHO`** patterns from current autoconf-archive (reduces Autoconf deprecation noise vs **`$as_echo`**).
 
@@ -40,7 +40,7 @@ Maintainer hub: **peer dependency snapshot**, **in-tree build archaeology**, **d
 | Item | Note |
 |------|------|
 | **Rust pin** | Replace 1.32.0 download + ARM symlink with one pinned modern toolchain for all targets. |
-| **OpenSSL** | See **BUILD_ZERO.md** §4.1; needs call-site audit and test plan before 3.x or removal. |
+| **OpenSSL** | **Decision:** remain on **1.1.1w** until an audited **3.x** (or removal) project; see **BUILD_ZERO.md** §4.1. |
 | **librustzcash** | With network upgrades only. |
 | **Proton** | Revisit only if AMQP path is productized. |
 | **utfcpp** | Optional header-only bump. |

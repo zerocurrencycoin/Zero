@@ -4,7 +4,7 @@ Project hub for the Zero full-node repo: documentation map, integration branch, 
 
 **Branch convention:** Integration work targets **`zero-merge`**. Side branches (e.g. naming spikes) are not release branches unless tagged.
 
-**Section map:** **§1** documentation map & strategy · **§2** branch & version · **§3** consensus branch id · **§4** height / expiry · **§5** numeric policy · **§6** release artifacts · **§7** C++ exceptions · **§8** zeronode / TENT · **§9** raw RPC (#70) · **§10** tracking tags · **§11** roadmap · **§12** documentation rollout (phased) · **§13** work items & external alignment
+**Section map:** **§1** documentation map & strategy · **§2** branch & version · **§3** consensus branch id · **§4** height / expiry · **§5** numeric policy · **§6** release artifacts · **§7** C++ exceptions · **§8** zeronode / TENT · **§9** raw RPC (#70) · **§10** tracking tags · **§11** roadmap · **§12** documentation rollout (phased) · **§13** work items & external alignment (**§13.5** decisions / dedupe index)
 
 ---
 
@@ -14,33 +14,42 @@ Project hub for the Zero full-node repo: documentation map, integration branch, 
 
 Move **as much information as is reasonable** into **user-facing** documents so builders, operators, and integrators do not need maintainer-only files. **README** stays **short and inviting**; depth lives in **BUILD_ZERO**, **TEST_ZERO**, **TODO**, and a single **detailed coin/chain** document.
 
-### 1.2 User-facing layer (no `Update*.md` links)
+### 1.2 User-facing layer — no `Update*.md` pointers
 
-These files **must not** name or link **`Update*.md`** (readers should never depend on maintainer hubs).
+**Full index:** **[README.md](README.md)** (Documentation section). **Definitive user-facing** subset for agents: **[AGENTS.md](AGENTS.md)**—narrower than the README map.
+
+These **must not** hyperlink, name, or cite section labels of any **`Update*.md`** file: the **AGENTS.md** list, plus **README.md**, **Zeronode_wallet.md**, and any other doc the README map treats as user-facing. **README0.md** is **not** in that set (temporary README draft). **Subsidy.md** is legacy reference being split and retired—still avoid **`Update*`** pointers if it remains published briefly.
 
 | Doc | Audience | Role |
 |-----|----------|------|
-| **README.md** | Broad: investors, traders, miners, node runners, contributors | **Front page:** what Zero is, why it matters, how to get involved, clear CTAs; links to **ZERO_COIN**, **BUILD_ZERO**, **TEST_ZERO**, **TODO**, website/social. **Not** deep consensus internals or wallet coin-selection algorithms. |
-| **BUILD_ZERO.md** | Builders and operators who compile or deploy | Install, depends, platforms, troubleshooting, release-style artifacts users touch (checksums, params/fetch where relevant). |
-| **TEST_ZERO.md** | Developers validating changes | How to run tests, expectations, RPC test notes at user-appropriate depth. |
-| **TODO.md** | Maintainers + contributors | Actionable checklist; may reference **BUILD_ZERO** / **ZERO_COIN**; no Update* pointers. |
-| **ZERO_COIN.md** (target) | Serious users, pools, exchanges, integrators | **Central detailed reference:** economics (subsidy, halving, founders, zeronode share), chain params, supply notes, operational facts (ports, config), and **technical operational** topics (e.g. coin selection, fee behavior) that would bloat README. Merges the intent of current **`Subsidy.md`** + **`ZeroCoin.md`** into one maintained file. |
-| **Man pages** (`doc/man/`) | CLI users | Match shipped binaries; deep flags stay here or in **BUILD_ZERO**. |
+| **README.md** | Broad: investors, traders, miners, node runners, contributors | **Front page:** what Zero is, CTAs, **full documentation map** |
+| **BUILD_ZERO.md** | Builders and operators who compile or deploy | Install, depends, platforms, troubleshooting, release-style artifacts users touch |
+| **TEST_ZERO.md** | Builders and contributors | Operational runbook: harnesses, tiers, flags, filters, script lists, fork-specific expectations |
+| **CONTRIBUTING.md** | Contributors | Patches, review, workflow |
+| **TODO.md** | Maintainers + contributors | Actionable checklist; **BUILD_ZERO** / chain-doc targets |
+| **ZERO_COIN.md** | Operators, integrators | User-observable chain/node behavior and events; **Glossary** / **References** |
+| **ZeroCoin.md** | Editors merging content | **Outline** until folded into **ZERO_COIN.md** |
+| **Zeronode_wallet.md** | Developers on zeronode↔wallet | Interface, wallet-optional builds, coverage notes |
+| **Subsidy.md** | Legacy readers | Technical subsidy/supply reference; **splitting** into **ZERO_COIN** and elsewhere, then **retired**—see README map |
+| **Man pages** (`doc/man/`) | CLI users | Match shipped binaries; deep flags here or in **BUILD_ZERO** |
+| **ZERO_COIN.md** (target) | Serious users, pools, exchanges, integrators | Replaces long economics blocks; **user-observable** behavior and events only—no **`Update*`** pointers when added |
 
-**Migration:** Add **`ZERO_COIN.md`** by consolidating **`Subsidy.md`** and **`ZeroCoin.md`**; then trim or retire the old two files (or keep **`Subsidy.md`** as a redirect stub—decide on cutover). Until merge, **`Subsidy.md`** remains the technical subsidy draft; **README** should eventually point only to **ZERO_COIN** for “how the chain works.”
+**Migration:** Add **`ZERO_COIN.md`** from **user-observable** material in **`Subsidy.md`** and the outline in **`ZeroCoin.md`**. Move **implementation detail**, **code pointers**, and **rationale / future-enhancement planning** to **UpdateZero** on redo, a **standalone maintainer subsidy note**, or keep them only in **`Subsidy.md`**—see **TODO.md** item **ZERO_COIN vs maintainer docs — scope split and Subsidy disposition**. Then trim **`ZeroCoin.md`** and decide **`Subsidy.md`** cutover. **README** should eventually point to **ZERO_COIN** for how the chain **behaves**.
 
-### 1.3 Maintainer / engineering layer (`Update*.md` and specialized)
+### 1.3 Maintainer and engineering layer — Update* index
+
+Canonical list of maintainer/developer documentation. **§1.2** applies: user-facing guides do **not** name or link these files.
 
 | Doc | Role (current; may shrink as user docs absorb content) |
 |-----|----------------------------------------------------------|
-| **UpdateZero.md** | This map, branch/version, consensus notes, release process, tags, **§12–§13** rollout and tracking |
-| **UpdateBuild.md** | Peer dep snapshot, in-tree build archaeology, deferred upgrades (pins: **BUILD_ZERO** §4) |
-| **UpdateTests.md** | Exclusions, harness archaeology, RPC test development plan; runbook **TEST_ZERO.md** |
+| **UpdateZero.md** | Documentation map, branch/version, consensus notes, release process, tags, **§12–§13** rollout and tracking |
+| **UpdateBuild.md** | Peer dep snapshot, in-tree build archaeology, deferred upgrades (pins: **BUILD_ZERO** §4); cross-project dependency comparison for porters. Canonical version pin matrix: **BUILD_ZERO.md** §4.1 (**§1.4**). |
+| **UpdateTests.md** | PM / architect / implementer / maintainer | Exclusions, harness notes, coverage gaps and backlog, CSV / rescan inventories; **TEST_ZERO.md** is the only execution runbook |
 | **UpdateFeatures.md** | Fork-specific architecture deltas (e.g. witness path, Equihash API) |
 
 **Zeronode_wallet.md:** Specialized note on **`CZeronodeWalletInterface`** / wallet-optional builds—most developers never touch it. **Placement:** (a) keep standalone near **`src/zeronode/`**, (b) fold into **UpdateZero** or **UpdateFeatures** as a section, or (c) move a short summary into **BUILD_ZERO** (“wallet-disabled build”) with detail in one maintainer file. Pick one on next doc pass.
 
-### 1.4 What belongs where (summary)
+### 1.4 What belongs where — summary
 
 | Content type | Primary home |
 |--------------|----------------|
@@ -48,7 +57,8 @@ These files **must not** name or link **`Update*.md`** (readers should never dep
 | Compile, platform quirks, deterministic deps | **BUILD_ZERO** |
 | Running tests, CI-like validation | **TEST_ZERO** |
 | Checklists, known doc debt, small tasks | **TODO** |
-| Subsidy math, halving tables, zeronode %, `MAX_MONEY` caveats, coin selection, RPC/operational depth | **ZERO_COIN** |
+| Observable subsidy/halving/zeronode figures, event timelines, ports, config patterns, user-facing operational depth | **ZERO_COIN** |
+| Code pointers, `MAX_MONEY` / validation caveats, design rationale, enhancement planning tied to subsidy | **UpdateZero** redo, **Subsidy.md** maintainer layer, or standalone technical note |
 | Dependency version matrix (canonical) | **BUILD_ZERO** §4.1 · Peer comparison: **UpdateBuild** §5 · GTest archaeology: **UpdateTests** |
 | Branch id / internal triage, release tags | **UpdateZero** |
 
@@ -80,15 +90,17 @@ Build and smoke steps: **BUILD_ZERO.md**; test pass and expectations: **TEST_ZER
 
 Overwinter+ transactions bind a **consensus branch id** into the **signature hash**. Two upgrades sharing the same **`nBranchId`** can create replay analysis complexity unless activation and tx versioning make signed payloads distinct.
 
-**Zero:** In **`src/consensus/upgrades.cpp`**, **Sapling** and **Cosmos** both use **`0x7361707a`**. Document intent (deliberate vs oversight) in coin/release notes; optional build-time guard is **NU-01** (**§10**).
+**Zero:** In **`src/consensus/upgrades.cpp`**, **Sapling** and **Cosmos** both use **`0x7361707a`**.
+
+**Maintainer decision:** **No branch-id change** and **no network fork** for Cosmos vs Sapling separation **for now**. Treat duplicate **`nBranchId`** as **accepted technical debt**: document user-visible / integrator implications in **ZERO_COIN** / release notes when those docs land; reassess only with a deliberate **NU** upgrade. **NU-01** (**§10**) shrinks to **documentation + monitoring**, not an active fork ticket.
 
 **Reference:** TENT (`ZKs/TENT/…`) reuses Zcash Sapling’s id for multiple named post-Sapling upgrades—a “no new sighash epoch” pattern with similar tooling risk if rule sets diverge.
 
 | Action | Risk |
 |--------|------|
-| Document duplicate ids | None |
-| CI: fail on duplicate active mainnet `nBranchId` without whitelist | Build-time only |
-| New Cosmos `nBranchId` | Coordinated network upgrade |
+| Publish intent and replay posture in user docs | None |
+| CI: fail on duplicate active mainnet `nBranchId` without whitelist | Build-time only; optional |
+| New Cosmos `nBranchId` | **Deferred** — coordinated network upgrade only when scheduled |
 
 ---
 
@@ -106,7 +118,13 @@ Audit **`nExpiryHeight`**, **`GetExpiryHeight`**, **`TX_EXPIRY_HEIGHT_THRESHOLD`
 
 Consensus and subsidy paths should be **integer-only**; avoid silent float promotion. Default rounding for reward splits unless otherwise specified: **truncate toward zero**.
 
-**NUM-01:** Audit **`main.cpp`**, **`miner.cpp`**, **`zeronode/payments.cpp`**, and similar for **`double`** / magic fractions; share helpers so validator and miner match.
+**NUM-01 — breadth (not two lines in `main.cpp` only):**
+
+1. **Inventory:** Grep **`double`**, **`float`**, and fractional literals (**`0.075`**, **`10.8 * COIN`**, **`/ 100.0`**, etc.) under **`src/`**, prioritizing **`main.cpp`**, **`miner.cpp`**, **`zeronode/payments.cpp`**, **`consensus/`**, **`wallet/`** fee and reward paths.
+2. **Pairing:** For each **subsidy / founders / zeronode / miner** split, locate **both** validation and mining paths; prove **identical integer semantics** (same rounding direction and order of operations).
+3. **Helpers:** Centralize splits as **`CAmount` math** (e.g. **`a * b / c`** with **`int64_t`** widened where needed); ban **new** float in consensus-critical paths unless reviewed.
+4. **Tests:** Add **regression** cases for **far-future halving** heights (see external review in **`zero_errs.txt`**: founder fraction **×** subsidy can become non-integer in **`double`**); property-style checks that miner and **`ConnectBlock`** agree per height.
+5. **Emission narrative:** Reconcile **documented** total issue / splits with code after refactors (**community / miner / dev / zeronode** adjustments)—**UpdateZero** tracks policy; **ZERO_COIN** will state user-observable numbers.
 
 ---
 
@@ -128,7 +146,15 @@ Consensus and subsidy paths should be **integer-only**; avoid silent float promo
 
 Use **`throw std::runtime_error("…");`**, not **`throw new std::runtime_error(…)`**, so **`catch (const std::exception&)`** works. (**Java** `throw new` in bundled deps is unrelated.)
 
-**This repo:** **`src/**/*.cpp`** cleanup applied on the current integration line for the usual hotspots (`transaction_builder.cpp`, `main.cpp`, `zcbenchmarks.cpp`, …).
+**This repo:** **`throw new`** in **`src/**/*.cpp`** has been **removed** (integration line). Historical risk was **`std::terminate`** if a **`throw new`** path fired and only **`catch (const std::exception&)`** existed.
+
+**Coverage testing:** For remaining **`throw std::runtime_error`** (and similar) on **real validation paths**:
+
+- **Unit / GTest / Boost:** Call the **C++ function** or **wrapper** with inputs that violate the guard; use **`EXPECT_THROW(..., std::runtime_error)`** or **`ASSERT_THROW`** (or catch and inspect **`what()`**). No need to **`throw new`** to test—only the **branch** must be reachable.
+- **RPC / integration:** **`CheckRPCThrows`**-style tests (Boost) or Python RPC tests that expect **`JSONRPCException`** map the same logic when the error crosses the RPC boundary.
+- **Benchmarks / dead branches:** If a check lives only in **`zcbenchmarks.cpp`** or rarely used code, add a **small unit test** that forces the condition **or** document intentional non-coverage.
+
+**Mocks:** Where setup is heavy (full **`CChain`**, wallet), use **minimal fixtures** (fake height, empty view) already common in **`src/test/`**—no special “mock **`throw new`**” machinery.
 
 ---
 
@@ -138,13 +164,28 @@ Use **`throw std::runtime_error("…");`**, not **`throw new std::runtime_error(
 
 **Iterator / sync map bug (expired broadcast cleanup):** Wrong order—increment iterator then use stale key for sync-map erase. **Zero** uses the safe order (erase sync by **`(*it).first`**, then advance). Re-verify **TENT** when porting.
 
+**`CZeronodeBroadcast::CheckAndVerify` — short active chain / null `chainActive` entry:**
+
+After **`GetInputAge` ≥ `ZERONODE_MIN_CONFIRMATIONS`**, the code loads the collateral tx block (**`pMNIndex`**) and then:
+
+```cpp
+CBlockIndex* pConfIndex = chainActive[pMNIndex->nHeight + ZERONODE_MIN_CONFIRMATIONS - 1];
+if (pConfIndex->GetBlockTime() > sigTime) { ... }
+```
+
+**`CChain::operator[]`** returns **`NULL`** when the height is **out of range** (**`chain.h`**: `nHeight < 0 || nHeight >= (int)vChain.size()`). If the **active chain** is shorter than **`pMNIndex->nHeight + ZERONODE_MIN_CONFIRMATIONS`** (e.g. **reorg**, **IBD**, **regtest** with few blocks, or inconsistent **`mapBlockIndex` / chainActive** state), **`pConfIndex`** is **null** and **`pConfIndex->GetBlockTime()`** is **undefined behavior** (typically **segfault**).
+
+**Faulty execution (conceptual):** `pMNIndex->nHeight == H`, **`chainActive.Height() == H + k`** with **`k < ZERONODE_MIN_CONFIRMATIONS - 1`** → index **`H + ZERONODE_MIN_CONFIRMATIONS - 1`** is **≥ vChain.size()** → **NULL** → crash on **`GetBlockTime()`**. A peer can trigger **`CheckAndVerify`** with a crafted **`znb`** only when collateral depth checks pass—**short-chain** cases matter most on **new nodes** and **testnets**.
+
+**Mitigation:** **`if (!pConfIndex) return false;`** (and log) before use; optional **`assert`** in debug. Add a **regtest** RPC or unit test that announces a zeronode when **`chainActive`** is **just** long enough for **`GetInputAge`** but **not** for the **`pConfIndex`** height.
+
 **Further review:** Diff **`swifttx.cpp`**, **`budget.cpp`**, **`payments.cpp`** vs upstream forks for post-fork security fixes.
 
 **Automated tests:** How to run—**TEST_ZERO.md**; zeronode RPC gaps and exclusions—**UpdateTests.md**.
 
 ---
 
-## 9. Raw transaction RPC (#70)
+## 9. Raw transaction RPC — issue 70
 
 Verbose **`getrawtransaction`** / **`decoderawtransaction`** use **`TxToJSONExpanded`**. **`size`** is present on the integration branch; **`fees`** deferred (spent index / shielded economics).
 
@@ -156,7 +197,7 @@ Verbose **`getrawtransaction`** / **`decoderawtransaction`** use **`TxToJSONExpa
 |-----|--------|
 | **REL-4.0.1** | Release validation (**§2.3** → **BUILD_ZERO** / **TEST_ZERO**), **`throw new`** cleanup (**§7**), zeronode iterator (**§8**) |
 | **NUM-01** | Integer subsidy audit (**§5**) |
-| **NU-01** | Branch id documentation / optional CI (**§3**) |
+| **NU-01** | Sapling/Cosmos **duplicate `nBranchId`** — document posture (**§3**); optional CI guard only |
 | **REL-HOST** | Params mirror, bootstrap policy, checksums/signing (**§6**) |
 
 ---
@@ -171,18 +212,18 @@ Verbose **`getrawtransaction`** / **`decoderawtransaction`** use **`TxToJSONExpa
 |------|--------|
 | Ready | Branch-id doc (**§3**); release checklist (**§6**); user-facing doc rollout (**§12**) |
 | Research | Expiry-at-zero semantics; **NUM-01** inventory; **§9** fees; **§8** fork diffs |
-| Decision | **NU-01** CI rule; new Cosmos id; **REL-HOST** mirror ownership |
+| Decision | **NU-01** optional CI guard; **REL-HOST** mirror ownership; **Cosmos id change deferred** (**§3**) |
 
 | Tag | Next step |
 |-----|------------|
 | **REL-4.0.1** | Close after **§2.3** + chosen optional zeronode smoke |
 | **NUM-01** | Inventory then shared integer helpers |
-| **NU-01** | Publish id intent; then CI or fork-level id change |
+| **NU-01** | Publish duplicate-id / replay posture in **ZERO_COIN**; optional CI whitelist |
 | **REL-HOST** | Assign manifest/mirror owner |
 
 ---
 
-## 12. Documentation rollout (phased)
+## 12. Documentation rollout — phased
 
 **Principle:** Shape **user-facing** docs first; then **delete or slim** maintainer docs so they only hold what cannot live publicly without confusion.
 
@@ -203,7 +244,7 @@ Verbose **`getrawtransaction`** / **`decoderawtransaction`** use **`TxToJSONExpa
 
 Use **GitHub Issues** (or org project board) for execution; this section is the **index** of streams that need parallel owners.
 
-### 13.1 External presence (content + visuals)
+### 13.1 External presence — content and visuals
 
 | Item | Notes |
 |------|--------|
@@ -239,3 +280,21 @@ Pull **UpdateTests** exclusions, **TODO** items, and **GitHub Issues** into one 
 ### 13.4 This file as hub
 
 **UpdateZero.md** holds the **documentation map**, **rollout phases**, and **tracking index**. Detailed specs belong in **ZERO_COIN**, **BUILD_ZERO**, Issues, or runbooks—not duplicated here.
+
+### 13.5 Recorded decisions, external findings, and doc index
+
+Single place to **deduplicate** ad-hoc notes (**`zero_errs.txt`**, staff review, CI work). **Execution** still belongs in **GitHub Issues**; this table is the **source-of-truth index** for what was decided in-repo.
+
+| Topic | Decision / status | Where detailed |
+|-------|-------------------|----------------|
+| **Gitian** | **Not used.** **`contrib/gitian-descriptors/`** and related files are **legacy**; do not follow for Zero releases. **`contrib/README.md`** no longer promotes Gitian. | **`contrib/gitian-descriptors/README.md`**, **BUILD_ZERO** / **§6** |
+| **OpenSSL** | Stay on **1.1.1w** in **`depends`** until an **audited** **3.x** migration (or removal). | **BUILD_ZERO.md** §4.1, **UpdateBuild.md** |
+| **Sapling / Cosmos `nBranchId`** | **Keep `0x7361707a` for both**; **no fork** to split IDs **for now**. Document posture for users/integrators. | **§3**, tag **NU-01** |
+| **Rust / `librustzcash`** | Use **system `rustc` / `cargo` on `PATH`** on **macOS** and **Linux** (e.g. **1.91.x**); **depends** toolchain where the recipe still requires it (e.g. some **Windows** / cross builds). | **BUILD_ZERO.md** §4.1 / §4.9 |
+| **Floating-point in consensus** | **NUM-01:** **broad** integer audit and paired miner/validator tests—not only two lines in **`main.cpp`**. | **§5** |
+| **Historical `throw new`** | **Removed** from **`src/**/*.cpp`**. Cover **`throw std::runtime_error`** branches with **unit / RPC** tests (**§7**). | **§7** |
+| **Zeronode `chainActive[]` null** | **Open bug pattern:** **`zeronode.cpp`** may deref **NULL** **`pConfIndex`** on short **active** chain (**§8**). | **§8**, fix + test TBD → Issue |
+| **Qt wallet `std::cout` leak** | **Not in this repo.** Finding targeted **`wallet/src/rpc.cpp`** (Qt **zerowallet** tree). Same review batch as **`zero_errs.txt`**; treat as **zerowallet** work or false path if file layout differed. | **zerowallet** repo / issue |
+| **Params / `fetch-params.sh`** | Mirror URLs, naming, **`download.z.cash`** dependency — **REL-HOST** / **TODO.md** (`fetch-params` item). | **§6**, **TODO.md**, **BUILD_ZERO** when mirrored |
+
+**Test harness backlog (no duplicate prose):** **`TEST_ZERO.md`** (Tier A, GTest excludes, **Plan** / **Disposition**), **`UpdateTests.md`** (IDs **4.x–6.x**, P1–P4 table). Prefer **one** GitHub **milestone** linking Issues to those sections rather than copying tables again.

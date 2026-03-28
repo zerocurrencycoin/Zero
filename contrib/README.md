@@ -38,11 +38,8 @@ Build Tools and Keys
 Contains files used to package bitcoind/bitcoin-qt
 for Debian-based Linux systems. If you compile bitcoind/bitcoin-qt yourself, there are some useful files here.
 
-### [Gitian-descriptors](/contrib/gitian-descriptors) ###
-Gavin's notes on getting gitian builds up and running using KVM.
-
-### [Gitian-downloader](/contrib/gitian-downloader)
-Various PGP files of core developers. 
+### [gitian-descriptors](/contrib/gitian-descriptors) ###
+**Unused for Zero** — historical descriptors only; see that folder’s **README**.
 
 ### [MacDeploy](/contrib/macdeploy) ###
 Scripts and notes for Mac builds. 

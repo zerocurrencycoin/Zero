@@ -8,9 +8,8 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
     assert_greater_than,
-    coinbase_diagnostic,
     connect_nodes_bi,
-    ensure_coinbase_utxos,
+    ensure_mature_coinbase_or_skip,
     get_coinbase_address,
     initialize_chain_clean,
     start_nodes,
@@ -46,8 +45,7 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         self.sync_all()
         # Node 0 has reward from blocks 1 to 95 which are spendable.
 
-        if not ensure_coinbase_utxos(self.nodes[0], self.nodes, 1000):
-            print("Skipping wallet_overwintertx: " + coinbase_diagnostic(self.nodes[0]))
+        if not ensure_mature_coinbase_or_skip(self.nodes[0], self.nodes, "wallet_overwintertx"):
             return
         taddr0 = get_coinbase_address(self.nodes[0])
         taddr1 = self.nodes[1].getnewaddress()

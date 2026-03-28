@@ -30,7 +30,7 @@ any other package that depends on it. If any of the main makefiles (Makefile,
 funcs.mk, etc) are changed, all packages will be rebuilt. After building, the
 results are cached into a tarball that can be re-used and distributed.
 
-### Package build results are (relatively) deterministic.
+### Package build results are relatively deterministic
 
 Each package is configured and patched so that it will yield the same
 build-results with each consequent build, within a reasonable set of

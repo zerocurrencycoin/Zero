@@ -28,7 +28,7 @@ Zero is a Zcash-family cryptocurrency node. Build `zerod` from source on Linux, 
 
 **Build variants:** commands, packages, and outputs are in **§2**, **§5**, and **§2.4** for Windows. This document is the canonical place for full install lists and script options.
 
-**Porting to other Linux distros or unfamiliar hosts:** Most linked libraries are built from **`depends/`** as hashed tarballs, not the distro package manager. You need a working toolchain and build utilities; see **§2.2.1**, **§4.8**, and **§4.9** for version choices and recipe notes. Cross-project dependency version comparisons are maintainer-only and are not part of this guide.
+**Porting to other Linux distros or unfamiliar hosts:** Most linked libraries are built from **`depends/`** as hashed tarballs, not the distro package manager. You need a working toolchain and build utilities; see **§2.2.1**, **§4.8**, and **§4.9** for version choices and recipe notes. Cross-project dependency comparison is not duplicated here; compare **`depends/packages/*.mk`** and upstream release trees when aligning with Bitcoin Core, Zcash, or similar codebases.
 
 ---
 
@@ -219,12 +219,12 @@ Dependencies are pinned in **`depends/packages/*.mk`** (and related `native_*` /
 |-----------|---------|---------------|------------------------------|
 | BerkeleyDB | 6.2.32 | `bdb.mk` | Wallet format 6.2.x; **6.2.32** fixes ARM64 mutex issues vs 6.2.23. AGPLv3. Built via depends, not optional for default wallet. |
 | Boost | 1.88.0 | `boost.mk` | Node + tests. Darwin needs **`--toolset=clang`** and often **`-Wno-enum-constexpr-conversion`** (§5.2). |
-| OpenSSL | 1.1.1w | `openssl.mk` | RPC TLS and legacy EVP call sites. **1.1.1 is EOL**; moving to 3.x or dropping requires an audited code + test pass (maintainer queue). |
+| OpenSSL | 1.1.1w | `openssl.mk` | RPC TLS and legacy EVP call sites. **1.1.1 is EOL upstream**; **project decision:** stay on **1.1.1w** in **`depends`** until a scheduled, audited move to **OpenSSL 3.x** (or removal) with EVP/TLS regression tests. |
 | libsodium | 1.0.21 | `libsodium.mk` | Crypto; URL pinned to GitHub releases. |
 | libevent | 2.1.12 | `libevent.mk` | Network stack. |
 | ZeroMQ | 4.3.5 | `zeromq.mk` | Default **ZMQ** notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, …). |
 | ccache | 4.13.1 | `native_ccache.mk` | Optional faster rebuilds; **`CCACHE_DIR`**, **`--enable-ccache`**. |
-| Rust (depends) | 1.32.0 download | `rust.mk` | **Linux/Windows:** toolchain from depends. **macOS ARM64:** no upstream 1.32.0 tarball for **`aarch64-apple-darwin`**—depends **symlinks host `rustc`/`cargo`** (install Rust from rustup/Homebrew). **Target:** one modern pinned toolchain for all hosts (deferred). |
+| Rust | depends **1.32.0** + **PATH** | `rust.mk` | **Project decision:** use **system `rustc` / `cargo` on `PATH`** on **macOS** and **Linux** for **`librustzcash`** / **`cargo`** steps (e.g. **rustc 1.91.x** on maintainer machines). **Windows** / some cross hosts still use the **depends**-downloaded toolchain per recipe. **Target:** one modern pinned toolchain everywhere remains **deferred**. |
 | librustzcash | snapshot `06da3b9` | `crate_*.mk`, `Cargo.lock` | Consensus-linked; upgrade only with protocol work. |
 | Googletest | 1.16.0 | `googletest.mk` | Last GTest line on **C++14**; 1.17+ expects C++17. |
 | utfcpp | 3.1 | `utfcpp.mk` | Header-only; UTF-8 checks in wallet RPC paths. |
@@ -313,7 +313,7 @@ These repeat §4.1 / §5 in recipe-specific form—useful when **`make -C depend
 | **Boost** | Darwin bootstrap uses **`--toolset=clang`**; **`$(build_SED_INPLACE)`** adjusts the toolset line in **`boost.mk`**. If **`AX_BOOST_THREAD`** fails on Darwin+Clang, ensure **`boost_thread`** can link (static archive path). |
 | **OpenSSL** | Recipe preprocesses with **`build_SED_INPLACE`**. **aarch64** Darwin uses OpenSSL’s **`darwin64-arm64-cc`** target. |
 | **Berkeley DB** | **6.2.32**; recipe must stay on portable **`sed`** patterns—GNU-only **`sed -i -e`** in patches breaks **macOS** (and is wrong for any strict BSD **`sed`**). |
-| **Rust / librustzcash** | **Linux/Windows:** pinned download in depends. **macOS ARM64:** **system** **`rustc`**/**`cargo`** on **`PATH`**. **`librustzcash`** builds with the toolchain that actually runs **`cargo`**. |
+| **Rust / librustzcash** | **macOS** and **Linux:** **system** **`rustc`**/**`cargo`** on **`PATH`** (see §4.1 table). **Windows** / some hosts: **depends**-supplied toolchain. **`librustzcash`** builds with whichever **`cargo`** runs. |
 | **Googletest** | If you change macOS deployment targets or see link warnings about **OSX** version, **`googletest.mk`** aligns **`OSX_MIN_VERSION`** with the rest of the graph—**rebuild depends** after changing it. |
 | **libsodium, libevent, ZeroMQ, ccache** | Routine version bumps: update version + hash in **`.mk`**, then full depends rebuild and smoke test. |
 

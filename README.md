@@ -110,6 +110,10 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
 📚 Documentation
 ----------------
 
+**Map vs editors:** The table below is the **full** in-repo documentation index (purpose and focus). **[AGENTS.md](AGENTS.md)** defines a **definitive user-facing** subset for builders, operators, and contributors—narrower than this map.
+
+**README0.md** is intentionally **omitted**: temporary working draft for README reshaping, not canonical.
+
 ```
                     README
                        │
@@ -117,16 +121,28 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
         ▼              ▼              ▼
    BUILD_ZERO     TEST_ZERO     CONTRIBUTING
         │              │              │
-        └──────────────┘              ▼
-   (cross-ref)                   TODO
+        └──────────────┴──────────────┘
+                        │
+                        ▼
+                      TODO
+        ┌────────────────┴────────────────┐
+        ▼                                 ▼
+   ZERO_COIN.md                     Subsidy.md
+   (+ ZeroCoin outline)             (split / retire)
 ```
 
-| Document | Purpose |
-|----------|---------|
-| [BUILD_ZERO.md](BUILD_ZERO.md) | Build guide (Linux, macOS ARM64, Windows) |
-| [TEST_ZERO.md](TEST_ZERO.md) | Test procedures and validation |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
-| [TODO.md](TODO.md) | Implementation status and roadmap |
+| Document | Purpose | Focus |
+|----------|---------|-------|
+| [README.md](README.md) | Project front page; links and quick start | What Zero is, where to build, contribute, and read deeper docs |
+| [BUILD_ZERO.md](BUILD_ZERO.md) | Build and platform guide | Linux, macOS ARM64, Windows, depends, troubleshooting, release-style artifacts |
+| [TEST_ZERO.md](TEST_ZERO.md) | Validation runbook for **builders and contributors** | How to run tests, tiers, flags, wrappers, script lists, fork-specific expectations (e.g. 720 maturity) |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow | Patches, review, coding expectations |
+| [TODO.md](TODO.md) | Checklist and follow-ups | Implementation status, doc debt, small tracked tasks |
+| [ZERO_COIN.md](ZERO_COIN.md) | **User-facing** chain and node reference | Observable behavior, events, operations; **Glossary** and **References**; body grows from **[ZeroCoin.md](ZeroCoin.md)** outline and **Subsidy** split |
+| [ZeroCoin.md](ZeroCoin.md) | **Outline** toward **ZERO_COIN** | Section checklist and maintenance notes until merged into **ZERO_COIN.md** |
+| [Subsidy.md](Subsidy.md) | **Legacy** technical reference | Subsidy math, halving, founders, zeronode split, supply notes; content is **being split** into user-facing docs (e.g. **ZERO_COIN.md**) and other homes, then **retired**—prefer the map targets over new edits here when possible |
+| [Zeronode_wallet.md](Zeronode_wallet.md) | Wallet integration note | `CZeronodeWalletInterface`, wallet-optional builds, coverage notes for zeronode↔wallet |
+| `doc/man/` | Shipped CLI manuals | `zerod`, `zero-cli`, `zero-tx` options and behavior |
 
 
 🔧 Building

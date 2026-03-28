@@ -21,7 +21,7 @@ REPOROOT = os.path.dirname(
 # Same exclusions as contrib/run-tests.sh default (passing) run — unfiltered btest/gtest
 # can hang on wallet DB rewrite / witness harness cases.
 BOOST_PASS_EXCLUDE = (
-    '!Alert_tests:!equihash_tests:!miner_tests:'
+    '!Alert_tests:!miner_tests:'
     '!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'
 )
 GTEST_PASS_FILTER = (

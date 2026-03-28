@@ -99,7 +99,7 @@ Single reference for all chain history, consensus and economic parameters, subsi
 
 ---
 
-## 10. Addresses and keys (wallet-relevant)
+## 10. Addresses and keys — wallet relevance
 
 *Fill from: Subsidy.md §15.*
 
@@ -129,14 +129,15 @@ Single reference for all chain history, consensus and economic parameters, subsi
 
 ---
 
-## 13. Relation to other docs (Zero repo)
+## 13. Relation to other docs in Zero repo
 
 | Document | Role |
 |----------|------|
+| **ZERO_COIN.md** | User-facing chain/node reference; **Glossary** and **References**; narrative sections to absorb this outline. |
 | Subsidy.md | Source of truth for subsidy, halving, founders, zeronodes. ZeroCoin.md reflects it for external reference. |
 | Maintainer release notes | Project status, plans, triage (e.g. detected issues from zerowallet). |
-| README.md | High-level; link to ZeroCoin.md for full chain/coin/ops reference. |
-| doc/ | Operational how-to; ZeroCoin.md can link into specific doc/ files. |
+| README.md | High-level; link to **ZERO_COIN.md** for chain/coin/ops reference. |
+| doc/ | Operational how-to; **ZERO_COIN** / ZeroCoin can link into specific doc/ files. |
 
 ---
 
