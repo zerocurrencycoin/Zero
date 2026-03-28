@@ -10,7 +10,9 @@
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
 # --no-python: skip Python RPC tests (qa/rpc-tests)
 # --build-checks: run make check-security (requires python on PATH; see TEST_ZERO.md)
-# --jobs=N: run Python RPC tests in parallel (default 1). E.g. --jobs=4.
+# --jobs=N: Tier A RPC only, default pass-only mode (--fail/--all unchanged). Serial (N=1) is the
+# supported path (CI / contributor gate). N>1 is best-effort: many zerod instances; hangs or flakes
+# possible—lower N or omit if a run stalls (see TEST_ZERO.md).
 # ZERO_MINE_COINBASE=1: mine 1000 blocks when tests need get_coinbase_address (slow; not used in main run).
 # --fail: pass + fail (exclude only hang/crash)
 # --all: everything including hang/crash (no exclusions)
@@ -85,13 +87,14 @@ run_cmd() {
     fi
 }
 
+# Sets BG_LAST_PID to the background shell job (must not call via $(...) — subshell breaks wait).
 run_bg() {
     local name="$1"
     shift
     local log="$LOG_PREFIX-$name.log"
     echo "=== $name (background) ===" >&2
-    ("$@" 2>&1 | tee "$log") &
-    echo $!
+    "$@" >"$log" 2>&1 &
+    BG_LAST_PID=$!
 }
 
 if [ "$BUILD_CHECKS" -eq 1 ]; then
@@ -159,11 +162,13 @@ if [ "$QUICK" -eq 0 ]; then
     if [ -x "src/zero-gtest" ]; then
         if [ "$MODE" = "all" ]; then
             echo "--- GTest (all; includes hang/crash) ---"
-            GTEST_PID=$(run_bg "zero-gtest" ./src/zero-gtest 2>&1)
+            run_bg "zero-gtest" ./src/zero-gtest
+            GTEST_PID=$BG_LAST_PID
         else
             echo "--- GTest (excludes hang/crash: WriteCryptedSaplingZkey*, CachedWitnesses*) ---"
-            GTEST_PID=$(run_bg "zero-gtest" \
-                ./src/zero-gtest --gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkey*:WalletTests.CachedWitnesses*')
+            run_bg "zero-gtest" \
+                ./src/zero-gtest --gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkey*:WalletTests.CachedWitnesses*'
+            GTEST_PID=$BG_LAST_PID
         fi
     fi
 
@@ -172,10 +177,12 @@ if [ "$QUICK" -eq 0 ]; then
     if [ -x "src/test/test_bitcoin" ]; then
         if [ "$MODE" = "fail" ] || [ "$MODE" = "all" ]; then
             echo "--- Boost (all) ---"
-            BTEST_PID=$(run_bg "test_bitcoin" ./src/test/test_bitcoin --log_level=test_suite 2>&1)
+            run_bg "test_bitcoin" ./src/test/test_bitcoin --log_level=test_suite
+            BTEST_PID=$BG_LAST_PID
         else
             echo "--- Boost (pass-only: exclude Alert, miner, rpc_wallet_encrypted_wallet_sapzkeys) ---"
-            BTEST_PID=$(run_bg "test_bitcoin" ./src/test/test_bitcoin --run_test="$BOOST_EXCLUDE" --log_level=test_suite 2>&1)
+            run_bg "test_bitcoin" ./src/test/test_bitcoin --run_test="$BOOST_EXCLUDE" --log_level=test_suite
+            BTEST_PID=$BG_LAST_PID
         fi
     fi
 
@@ -215,9 +222,9 @@ if [ "$NO_PYTHON" -eq 0 ]; then
             PIDS=()
             PYNAMES=()
             for t in "${PYTHON_PASSING[@]}"; do
-                pid=$(run_bg "rpc-$t" \
-                    env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t")
-                PIDS+=("$pid")
+                run_bg "rpc-$t" \
+                    env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t"
+                PIDS+=("$BG_LAST_PID")
                 PYNAMES+=("$t")
                 while [ "$(jobs -r 2>/dev/null | wc -l)" -ge "$PYTHON_JOBS" ]; do sleep 1; done
             done

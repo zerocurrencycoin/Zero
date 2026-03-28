@@ -135,7 +135,7 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
 |----------|---------|-------|
 | [README.md](README.md) | Project front page; links and quick start | What Zero is, where to build, contribute, and read deeper docs |
 | [BUILD_ZERO.md](BUILD_ZERO.md) | Build and platform guide | Linux, macOS ARM64, Windows, depends, troubleshooting, release-style artifacts |
-| [TEST_ZERO.md](TEST_ZERO.md) | Validation runbook for **builders and contributors** | How to run tests, tiers, flags, wrappers, script lists, fork-specific expectations (e.g. 720 maturity) |
+| [TEST_ZERO.md](TEST_ZERO.md) | Validation runbook for **builders and contributors** | Runners, modes, pass-only filters, Tier A gate, **`full_test_suite.py`**; verification snapshot (working vs **`--jobs>1`**); harness changelog; bulk RPC names in **`rpc-tests.sh`**; fork-specific harness notes (e.g. 720 maturity) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow | Patches, review, coding expectations |
 | [TODO.md](TODO.md) | Checklist and follow-ups | Implementation status, doc debt, small tracked tasks |
 | [ZERO_COIN.md](ZERO_COIN.md) | **User-facing** chain and node reference | Observable behavior, events, operations; **Glossary** and **References**; body grows from **[ZeroCoin.md](ZeroCoin.md)** outline and **Subsidy** split |

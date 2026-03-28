@@ -19,6 +19,10 @@ from test_framework.authproxy import JSONRPCException
 
 from decimal import Decimal
 
+# Blossom must activate after maturity mining (720 + split mining). Zcash used 200; Zero regtest
+# maturity 720 makes that impossible on one chain without rewinding coinbase state.
+BLOSSOM_ACTIVATION_HEIGHT = 850
+
 class WalletOverwinterTxTest (BitcoinTestFramework):
 
     def setup_chain(self):
@@ -27,7 +31,9 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
 
     def setup_network(self, split=False):
         self.nodes = start_nodes(4, self.options.tmpdir, extra_args=[[
-            "-nuparams=2bb40e60:200",
+            "-nuparams=6f76727a:10",
+            "-nuparams=7361707a:15",
+            "-nuparams=2bb40e60:" + str(BLOSSOM_ACTIVATION_HEIGHT),
             "-debug=zrpcunsafe",
             "-txindex",
         ]] * 4 )
@@ -43,7 +49,6 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         self.sync_all()
         self.nodes[1].generate(95)
         self.sync_all()
-        # Node 0 has reward from blocks 1 to 95 which are spendable.
 
         if not ensure_mature_coinbase_or_skip(self.nodes[0], self.nodes, "wallet_overwintertx"):
             return
@@ -54,14 +59,12 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         taddr3 = self.nodes[3].getnewaddress()
         zaddr3 = self.nodes[3].z_getnewaddress('sprout')
 
-        #
-        # Currently at block 195. The next block to be mined 196 is a Sapling block
-        #
+        # Tip should be Sapling; Blossom activation is after COINBASE_MATURITY-scale mining.
         bci = self.nodes[0].getblockchaininfo()
         if bci['consensus']['chaintip'] != '7361707a':
-            print(("Skipping wallet_overwintertx: Zero regtest block count differs (chaintip %s, expected Sapling 7361707a)" % bci['consensus']['chaintip']))
+            print(("Skipping wallet_overwintertx: chaintip %s, expected Sapling 7361707a" % bci['consensus']['chaintip']))
             return
-        assert_equal(bci['consensus']['chaintip'], '7361707a')  # Zero Sapling
+        assert_equal(bci['consensus']['chaintip'], '7361707a')
         assert_equal(bci['consensus']['nextblock'], '7361707a')
         assert_equal(bci['upgrades']['2bb40e60']['status'], 'pending')
 
@@ -105,15 +108,12 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         assert_equal(result["version"], 4)
         assert_equal(result["overwintered"], True)
 
-        #
-        # Currently at block 199. The next block to be mined 200 is a Blossom block
-        #
         bci = self.nodes[0].getblockchaininfo()
-        assert_equal(bci['consensus']['chaintip'], '7361707a')  # Zero Sapling
-        assert_equal(bci['consensus']['nextblock'], '2bb40e60')
+        assert_equal(bci['consensus']['chaintip'], '7361707a')
+        assert_equal(bci['consensus']['nextblock'], '7361707a')
         assert_equal(bci['upgrades']['2bb40e60']['status'], 'pending')
 
-        # Test using expiryheight parameter of createrawtransaction when Blossom is active in the next block
+        # createrawtransaction: expiry soon threshold uses next block height + 3 (TX_EXPIRING_SOON_THRESHOLD)
         errorString = ""
         try:
             self.nodes[0].createrawtransaction([], {}, 0, 499999999)
@@ -130,11 +130,15 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         except JSONRPCException as e:
             errorString = e.error['message']
         assert_equal("Invalid parameter, expiryheight must be nonnegative and less than 500000000" in errorString, True)
+        next_block_h = self.nodes[0].getblockcount() + 1
+        min_expiry = next_block_h + 3
         try:
-            self.nodes[0].createrawtransaction([], {}, 0, 200)
+            self.nodes[0].createrawtransaction([], {}, 0, min_expiry - 1)
         except JSONRPCException as e:
             errorString = e.error['message']
-        assert_equal("Invalid parameter, expiryheight should be at least 203 to avoid transaction expiring soon" in errorString, True)
+        assert_equal(
+            ("Invalid parameter, expiryheight should be at least %d to avoid transaction expiring soon" % min_expiry) in errorString,
+            True)
 
         # Node 0 sends transparent funds to Node 3
         tsendamount = Decimal('1.0')
@@ -154,9 +158,14 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         myopid = self.nodes[0].z_sendmany(taddr0, recipients)
         txid_shielded = wait_and_assert_operationid_status(self.nodes[0], myopid)
 
-        # Mine the first Blossom block
+        # Mine through to first Blossom block (activation height from -nuparams)
         self.sync_all()
-        self.nodes[0].generate(1)
+        bci0 = self.nodes[0].getblockchaininfo()
+        bh = bci0['upgrades']['2bb40e60']['activationheight']
+        cur = self.nodes[0].getblockcount()
+        need = bh - cur
+        assert_greater_than(need, 0)
+        self.nodes[0].generate(need)
         self.sync_all()
         bci = self.nodes[0].getblockchaininfo()
 

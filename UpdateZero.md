@@ -24,7 +24,7 @@ These **must not** hyperlink, name, or cite section labels of any **`Update*.md`
 |-----|----------|------|
 | **README.md** | Broad: investors, traders, miners, node runners, contributors | **Front page:** what Zero is, CTAs, **full documentation map** |
 | **BUILD_ZERO.md** | Builders and operators who compile or deploy | Install, depends, platforms, troubleshooting, release-style artifacts users touch |
-| **TEST_ZERO.md** | Builders and contributors | Operational runbook: harnesses, tiers, flags, filters, script lists, fork-specific expectations |
+| **TEST_ZERO.md** | Builders and contributors | Runners, modes, pass-only filters, Tier A gate, **`full_test_suite.py`**; bulk RPC names in **`rpc-tests.sh`**; known failures / plan; fork-specific harness notes |
 | **CONTRIBUTING.md** | Contributors | Patches, review, workflow |
 | **TODO.md** | Maintainers + contributors | Actionable checklist; **BUILD_ZERO** / chain-doc targets |
 | **ZERO_COIN.md** | Operators, integrators | User-observable chain/node behavior and events; **Glossary** / **References** |
@@ -177,6 +177,12 @@ if (pConfIndex->GetBlockTime() > sigTime) { ... }
 
 **Faulty execution (conceptual):** `pMNIndex->nHeight == H`, **`chainActive.Height() == H + k`** with **`k < ZERONODE_MIN_CONFIRMATIONS - 1`** → index **`H + ZERONODE_MIN_CONFIRMATIONS - 1`** is **≥ vChain.size()** → **NULL** → crash on **`GetBlockTime()`**. A peer can trigger **`CheckAndVerify`** with a crafted **`znb`** only when collateral depth checks pass—**short-chain** cases matter most on **new nodes** and **testnets**.
 
+**Applicability — when this matters in practice**
+
+- **Steady-state mainnet** with a **single consistent** view of **`chainActive`** and **`GetInputAge`**: if **`GetInputAge`** truly reflects depth on the **same** active chain as **`pMNIndex`**, the needed height is usually **already** on **`chainActive`** once **`GetInputAge ≥ ZERONODE_MIN_CONFIRMATIONS`**. The bug is **defensive**: it closes a gap if those views **diverge** (race, bug, or test harness).
+- **High relevance:** **Regtest** / **custom harnesses** that tweak **`mapBlockIndex`**, **`chainActive`**, or confirmation counting **independently**; **IBD** or **reorg** windows where **`GetTransaction` / `mapBlockIndex`** can reference a block **not yet** at the expected offset on **`chainActive`**; **fuzzing** or **partial** chain state.
+- **Risk shape:** **Local crash** (NULL deref) on the node processing the broadcast, not a consensus divergence—still worth fixing for **robustness** and **CI**.
+
 **Mitigation:** **`if (!pConfIndex) return false;`** (and log) before use; optional **`assert`** in debug. Add a **regtest** RPC or unit test that announces a zeronode when **`chainActive`** is **just** long enough for **`GetInputAge`** but **not** for the **`pConfIndex`** height.
 
 **Further review:** Diff **`swifttx.cpp`**, **`budget.cpp`**, **`payments.cpp`** vs upstream forks for post-fork security fixes.
@@ -242,7 +248,7 @@ Verbose **`getrawtransaction`** / **`decoderawtransaction`** use **`TxToJSONExpa
 
 ## 13. Work items and tracking
 
-Use **GitHub Issues** (or org project board) for execution; this section is the **index** of streams that need parallel owners.
+**Tracking policy:** Work is tracked **in-repo** (**`TODO.md`**, **`UpdateTests.md`**, **`TEST_ZERO.md`**, this file) while change velocity and investigation depth are high. **GitHub Issues** are **deferred** to a later cycle so issue hygiene does not slow development; when adopted, mirror the same categories below.
 
 ### 13.1 External presence — content and visuals
 
@@ -254,9 +260,9 @@ Use **GitHub Issues** (or org project board) for execution; this section is the 
 | Discord, Telegram | Moderation and pinned “official links” |
 | Brand kit | Logo, colors, screenshots—single source for all channels |
 
-### 13.2 Issues, limits, fork / deployment impact
+### 13.2 Categories, limits, fork / deployment impact
 
-Triage in a dedicated milestone or label set:
+Use this table for **prioritization** and **release notes**; record concrete items in **`TODO.md`** or **`UpdateTests.md`** / **`TEST_ZERO.md`** until Issues are in use.
 
 | Category | Examples | Typical impact |
 |----------|----------|----------------|
@@ -265,8 +271,6 @@ Triage in a dedicated milestone or label set:
 | **Index / explorer** | API schema, reindex | Explorer redeploy; optional full reindex |
 | **Wallets** | zerowallet vs node RPC drift | Wallet release + user notice |
 | **Open questions** | `MAX_MONEY` vs emission, alert system fate | Doc in **ZERO_COIN** / **TODO** until resolved |
-
-Pull **UpdateTests** exclusions, **TODO** items, and **GitHub Issues** into one filtered view: *needs fork*, *needs explorer restart*, *needs wallet update*, *doc only*.
 
 ### 13.3 macOS builds: Developer-level support
 
@@ -279,22 +283,21 @@ Pull **UpdateTests** exclusions, **TODO** items, and **GitHub Issues** into one 
 
 ### 13.4 This file as hub
 
-**UpdateZero.md** holds the **documentation map**, **rollout phases**, and **tracking index**. Detailed specs belong in **ZERO_COIN**, **BUILD_ZERO**, Issues, or runbooks—not duplicated here.
+**UpdateZero.md** holds the **documentation map**, **rollout phases**, and **tracking index**. Detailed specs belong in **ZERO_COIN**, **BUILD_ZERO**, or runbooks—not duplicated here.
 
 ### 13.5 Recorded decisions, external findings, and doc index
 
-Single place to **deduplicate** ad-hoc notes (**`zero_errs.txt`**, staff review, CI work). **Execution** still belongs in **GitHub Issues**; this table is the **source-of-truth index** for what was decided in-repo.
+Single place to **deduplicate** ad-hoc notes (**`zero_errs.txt`**, staff review, CI work). **Execution** is **`TODO.md`** + harness docs until **GitHub Issues** are adopted (**§13** intro).
 
 | Topic | Decision / status | Where detailed |
 |-------|-------------------|----------------|
-| **Gitian** | **Not used.** **`contrib/gitian-descriptors/`** and related files are **legacy**; do not follow for Zero releases. **`contrib/README.md`** no longer promotes Gitian. | **`contrib/gitian-descriptors/README.md`**, **BUILD_ZERO** / **§6** |
 | **OpenSSL** | Stay on **1.1.1w** in **`depends`** until an **audited** **3.x** migration (or removal). | **BUILD_ZERO.md** §4.1, **UpdateBuild.md** |
 | **Sapling / Cosmos `nBranchId`** | **Keep `0x7361707a` for both**; **no fork** to split IDs **for now**. Document posture for users/integrators. | **§3**, tag **NU-01** |
 | **Rust / `librustzcash`** | Use **system `rustc` / `cargo` on `PATH`** on **macOS** and **Linux** (e.g. **1.91.x**); **depends** toolchain where the recipe still requires it (e.g. some **Windows** / cross builds). | **BUILD_ZERO.md** §4.1 / §4.9 |
 | **Floating-point in consensus** | **NUM-01:** **broad** integer audit and paired miner/validator tests—not only two lines in **`main.cpp`**. | **§5** |
 | **Historical `throw new`** | **Removed** from **`src/**/*.cpp`**. Cover **`throw std::runtime_error`** branches with **unit / RPC** tests (**§7**). | **§7** |
-| **Zeronode `chainActive[]` null** | **Open bug pattern:** **`zeronode.cpp`** may deref **NULL** **`pConfIndex`** on short **active** chain (**§8**). | **§8**, fix + test TBD → Issue |
-| **Qt wallet `std::cout` leak** | **Not in this repo.** Finding targeted **`wallet/src/rpc.cpp`** (Qt **zerowallet** tree). Same review batch as **`zero_errs.txt`**; treat as **zerowallet** work or false path if file layout differed. | **zerowallet** repo / issue |
+| **Zeronode `chainActive[]` null** | **Open bug pattern:** **`zeronode.cpp`** may deref **NULL** **`pConfIndex`** on short **active** chain (**§8**). | **§8**, **`TODO.md`** |
+| **Qt wallet `std::cout` leak** | **Not in this repo.** Finding targeted **`wallet/src/rpc.cpp`** (Qt **zerowallet** tree). | **zerowallet** repo |
 | **Params / `fetch-params.sh`** | Mirror URLs, naming, **`download.z.cash`** dependency — **REL-HOST** / **TODO.md** (`fetch-params` item). | **§6**, **TODO.md**, **BUILD_ZERO** when mirrored |
 
-**Test harness backlog (no duplicate prose):** **`TEST_ZERO.md`** (Tier A, GTest excludes, **Plan** / **Disposition**), **`UpdateTests.md`** (IDs **4.x–6.x**, P1–P4 table). Prefer **one** GitHub **milestone** linking Issues to those sections rather than copying tables again.
+**Test harness backlog:** **`TEST_ZERO.md`** (**Known failures**, **Verification snapshot**, **Harness changelog**), **`UpdateTests.md`** (IDs **4.x–6.x** including **6.7** parallel Tier A, P1–P4). Do not duplicate those tables here.

@@ -6,7 +6,7 @@ Build guide for the Zero full node binary `zerod`.
 **Data directory:** §3 — `.zero` location, params, files.  
 **Developer:** §4 — pinned dependency versions, depends layout for porting, `config.site`, `build.sh` flags.  
 **Per-platform:** §5 — manual configure and platform quirks; basic commands are in §2.  
-**Testing:** [TEST_ZERO.md](TEST_ZERO.md) — runners, filters, RPC scripts, full suite.  
+**Testing:** [TEST_ZERO.md](TEST_ZERO.md) — runners, filters, Tier A gate, `full_test_suite.py`; bulk RPC names in `qa/pull-tester/rpc-tests.sh`.  
 **Troubleshooting:** §6 — params, BDB, memory, clean rebuild.
 
 ---
@@ -293,7 +293,7 @@ When **`./zcutil/build.sh`** or **`make -C depends`** runs:
 
 - **Depends:** `depends/$HOST/` (e.g. `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin25.3.0`).
 - **Binaries:** `src/zerod`, `src/zero-cli`, `src/zero-tx`.
-- **Tests:** With the default configure, the build also produces **`src/test/test_bitcoin`** (Boost) and **`src/zero-gtest`** (GoogleTest). How to run them, pass-only filters, `contrib/run-tests.sh` and `qa/zcash/full_test_suite.py`, RPC Python lists, and how to add tests are all documented in **[TEST_ZERO.md](TEST_ZERO.md)**—not duplicated here.
+- **Tests:** With the default configure, the build also produces **`src/test/test_bitcoin`** (Boost) and **`src/zero-gtest`** (GoogleTest). How to run them, pass-only filters, `contrib/run-tests.sh` and `qa/zcash/full_test_suite.py`, the Tier A allowlist (and where Tier B/C names live), and how to add tests are documented in **[TEST_ZERO.md](TEST_ZERO.md)**—not duplicated here.
 
 ### 4.8 Configure Options
 

@@ -2,7 +2,7 @@
 
 Maintainer test planning: **why** suites are excluded or skipped, **what** “green” really means, **backlog**, CSV rules, rescan/reindex notes. Not a runbook.
 
-**[TEST_ZERO.md](TEST_ZERO.md)** owns **how to run**: harness table, tiers A/B/C, wrapper flags, pass-only filter strings, script lists, extended-RPC triage. **Sibling maintainer docs:** **UpdateZero.md** §1.3.
+**[TEST_ZERO.md](TEST_ZERO.md)** owns **how to run**: harness roles, **`contrib/run-tests.sh`** modes (including **`--jobs`** scope: Tier A RPC only, serial default; parallel best-effort—see **TEST_ZERO.md** Reference → **Parallel Tier A**), pass-only filter strings, Tier A allowlist (mirror of **`PYTHON_PASSING`**), **`full_test_suite.py`** behavior, extended-RPC risks. **Tier B/C basenames** live only in **`qa/pull-tester/rpc-tests.sh`** (**`testScripts`**, **`testScriptsExt`**). **Sibling maintainer docs:** **UpdateZero.md** §1.3.
 
 **Consolidation:** Old **§** numbering is gone. Exclusion write-ups, gap table, prioritized phases, CSV rules, rescan inventory, and debug notes below were **not** dropped—**TEST_ZERO.md** never carried that material.
 
@@ -10,7 +10,7 @@ Maintainer test planning: **why** suites are excluded or skipped, **what** “gr
 
 ## Exclusions and root causes
 
-Fork-level picture: **CachedWitnesses\*** excluded (harness / **`EXPECT_DEATH`**). **CDB::Rewrite** hang → **`WriteCryptedSaplingZkey*`** (GTest) and **`rpc_wallet_encrypted_wallet_sapzkeys`** (Boost) excluded. **sec-hard**, **no-dot-so**, Darwin **`--full`**: **TEST_ZERO.md**.
+Fork-level picture: **CachedWitnesses\*** excluded (harness / **`EXPECT_DEATH`**). **CDB::Rewrite** hang → **`WriteCryptedSaplingZkey*`** (GTest) and **`rpc_wallet_encrypted_wallet_sapzkeys`** (Boost) excluded. **`run-tests.sh --full`** skips **sec-hard** / **no-dot-so** on Darwin (ELF / depends layout): **TEST_ZERO.md** Reference → **`full_test_suite.py`**.
 
 Exact counts, Tier A names, and filter strings drift—**[TEST_ZERO.md](TEST_ZERO.md)** is authoritative. Below: **IDs** for triage. **RPC Python** explains when **exit 0** is still weak coverage.
 
@@ -97,7 +97,7 @@ No known fork-specific failures.
 
 **Env, flags, Tier A list, maturity (720) taxonomy:** **TEST_ZERO.md**. **Cost:** each script spawns **`zerod`**, mines Equihash, tears down. **`initialize_chain_clean`** paths use **`zero_regtest_subsidy`** where adapted.
 
-**Coverage honesty:** skips for coinbase maturity, peers, tips, clean-chain balance (6.1–6.3, 6.5) and omission of failing scripts from **`PYTHON_PASSING`** mean **exit 0 ≠ full scenario coverage**. Treat as **not run** for coverage accounting when the skip or omission hides the assertion.
+**Coverage honesty:** skips for coinbase maturity, peers, clean-chain balance (6.1–6.3) and omission of failing scripts from **`PYTHON_PASSING`** mean **exit 0 ≠ full scenario coverage**. Treat as **not run** for coverage accounting when the skip or omission hides the assertion. **6.5** was historical tip-shape issues; main-path **`getchaintips`** fixes are in-tree (**TEST_ZERO.md** changelog).
 
 | ID | Type | Name |
 |----|------|------|
@@ -105,8 +105,9 @@ No known fork-specific failures.
 | 6.2 | Skip | protocol version / peers |
 | 6.3 | Skip | clean-chain amounts (→ Debug notes) |
 | 6.4 | Fix | nuparams, branch IDs |
-| 6.5 | Skip | getchaintips (tips after join) |
+| 6.5 | Fix | getchaintips (split topology, bootstrap, branch length) |
 | 6.6 | Prereq | pyblake2 |
+| 6.7 | Open | Parallel Tier A (**`--jobs>1`**) — hang under load |
 
 **6.1 get_coinbase_address**  
 *Symptoms*: assert(len(set(addrs)) > 0) — no generated utxos.  
@@ -115,9 +116,9 @@ Tests generating <720 blocks get no mature coinbase.
 *Fix/mitigation*: Skip via `ensure_coinbase_utxos()`. Affects wallet_changeaddresses, shorter_block_times, wallet_overwintertx, rescan_import. `ZERO_MINE_COINBASE=1` mines 1000 blocks when needed (slow; not used in main run). `has_coinbase_utxos()`, `coinbase_diagnostic()` for skip messages.  
 
 **6.2 protocol version / peers**  
-*Symptoms*: versions.count(SPROUT_PROTO_VERSION) — expected 10, got 0; or no peers connected.  
-*Root cause*: Zero uses 170007/170008/170009; mininode may reject or Zero may reject mininode versions.  
-*Fix/mitigation*: Skip. p2p_nu_peer_management uses Zero versions from getpeerinfo; skips when no peers connected.  
+*Symptoms*: (historical) no peers; wrong **`version`** counts.  
+*Root cause*: Regtest **network magic** in **`mininode.py`** must match Zero **`pchMessageStart`**; **`NodeConnCB.on_version`** must not cap **`ver_send`** at Sprout (170002). **`p2p_nu_peer_management`** expects **MIN_PEER_PROTO_VERSION** (170007) reject for 170006; Zero does not mass-disconnect 170007/008/009 at NU heights like older Zcash.  
+*Fix/mitigation*: **`mininode.py`** magic + **`ver_send`** fix; test rewritten for Zero policy.  
 
 **6.3 clean-chain amounts**  
 *Symptoms*: Balance assertions fail in wallet.py, txn_doublespend.  
@@ -127,17 +128,22 @@ Tests generating <720 blocks get no mature coinbase.
 **6.4 nuparams, branch IDs**  
 *Symptoms*: zerod exits Invalid network upgrade (5ba81b19).  
 *Root cause*: Tests passed Zcash branch IDs. Zero uses 6f76727a (Overwinter), 7361707a (Sapling).  
-*Fix/mitigation*: Fixed. Replaced in wallet_changeaddresses, shorter_block_times, rewind_index, p2p_nu_peer_management, wallet_overwintertx. mininode.py OVERWINTER=0x6f76727a, SAPLING=0x7361707a.  
+*Fix/mitigation*: Fixed. Replaced in wallet_changeaddresses, shorter_block_times, rewind_index, p2p_nu_peer_management, wallet_overwintertx. mininode.py OVERWINTER=0x6f76727a, SAPLING=0x7361707a. **`wallet_overwintertx`:** Blossom **`-nuparams`** set **above** the tip after **720**-maturity mining; dynamic **`createrawtransaction`** expiry assertion; mine to **`upgrades['2bb40e60'].activationheight`** before post-Blossom checks.  
 
 **6.5 getchaintips**  
-*Symptoms*: len(tips)==2 fails after join (got 1); height hardcoded 200/210.  
-*Root cause*: Zero may report only active tip after join; regtest block count differs.  
-*Fix/mitigation*: Uses `getblockcount()` for expected heights. Fixed setup_network split handling. Skips when len(tips) != 2 after join.  
+*Symptoms*: (historical) wrong tips after join; **`join_network`** re-mined unnecessarily; fork assertions saw **equal** heights (no real split).  
+*Root cause*: (1) **`setup_network(split=True)`** must connect **only** **0–1** and **2–3**—extra edges (**0–2**, **1–2**) bridge the partition. (2) Bootstrap height and **`join_network`** must avoid redundant mining.  
+*Fix/mitigation*: **`getchaintips.py`** — split-only wiring; **`CHAIN_BOOTSTRAP`** (**30**) with guard **`getblockcount() < CHAIN_BOOTSTRAP`** before initial mine; after join assert active height = long chain; **`expected_branchlen`** vs **`CHAIN_BOOTSTRAP`**; accept **2** tips (**`valid-fork`** / **`valid-headers`**) or **1** active-only tip. **TEST_ZERO.md** (Harness changelog, RPC harness).  
 
 **6.6 pyblake2**  
 *Symptoms*: ImportError.  
 *Root cause*: **`mininode.py`** tries **`pyblake2`** then **`hashlib.blake2b`**.  
 *Fix/mitigation*: **TEST_ZERO.md** prerequisites.
+
+**6.7 Parallel Tier A (`--jobs>1`)**  
+*Symptoms*: **`./contrib/run-tests.sh --jobs=N`** can stall (e.g. **`paymentdisclosure`** hung at script start with **`N=4`** on macOS).  
+*Root cause*: Many concurrent **`zerod`** processes; resource contention. (Separate bug, **fixed**: **`$(run_bg …)`** subshell caused immediate **`wait`** failure and false **`FAIL`** while logs showed pass—**`BG_LAST_PID`** in **`run-tests.sh`**.)  
+*Fix/mitigation*: Serial (**`N=1`**) is the gate. Scope/reliability: **TEST_ZERO.md** → **Parallel Tier A**. **Open:** minimal repro, lower **`N`**, or exclude conflict-prone scripts from the parallel pool.
 
 **script_test.py:** Commented out in **`testScriptsExt`**; fails in **`sync_blocks`** if run — **TEST_ZERO.md** (extended triage).
 
@@ -194,7 +200,7 @@ Bitcoin **functional** tree; Zcash **integration-tests** repo (zebrad / zainod /
 | **Network/P2P** | 60% | — | Partition, peer misbehavior | — |
 | **Mining/PoW** | 75% | — | miner_tests (Zero 192,7 vs 96,5) | miner_tests, equihash_tests |
 | **Wallet** | 80% | — | Backup/restore, corruption recovery | CachedWitnesses*, WriteCryptedSaplingZkey*, rpc_wallet_encrypted_wallet_sapzkeys |
-| **RPC Python** | 19 pass-only | All pass (exit 0) | Some skip: get_coinbase_address, getchaintips, p2p peers; ZERO_MINE_COINBASE=1 for full | script_test.py |
+| **RPC Python** | 19 pass-only (Tier A) | All pass (exit 0) | Some skip: get_coinbase_address, p2p peers; **`getchaintips`** main path fixed (split topology, **`CHAIN_BOOTSTRAP`**); ZERO_MINE_COINBASE=1 for full coinbase paths | script_test.py; parallel Tier A (**`--jobs>1`**) unreliable (**6.7**) |
 | **Consensus harness** | Partial | Indices in scope (ChainTip, DecrementFirst) | pcoinsTip null → BuildWitnessCache returns early; witnesses not built | CachedWitnesses* |
 | **Alert** | — | — | MagicBean/Zcash-specific | Alert_tests |
 
@@ -214,6 +220,7 @@ Bitcoin **functional** tree; Zcash **integration-tests** repo (zebrad / zainod /
 | **P2** | Consensus harness | — | Populate pcoinsTip; or manual witness build; or BuildWitnessCache test path. (Dangling ptr fix applied: indices in scope.) | GTest | Medium | Unblocks 4 excluded tests |
 | **P3** | Mining/PoW | — | Add Zero (192,7) Equihash test vectors or conditional skip; re-enable miner_tests | Boost | Medium | Equihash params differ |
 | **P3** | Network/P2P | — | Python RPC: partition, misbehavior; or extend mininode | Python RPC | Medium | 60% coverage; gaps documented |
+| **P3** | Harness | — | Stabilize Tier A parallel (**`contrib/run-tests.sh --jobs>1`**) or cap/remove parallel pool; see **6.7**, **TEST_ZERO.md** Parallel Tier A | Shell + RPC | Low–Medium | Observed hang (**`paymentdisclosure`**, **`N=4`**) |
 | **P3** | Wallet | — | Backup/restore, corruption recovery tests | Boost + Python | Medium | Resilience |
 | **P3** | addressindex | — | Error-path tests for getaddressmempool, getaddressutxos, etc. | Boost | Low | rpc_tests only |
 | **P4** | Fuzz | — | libFuzzer infra; seed from Bitcoin src/test/fuzz | Fuzz | High | New infra |

@@ -2,6 +2,15 @@
 # Copyright (c) 2018 The Zcash developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
+#
+# Network upgrade peer checks on regtest with -nuparams (Overwinter 10, Sapling 15).
+#
+# Zero sets MIN_PEER_PROTO_VERSION=170007 and ties disconnects to the current epoch's
+# nProtocolVersion (see main.cpp ProcessMessage). Peers below 170007 never connect; peers
+# 170007/170008/170009 all satisfy Overwinter (170005) and Sapling (170007), so unlike
+# upstream Zcash this test does not observe epoch-based mass disconnects for those
+# versions. We still verify handshakes, mining past activations, new inbound peers, and
+# reject for sub-minimum protocol (170006).
 
 
 from test_framework.mininode import (
@@ -16,23 +25,13 @@ from test_framework.util import initialize_chain_clean, start_nodes, \
 
 import time
 
-#
-# In this test we connect Sprout, Overwinter, and Sapling mininodes to a Zerod
-# node which will activate Overwinter at block 10 and Sapling at block 15.
-#
-# We test:
-# 1. the mininodes stay connected to Zcash with Sprout consensus rules
-# 2. when Overwinter activates, the Sprout mininodes are dropped
-# 3. new Overwinter and Sapling nodes can connect to Zcash
-# 4. new Sprout nodes cannot connect to Zcash
-# 5. when Sapling activates, the Overwinter mininodes are dropped
-# 6. new Sapling nodes can connect to Zcash
-# 7. new Sprout and Overwinter nodes cannot connect to Zcash
-#
-# This test *does not* verify that prior to each activation, the Zerod
-# node will prefer connections with NU-aware nodes, with an eviction process
-# that prioritizes non-NU-aware connections.
-#
+# src/version.h
+MIN_PEER_PROTO_VERSION = 170007
+
+V_SPROUT = 170007
+V_OVERWINTER = 170008
+V_SAPLING = 170009
+V_BELOW_MIN = 170006
 
 
 class TestManager(NodeConnCB):
@@ -55,23 +54,26 @@ class NUPeerManagementTest(BitcoinTestFramework):
 
     def setup_network(self):
         self.nodes = start_nodes(1, self.options.tmpdir, extra_args=[[
-            '-nuparams=6f76727a:10', # Overwinter (Zero)
-            '-nuparams=7361707a:15', # Sapling (Zero)
+            '-nuparams=6f76727a:10',
+            '-nuparams=7361707a:15',
             '-debug',
             '-whitelist=127.0.0.1',
         ]])
 
+    def wait_for_peer_count(self, want, timeout=60.0):
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            n = len(self.nodes[0].getpeerinfo())
+            if n >= want:
+                return n
+            time.sleep(0.1)
+        return len(self.nodes[0].getpeerinfo())
+
     def run_test(self):
         test = TestManager()
 
-        # Zero MIN_PEER_PROTO_VERSION=170007; use versions Zero accepts.
-        # Query at runtime: connect with 170007, 170008, 170009 and use what getpeerinfo returns.
-        V_SPROUT = 170007
-        V_OVERWINTER = 170008
-        V_SAPLING = 170009
-
         nodes = []
-        for x in range(10):
+        for _x in range(10):
             nodes.append(NodeConn('127.0.0.1', p2p_port(0), self.nodes[0],
                 test, "regtest", V_SPROUT))
             nodes.append(NodeConn('127.0.0.1', p2p_port(0), self.nodes[0],
@@ -81,126 +83,109 @@ class NUPeerManagementTest(BitcoinTestFramework):
 
         NetworkThread().start()
 
-        self.nodes[0].generate(9)
-        assert_equal(9, self.nodes[0].getblockcount())
+        n = self.wait_for_peer_count(30)
+        assert_equal(n, 30, "expected 30 mininode peers (check regtest pchMessageStart in mininode)")
 
         peerinfo = self.nodes[0].getpeerinfo()
         versions = [x["version"] for x in peerinfo]
-        unique = sorted(set(versions))
-        print("p2p_nu_peer_management: getpeerinfo versions=%s (counts: %s)" % (unique, {v: versions.count(v) for v in unique}))
-
-        if not unique:
-            print("Skipping p2p_nu_peer_management: no peers connected; Zero may reject our mininode versions")
-            return
-        if versions.count(V_SPROUT) == 0 and versions.count(V_OVERWINTER) == 0 and versions.count(V_SAPLING) == 0:
-            print("Skipping p2p_nu_peer_management: Zero reports versions %s (expected 170007/170008/170009)" % unique)
-            return
-
-        # Use actual counts for assertions
-        n_sprout = versions.count(V_SPROUT)
-        n_overwinter = versions.count(V_OVERWINTER)
-        n_sapling = versions.count(V_SAPLING)
-        assert_equal(10, n_sprout, "expected 10 peers with version %d, got %d" % (V_SPROUT, n_sprout))
-        assert_equal(10, n_overwinter, "expected 10 peers with version %d, got %d" % (V_OVERWINTER, n_overwinter))
-        assert_equal(10, n_sapling, "expected 10 peers with version %d, got %d" % (V_SAPLING, n_sapling))
-
-        # Overwinter consensus rules activate at block height 10
-        self.nodes[0].generate(1)
-        assert_equal(10, self.nodes[0].getblockcount())
-        print('Overwinter active')
-
-        # Mininodes send ping message to zerod node.
-        pingCounter = 1
-        for node in nodes:
-            node.send_message(msg_ping(pingCounter))
-            pingCounter = pingCounter + 1
-
-        time.sleep(3)
-
-        # Verify Sprout mininodes have been dropped, while Overwinter and
-        # Sapling mininodes are still connected.
-        peerinfo = self.nodes[0].getpeerinfo()
-        versions = [x["version"] for x in peerinfo]
-        assert_equal(versions.count(V_SPROUT), 0)
+        assert_equal(versions.count(V_SPROUT), 10)
         assert_equal(versions.count(V_OVERWINTER), 10)
         assert_equal(versions.count(V_SAPLING), 10)
 
-        # Extend the Overwinter chain with another block.
+        self.nodes[0].generate(9)
+        assert_equal(9, self.nodes[0].getblockcount())
+        assert_equal(len(self.nodes[0].getpeerinfo()), 30)
+
         self.nodes[0].generate(1)
+        assert_equal(10, self.nodes[0].getblockcount())
 
-        # Connect a new Overwinter mininode to the zerod node, which is accepted.
-        nodes.append(NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", V_OVERWINTER))
-        time.sleep(3)
-        assert_equal(21, len(self.nodes[0].getpeerinfo()))
-
-        # Connect a new Sapling mininode to the zerod node, which is accepted.
-        nodes.append(NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", V_SAPLING))
-        time.sleep(3)
-        assert_equal(22, len(self.nodes[0].getpeerinfo()))
-
-        # Try to connect a new Sprout mininode to the zerod node, which is rejected.
-        sprout = NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", V_SPROUT)
-        nodes.append(sprout)
-        time.sleep(3)
-        assert("Version must be 170003 or greater" in str(sprout.rejectMessage))
-
-        # Verify that only Overwinter and Sapling mininodes are connected.
-        peerinfo = self.nodes[0].getpeerinfo()
-        versions = [x["version"] for x in peerinfo]
-        assert_equal(versions.count(V_SPROUT), 0)
-        assert_equal(versions.count(V_OVERWINTER), 11)
-        assert_equal(versions.count(V_SAPLING), 11)
-
-        # Sapling consensus rules activate at block height 15
-        self.nodes[0].generate(4)
-        assert_equal(15, self.nodes[0].getblockcount())
-        print('Sapling active')
-
-        # Mininodes send ping message to zerod node.
         pingCounter = 1
         for node in nodes:
             node.send_message(msg_ping(pingCounter))
-            pingCounter = pingCounter + 1
+            pingCounter += 1
+        time.sleep(2)
 
-        time.sleep(3)
-
-        # Verify Sprout and Overwinter mininodes have been dropped, while
-        # Sapling mininodes are still connected.
         peerinfo = self.nodes[0].getpeerinfo()
         versions = [x["version"] for x in peerinfo]
-        assert_equal(versions.count(V_SPROUT), 0)
-        assert_equal(versions.count(V_OVERWINTER), 0)
-        assert_equal(versions.count(V_SAPLING), 11)
+        # Zero: 170007 still >= Overwinter epoch requirement (170005); peers stay connected.
+        assert_equal(versions.count(V_SPROUT), 10)
+        assert_equal(versions.count(V_OVERWINTER), 10)
+        assert_equal(versions.count(V_SAPLING), 10)
 
-        # Extend the Sapling chain with another block.
         self.nodes[0].generate(1)
 
-        # Connect a new Sapling mininode to the zerod node, which is accepted.
+        nodes.append(NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", V_OVERWINTER))
+        time.sleep(3)
+        assert_equal(len(self.nodes[0].getpeerinfo()), 31)
+
         nodes.append(NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", V_SAPLING))
         time.sleep(3)
-        assert_equal(12, len(self.nodes[0].getpeerinfo()))
+        assert_equal(len(self.nodes[0].getpeerinfo()), 32)
 
-        # Try to connect a new Sprout mininode to the zerod node, which is rejected.
-        sprout = NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", V_SPROUT)
-        nodes.append(sprout)
+        bad = NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", V_BELOW_MIN)
+        nodes.append(bad)
         time.sleep(3)
-        assert("Version must be 170006 or greater" in str(sprout.rejectMessage))
+        assert (
+            ("Version must be %d or greater" % MIN_PEER_PROTO_VERSION) in str(bad.rejectMessage)
+        )
 
-        # Try to connect a new Overwinter mininode to the zerod node, which is rejected.
-        sprout = NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", V_OVERWINTER)
-        nodes.append(sprout)
-        time.sleep(3)
-        assert("Version must be 170006 or greater" in str(sprout.rejectMessage))
-
-        # Verify that only Sapling mininodes are connected.
         peerinfo = self.nodes[0].getpeerinfo()
         versions = [x["version"] for x in peerinfo]
-        assert_equal(versions.count(V_SPROUT), 0)
-        assert_equal(versions.count(V_OVERWINTER), 0)
+        assert_equal(versions.count(V_SPROUT), 10)
+        assert_equal(versions.count(V_OVERWINTER), 11)
+        assert_equal(versions.count(V_SAPLING), 11)
+
+        self.nodes[0].generate(4)
+        assert_equal(15, self.nodes[0].getblockcount())
+
+        pingCounter = 1
+        for node in nodes:
+            if getattr(node, 'state', '') != 'closed':
+                try:
+                    node.send_message(msg_ping(pingCounter))
+                except Exception:
+                    pass
+                pingCounter += 1
+        time.sleep(2)
+
+        peerinfo = self.nodes[0].getpeerinfo()
+        versions = [x["version"] for x in peerinfo]
+        assert_equal(versions.count(V_SPROUT), 10)
+        assert_equal(versions.count(V_OVERWINTER), 11)
+        assert_equal(versions.count(V_SAPLING), 11)
+
+        self.nodes[0].generate(1)
+
+        nodes.append(NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", V_SAPLING))
+        time.sleep(3)
+        assert_equal(len(self.nodes[0].getpeerinfo()), 33)
+
+        bad2 = NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", V_BELOW_MIN)
+        nodes.append(bad2)
+        time.sleep(3)
+        assert (
+            ("Version must be %d or greater" % MIN_PEER_PROTO_VERSION) in str(bad2.rejectMessage)
+        )
+
+        bad3 = NodeConn('127.0.0.1', p2p_port(0), self.nodes[0], test, "regtest", V_BELOW_MIN)
+        nodes.append(bad3)
+        time.sleep(3)
+        assert (
+            ("Version must be %d or greater" % MIN_PEER_PROTO_VERSION) in str(bad3.rejectMessage)
+        )
+
+        peerinfo = self.nodes[0].getpeerinfo()
+        versions = [x["version"] for x in peerinfo]
+        assert_equal(versions.count(V_SPROUT), 10)
+        assert_equal(versions.count(V_OVERWINTER), 11)
         assert_equal(versions.count(V_SAPLING), 12)
 
         for node in nodes:
-            node.disconnect_node()
+            try:
+                node.disconnect_node()
+            except Exception:
+                pass
+
 
 if __name__ == '__main__':
     NUPeerManagementTest().main()

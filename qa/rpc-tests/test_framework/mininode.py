@@ -1462,7 +1462,9 @@ class NodeConnCB(object):
     def on_version(self, conn, message):
         if message.nVersion >= 209:
             conn.send_message(msg_verack())
-        conn.ver_send = min(SPROUT_PROTO_VERSION, message.nVersion)
+        # Negotiate up to peer's advertised version (was min(..., SPROUT_PROTO_VERSION), which
+        # pinned 170002 and broke post-Sprout P2P against Zero).
+        conn.ver_send = min(message.nVersion, SAPLING_PROTO_VERSION + 3)
         if message.nVersion < 209:
             conn.ver_recv = conn.ver_send
 
@@ -1522,7 +1524,8 @@ class NodeConn(asyncore.dispatcher):
     MAGIC_BYTES = {
         "mainnet": b"\x24\xe9\x27\x64",   # mainnet
         "testnet3": b"\xfa\x1a\xf9\xbf",  # testnet3
-        "regtest": b"\xaa\xe8\x3f\x5f"    # regtest
+        # Zero regtest pchMessageStart (see chainparams.cpp); not Bitcoin/Zcash default.
+        "regtest": b"\x5c\x47\x54\x51",
     }
 
     def __init__(self, dstaddr, dstport, rpc, callback, net="regtest", protocol_version=SAPLING_PROTO_VERSION):
