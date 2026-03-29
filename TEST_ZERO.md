@@ -4,11 +4,11 @@
 
 **Authoritative lists:** `contrib/run-tests.sh` (**`PYTHON_PASSING`**), `qa/pull-tester/rpc-tests.sh` (**`testScripts`**, **`testScriptsExt`**). If this file disagrees with those scripts, **the scripts win**.
 
-**Related:** [BUILD_ZERO.md](BUILD_ZERO.md) (toolchain, Python **3.10+**, produced binaries). [README.md](README.md) documentation map. Maintainer depth on exclusions, gaps, and phased work: **[UpdateTests.md](UpdateTests.md)**.
+**Related:** [BUILD_ZERO.md](BUILD_ZERO.md) (toolchain, Python **3.10+**, produced binaries).
 
 ---
 
-## Document map
+[move Tier 1 - 3 definition before use]
 
 - **Harness changelog (recent)** — Fixes applied to **`getchaintips`**, **`run-tests.sh`**, **`rescan_import`**; open items for parallel RPC.
 - **Accounting** — What “run” and “pass” mean; Tier A allowlist; weak C++ “pass” cases.
@@ -127,11 +127,11 @@ Failures in the Zero-specific cases usually mean **`chainparams.cpp`** / **`pow.
 - **GTest:** **`src/wallet/gtest/`**; **`./src/zero-gtest --gtest_filter=...`**
 - **Python RPC:** **`qa/rpc-tests/*.py`**, **`BitcoinTestFramework`**, **`test_framework/util.py`**.
 
-Zeronode RPC coverage: **`rpc_zeronode_tests`**, **`rpc_zeronode_budget_tests`**. Further build/test prerequisites: **[BUILD_ZERO.md](BUILD_ZERO.md)**.
+Zeronode RPC coverage: **`rpc_zeronode_tests`**, **`rpc_zeronode_budget_tests`**.
 
 ### Troubleshooting
 
-- **Blake2 / imports:** Python **3.10+** and **`hashlib.blake2b`** (see **[BUILD_ZERO.md](BUILD_ZERO.md)** § Python).
+- **Blake2 / imports:** Python **3.10+** and **`hashlib.blake2b`**
 - **`PYTHON` unset** when calling **`rpc-tests.sh` by hand:** use **`env PYTHON=python3 ./qa/pull-tester/rpc-tests.sh …`**. **`contrib/run-tests.sh`** sets **`PYTHON`** via **`find_python3`**.
 - **RPC binaries not found:** **`qa/pull-tester/tests-config.sh`**, **`BUILDDIR`**.
 - **Boost/GTest noise:** one suite at a time, or **`contrib/run-boost-individual.sh`**.
@@ -229,7 +229,7 @@ Requires wallet-enabled build (**`ENABLE_BITCOIND`**, **`ENABLE_UTILS`**, **`ENA
 
 **Order matches `PYTHON_PASSING` in `contrib/run-tests.sh`:** `blockchain`, `disablewallet`, `httpbasics`, `reindex`, `rescan_import`, `rescan_startup`, `decodescript`, `keypool`, `paymentdisclosure`, `prioritisetransaction`, `wallet_treestate`, `wallet_anchorfork`, `getchaintips`, `rewind_index`, `wallet_overwintertx`, `wallet_changeaddresses`, `shorter_block_times`, `p2p_nu_peer_management`, `txn_doublespend`.
 
-**Per-script skip RCA and IDs (6.x):** **[UpdateTests.md](UpdateTests.md)** § RPC Python. **Common themes:** **720** maturity, **`chaintip`** / NU height vs mining plan, **`getchaintips`** shape after rejoin, P2P **`version`** set.
+**Per-script skip RCA and IDs (6.x):** RPC Python. **Common themes:** **720** maturity, **`chaintip`** / NU height vs mining plan, **`getchaintips`** shape after rejoin, P2P **`version`** set.
 
 **Parallel Tier A (`--jobs=N`, `N>1`):** Only when the RPC step is the **default Tier A** list (**`PYTHON_PASSING`**): not with **`--fail`** / **`--all`** (those use **`-extended`**), not with **`--no-python`**, not with **`--full`**. **`N=1`** (serial) is the path **CI and the contributor gate** assume.
 
@@ -245,7 +245,7 @@ Util / secp / univalue can also run via **`make -C src secp256k1-check`**, **`ma
 
 ### Coinbase maturity and helpers
 
-Zero **regtest** uses **`COINBASE_MATURITY` = 720** (**`src/consensus/consensus.h`**). Upstream Bitcoin/Zcash-style scripts often assume **100**—porting must adjust mining or expectations (**[UpdateTests.md](UpdateTests.md)**).
+Zero **regtest** uses **`COINBASE_MATURITY` = 720** (**`src/consensus/consensus.h`**). Upstream Bitcoin/Zcash-style scripts often assume **100**—porting must adjust mining or expectations.
 
 **`ZERO_MINE_COINBASE=1`:** In **`qa/rpc-tests/test_framework/util.py`**, **`ensure_coinbase_utxos()`** may mine **1000** blocks when no mature coinbase exists. Without it, that helper returns false and callers often **skip**.
 
@@ -268,7 +268,7 @@ High **wall time**; per-script **`zerod`** processes. Risks: wallet **encrypt/re
 | Pattern | Typical cause | Pointer |
 |---------|---------------|---------|
 | `need 720+`, premature coinbase spend | Maturity | This section + Appendix |
-| Balance / mempool mismatch | Subsidy / halving | **`zero_regtest_subsidy`**, **[UpdateTests.md](UpdateTests.md)** |
+| Balance / mempool mismatch | Subsidy / halving | **`zero_regtest_subsidy`** |
 | Python 2 / import errors | Port drift | Python **3.10+**, **[BUILD_ZERO.md](BUILD_ZERO.md)** |
 | `Assertion failed` in **`wallet.cpp`** | Product or ordering | Debug line, GTest/Boost isolate |
 
@@ -287,13 +287,11 @@ Default **pass-only** filters exist because of the items below. **Do not** use *
 | Boost **`rpc_wallet_encrypted_wallet_sapzkeys`** | Hang | Same **rewrite** class over RPC |
 | Boost **`miner_tests`** | Fail | Block assembly vs **(192,7)** |
 
-**Mitigation directions:** Close wallet before rewrite or test-only persistence path (**encrypt** family**). For **CachedWitnesses**:** seed **`CCoinsViewCache`** / manual witnesses / replace death test—see **[UpdateTests.md](UpdateTests.md)** § GTest and Debug notes.
+**Mitigation directions:** Close wallet before rewrite or test-only persistence path (**encrypt** family**). For **CachedWitnesses**:** seed **`CCoinsViewCache`** / manual witnesses / replace death test
 
 ### Tier A Python (skip / weak coverage)
 
-Documented with IDs **6.x** in **[UpdateTests.md](UpdateTests.md)** (coinbase, peers, **`getchaintips`**, branch IDs, **`pyblake2`**). **Coverage honesty:** **exit 0** with **`skip_test`** is not full scenario coverage—**Accounting** above.
-
-### Disposition (summary)
+### Disposition
 
 | Item | Disposition |
 |------|-------------|
@@ -306,7 +304,7 @@ Documented with IDs **6.x** in **[UpdateTests.md](UpdateTests.md)** (coinbase, p
 | **`--all` / unfiltered GTest on CI** | **Abandon** as gate |
 | Tier B/C bulk as gate | **Abandon**; allowlist or fix opportunistically |
 
-### Plan of action (ordering)
+### Plan of action
 
 1. **P0 — `CachedWitnesses*`:** Fixture / witness build; drop from **`--gtest_filter`** when green (**`contrib/run-tests.sh`**, **`full_test_suite.py`**).
 2. **P1 — Tier A:** **`wallet_overwintertx`**, **`p2p_nu_peer_management`**, **`getchaintips`** — **done** for main-path alignment (magic, **`ver_send`**, NU/maturity, split topology, **`CHAIN_BOOTSTRAP`**, rejoin tips). **Open:** stabilize or drop **`--jobs>1`** for Tier A (hang under load—**Parallel Tier A**).
@@ -314,7 +312,7 @@ Documented with IDs **6.x** in **[UpdateTests.md](UpdateTests.md)** (coinbase, p
 4. **P3 — Encrypt / rewrite:** Wallet owner; unblocks GTest + Boost encrypt tests.
 5. **P4 — Tier B/C**, **`keypool`**, optional Equihash solver test — process / product.
 
-**Backlog (non-blocking):** **`--strict` + `--full`** semantics; **`miner_tests` (192,7)**; Equihash solver behind **`ENABLE_MINING`**; RPC allowlist for **`full_test_suite` rpc** stage; CI timeouts; **parallel Tier A** (**`--jobs>1`**) reproduction and mitigation—cross-check **[UpdateTests.md](UpdateTests.md)** prioritized table for maintainer scheduling.
+**Backlog (non-blocking):** **`--strict` + `--full`** semantics; **`miner_tests` (192,7)**; Equihash solver behind **`ENABLE_MINING`**; RPC allowlist for **`full_test_suite` rpc** stage; CI timeouts; **parallel Tier A** (**`--jobs>1`**) reproduction and mitigation—cross-check.
 
 ### Fix and retest procedure
 
@@ -331,8 +329,6 @@ After a change, run the **narrowest** check first, then widen.
 | **`run-tests.sh`** background / **`wait`** | **`./contrib/run-tests.sh --no-python --strict`** then full **`./contrib/run-tests.sh --strict`** |
 | Release-style gate | **`./contrib/run-tests.sh --strict`** |
 
-Build prerequisites and interpreter versions: **[BUILD_ZERO.md](BUILD_ZERO.md)**.
-
 ---
 
 ## Appendix: Coinbase maturity constants
@@ -342,8 +338,6 @@ Build prerequisites and interpreter versions: **[BUILD_ZERO.md](BUILD_ZERO.md)**
 | Zero | **720** | `src/consensus/consensus.h` |
 | Bitcoin Core | 100 | upstream |
 | Zcash | 100 | upstream |
-
-Regtest uses Zero’s **720**.
 
 ---
 
