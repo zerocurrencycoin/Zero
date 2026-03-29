@@ -6,6 +6,8 @@ Maintainer test planning: **why** suites are excluded or skipped, **what** “gr
 
 **Consolidation:** Old **§** numbering is gone. Exclusion write-ups, gap table, prioritized phases, CSV rules, rescan inventory, and debug notes below were **not** dropped—**TEST_ZERO.md** never carried that material.
 
+**Subsidy / founders float audit (consensus):** file:line table and integer policy — **BUILD_ZERO.md** §**4.10**–**4.10.1**; tracking — **TODO.md** (active).
+
 **GTest** pin: **BUILD_ZERO.md** §4.1 (`googletest.mk`, C++14). **Python / platform:** **TEST_ZERO.md**, **BUILD_ZERO.md** §1.1. **Infra:** no in-tree fuzz; legacy **`qa/rpc-tests`**.
 
 ## Exclusions and root causes
