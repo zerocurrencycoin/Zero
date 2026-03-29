@@ -1,0 +1,35 @@
+# Full node build plus pass-only harness with strict exit codes.
+# First run can take a long time (depends + compile). Adjust timeout or use workflow_dispatch only if needed.
+name: Build and test (strict)
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libc6-dev m4 g++-multilib \
+            autoconf libtool ncurses-dev unzip git python3 python3-zmq zlib1g-dev wget bsdmainutils automake cmake curl
+
+      - name: Fetch params
+        run: ./zcutil/fetch-params.sh
+
+      - name: Build
+        run: ./zcutil/build.sh -j2
+
+      - name: Tests (strict)
+        run: ./contrib/run-tests.sh --strict
