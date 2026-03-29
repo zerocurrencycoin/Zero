@@ -300,4 +300,4 @@ Single place to **deduplicate** ad-hoc notes (**`zero_errs.txt`**, staff review,
 | **Qt wallet `std::cout` leak** | **Not in this repo.** Finding targeted **`wallet/src/rpc.cpp`** (Qt **zerowallet** tree). | **zerowallet** repo |
 | **Params / `fetch-params.sh`** | Mirror URLs, naming, **`download.z.cash`** dependency — **REL-HOST** / **TODO.md** (`fetch-params` item). | **§6**, **TODO.md**, **BUILD_ZERO** when mirrored |
 
-**Test harness backlog:** **`TEST_ZERO.md`** (**Known failures**, **Verification snapshot**, **Harness changelog**), **`UpdateTests.md`** (IDs **4.x–6.x** including **6.7** parallel Tier A, P1–P4). Do not duplicate those tables here.
+**Test harness backlog:** **`TEST_ZERO.md`** (**Known failures**, **Verification snapshot**, **Harness changelog**), **`UpdateTests.md`** (IDs **4.x–6.x** including **6.7** parallel Tier A, P1–P4). **Build / Rust / subsidy docs:** **`BUILD_ZERO.md`** §**4.10**–**4.12** (integer subsidy proposal + **`RUST_USE_SYSTEM`** / host triple). Do not duplicate those tables here.

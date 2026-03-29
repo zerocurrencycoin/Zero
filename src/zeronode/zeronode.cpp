@@ -611,6 +611,12 @@ bool CZeronodeBroadcast::CheckInputsAndAdd(int& nDoS)
     if (mi != mapBlockIndex.end() && (*mi).second) {
         CBlockIndex* pMNIndex = (*mi).second;                                                        // block for 1000 Zero tx -> 1 confirmation
         CBlockIndex* pConfIndex = chainActive[pMNIndex->nHeight + ZERONODE_MIN_CONFIRMATIONS - 1]; // block where tx got ZERONODE_MIN_CONFIRMATIONS
+        if (!pConfIndex) {
+            LogPrint("zeronode", "znb - active chain shorter than conf height for %s (defer)\n", vin.prevout.hash.ToString());
+            znodeman.mapSeenZeronodeBroadcast.erase(GetHash());
+            zeronodeSync.mapSeenSyncZNB.erase(GetHash());
+            return false;
+        }
         if (pConfIndex->GetBlockTime() > sigTime) {
             LogPrint("zeronode","znb - Bad sigTime %d for Zeronode %s (%i conf block is at %d)\n",
                 sigTime, vin.prevout.hash.ToString(), ZERONODE_MIN_CONFIRMATIONS, pConfIndex->GetBlockTime());

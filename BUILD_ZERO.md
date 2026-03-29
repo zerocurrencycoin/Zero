@@ -224,7 +224,7 @@ Dependencies are pinned in **`depends/packages/*.mk`** (and related `native_*` /
 | libevent | 2.1.12 | `libevent.mk` | Network stack. |
 | ZeroMQ | 4.3.5 | `zeromq.mk` | Default **ZMQ** notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, …). |
 | ccache | 4.13.1 | `native_ccache.mk` | Optional faster rebuilds; **`CCACHE_DIR`**, **`--enable-ccache`**. |
-| Rust | depends **1.32.0** + **PATH** | `rust.mk` | **Project decision:** use **system `rustc` / `cargo` on `PATH`** on **macOS** and **Linux** for **`librustzcash`** / **`cargo`** steps (e.g. **rustc 1.91.x** on maintainer machines). **Windows** / some cross hosts still use the **depends**-downloaded toolchain per recipe. **Target:** one modern pinned toolchain everywhere remains **deferred**. |
+| Rust | **system** or **depends 1.32.0** | `rust.mk` | **Default system:** **macOS** always (unless **`FORCE_DEPENDS_RUST=1`**); **Linux/FreeBSD/Windows:** set **`RUST_USE_SYSTEM=1`** when invoking **`make -C depends`**. **`FORCE_DEPENDS_RUST=1`** forces pinned **1.32.0** tarballs on all platforms. Cross-builds: install the **Rust target** with **`rustup target add …`** (see **§4.11**). **Target:** one modern pinned toolchain for every host remains **deferred**. |
 | librustzcash | snapshot `06da3b9` | `crate_*.mk`, `Cargo.lock` | Consensus-linked; upgrade only with protocol work. |
 | Googletest | 1.16.0 | `googletest.mk` | Last GTest line on **C++14**; 1.17+ expects C++17. |
 | utfcpp | 3.1 | `utfcpp.mk` | Header-only; UTF-8 checks in wallet RPC paths. |
@@ -287,6 +287,8 @@ When **`./zcutil/build.sh`** or **`make -C depends`** runs:
 | `MAKE` | Make command (e.g. `gmake`) |
 | `BUILD`, `HOST` | Triplet for porters |
 | `CONFIGURE_FLAGS` | Extra configure options |
+| `FORCE_DEPENDS_RUST` | Set to **`1`** for **`make -C depends`** to use pinned **Rust 1.32.0** on **any** platform (overrides **system** mode). |
+| `RUST_USE_SYSTEM` | Set to **`1`** for **`make -C depends`** on **non-macOS** hosts to symlink **`cargo`/`rustc`** from **`PATH`** (same as macOS default). Ignored when **`FORCE_DEPENDS_RUST=1`**. |
 | `CCACHE_DIR` | ccache cache (optional). ccache 4.13.1 in depends; `ccache -M 5G` for size. |
 
 ### 4.7 Intermediate results
@@ -313,9 +315,72 @@ These repeat §4.1 / §5 in recipe-specific form—useful when **`make -C depend
 | **Boost** | Darwin bootstrap uses **`--toolset=clang`**; **`$(build_SED_INPLACE)`** adjusts the toolset line in **`boost.mk`**. If **`AX_BOOST_THREAD`** fails on Darwin+Clang, ensure **`boost_thread`** can link (static archive path). |
 | **OpenSSL** | Recipe preprocesses with **`build_SED_INPLACE`**. **aarch64** Darwin uses OpenSSL’s **`darwin64-arm64-cc`** target. |
 | **Berkeley DB** | **6.2.32**; recipe must stay on portable **`sed`** patterns—GNU-only **`sed -i -e`** in patches breaks **macOS** (and is wrong for any strict BSD **`sed`**). |
-| **Rust / librustzcash** | **macOS** and **Linux:** **system** **`rustc`**/**`cargo`** on **`PATH`** (see §4.1 table). **Windows** / some hosts: **depends**-supplied toolchain. **`librustzcash`** builds with whichever **`cargo`** runs. |
+| **Rust / librustzcash** | **macOS:** system **`cargo`/`rustc`** by default. **Other OS:** **`RUST_USE_SYSTEM=1`** for system, else pinned **1.32.0**. **`FORCE_DEPENDS_RUST=1`** → pinned everywhere. **`librustzcash`** runs **`$(host_prefix)/native/bin/cargo`**. See **§4.11**. |
 | **Googletest** | If you change macOS deployment targets or see link warnings about **OSX** version, **`googletest.mk`** aligns **`OSX_MIN_VERSION`** with the rest of the graph—**rebuild depends** after changing it. |
 | **libsodium, libevent, ZeroMQ, ccache** | Routine version bumps: update version + hash in **`.mk`**, then full depends rebuild and smoke test. |
+
+### 4.10 Subsidy, founders, and `COIN`: integer strategy (proposed)
+
+**Problem:** Expressions like **`10.8 * COIN`**, **`GetBlockSubsidy(...) * 0.075`**, and **`blockValue * 7.5 / 100`** mix **`double`** with **`CAmount`** (`int64_t` zats). Rounding differs by path (miner vs **`ConnectBlock`** check vs RPC), and far-future halvings can make **`subsidy * 0.075`** non-integral.
+
+**Policy (target state):**
+
+1. **Consensus paths** — compute only with **`int64_t`**: integer literals in zats (e.g. **`1080000000`** for **10.8 ZER** where that is the rule) or **`CAmount` × num / den** with **one** documented rounding rule (**floor** unless a BIP/ZIP specifies otherwise).
+2. **Fractions** — encode percentages as rationals with integer denominator (**7.5%** → **`blockValue * 75 / 1000`**, floor). Use the **same** helper in **`FillBlockPayee`**, **`ConnectBlock`** founders check, and any duplicate logic (**`budget.cpp`**, **`payments.cpp`**, **`main.cpp`**).
+3. **`GetBlockSubsidy`** — avoid **`double`×`COIN`**; derive halving from integer base subsidy constants.
+4. **RPC / metrics** — compute amounts as **`CAmount`**, then **`ValueFromAmount`** (or equivalent) for JSON; do not subtract **`subsidy * 0.075`** in **`double`** for displayed totals if that can diverge from chain rules.
+5. **Change control** — any edit to subsidy or founders split is a **consensus** change: tests in **`main_tests`**, **`rpc_wallet_tests`** **`getblocksubsidy`**, **`test_foundersreward`**, and re-sync from a known height.
+
+**Tracking:** **[TODO.md](TODO.md)** (active item: consensus subsidy / founders integer refactor).
+
+#### 4.10.1 Current code touchpoints (audit — `double` / mixed arithmetic)
+
+| File | Lines (approx.) | Notes |
+|------|-----------------|--------|
+| **`src/main.cpp`** | **2111–2113** | **`GetBlockSubsidy`**: **`10 * COIN`**, **`10.8 * COIN`** (`double` × `COIN`). |
+| **`src/main.cpp`** | **4508** | Founders output check: **`GetBlockSubsidy(...) * 0.075`** (`double`). |
+| **`src/zeronode/payments.cpp`** | **305** | **`vFoundersReward = blockValue * 7.5 / 100`** (promotion via **`7.5`**). |
+| **`src/zeronode/budget.cpp`** | **536–537** | Same pattern on **`txNew.vout[0].nValue`**. |
+| **`src/rpc/mining.cpp`** | **946** | **`getblocksubsidy`**: **`nFoundersReward = nReward*0.075`**. |
+| **`src/metrics.cpp`** | **346** | **`subsidy -= subsidy*0.075`** (UI / immature totals). |
+| **`src/rpc/zeronode.cpp`** | **1090** | **`vFoundersReward = blockValue * 7.5 / 100`**. |
+| **`src/test/main_tests.cpp`** | **16–32**, **40–45**, **124–134** | Expectations use **`10.8 * COIN`**, **`5.4 * COIN`**, etc. — update when **`GetBlockSubsidy`** goes integer-only. |
+| **`src/test/rpc_wallet_tests.cpp`** | **273–290** | **`getblocksubsidy`** RPC expected **`founders`** decimals. |
+
+**Good pattern (reference):** **`GetZeronodePayment`** in **`src/main.cpp`** (**~2129–2145**) uses **`blockValue * 20 / 100`**-style **integer** arithmetic.
+
+**Non-consensus:** **`src/init.cpp`** (obfuscation denominations use fractional **`COIN`**), **`src/wallet/test/wallet_tests.cpp`** — not chain rules.
+
+---
+
+### 4.11 Rust: host triple, Rust target, and `RUST_USE_SYSTEM`
+
+**Host triple (`HOST` / `canonical_host`):** The **Autoconf**-style machine string **`depends`** uses for the **artifact prefix**, e.g. **`x86_64-unknown-linux-gnu`**, **`aarch64-apple-darwin`**, **`x86_64-w64-mingw32`**. It is **not** always identical to **`rustc`’s** notion of a target.
+
+**Build triple (`build`):** The machine running **`make`** (from **`depends/Makefile`**). When **`canonical_host` == `build`**, you are doing a **native** depends build; when they differ, you are **cross-compiling**.
+
+**Rust target (for `cargo build --target=…`):** The triple **`librustzcash`** passes to Cargo for cross builds. **`depends/packages/rust.mk`** maps some GNU hosts to Rust targets, e.g. **`x86_64-w64-mingw32` → `x86_64-pc-windows-gnu`**, **`x86_64-apple-darwin20` → `x86_64-apple-darwin`**. If **`canonical_host` == `build`**, **`librustzcash`** builds for the **default** host target (no **`--target`**).
+
+**`rustup target add`:** Before **`make HOST=<non-native-triple> -C depends`** with **`rust_system_rust=yes`**, install the **Rust** target that matches the **cross** host (e.g. **`rustup target add x86_64-pc-windows-gnu`** when building **`HOST=x86_64-w64-mingw32`** from Linux). Verify with **`rustc --print target-list`** / **`rustup target list`**.
+
+**Summary**
+
+| Variable | Effect |
+|----------|--------|
+| *(default, macOS)* | **`rust_system_rust=yes`** → symlinks **`which cargo`** / **`which rustc`**. |
+| **`RUST_USE_SYSTEM=1`** | Same on **Linux, FreeBSD, Windows/MSYS**, etc. |
+| **`FORCE_DEPENDS_RUST=1`** | Pinned **1.32.0** download path; no symlinks. |
+
+---
+
+### 4.12 Documentation / build changes log (recent)
+
+| Area | Change |
+|------|--------|
+| **`depends/packages/rust.mk`** | **`RUST_USE_SYSTEM=1`** enables system Rust on **any** OS; **macOS** still defaults to system without it; **`FORCE_DEPENDS_RUST=1`** forces **1.32.0**. |
+| **`src/zeronode/zeronode.cpp`** | **`pConfIndex`** null guard in **`CheckInputsAndAdd`** (defer broadcast if conf height not on active chain). |
+| **`BUILD_ZERO.md`** | **§4.10–4.12**, Rust table, **§4.6** variables, **§4.9**, **§5.2** Rust blurb. |
+| **`TODO.md`** | Active: subsidy integer refactor, zeronode **`chainActive`** audit; Completed: harness / **`getchaintips`** / **`rescan_import`** (see file). |
 
 ---
 
@@ -329,13 +394,15 @@ These repeat §4.1 / §5 in recipe-specific form—useful when **`make -C depend
 
 **Manual build** (if not using build.sh): `make -C depends/` (HOST from `depends/config.guess`), then `CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure --enable-hardening` (substitute your **`$HOST`**), then `make`.
 
+**Rust (optional):** To use **system** **`rustup`** instead of depends **1.32.0**, run **`RUST_USE_SYSTEM=1 make -C depends`** (see **§4.11**).
+
 ### 5.2 macOS ARM64
 
 **Compiler:** Apple Clang.
 
 **Manual build:** HOST from `./depends/config.guess`. Configure with `--enable-proton=no` (Proton incompatible with CMake 4.x) and `CXXFLAGS="-g -Wno-enum-constexpr-conversion"` (Boost/Clang 17). See §2.3 for prerequisites.
 
-**Rust:** Depends uses system Rust on ARM64 (1.32.0 has no aarch64 binaries).
+**Rust:** Depends uses **system** **`cargo`/`rustc`** on **macOS** by default (**§4.11**). Install **rustup** stable (e.g. **1.92**) and ensure **`which cargo`** works in the same shell as **`make -C depends`**. **`FORCE_DEPENDS_RUST=1 make -C depends`** for pinned **1.32.0**.
 
 **BDB mutex crash:** See §6.2.
 

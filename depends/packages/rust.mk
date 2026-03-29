@@ -1,17 +1,22 @@
 package=rust
 
-# Detect Apple Silicon build machine: use system Rust
-# (Rust 1.32.0 has no aarch64-apple-darwin binaries; fetch returns 403/404)
+# rust_system_rust=yes → stage symlinks: $(host_prefix)/native/bin/{cargo,rustc} → `which` on PATH.
+# Enabled when FORCE_DEPENDS_RUST is not 1, and either:
+#   - RUST_USE_SYSTEM=1  (any build_os: Linux, FreeBSD, Windows/MSYS, etc.), or
+#   - build_os=darwin    (macOS default; modern rustup e.g. 1.92; avoids pinned 1.32.0).
+# FORCE_DEPENDS_RUST=1 → always use pinned 1.32.0 tarball recipe below (CI / reproducibility).
 rust_system_rust :=
-ifeq ($(build_os),darwin)
-ifneq (,$(findstring aarch64,$(build)))
+ifneq ($(FORCE_DEPENDS_RUST),1)
+ifeq ($(RUST_USE_SYSTEM),1)
+rust_system_rust := yes
+else ifeq ($(build_os),darwin)
 rust_system_rust := yes
 endif
 endif
 
 ifeq ($(rust_system_rust),yes)
 
-# Use system Rust for Apple Silicon Mac native builds
+# Symlink host cargo/rustc into depends prefix; librustzcash invokes $(host_prefix)/native/bin/cargo
 $(package)_version=system
 
 define $(package)_fetch_cmds
