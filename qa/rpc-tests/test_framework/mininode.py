@@ -48,7 +48,8 @@ from .equihash import (
 BIP0031_VERSION = 60000
 SPROUT_PROTO_VERSION = 170002  # past bip-31 for ping/pong
 OVERWINTER_PROTO_VERSION = 170003
-SAPLING_PROTO_VERSION = 170006
+# Default mininode handshake: must be >= src/version.h MIN_PEER_PROTO_VERSION (170007).
+SAPLING_PROTO_VERSION = 170009
 BLOSSOM_PROTO_VERSION = 170008
 
 MY_SUBVERSION = "/python-mininode-tester:0.0.1/"

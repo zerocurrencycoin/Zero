@@ -6,8 +6,8 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, assert_true, bitcoind_processes, \
-    connect_nodes_bi, start_node, start_nodes, wait_and_assert_operationid_status, \
-    get_coinbase_address
+    connect_nodes_bi, initialize_chain_clean, start_node, start_nodes, \
+    wait_and_assert_operationid_status, get_coinbase_address
 
 from decimal import Decimal
 

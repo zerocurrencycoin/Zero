@@ -34,7 +34,7 @@ def serialize_script_num(value):
     neg = value < 0
     absvalue = -value if neg else value
     while (absvalue):
-        r.append(chr(absvalue & 0xff))
+        r.append(absvalue & 0xff)
         absvalue >>= 8
     if r[-1] & 0x80:
         r.append(0x80 if neg else 0)

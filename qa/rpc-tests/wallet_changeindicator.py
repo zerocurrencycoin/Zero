@@ -5,7 +5,13 @@
 
 
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, assert_true, assert_false, wait_and_assert_operationid_status
+from test_framework.util import (
+    assert_equal,
+    assert_false,
+    assert_true,
+    mine_until_node_has_mature_coinbase,
+    wait_and_assert_operationid_status,
+)
 
 from decimal import Decimal
 
@@ -18,6 +24,8 @@ class WalletChangeIndicatorTest (BitcoinTestFramework):
 
     # Tests
     def run_test(self):
+        mine_until_node_has_mature_coinbase(self.nodes[0], self.nodes)
+
         taddr = self.nodes[1].getnewaddress()
         zaddr1 = self.nodes[1].z_getnewaddress('sprout')
         zaddr2 = self.nodes[1].z_getnewaddress('sprout')

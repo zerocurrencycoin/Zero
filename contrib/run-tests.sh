@@ -32,7 +32,7 @@ BOOST_EXCLUDE='!Alert_tests:!miner_tests:!rpc_wallet_tests/rpc_wallet_encrypted_
 PYTHON_PASSING=(
     blockchain disablewallet httpbasics reindex rescan_import rescan_startup decodescript keypool
     paymentdisclosure prioritisetransaction wallet_treestate wallet_anchorfork
-    getchaintips rewind_index wallet_overwintertx wallet_changeaddresses
+    getchaintips rewind_index wallet_overwintertx wallet_changeaddresses wallet_changeindicator
     shorter_block_times p2p_nu_peer_management
     txn_doublespend
 )

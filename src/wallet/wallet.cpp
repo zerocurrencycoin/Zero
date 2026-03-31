@@ -1911,8 +1911,7 @@ void CWallet::UpdateSproutNullifierNoteMapWithTx(CWalletTx& wtx) {
                     item.first.n);
 
                 if (!optNullifier) {
-                    // This should not happen.  If it does, maybe the position has been corrupted or miscalculated?
-                    assert(false);
+                    continue;
                 }
 
                 uint256 nullifier = optNullifier.get();

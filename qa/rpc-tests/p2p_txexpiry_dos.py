@@ -9,6 +9,12 @@ from test_framework.mininode import NodeConn, NetworkThread, \
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import initialize_chain_clean, start_nodes, \
     p2p_port, assert_equal
+
+# Zero regtest: activate Overwinter/Sapling and satisfy COINBASE_MATURITY (720).
+NU_ARGS = [
+    '-nuparams=6f76727a:1',
+    '-nuparams=7361707a:1',
+]
 from tx_expiry_helper import TestNode, create_transaction
 
 import time
@@ -21,7 +27,7 @@ class TxExpiryDoSTest(BitcoinTestFramework):
         initialize_chain_clean(self.options.tmpdir, 1)
 
     def setup_network(self):
-        self.nodes = start_nodes(1, self.options.tmpdir)
+        self.nodes = start_nodes(1, self.options.tmpdir, extra_args=[NU_ARGS])
 
     def run_test(self):
         test_node = TestNode()
@@ -43,7 +49,8 @@ class TxExpiryDoSTest(BitcoinTestFramework):
         assert_equal(0, peerinfo[0]["banscore"])
 
         coinbase_blocks = self.nodes[0].generate(1)
-        self.nodes[0].generate(100)
+        self.nodes[0].generate(720)
+        tip = self.nodes[0].getblockcount()
         node_address = self.nodes[0].getnewaddress()
 
         # Mininodes send transaction to zcashd node.
@@ -51,7 +58,7 @@ class TxExpiryDoSTest(BitcoinTestFramework):
                                      coinbase_blocks[0],
                                      node_address,
                                      1.0,
-                                     101)
+                                     tip)
         test_node.send_message(msg_tx(spendtx))
 
         time.sleep(3)
