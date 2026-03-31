@@ -30,6 +30,9 @@
 | Branch assertions | Same | **`expected_branchlen`** from **`shortTip['height'] - CHAIN_BOOTSTRAP`**; active height matches long chain after rejoin; accepts one or two tips per existing semantics. |
 | Background wait / exit codes | **`contrib/run-tests.sh`** **`run_bg`** | Set **`BG_LAST_PID=$!`**; avoid **`$(run_bg …)`** (subshell caused **`wait $pid`** to fail). GTest/Boost and Tier A parallel children wait on real child PIDs. |
 | **`rescan_import` executable bit | Git index **`qa/rpc-tests/rescan_import.py`** | **`100755`** so **`rpc-tests.sh`** can execute the script (avoids **`Permission denied`** when checkout mode was **`100644`**). |
+| **`wallet_changeaddresses` Zero port | **`qa/rpc-tests/wallet_changeaddresses.py`** | **`initialize_chain_clean`** (2 nodes); **`-nuparams`** Overwinter (**`6f76727a`**) and Sapling (**`7361707a`**) at height **1**; **`-txindex`** (RPC needs tx details); **`-experimentalfeatures`** + **`-zmergetoaddress`**; **`ensure_mature_coinbase_or_skip`** before **`get_coinbase_address`** / **`z_shieldcoinbase`** so **720**-deep maturity is satisfied via incremental mining (optional **`ZERO_MINE_COINBASE`** bulk still applies to other helpers). |
+| **`wallet_changeindicator` + Sprout VK | **`qa/rpc-tests/wallet_changeindicator.py`**, **`src/wallet/wallet.cpp`** | Default **200**-block cache: **`mine_until_node_has_mature_coinbase`** at **`run_test`** start. **`z_importviewingkey`**: **`UpdateSproutNullifierNoteMapWithTx`** skips when **`GetSproutNoteNullifier`** is empty (viewing key only; no spending key)—avoids **`assert(false)`** on that path. |
+| **`serialize_script_num` (Python 3) | **`qa/rpc-tests/test_framework/blocktools.py`** | **`bytearray.append`** takes an **int** (**0–255**), not **`chr(...)`** (would raise **`TypeError`** on scripts that use **`serialize_script_num`**). |
 
 **Open (harness):** **`--jobs>1`** Tier A RPC is **best-effort** only—**`paymentdisclosure`** has been observed **hung** under **`--jobs=4`** (macOS). No fix in-tree yet; use **serial** for the contributor gate. See **Parallel Tier A** under Reference.
 
@@ -46,7 +49,7 @@
 | Full default gate | **`./contrib/run-tests.sh --strict`** | Pass-only GTest + Boost + **Tier A serial** (**`PYTHON_PASSING`**). |
 | Single Tier A script | **`env PYTHON=python3 ./qa/pull-tester/rpc-tests.sh <basename>`** | Isolates one RPC test. |
 
-**Tier A scripts (all on allowlist):** **`blockchain`**, **`disablewallet`**, **`httpbasics`**, **`reindex`**, **`rescan_import`**, **`rescan_startup`**, **`decodescript`**, **`keypool`**, **`paymentdisclosure`**, **`prioritisetransaction`**, **`wallet_treestate`**, **`wallet_anchorfork`**, **`getchaintips`**, **`rewind_index`**, **`wallet_overwintertx`**, **`wallet_changeaddresses`**, **`shorter_block_times`**, **`p2p_nu_peer_management`**, **`txn_doublespend`**.
+**Tier A scripts (all on allowlist):** **`blockchain`**, **`disablewallet`**, **`httpbasics`**, **`reindex`**, **`rescan_import`**, **`rescan_startup`**, **`decodescript`**, **`keypool`**, **`paymentdisclosure`**, **`prioritisetransaction`**, **`wallet_treestate`**, **`wallet_anchorfork`**, **`getchaintips`**, **`rewind_index`**, **`wallet_overwintertx`**, **`wallet_changeaddresses`**, **`wallet_changeindicator`**, **`shorter_block_times`**, **`p2p_nu_peer_management`**, **`txn_doublespend`**.
 
 **Indicative wall times (serial RPC, one dev machine, not a SLA):** **`getchaintips`** ~20–25s; **`wallet_overwintertx`** ~43s; **`txn_doublespend`** ~44s; **`paymentdisclosure`** ~30s; **`rescan_import`** ~32s.
 
@@ -227,7 +230,7 @@ Requires wallet-enabled build (**`ENABLE_BITCOIND`**, **`ENABLE_UTILS`**, **`ENA
 
 ### Tier A (contributor gate)
 
-**Order matches `PYTHON_PASSING` in `contrib/run-tests.sh`:** `blockchain`, `disablewallet`, `httpbasics`, `reindex`, `rescan_import`, `rescan_startup`, `decodescript`, `keypool`, `paymentdisclosure`, `prioritisetransaction`, `wallet_treestate`, `wallet_anchorfork`, `getchaintips`, `rewind_index`, `wallet_overwintertx`, `wallet_changeaddresses`, `shorter_block_times`, `p2p_nu_peer_management`, `txn_doublespend`.
+**Order matches `PYTHON_PASSING` in `contrib/run-tests.sh`:** `blockchain`, `disablewallet`, `httpbasics`, `reindex`, `rescan_import`, `rescan_startup`, `decodescript`, `keypool`, `paymentdisclosure`, `prioritisetransaction`, `wallet_treestate`, `wallet_anchorfork`, `getchaintips`, `rewind_index`, `wallet_overwintertx`, `wallet_changeaddresses`, `wallet_changeindicator`, `shorter_block_times`, `p2p_nu_peer_management`, `txn_doublespend`.
 
 **Per-script skip RCA and IDs (6.x):** RPC Python. **Common themes:** **720** maturity, **`chaintip`** / NU height vs mining plan, **`getchaintips`** shape after rejoin, P2P **`version`** set.
 
@@ -249,7 +252,9 @@ Zero **regtest** uses **`COINBASE_MATURITY` = 720** (**`src/consensus/consensus.
 
 **`ZERO_MINE_COINBASE=1`:** In **`qa/rpc-tests/test_framework/util.py`**, **`ensure_coinbase_utxos()`** may mine **1000** blocks when no mature coinbase exists. Without it, that helper returns false and callers often **skip**.
 
-**Helpers:** **`has_coinbase_utxos`**, **`mine_until_node_has_mature_coinbase`** (50-block steps), **`ensure_coinbase_utxos`** (bulk path gated by env), **`ensure_mature_coinbase_or_skip`** (incremental then bulk). Scripts that call **`ensure_coinbase_utxos`** (directly or via **`ensure_mature_coinbase_or_skip`**): **`rescan_import`**, **`wallet_changeaddresses`**, **`wallet_overwintertx`**, **`shorter_block_times`** (the last uses **`ensure_coinbase_utxos`** without the incremental wrapper—often needs **`ZERO_MINE_COINBASE`** or skips early).
+**Helpers:** **`has_coinbase_utxos`**, **`mine_until_node_has_mature_coinbase`** (50-block steps), **`ensure_coinbase_utxos`** (bulk path gated by env), **`ensure_mature_coinbase_or_skip`** (incremental then bulk). Scripts that call **`ensure_coinbase_utxos`** (directly or via **`ensure_mature_coinbase_or_skip`**): **`rescan_import`**, **`wallet_changeaddresses`**, **`wallet_overwintertx`**, **`shorter_block_times`** (the last uses **`ensure_coinbase_utxos`** without the incremental wrapper—often needs **`ZERO_MINE_COINBASE`** or skips early). **`wallet_changeindicator`** uses **`mine_until_node_has_mature_coinbase`** at **`run_test`** entry because it keeps the default **200**-block **`initialize_chain`** cache.
+
+**`wallet_changeaddresses`:** See **Harness changelog** — clean chain, Zero **`-nuparams`**, **`txindex`**, **`zmergetoaddress`**, maturity gate before shielding from coinbase.
 
 **`wallet_overwintertx`:** Uses **`-nuparams`** for Overwinter / Sapling / Blossom with **Blossom activation above** the post-maturity tip (**720** + split mining) so **`chaintip`** stays Sapling until the script mines to **`upgrades['2bb40e60'].activationheight`**. **`createrawtransaction`** expiry checks use **`getblockcount() + 1 + 3`**. **`shorter_block_times`:** Without env, skip at maturity gate; with env, may fail on **expiryheight** / activation constants—derive from **`getblockchaininfo`**.
 
@@ -270,6 +275,8 @@ High **wall time**; per-script **`zerod`** processes. Risks: wallet **encrypt/re
 | `need 720+`, premature coinbase spend | Maturity | This section + Appendix |
 | Balance / mempool mismatch | Subsidy / halving | **`zero_regtest_subsidy`** |
 | Python 2 / import errors | Port drift | Python **3.10+**, **[BUILD_ZERO.md](BUILD_ZERO.md)** |
+| **`NameError`** (e.g. **`initialize_chain_clean`**) | Used in **`setup_chain`** but not imported from **`test_framework.util`** | Add to import list; **`wallet_nullifiers`**-style scripts |
+| **`TypeError`** in **`serialize_script_num`** | **`bytearray.append(chr(...))`** on Python 3 | **`blocktools.py`**: append **int** byte (**Harness changelog**) |
 | `Assertion failed` in **`wallet.cpp`** | Product or ordering | Debug line, GTest/Boost isolate |
 
 ---
