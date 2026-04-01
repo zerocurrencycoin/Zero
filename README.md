@@ -110,9 +110,9 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
 📚 Documentation
 ----------------
 
-**Map vs editors:** The table below is the **full** in-repo documentation index (purpose and focus). **[AGENTS.md](AGENTS.md)** defines a **definitive user-facing** subset for builders, operators, and contributors—narrower than this map.
+**Documentation partitioning:** User-facing guides (this README, **BUILD_ZERO**, **TEST_ZERO**, **ZERO_COIN**, **TODO**, **CONTRIBUTING**, …) are self-contained and do **not** reference maintainer **`Update*.md`** files. The maintainer documentation map lives only in those **Update** files at the repo root. **This README** is the project front page and documentation index.
 
-**README0.md** is intentionally **omitted**: temporary working draft for README reshaping, not canonical.
+**Map vs editors:** The table below is the **full** in-repo documentation index (purpose and focus). **[AGENTS.md](AGENTS.md)** defines a **definitive user-facing** subset for builders, operators, and contributors—narrower than this map.
 
 ```
                     README
@@ -125,10 +125,9 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
                         │
                         ▼
                       TODO
-        ┌────────────────┴────────────────┐
-        ▼                                 ▼
-   ZERO_COIN.md                     Subsidy.md
-   (+ ZeroCoin outline)             (split / retire)
+                        ▼
+                   ZERO_COIN.md
+                (chain + node reference)
 ```
 
 | Document | Purpose | Focus |
@@ -138,9 +137,7 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
 | [TEST_ZERO.md](TEST_ZERO.md) | Validation runbook for **builders and contributors** | Runners, modes, pass-only filters, Tier A gate, **`full_test_suite.py`**; verification snapshot (working vs **`--jobs>1`**); harness changelog; bulk RPC names in **`rpc-tests.sh`**; fork-specific harness notes (e.g. 720 maturity) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow | Patches, review, coding expectations |
 | [TODO.md](TODO.md) | Checklist and follow-ups | Implementation status, doc debt, small tracked tasks |
-| [ZERO_COIN.md](ZERO_COIN.md) | **User-facing** chain and node reference | Observable behavior, events, operations; **Glossary** and **References**; body grows from **[ZeroCoin.md](ZeroCoin.md)** outline and **Subsidy** split |
-| [ZeroCoin.md](ZeroCoin.md) | **Outline** toward **ZERO_COIN** | Section checklist and maintenance notes until merged into **ZERO_COIN.md** |
-| [Subsidy.md](Subsidy.md) | **Legacy** technical reference | Subsidy math, halving, founders, zeronode split, supply notes; content is **being split** into user-facing docs (e.g. **ZERO_COIN.md**) and other homes, then **retired**—prefer the map targets over new edits here when possible |
+| [ZERO_COIN.md](ZERO_COIN.md) | **User-facing** chain and node reference | Observable behavior, events, operations; **Glossary** and **References**; emission, halving, founders, zeronodes, addresses |
 | [Zeronode_wallet.md](Zeronode_wallet.md) | Wallet integration note | `CZeronodeWalletInterface`, wallet-optional builds, coverage notes for zeronode↔wallet |
 | `doc/man/` | Shipped CLI manuals | `zerod`, `zero-cli`, `zero-tx` options and behavior |
 

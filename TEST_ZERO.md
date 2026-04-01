@@ -2,22 +2,44 @@
 
 **Audience:** Builders and contributors who **run** tests, **read** harness output, and **narrow** failures (C++, Python RPC, full driver).
 
+**Documentation partitioning:** User-facing guides are self-contained and do **not** reference maintainer **`Update*.md`** files. **This file** is the validation runbook (commands, modes, harness behavior, known failures). Maintainer-only **test porting and harness prescriptions** are kept in the repository **Update** hub (appendix on test/harness changes)—not duplicated here.
+
 **Authoritative lists:** `contrib/run-tests.sh` (**`PYTHON_PASSING`**), `qa/pull-tester/rpc-tests.sh` (**`testScripts`**, **`testScriptsExt`**). If this file disagrees with those scripts, **the scripts win**.
 
 **Related:** [BUILD_ZERO.md](BUILD_ZERO.md) (toolchain, Python **3.10+**, produced binaries).
 
 ---
 
-[move Tier 1 - 3 definition before use]
+## Quick start by use case
 
-- **Harness changelog (recent)** — Fixes applied to **`getchaintips`**, **`run-tests.sh`**, **`rescan_import`**; open items for parallel RPC.
-- **Accounting** — What “run” and “pass” mean; Tier A allowlist; weak C++ “pass” cases.
-- **Interpreting results** — Log signals for `run-tests.sh`, GTest, Boost, Equihash.
-- **Process** — Wrapper flags, extending tests, troubleshooting.
-- **Reference** — Harness roles, `run-tests.sh` modes, `full_test_suite.py`, pass-only filters, how to invoke RPC/C++ suites. **No duplicate copies** of Tier B/C script lists (read `rpc-tests.sh`).
-- **RPC harness details** — Coinbase maturity helpers, Tier A skip patterns (chain tip, peers, heights), extended RPC risks.
-- **Known failures, hangs, and crashes** — Excluded C++ tests, root causes, disposition, plan.
-- **Appendix** — Maturity constants, RPC driver flags, repo CSVs.
+| You want… | Command / next step |
+|-----------|---------------------|
+| **Default contributor gate** (pass-only C++ + Tier A RPC, serial) | `./contrib/run-tests.sh --strict` after building **`src/zerod`** |
+| **Fast smoke** (no GTest/Boost/RPC) | `./contrib/run-tests.sh --quick --strict` |
+| **C++ only** (no Python RPC) | `./contrib/run-tests.sh --no-python --strict` |
+| **One Tier A RPC script** | `env PYTHON=python3 ./qa/pull-tester/rpc-tests.sh <basename>` |
+| **Full multi-stage driver** (Tier B RPC, fail-fast) | `./contrib/run-tests.sh --full` |
+| **Extended RPC bulk** (long run; many scripts) | `./contrib/run-tests.sh --fail` or `--all` (see **Reference → modes**—not the default gate) |
+
+**Environment:** Python **3.10+**; **`PYTHON`** and **`BUILDDIR`** for manual **`rpc-tests.sh`**—see **Process → Troubleshooting**.
+
+---
+
+## Harness landscape (what runs, and why it exists)
+
+The tree inherits a **layered** validation stack from the Bitcoin / Zcash lineage. Each layer answers a different question; together they approximate “does this node build, link, and behave plausibly on regtest/mainnet parameters?”
+
+1. **Encoding / util checks** (`src/test/bitcoin-util-test.py`, invoked from **`run-tests.sh`** quick path) — static vectors and RPC-free encoding sanity.
+2. **Library self-checks** (`secp256k1`, `univalue` via **`make -C src …`**) — third-party correctness in this build.
+3. **Symbol / security policy** (`check-symbols`, `check-security`) — shipping constraints when **`zerod`** exists.
+4. **Google Test (`zero-gtest`)** — wallet-heavy and some consensus-adjacent unit scenarios; several cases need richer chain/UTXO fixtures (see **Known failures** for excluded suites).
+5. **Boost.Test (`test_bitcoin`)** — large integration surface: RPC, script, PoW (including Zero’s **(192,7)** paths), zeronode RPC smoke. Some upstream suites assume different Equihash parameters or deprecated alert behavior—pass-only filters document what the default gate skips.
+6. **Python RPC (`qa/pull-tester/rpc-tests.sh`)** — multi-node regtest scripts; each run spins real **`zerod`** processes, mines Equihash blocks, and tears down. **Tier A** is an allowlist (**`PYTHON_PASSING`**) for the default gate; **Tier B/C** lists live only in **`rpc-tests.sh`**.
+7. **`full_test_suite.py`** — ordered stages (Boost, GTest, util, secp, univalue, then bulk RPC); **`--full`**; Darwin may skip ELF-focused stages.
+
+**Categories of checks:** **library/unit** (1–3), **C++ suite** (4–5), **multi-process integration** (6–7). Fork-specific behavior (e.g. **COINBASE_MATURITY 720**, Zero **`-nuparams`** branch ids, regtest **(48,5)** Equihash) mostly affects layers **5–7**.
+
+The sections below follow **operations first** (changelog, snapshot), then **how to read output**, **flags**, **reference tables**, **RPC harness details**, and **known failures**.
 
 ---
 
@@ -273,7 +295,7 @@ High **wall time**; per-script **`zerod`** processes. Risks: wallet **encrypt/re
 | Pattern | Typical cause | Pointer |
 |---------|---------------|---------|
 | `need 720+`, premature coinbase spend | Maturity | This section + Appendix |
-| Balance / mempool mismatch | Subsidy / halving | **`zero_regtest_subsidy`** |
+| Balance / mempool mismatch | **ZERO_COIN** / halving rules | **`zero_regtest_subsidy`** |
 | Python 2 / import errors | Port drift | Python **3.10+**, **[BUILD_ZERO.md](BUILD_ZERO.md)** |
 | **`NameError`** (e.g. **`initialize_chain_clean`**) | Used in **`setup_chain`** but not imported from **`test_framework.util`** | Add to import list; **`wallet_nullifiers`**-style scripts |
 | **`TypeError`** in **`serialize_script_num`** | **`bytearray.append(chr(...))`** on Python 3 | **`blocktools.py`**: append **int** byte (**Harness changelog**) |
