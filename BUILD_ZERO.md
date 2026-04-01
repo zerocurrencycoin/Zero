@@ -2,6 +2,8 @@
 
 Build guide for the Zero full node binary `zerod`.
 
+**Documentation partitioning:** User-facing guides are self-contained and do **not** reference maintainer **`Update*.md`** files. **This file** is the build and platforms guide (compile, depends, troubleshooting).
+
 **Quick Start:** §2 — clone, install packages, and build variants for Linux, macOS, Windows, and packaging.  
 **Data directory:** §3 — `.zero` location, params, files.  
 **Developer:** §4 — pinned dependency versions, depends layout for porting, `config.site`, `build.sh` flags.  

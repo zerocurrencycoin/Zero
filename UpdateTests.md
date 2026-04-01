@@ -2,7 +2,9 @@
 
 Maintainer test planning: **why** suites are excluded or skipped, **what** “green” really means, **backlog**, CSV rules, rescan/reindex notes. Not a runbook.
 
-**[TEST_ZERO.md](TEST_ZERO.md)** owns **how to run**: harness roles, **`contrib/run-tests.sh`** modes (including **`--jobs`** scope: Tier A RPC only, serial default; parallel best-effort—see **TEST_ZERO.md** Reference → **Parallel Tier A**), pass-only filter strings, Tier A allowlist (mirror of **`PYTHON_PASSING`**), **`full_test_suite.py`** behavior, extended-RPC risks. **Tier B/C basenames** live only in **`qa/pull-tester/rpc-tests.sh`** (**`testScripts`**, **`testScriptsExt`**). **Sibling maintainer docs:** **UpdateZero.md** §1.3.
+**Step-by-step prescriptions** for porting RPC tests and harness tweaks (mininode version, maturity 720, **`-nuparams`**, wallet patterns): **[UpdateZero.md](UpdateZero.md)** Appendix B.
+
+**[TEST_ZERO.md](TEST_ZERO.md)** owns **how to run**: harness roles, **`contrib/run-tests.sh`** modes (including **`--jobs`** scope: Tier A RPC only, serial default; parallel best-effort—see **TEST_ZERO.md** Reference → **Parallel Tier A**), pass-only filter strings, Tier A allowlist (mirror of **`PYTHON_PASSING`**), **`full_test_suite.py`** behavior, extended-RPC risks. **Tier B/C basenames** live only in **`qa/pull-tester/rpc-tests.sh`** (**`testScripts`**, **`testScriptsExt`**). **Documentation map:** **UpdateZero.md** §1.
 
 **Consolidation:** Old **§** numbering is gone. Exclusion write-ups, gap table, prioritized phases, CSV rules, rescan inventory, and debug notes below were **not** dropped—**TEST_ZERO.md** never carried that material.
 
