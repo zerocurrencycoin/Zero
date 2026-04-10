@@ -1,18 +1,23 @@
-# Agent Instructions — Zero Node
+# Agent Instructions - Zero Node
 
-**Start:** [README.md](README.md). Build: [BUILD_ZERO.md](BUILD_ZERO.md).
+**Start:** [README.md](README.md).
 
-**Scope:** Full node only. Zerowallet out of scope.
+## Scope
 
-**Git:** No `Co-authored-by:` or attribution trailers.
+Full node only. Zerowallet out of scope.
 
-**Files:** Do not remove, destructively overwrite, or add files without explicit user confirmation.
+## Git
 
-**Communication:** Direct, concise, factual. Avoid hype and vague breadth (“comprehensive”, “all platforms”). Restrained acknowledgment; technical detail is fine. Skip long generic apologies.
+No `Co-authored-by:` or attribution trailers.
 
-**Errors:** Acknowledge briefly; focus on fixes.
+## Files
 
-**Documentation:** Make specific and actionable, include scope and bounds. No superlatives without evidence. No parenthetical asides in `#`–`######` headings; move them to the first line under the heading or integrate into a short introductory paragraph.
+Do not remove, destructively overwrite, or add files without explicit user confirmation.
 
-**User-facing documents:**
-`README.md`, `ZERO_COIN.md`, `BUILD_ZERO.md`, `TEST_ZERO.md`, `CONTRIBUTING.md`, `TODO.md`
+## Communication
+
+Direct, concise, factual. Avoid hype and vague breadth ("comprehensive", "all platforms"). Restrained acknowledgment; technical detail is fine. Skip long generic apologies. Acknowledge errors briefly; focus on fixes.
+
+## Documentation
+
+Make specific and actionable, include scope and bounds. No superlatives without evidence. No parenthetical asides in `#`-`######` headings; move them to the first line under the heading or integrate into a short introductory paragraph. **No emojis or decorative Unicode** in any document except `README.md`. Use ASCII equivalents: `--` not em-dash, `->` not arrow, `"` not curly quotes, `...` not ellipsis.

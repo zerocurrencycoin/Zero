@@ -2,14 +2,9 @@
 
 Build guide for the Zero full node binary `zerod`.
 
-**Documentation partitioning:** User-facing guides are self-contained and do **not** reference maintainer **`Update*.md`** files. **This file** is the build and platforms guide (compile, depends, troubleshooting).
-
-**Quick Start:** §2 — clone, install packages, and build variants for Linux, macOS, Windows, and packaging.  
-**Data directory:** §3 — `.zero` location, params, files.  
-**Developer:** §4 — pinned dependency versions, depends layout for porting, `config.site`, `build.sh` flags.  
-**Per-platform:** §5 — manual configure and platform quirks; basic commands are in §2.  
-**Testing:** [TEST_ZERO.md](TEST_ZERO.md) — runners, filters, Tier A gate, `full_test_suite.py`; bulk RPC names in `qa/pull-tester/rpc-tests.sh`.  
-**Troubleshooting:** §6 — params, BDB, memory, clean rebuild.
+**Quick Start:** §2 -- clone, install packages, build (Linux, macOS, Windows cross-compile, packaging).
+**Data directory:** §3. **Developer / depends:** §4. **Per-platform:** §5. **Troubleshooting:** §6.
+**Testing:** [TEST_ZERO.md -- Quick start](TEST_ZERO.md#quick-start-by-use-case).
 
 ---
 
@@ -28,9 +23,7 @@ Zero is a Zcash-family cryptocurrency node. Build `zerod` from source on Linux, 
 | **Boost (from depends)** | 1.88.x (see §4.1). |
 | **Python** | **3.10+** for `depends` scripts, RPC tests, and `qa/zcash/full_test_suite.py`. Maintainer validation uses **Python 3.12**; use 3.10+ for supported behavior. |
 
-**Build variants:** commands, packages, and outputs are in **§2**, **§5**, and **§2.4** for Windows. This document is the canonical place for full install lists and script options.
-
-**Porting to other Linux distros or unfamiliar hosts:** Most linked libraries are built from **`depends/`** as hashed tarballs, not the distro package manager. You need a working toolchain and build utilities; see **§2.2.1**, **§4.8**, and **§4.9** for version choices and recipe notes. Cross-project dependency comparison is not duplicated here; compare **`depends/packages/*.mk`** and upstream release trees when aligning with Bitcoin Core, Zcash, or similar codebases.
+Most linked libraries are built from **`depends/`** as hashed tarballs, not the distro package manager.
 
 ---
 
@@ -65,13 +58,7 @@ sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib \
 ./zcutil/build.sh -j$(nproc)
 ```
 
-**Output:** `src/zerod`, `src/zero-cli`, `src/zero-tx`.
-
-### 2.2.1 Other Linux distributions
-
-CI and docs are oriented to **Debian/Ubuntu** package names (§2.2). On **Fedora/RHEL**, **openSUSE**, **Arch**, **Alpine**, etc., install the **same role** of tools: a C++14-capable GCC or Clang, GNU Make, Autoconf/Automake/Libtool, pkg-config, Python **3.10+**, Git, patch, curl/wget, and typical build headers (`zlib`, `ncurses` where the recipe expects them—match the Ubuntu list as closely as possible). Wallet-enabled builds still expect **Berkeley DB** to come from **`depends/`** (BDB 6.2.x), not necessarily from the distro.
-
-If **`make -C depends`** fails on a new host, check **§4.8** for hash commands, portable `sed`, and the triplet from **`depends/config.guess`**, and **§4.9** for recipe-specific notes.
+**Other Linux distros:** Install the same toolchain roles as the Ubuntu list above. BDB comes from `depends/`. If `make -C depends` fails, see §4.8-4.9.
 
 ### 2.3 macOS ARM64
 
@@ -94,7 +81,7 @@ brew install automake cmake pkg-config coreutils
 
 **MXE cross-compile (from Linux):**
 
-Windows builds use [MXE](https://mxe.cc/) (M Cross Environment). Build MXE once (2–4 h), then reuse.
+Windows builds use [MXE](https://mxe.cc/) (M Cross Environment). Build MXE once (2-4 h), then reuse.
 
 **1. Set MXE root** (default `$HOME/mxe`; use `/usr/lib/mxe` for system install):
 ```bash
@@ -153,11 +140,7 @@ Then build Zero as above.
 
 Output: `artifacts/linux-zero-v<VERSION>.tgz` and `artifacts/linux-zero-v<VERSION>.deb` (`Package: zero`, includes `zero-fetch-params` when `zcutil/fetch-params.sh` is present). Version is semver from `src/zerod --version` unless `-v X.Y.Z`. Use `-s` to skip stripping; `-L` to capture log.
 
-**Stripping:** Default **`zcutil/build.sh`** outputs are **not** stripped (larger binaries, easier debugging). Release packaging may strip unless you pass **`-s`** to **`release-linux.sh`** to skip strip.
-
-**Legacy Debian builder:** `./zcutil/build-debian-package.sh` — Zcash-era package name (`zcash`), paths, and metadata. Kept for reference; do not mix with `release-linux.sh` outputs without reading both scripts. See **TODO.md** (Active) for consolidation task.
-
-**fetch-params script:** `zcutil/fetch-params.sh` still follows upstream Zcash naming and download URLs; modernization tracked in **TODO.md**.
+Default builds are **not** stripped. `release-linux.sh` strips unless you pass `-s`.
 
 ---
 
@@ -201,7 +184,7 @@ See [doc/files.md](doc/files.md) for details.
 | .zcash_params (Sapling only) | ~800 MB |
 | Fresh .zero (no chain) | &lt;50 MB |
 
-**Sync time:** ~6–10 hours for full chain (varies by network and disk).
+**Sync time:** ~6-10 hours for full chain (varies by network and disk).
 
 ### 3.4 Zcash Params
 
@@ -215,7 +198,7 @@ Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params o
 
 ### 4.1 Dependency versions and porting notes
 
-Dependencies are pinned in **`depends/packages/*.mk`** (and related `native_*` / `crate_*` recipes). **Policy:** reproducibility (hashed tarballs), known breakage on specific hosts, or CI determinism. Local developers may sometimes use system tools where this doc says so (e.g. Rust on macOS ARM64).
+Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 
 | Component | Version | Recipe / lock | Notes for builders / porters |
 |-----------|---------|---------------|------------------------------|
@@ -224,82 +207,51 @@ Dependencies are pinned in **`depends/packages/*.mk`** (and related `native_*` /
 | OpenSSL | 1.1.1w | `openssl.mk` | RPC TLS and legacy EVP call sites. **1.1.1 is EOL upstream**; **project decision:** stay on **1.1.1w** in **`depends`** until a scheduled, audited move to **OpenSSL 3.x** (or removal) with EVP/TLS regression tests. |
 | libsodium | 1.0.21 | `libsodium.mk` | Crypto; URL pinned to GitHub releases. |
 | libevent | 2.1.12 | `libevent.mk` | Network stack. |
-| ZeroMQ | 4.3.5 | `zeromq.mk` | Default **ZMQ** notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, …). |
+| ZeroMQ | 4.3.5 | `zeromq.mk` | Default **ZMQ** notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, ...). |
 | ccache | 4.13.1 | `native_ccache.mk` | Optional faster rebuilds; **`CCACHE_DIR`**, **`--enable-ccache`**. |
-| Rust | **system** or **depends 1.32.0** | `rust.mk` | **Default system:** **macOS** always (unless **`FORCE_DEPENDS_RUST=1`**); **Linux/FreeBSD/Windows:** set **`RUST_USE_SYSTEM=1`** when invoking **`make -C depends`**. **`FORCE_DEPENDS_RUST=1`** forces pinned **1.32.0** tarballs on all platforms. Cross-builds: install the **Rust target** with **`rustup target add …`** (see **§4.11**). **Target:** one modern pinned toolchain for every host remains **deferred**. |
+| Rust | **system** or **depends 1.32.0** | `rust.mk` | **Default system:** **macOS** always (unless **`FORCE_DEPENDS_RUST=1`**); **Linux/FreeBSD/Windows:** set **`RUST_USE_SYSTEM=1`** when invoking **`make -C depends`**. **`FORCE_DEPENDS_RUST=1`** forces pinned **1.32.0** tarballs on all platforms. Cross-builds: install the **Rust target** with **`rustup target add`** (see **§4.9**). **Target:** one modern pinned toolchain for every host remains **deferred**. |
 | librustzcash | snapshot `06da3b9` | `crate_*.mk`, `Cargo.lock` | Consensus-linked; upgrade only with protocol work. |
 | Googletest | 1.16.0 | `googletest.mk` | Last GTest line on **C++14**; 1.17+ expects C++17. |
 | utfcpp | 3.1 | `utfcpp.mk` | Header-only; UTF-8 checks in wallet RPC paths. |
-| Qpid Proton | 0.26.0 recipe; **off** | `proton.mk`, configure | **AMQP** would duplicate ZMQ’s role (`-amqppub*`); recipe exists but **`--enable-proton=no`** / **`NO_PROTON=1`** default—CMake/toolchain friction. |
+| Qpid Proton | 0.26.0 recipe; **off** | `proton.mk`, configure | **AMQP** would duplicate ZMQ's role (`-amqppub*`); recipe exists but **`--enable-proton=no`** / **`NO_PROTON=1`** default--CMake/toolchain friction. |
 | config.guess / config.sub | vendor drop | `depends/config.*` | **Apple Silicon** must resolve to **`aarch64-apple-darwin*`**, not **`arm-apple-darwin`**. |
 
-**ZMQ vs AMQP:** Proton is not downloaded in default depends builds. Do not enable Proton unless you are actively reviving the AMQP path; that workflow is outside the scope of this guide.
 
-### 4.2 Build Flow
+### 4.2 Build flow
 
-1. `depends/` builds libraries into `depends/$HOST/` (bin, include, lib, share).
-2. `./autogen.sh` generates configure.
-3. `./configure` with `CONFIG_SITE=$PWD/depends/$HOST/share/config.site`.
-4. `make` builds zerod, zero-cli, zero-tx.
+`zcutil/build.sh` runs: `make -C depends` -> `autogen.sh` -> `configure` with `CONFIG_SITE` -> `make`. Manual steps are in §5.
 
-**zcutil/build.sh** runs steps 1–4 in one command. It sets `HOST` via `depends/config.guess`, builds depends, runs autogen, configure, and make.
+**config.site:** `depends/$HOST/share/config.site` sets CC, CXX, flags, and pkg-config paths from the depends build. Without it, configure uses system paths.
 
-### 4.3 config.site
+### 4.3 Depends layout
 
-`depends/$HOST/share/config.site` is generated from `depends/config.site.in` when depends is built. It is sourced by `./configure` when `CONFIG_SITE` is set. It preconfigures:
+- Each library is a `depends/packages/<name>.mk` recipe (version, URL, hash).
+- **Portable `sed`:** recipes use `build_SED_INPLACE` (`sed -i.old` style). Do not use bare `sed -i`.
+- Checksums: Linux `sha256sum`, Darwin `shasum -a 256`.
 
-- **CC, CXX:** Host compiler (from `depends/hosts/*.mk`). For Windows: `x86_64-w64-mingw32-gcc-posix`, `x86_64-w64-mingw32-g++-posix`.
-- **CFLAGS, CXXFLAGS, CPPFLAGS, LDFLAGS:** From host config.
-- **PKG_CONFIG_LIBDIR, PKG_CONFIG_PATH:** Point to `depends/$HOST/lib/pkgconfig` and `share/pkgconfig`.
-- **Prefix:** `-I$depends_prefix/include`, `-L$depends_prefix/lib` so configure finds depends-built libraries.
-
-Without `CONFIG_SITE`, configure would use system compilers and paths.
-
-**Source:** `depends/config.site.in`; template variables `@CC@`, `@CXX@`, `@host_os@`, etc. are substituted by `depends/Makefile` when building `depends/$HOST/share/config.site`.
-
-### 4.4 Depends layout and host portability
-
-When **`./zcutil/build.sh`** or **`make -C depends`** runs:
-
-- Each third-party library is a **`depends/packages/<name>.mk`** recipe (version, URL, hash, per-host flags).
-- **`depends/Makefile`** and **`depends/builders/*.mk`** define **`build_`*** helpers (compiler, flags, staging). **Linux** typically uses **`sha256sum`**; **Darwin** uses **`shasum -a 256`** for checksums—custom builders must not assume one or the other.
-- **Portable `sed`:** recipes use **`build_SED_INPLACE`** from **`depends/Makefile`** (**`sed -i.old`** style) because **BSD** `sed` requires a backup extension and **GNU** `sed` allows **`-i`**. If you patch **`.mk`** files, avoid bare **`sed -i`** without the project pattern.
-- **`depends/funcs.mk`** **`fetch_file`** uses quoted paths so **`dash`** as **`/bin/sh`** does not break on spaces.
-- Native vs cross: **`zcutil/build-native.sh`**, **`zcutil/fzero.sh`** (job cap **`FZERO_MAX_JOBS`**), and **`zcutil/build-win.sh`** are separate entrypoints; **`HOST`** and artifacts differ (§2.4, §5.3).
-
-### 4.5 zcutil/build.sh
+### 4.4 zcutil/build.sh
 
 ```
 ./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon ] [ MAKEARGS... ]
 ```
 
-- `--daemon`: `--disable-zmq --disable-rust` for configure. Aligns with build-win.sh.
-- `--enable-proton`: native builds include Proton in `depends/` and configure (default without this flag: `NO_PROTON=1` for `depends` and `--disable-proton` for configure — same convention as Windows cross, which always omits Proton from depends and passes `--disable-proton`).
-- Flags must come before `-jN` and other make args. Example: `./zcutil/build.sh --disable-mining -j4` (correct); `./zcutil/build.sh -j4 --disable-mining` (wrong — flag passed to make).
-- Parallel jobs: `zcutil/fzero.sh` sets **`FZERO_MAX_JOBS`** (default **8** at top of that file). Auto-detected CPU count is capped to that value; pass `-jN` to override (still capped). Per-run override without editing the file: `FZERO_MAX_JOBS=2 ./zcutil/build.sh`. Detection: Linux `nproc`; macOS `sysctl -n hw.ncpu` or `gnproc` (Homebrew coreutils).
-- `CONFIGURE_FLAGS` passed to configure; multi-word values need escaping, e.g. `CONFIGURE_FLAGS='CXXFLAGS=-g\ -Wno-enum-constexpr-conversion'`.
+- `--daemon`: `--disable-zmq --disable-rust`.
+- Flags must come **before** `-jN`. Example: `./zcutil/build.sh --disable-mining -j4`.
+- Job cap: `FZERO_MAX_JOBS` in `zcutil/fzero.sh` (default 8). Override: `FZERO_MAX_JOBS=2 ./zcutil/build.sh`.
 
-### 4.6 Variables and Overrides
+### 4.5 Variables
 
 | Variable | Purpose |
 |----------|---------|
-| `FZERO_MAX_JOBS` | Cap for auto `-j` and for explicit `-jN` when N exceeds cap (`zcutil/fzero.sh`; default 8 in file) |
-| `MXE_ROOT` | MXE install root; `MXE_PATH=$MXE_ROOT/usr/bin` (default `$HOME/mxe`; use `/usr/lib/mxe` for system) |
-| `CC`, `CXX` | Compiler (e.g. `gcc-11`, `g++-11`) |
-| `MAKE` | Make command (e.g. `gmake`) |
-| `BUILD`, `HOST` | Triplet for porters |
+| `FZERO_MAX_JOBS` | Job cap (default 8 in `zcutil/fzero.sh`) |
+| `MXE_ROOT` | MXE install root (default `$HOME/mxe`) |
+| `CC`, `CXX` | Compiler override |
+| `HOST` | Target triplet for cross-compile |
 | `CONFIGURE_FLAGS` | Extra configure options |
-| `FORCE_DEPENDS_RUST` | Set to **`1`** for **`make -C depends`** to use pinned **Rust 1.32.0** on **any** platform (overrides **system** mode). |
-| `RUST_USE_SYSTEM` | Set to **`1`** for **`make -C depends`** on **non-macOS** hosts to symlink **`cargo`/`rustc`** from **`PATH`** (same as macOS default). Ignored when **`FORCE_DEPENDS_RUST=1`**. |
-| `CCACHE_DIR` | ccache cache (optional). ccache 4.13.1 in depends; `ccache -M 5G` for size. |
+| `FORCE_DEPENDS_RUST` | `1` = pinned Rust 1.32.0 on all platforms |
+| `RUST_USE_SYSTEM` | `1` = system `cargo`/`rustc` on non-macOS (macOS default) |
 
-### 4.7 Intermediate results
-
-- **Depends:** `depends/$HOST/` (e.g. `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin25.3.0`).
-- **Binaries:** `src/zerod`, `src/zero-cli`, `src/zero-tx`.
-- **Tests:** With the default configure, the build also produces **`src/test/test_bitcoin`** (Boost) and **`src/zero-gtest`** (GoogleTest). How to run them, pass-only filters, `contrib/run-tests.sh` and `qa/zcash/full_test_suite.py`, the Tier A allowlist (and where Tier B/C names live), and how to add tests are documented in **[TEST_ZERO.md](TEST_ZERO.md)**—not duplicated here.
-
-### 4.8 Configure Options
+### 4.6 Configure options
 
 | Option | Purpose |
 |--------|---------|
@@ -308,81 +260,48 @@ When **`./zcutil/build.sh`** or **`make -C depends`** runs:
 | `--disable-mining` | Exclude mining code |
 | `--enable-ccache` | Use ccache (default: auto) |
 
-### 4.9 Depends recipe troubleshooting
-
-These repeat §4.1 / §5 in recipe-specific form—useful when **`make -C depends`** stops in one package.
+### 4.7 Depends recipe troubleshooting
 
 | Package | What to know |
 |---------|----------------|
 | **Boost** | Darwin bootstrap uses **`--toolset=clang`**; **`$(build_SED_INPLACE)`** adjusts the toolset line in **`boost.mk`**. If **`AX_BOOST_THREAD`** fails on Darwin+Clang, ensure **`boost_thread`** can link (static archive path). |
-| **OpenSSL** | Recipe preprocesses with **`build_SED_INPLACE`**. **aarch64** Darwin uses OpenSSL’s **`darwin64-arm64-cc`** target. |
-| **Berkeley DB** | **6.2.32**; recipe must stay on portable **`sed`** patterns—GNU-only **`sed -i -e`** in patches breaks **macOS** (and is wrong for any strict BSD **`sed`**). |
-| **Rust / librustzcash** | **macOS:** system **`cargo`/`rustc`** by default. **Other OS:** **`RUST_USE_SYSTEM=1`** for system, else pinned **1.32.0**. **`FORCE_DEPENDS_RUST=1`** → pinned everywhere. **`librustzcash`** runs **`$(host_prefix)/native/bin/cargo`**. See **§4.11**. |
-| **Googletest** | If you change macOS deployment targets or see link warnings about **OSX** version, **`googletest.mk`** aligns **`OSX_MIN_VERSION`** with the rest of the graph—**rebuild depends** after changing it. |
+| **OpenSSL** | Recipe preprocesses with **`build_SED_INPLACE`**. **aarch64** Darwin uses OpenSSL's **`darwin64-arm64-cc`** target. |
+| **Berkeley DB** | **6.2.32**; recipe must stay on portable **`sed`** patterns--GNU-only **`sed -i -e`** in patches breaks **macOS** (and is wrong for any strict BSD **`sed`**). |
+| **Rust / librustzcash** | **macOS:** system **`cargo`/`rustc`** by default. **Other OS:** **`RUST_USE_SYSTEM=1`** for system, else pinned **1.32.0**. **`FORCE_DEPENDS_RUST=1`** -> pinned everywhere. **`librustzcash`** runs **`$(host_prefix)/native/bin/cargo`**. See **§4.9**. |
+| **Googletest** | If you change macOS deployment targets or see link warnings about **OSX** version, **`googletest.mk`** aligns **`OSX_MIN_VERSION`** with the rest of the graph--**rebuild depends** after changing it. |
 | **libsodium, libevent, ZeroMQ, ccache** | Routine version bumps: update version + hash in **`.mk`**, then full depends rebuild and smoke test. |
 
-### 4.10 Subsidy, founders, and `COIN`: integer strategy (proposed)
+### 4.8 Subsidy, founders, and `COIN`: integer strategy (proposed)
 
 **Problem:** Expressions like **`10.8 * COIN`**, **`GetBlockSubsidy(...) * 0.075`**, and **`blockValue * 7.5 / 100`** mix **`double`** with **`CAmount`** (`int64_t` zats). Rounding differs by path (miner vs **`ConnectBlock`** check vs RPC), and far-future halvings can make **`subsidy * 0.075`** non-integral.
 
 **Policy (target state):**
 
-1. **Consensus paths** — compute only with **`int64_t`**: integer literals in zats (e.g. **`1080000000`** for **10.8 ZER** where that is the rule) or **`CAmount` × num / den** with **one** documented rounding rule (**floor** unless a BIP/ZIP specifies otherwise).
-2. **Fractions** — encode percentages as rationals with integer denominator (**7.5%** → **`blockValue * 75 / 1000`**, floor). Use the **same** helper in **`FillBlockPayee`**, **`ConnectBlock`** founders check, and any duplicate logic (**`budget.cpp`**, **`payments.cpp`**, **`main.cpp`**).
-3. **`GetBlockSubsidy`** — avoid **`double`×`COIN`**; derive halving from integer base subsidy constants.
-4. **RPC / metrics** — compute amounts as **`CAmount`**, then **`ValueFromAmount`** (or equivalent) for JSON; do not subtract **`subsidy * 0.075`** in **`double`** for displayed totals if that can diverge from chain rules.
-5. **Change control** — any edit to subsidy or founders split is a **consensus** change: tests in **`main_tests`**, **`rpc_wallet_tests`** **`getblocksubsidy`**, **`test_foundersreward`**, and re-sync from a known height.
+1. **Consensus paths** -- compute only with **`int64_t`**: integer literals in zats (e.g. **`1080000000`** for **10.8 ZER** where that is the rule) or **`CAmount` × num / den** with **one** documented rounding rule (**floor** unless a BIP/ZIP specifies otherwise).
+2. **Fractions** -- encode percentages as rationals with integer denominator (**7.5%** -> **`blockValue * 75 / 1000`**, floor). Use the **same** helper in **`FillBlockPayee`**, **`ConnectBlock`** founders check, and any duplicate logic (**`budget.cpp`**, **`payments.cpp`**, **`main.cpp`**).
+3. **`GetBlockSubsidy`** -- avoid **`double`×`COIN`**; derive halving from integer base subsidy constants.
+4. **RPC / metrics** -- compute amounts as **`CAmount`**, then **`ValueFromAmount`** (or equivalent) for JSON; do not subtract **`subsidy * 0.075`** in **`double`** for displayed totals if that can diverge from chain rules.
+5. **Change control** -- any edit to subsidy or founders split is a **consensus** change: tests in **`main_tests`**, **`rpc_wallet_tests`** **`getblocksubsidy`**, **`test_foundersreward`**, and re-sync from a known height.
 
 **Tracking:** **[TODO.md](TODO.md)** (active item: consensus subsidy / founders integer refactor).
 
-#### 4.10.1 Current code touchpoints (audit — `double` / mixed arithmetic)
+#### 4.8.1 Current code touchpoints (`double` / mixed arithmetic)
 
 | File | Lines (approx.) | Notes |
 |------|-----------------|--------|
-| **`src/main.cpp`** | **2111–2113** | **`GetBlockSubsidy`**: **`10 * COIN`**, **`10.8 * COIN`** (`double` × `COIN`). |
+| **`src/main.cpp`** | **2111-2113** | **`GetBlockSubsidy`**: **`10 * COIN`**, **`10.8 * COIN`** (`double` × `COIN`). |
 | **`src/main.cpp`** | **4508** | Founders output check: **`GetBlockSubsidy(...) * 0.075`** (`double`). |
 | **`src/zeronode/payments.cpp`** | **305** | **`vFoundersReward = blockValue * 7.5 / 100`** (promotion via **`7.5`**). |
-| **`src/zeronode/budget.cpp`** | **536–537** | Same pattern on **`txNew.vout[0].nValue`**. |
+| **`src/zeronode/budget.cpp`** | **536-537** | Same pattern on **`txNew.vout[0].nValue`**. |
 | **`src/rpc/mining.cpp`** | **946** | **`getblocksubsidy`**: **`nFoundersReward = nReward*0.075`**. |
 | **`src/metrics.cpp`** | **346** | **`subsidy -= subsidy*0.075`** (UI / immature totals). |
 | **`src/rpc/zeronode.cpp`** | **1090** | **`vFoundersReward = blockValue * 7.5 / 100`**. |
-| **`src/test/main_tests.cpp`** | **16–32**, **40–45**, **124–134** | Expectations use **`10.8 * COIN`**, **`5.4 * COIN`**, etc. — update when **`GetBlockSubsidy`** goes integer-only. |
-| **`src/test/rpc_wallet_tests.cpp`** | **273–290** | **`getblocksubsidy`** RPC expected **`founders`** decimals. |
+| **`src/test/main_tests.cpp`** | **16-32**, **40-45**, **124-134** | Expectations use **`10.8 * COIN`**, **`5.4 * COIN`**, etc. -- update when **`GetBlockSubsidy`** goes integer-only. |
+| **`src/test/rpc_wallet_tests.cpp`** | **273-290** | **`getblocksubsidy`** RPC expected **`founders`** decimals. |
 
-**Good pattern (reference):** **`GetZeronodePayment`** in **`src/main.cpp`** (**~2129–2145**) uses **`blockValue * 20 / 100`**-style **integer** arithmetic.
+**Good pattern (reference):** **`GetZeronodePayment`** in **`src/main.cpp`** (**~2129-2145**) uses **`blockValue * 20 / 100`**-style **integer** arithmetic.
 
-**Non-consensus:** **`src/init.cpp`** (obfuscation denominations use fractional **`COIN`**), **`src/wallet/test/wallet_tests.cpp`** — not chain rules.
-
----
-
-### 4.11 Rust: host triple, Rust target, and `RUST_USE_SYSTEM`
-
-**Host triple (`HOST` / `canonical_host`):** The **Autoconf**-style machine string **`depends`** uses for the **artifact prefix**, e.g. **`x86_64-unknown-linux-gnu`**, **`aarch64-apple-darwin`**, **`x86_64-w64-mingw32`**. It is **not** always identical to **`rustc`’s** notion of a target.
-
-**Build triple (`build`):** The machine running **`make`** (from **`depends/Makefile`**). When **`canonical_host` == `build`**, you are doing a **native** depends build; when they differ, you are **cross-compiling**.
-
-**Rust target (for `cargo build --target=…`):** The triple **`librustzcash`** passes to Cargo for cross builds. **`depends/packages/rust.mk`** maps some GNU hosts to Rust targets, e.g. **`x86_64-w64-mingw32` → `x86_64-pc-windows-gnu`**, **`x86_64-apple-darwin20` → `x86_64-apple-darwin`**. If **`canonical_host` == `build`**, **`librustzcash`** builds for the **default** host target (no **`--target`**).
-
-**`rustup target add`:** Before **`make HOST=<non-native-triple> -C depends`** with **`rust_system_rust=yes`**, install the **Rust** target that matches the **cross** host (e.g. **`rustup target add x86_64-pc-windows-gnu`** when building **`HOST=x86_64-w64-mingw32`** from Linux). Verify with **`rustc --print target-list`** / **`rustup target list`**.
-
-**Summary**
-
-| Variable | Effect |
-|----------|--------|
-| *(default, macOS)* | **`rust_system_rust=yes`** → symlinks **`which cargo`** / **`which rustc`**. |
-| **`RUST_USE_SYSTEM=1`** | Same on **Linux, FreeBSD, Windows/MSYS**, etc. |
-| **`FORCE_DEPENDS_RUST=1`** | Pinned **1.32.0** download path; no symlinks. |
-
----
-
-### 4.12 Documentation / build changes log (recent)
-
-| Area | Change |
-|------|--------|
-| **`depends/packages/rust.mk`** | **`RUST_USE_SYSTEM=1`** enables system Rust on **any** OS; **macOS** still defaults to system without it; **`FORCE_DEPENDS_RUST=1`** forces **1.32.0**. |
-| **`src/zeronode/zeronode.cpp`** | **`pConfIndex`** null guard in **`CheckInputsAndAdd`** (defer broadcast if conf height not on active chain). |
-| **`BUILD_ZERO.md`** | **§4.10–4.12**, Rust table, **§4.6** variables, **§4.9**, **§5.2** Rust blurb. |
-| **`TODO.md`** | Active: subsidy integer refactor, zeronode **`chainActive`** audit; Completed: harness / **`getchaintips`** / **`rescan_import`** (see file). |
+**Non-consensus:** **`src/init.cpp`** (obfuscation denominations use fractional **`COIN`**), **`src/wallet/test/wallet_tests.cpp`** -- not chain rules.
 
 ---
 
@@ -390,31 +309,15 @@ These repeat §4.1 / §5 in recipe-specific form—useful when **`make -C depend
 
 ### 5.1 Linux x86_64
 
-**Compiler:** GCC 7.0+ for C++14.
-
-**Other distros:** See **§2.2.1** for Fedora/Arch/Alpine-style hosts; triplet may be **`x86_64-unknown-linux-gnu`** or similar—use the **`depends/$HOST/`** directory that **`config.guess`** produces, not only the Ubuntu example path below.
-
-**Manual build** (if not using build.sh): `make -C depends/` (HOST from `depends/config.guess`), then `CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure --enable-hardening` (substitute your **`$HOST`**), then `make`.
-
-**Rust (optional):** To use **system** **`rustup`** instead of depends **1.32.0**, run **`RUST_USE_SYSTEM=1 make -C depends`** (see **§4.11**).
+GCC 7.0+ for C++14. Manual build: `make -C depends`, then `CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure`, then `make`.
 
 ### 5.2 macOS ARM64
 
-**Compiler:** Apple Clang.
-
-**Manual build:** HOST from `./depends/config.guess`. Configure with `--enable-proton=no` (Proton incompatible with CMake 4.x) and `CXXFLAGS="-g -Wno-enum-constexpr-conversion"` (Boost/Clang 17). See §2.3 for prerequisites.
-
-**Rust:** Depends uses **system** **`cargo`/`rustc`** on **macOS** by default (**§4.11**). Install **rustup** stable (e.g. **1.92**) and ensure **`which cargo`** works in the same shell as **`make -C depends`**. **`FORCE_DEPENDS_RUST=1 make -C depends`** for pinned **1.32.0**.
-
-**BDB mutex crash:** See §6.2.
+Apple Clang. Configure with `--enable-proton=no` and `CXXFLAGS="-g -Wno-enum-constexpr-conversion"` (Boost/Clang). BDB mutex crash: see §6.2.
 
 ### 5.3 Windows
 
-**Cross-compile:** `HOST=x86_64-w64-mingw32`. Requires MXE with `x86_64-w64-mingw32.static-gcc`. Set `MXE_ROOT` (default `$HOME/mxe`; `MXE_PATH=$MXE_ROOT/usr/bin`). See §2.4 for full steps.
-
-**Manual build:** (1) `make HOST=x86_64-w64-mingw32` in depends; (2) configure with CONFIG_SITE (see §4.3), `--host=x86_64-w64-mingw32 --enable-static --disable-shared --disable-zmq --disable-rust --disable-proton`, CXXFLAGS for PTW32_STATIC_LIB, CURVE_ALT_BN128; (3) Boost `-mt` → `-mt-s` fix: use `sed -i.bak '…' configure && rm -f configure.bak` for macOS/Linux portability (see `zcutil/build-win.sh`); (4) make in src/ with `CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix`.
-
-**WSL2:** Use Linux instructions.
+Cross-compile from Linux via MXE. See §2.4 for full steps. Manual: `make HOST=x86_64-w64-mingw32 -C depends`, configure with `--host`, make in `src/` with mingw compilers.
 
 ---
 
@@ -450,9 +353,7 @@ With **`./configure --disable-mining`**, mining code is omitted from the binary;
 
 ### 6.6 zerowallet
 
-zerowallet (Qt GUI) is built from separate repos (zerowalletmac, zerowalletlinux, zerowalletwin). This repo builds only zerod, zero-cli, zero-tx.
-
-**zerod vs zerowallet toolchains:** zerod uses system GCC (Linux), Clang (macOS), mingw-w64 (Windows). Zerowallet uses Qt; Windows may use MXE for static Qt; static Qt on Linux for Linux may require gcc-11 (Qt struggles with GCC 13 on Ubuntu 24.04).
+zerowallet (Qt GUI) is built from separate repos. This repo builds only zerod, zero-cli, zero-tx.
 
 ### 6.7 Clean Rebuild
 

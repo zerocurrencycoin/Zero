@@ -47,9 +47,7 @@ Depending on the speed of your computer and network connection, the synchronizat
 
 ### •DECENTRALIZED PAYMENTS
 
-||VERY HIGH MINING PROFITABILITY||
-------------------------------------------
-Zero uses an alternative set of parameters for the Equihash algorithm, which require a GPU with 8GB of RAM. Zero is often one of the most profitable cryptocurrencies to mine.
+Zero uses an alternative set of parameters for the Equihash algorithm (192, 7), which require a GPU with 8GB of RAM.
 
 
 ❓ Is Zero Legal?
@@ -61,7 +59,7 @@ Zero is legal in most jurisdictions in the world but there are a small number of
 Zero is a network operating by the three fundamental principles of technological freedom: Decentralization, Open Source code and true Peer-to-Peer technology. With Privacy being a fundamental human right. Zero’s trust is based on the subjective valuations of human faith in mathematical algorithms, encryption and numbers. With the three pillars of technological principles Zero’s Blockchain is a peer-reviewed system of integrity.
 
 --------------
-Zero has a low emission and the inflation degrades over time quickly. Total is under 20M ZERD.
+Zero has a low emission rate that degrades over time. See [ZERO_COIN.md — Total supply](ZERO_COIN.md#total-supply-and-max_money).
 
 Zero supports both transparent (T) and shielded (Z) addresses.  Privacy is optional, not mandatory.
 ------------------------------------------
@@ -77,9 +75,9 @@ in the [Protocol Specification](https://github.com/zcash/zips/raw/master/protoco
 ------------------------------------------
 
 
-🔢 Development Fund Breakdown (Per Block Pre-Halfing)
+🔢 Development Fund
 ------------------------------------------
-0.405 ZER / Block, 291.6 ZER / Day (~7.5%)
+7.5% of block subsidy in eligible heights. See [ZERO_COIN.md -- Founders reward](ZERO_COIN.md#founders-reward-75).
 
 
 
@@ -110,10 +108,6 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
 📚 Documentation
 ----------------
 
-**Documentation partitioning:** User-facing guides (this README, **BUILD_ZERO**, **TEST_ZERO**, **ZERO_COIN**, **TODO**, **CONTRIBUTING**, …) are self-contained and do **not** reference maintainer **`Update*.md`** files. The maintainer documentation map lives only in those **Update** files at the repo root. **This README** is the project front page and documentation index.
-
-**Map vs editors:** The table below is the **full** in-repo documentation index (purpose and focus). **[AGENTS.md](AGENTS.md)** defines a **definitive user-facing** subset for builders, operators, and contributors—narrower than this map.
-
 ```
                     README
                        │
@@ -134,7 +128,7 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
 |----------|---------|-------|
 | [README.md](README.md) | Project front page; links and quick start | What Zero is, where to build, contribute, and read deeper docs |
 | [BUILD_ZERO.md](BUILD_ZERO.md) | Build and platform guide | Linux, macOS ARM64, Windows, depends, troubleshooting, release-style artifacts |
-| [TEST_ZERO.md](TEST_ZERO.md) | Validation runbook for **builders and contributors** | Runners, modes, pass-only filters, Tier A gate, **`full_test_suite.py`**; verification snapshot (working vs **`--jobs>1`**); harness changelog; bulk RPC names in **`rpc-tests.sh`**; fork-specific harness notes (e.g. 720 maturity) |
+| [TEST_ZERO.md](TEST_ZERO.md) | Validation runbook | Runners, modes, Tier A gate, pass-only filters, known failures, 720 maturity |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow | Patches, review, coding expectations |
 | [TODO.md](TODO.md) | Checklist and follow-ups | Implementation status, doc debt, small tracked tasks |
 | [ZERO_COIN.md](ZERO_COIN.md) | **User-facing** chain and node reference | Observable behavior, events, operations; **Glossary** and **References**; emission, halving, founders, zeronodes, addresses |
