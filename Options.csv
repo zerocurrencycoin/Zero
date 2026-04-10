@@ -50,6 +50,7 @@ walletnotify,wallet,,y,y,y,y
 zapwallettxes,wallet,,n,y,y,y
 consolidation,wallet,,n,y,y,y
 consolidatesaplingaddress,wallet,,n,y,y,y
+consolidationtxfee,wallet,,n,y,y,y
 deletetx,wallet,,n,n,n,y
 deleteinterval,wallet,,n,n,n,y
 keeptxnum,wallet,,n,n,n,y
@@ -114,3 +115,6 @@ metricsrefreshtime,metrics,,n,y,y,y
 shrinkdebugfile,debug,,y,y,y,y
 help-debug,debug,,y,y,y,y
 alerts,network,,y,y,y,y
+deleteconflicttx,wallet-hidden,,n,n,n,y
+enableswifttx,zeronode-hidden,,n,n,n,y
+swifttxdepth,zeronode-hidden,,n,n,n,y

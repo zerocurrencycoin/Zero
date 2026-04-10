@@ -8,9 +8,9 @@ How to contribute to the Zero node. Read the project documentation before submit
 
 Read these documents:
 
-- **[BUILD_ZERO.md](BUILD_ZERO.md)** — Build from source
-- **[TEST_ZERO.md](TEST_ZERO.md)** — Run the test suite
-- **[TODO.md](TODO.md)** — Current status and roadmap
+- **[BUILD_ZERO.md](BUILD_ZERO.md)** -- Build from source
+- **[TEST_ZERO.md](TEST_ZERO.md)** -- Run the test suite
+- **[TODO.md](TODO.md)** -- Tracked work items
 
 ---
 
@@ -19,7 +19,7 @@ Read these documents:
 1. Build: follow [BUILD_ZERO.md](BUILD_ZERO.md).
 2. Run tests: `./contrib/run-tests.sh` (see [TEST_ZERO.md](TEST_ZERO.md)).
 3. Before submitting, run **`./contrib/run-tests.sh --strict`** so any failed step exits non-zero (matches [`.github/workflows/tests.yml`](.github/workflows/tests.yml) on push/PR when CI is enabled).
-4. Without **`--strict`**, the script may exit **0** even when a step logged **FAIL**—see [TEST_ZERO.md](TEST_ZERO.md) (Interpreting results).
+4. Without **`--strict`**, the script may exit **0** even when a step logged **FAIL**--see [TEST_ZERO.md](TEST_ZERO.md) (Interpreting results).
 
 ---
 

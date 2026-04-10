@@ -1,6 +1,6 @@
 feature,type,category,zero,bitcoin,zcash,pirate,primary_files,doc_zerod1,doc_init,test_exists,test_type,test_feasibility,test_complexity,priority,effort,gap
 reindex,option,chain,y,y,y,y,"init.cpp:382,497,610-674,1479; main.cpp:5050,5425,5454,5500,5562",y,y,y,Python RPC reindex.py,done,low,-,-,-
-rescan,option,wallet,y,y,y,y,"init.cpp:450,951-959,1864,1884; wallet.cpp:3579,3617; walletdb.cpp:1016,1308; rpcdump.cpp:84-188,582-719",y,y,n,RPC import param,indirect; P1: add rescan test,easy,low,P1,P2,low
+rescan,option,wallet,y,y,y,y,"init.cpp:450,951-959,1864,1884; wallet.cpp:3578,3616; walletdb.cpp:1016,1308; rpcdump.cpp:84-188,582-719",y,y,n,RPC import param,indirect; P1: add rescan test,easy,low,P1,P2,low
 deletetx,option,wallet,y,n,n,n,"init.cpp:437,497,1825; wallet.cpp:3317-3533",n,y,n,none,medium,medium,P2,P3,low
 consolidation,option,wallet,y,n,y,y,"init.cpp:434-437,1810-1825; wallet.cpp:608,694,762,784; asyncrpcoperation_saplingconsolidation.cpp:92",n,y,n,none,hard,high,P2,P3,low
 consolidationtxfee,option,wallet,y,n,y,y,init.cpp:436,1811,n,y,n,none,medium,medium,P2,low,low

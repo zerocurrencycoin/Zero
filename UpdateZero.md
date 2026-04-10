@@ -1,182 +1,84 @@
 # UpdateZero
 
-Maintainer hub: **documentation map**, branch and validation, consensus and engineering notes, release and roadmap, **Appendix A** (test/harness prescriptions), **Appendix B** (short editor notes), **Appendix C** (draft blocks for **ZERO_COIN.md**), **Appendix D** (subsidy implementation excerpts and **`src/`** pointers for maintainers).
-
-**Branch convention:** Integration work targets **`zero-merge`**. Side branches are not release branches unless tagged.
-
-**Contents:** §1 Map · §2 Branch & validation · §3 Consensus & zeronode · §4 Engineering policy · §5 Release, tags, roadmap · §6 Rollout & decisions · §7 Fork-specific implementation · Appendix A test/harness · Appendix B editor notes · Appendix C **ZERO_COIN** source material · Appendix D subsidy code supplement
+Maintainer hub.
 
 ---
 
 ## 1. Documentation map
 
-Documentation is split so **builders and operators never need this file**. **[README.md](README.md)**, **[BUILD_ZERO.md](BUILD_ZERO.md)**, and **[TEST_ZERO.md](TEST_ZERO.md)** each open with a short **partitioning** note: user-facing docs do not reference **`Update*.md`**; **[AGENTS.md](AGENTS.md)** lists the definitive user-facing set and forbids linking **`UpdateZero.md`** from those guides.
-
-**Audiences and first stops.** Visitors and miners start at **README**. Node operators use **README** then **ZERO_COIN** (ports, maturity, glossary). Builders use **BUILD_ZERO**; contributors add **TEST_ZERO**, **CONTRIBUTING**, and **TODO**. Integrators and pools rely on **ZERO_COIN** and **doc/man/**. Maintainers use **UpdateZero** (this file), **UpdateBuild.md**, **UpdateTests.md**, and **TODO**.
-
-**Typical paths.** (1) Run a node: README → ZERO_COIN; build only if compiling (**BUILD_ZERO**). (2) Build from source: BUILD_ZERO → TEST_ZERO to validate. (3) Ship a release: TEST_ZERO strict gate + BUILD_ZERO smoke + §5 below. (4) Chain behavior only: **ZERO_COIN**, not UpdateZero.
-
-**Where content lives.** Vision and links → **README**. Compile, depends, platforms → **BUILD_ZERO**. Tests and logs → **TEST_ZERO**. Checklists → **TODO**. Observable chain and node facts, glossary → **ZERO_COIN**; subsidy code excerpts → **Appendix D** below. Dependency pins → **BUILD_ZERO** §4.1; cross-coin dependency comparison → **UpdateBuild** §5. Branch-id policy, NUM-01, deep zeronode notes → **UpdateZero**. Test exclusions and P1–P4 backlog → **UpdateTests**.
-
-**Health check.** A builder following **BUILD_ZERO** + **TEST_ZERO** alone should succeed without opening UpdateZero.
+User-facing docs: **README**, **BUILD_ZERO**, **TEST_ZERO**, **ZERO_COIN**, **TODO**, **CONTRIBUTING**, **AGENTS.md**.
+They do not reference this file.
 
 ---
 
-## 2. Branch, version, validation
+## 2. Consensus and zeronode
+
+**Branch id.** Sapling and Cosmos both use **`0x7361707a`** in `src/consensus/upgrades.cpp`. Duplicate id is documented technical debt until a deliberate NU.
+
+**Zeronode.** `src/zeronode/*` parallels Dash-style `masternode/*`. Safe iterator order when cleaning expired broadcasts. `CheckInputsAndAdd` has a null-guard for `chainActive[height]`; other sites need the same audit (see §7 issues).
+
+---
+
+## 3. Engineering policy
+
+**Height and expiry.** `TransactionBuilder::SetExpiryHeight` mixes `int` chain height with `uint32_t` expiry. Prefer explicit casts or `int64_t` for height in new code.
+
+**Numeric policy (NUM-01).** Consensus and subsidy paths should be integer-only; default rounding: truncate toward zero. No new float in consensus without review. See BUILD_ZERO §4.8 for touchpoint audit.
+
+**C++ exceptions.** `throw std::runtime_error("...")`, not `throw new`. Removed from `src/**/*.cpp` on the integration line.
+
+---
+
+## 4. Release process
+
+**Artifacts.** Tag `vMAJOR.MINOR.PATCH`; archives `Zero-<ver>-<target>-<triplet>.<ext>`; checksum file and optional detached `.asc`.
+
+**Version identity.** `configure.ac` (`_CLIENT_VERSION_*`), `src/config/bitcoin-config.h`, `src/clientversion.h`. After bump: build/smoke per BUILD_ZERO, contributor gate per TEST_ZERO, confirm `zerod -version`.
 
 ```bash
 cd ~/Work/ZK/Zero400
 git fetch origin
-git stash push -m "WIP"   # if dirty
 git checkout zero-merge
 git pull --ff-only origin zero-merge
 ```
 
-Release identity lives in **`configure.ac`** (`_CLIENT_VERSION_*`), **`src/config/bitcoin-config.h`**, and **`src/clientversion.h`**. Pinned dependencies: **BUILD_ZERO.md** §4.1; deferred upgrade queue: **UpdateBuild.md** §4. After a version bump, run build/smoke per **BUILD_ZERO** and the contributor gate per **TEST_ZERO**; confirm **`zerod -version`** matches the intended release.
+---
+
+## 5. Fork-specific implementation
+
+**Witness path.** Zero uses `VerifyAndSetInitialWitness` and `BuildWitnessCache` with optional `pblockIn`, coupling to `pcoinsTip` and chain views. Hardening: null checks, `pblockIn`, nullifier guards. Code: `src/wallet/wallet.cpp`, `wallet.h`.
+
+**Equihash.** Zero keeps libsodium C `crypto_generichash_blake2b_state` for `eh_HashState`. A Rust/CXX bridge like Zcash v6+ would need `librustzcash`/`rustcxx` alignment -- out of scope unless the PoW stack moves.
+
+**Branding.** User-visible strings should read ZERO. Clean residual Zcash/Bitcoin names when touching files; not consensus.
 
 ---
 
-## 3. Consensus and zeronode
+## 6. Test harness prescriptions
 
-**Network upgrades and branch id.** Overwinter-style transactions bind a **consensus branch id** into the **signature hash**. In **`src/consensus/upgrades.cpp`**, **Sapling** and **Cosmos** both use **`0x7361707a`**. There is **no** planned fork solely to split those ids; duplicate id is documented **technical debt** until a deliberate NU. Integrator-facing wording belongs in **ZERO_COIN.md** (*Network upgrades and branch identifiers*). Optional later: CI guard for duplicate active mainnet **`nBranchId`** (**NU-01**).
+Use when porting or fixing RPC tests. How to run: TEST_ZERO.
 
-**Zeronode vs TENT.** **`src/zeronode/*`** parallels Dash-style **`masternode/*`**. Zero uses a safe iterator order when cleaning expired broadcasts (erase sync key, then advance). **`CZeronodeBroadcast::CheckAndVerify`** must not dereference **`chainActive[height]`** when **`CChain::operator[]`** returns **NULL** (short active chain, IBD, regtest)—use **`if (!pConfIndex) return false;`** before **`GetBlockTime()`**. **CheckInputsAndAdd** already has a null-guard; audit other **`chainActive[...]`** sites (**TODO.md**). Diff **`swifttx.cpp`**, **`budget.cpp`**, **`payments.cpp`** against upstream forks for post-fork fixes. Test gaps: **UpdateTests.md**; commands: **TEST_ZERO.md**.
+**P2P / regtest.** Peers must advertise `nVersion >= 170007`; `mininode.py` default 170009. Regtest magic must match `chainparams.cpp`.
 
----
+**Coinbase maturity 720.** Call `mine_until_node_has_mature_coinbase` or `ensure_mature_coinbase_or_skip` before spends. Optional `ZERO_MINE_COINBASE=1` for bulk mine.
 
-## 4. Engineering policy
+**Regtest NU.** `-nuparams=6f76727a:1` (Overwinter), `-nuparams=7361707a:1` (Sapling). Blossom: set `-nuparams` above tip after maturity mining.
 
-**Height and expiry.** **`TransactionBuilder::SetExpiryHeight`** mixes **`int`** chain height with **`uint32_t`** expiry—avoid implicit promotion bugs; prefer explicit casts or **`int64_t`** for height in new code. Boundary behavior belongs in the test suite; runbook **TEST_ZERO.md**.
+**Wallet.** Sprout viewing key: if `GetSproutNoteNullifier` is empty, skip nullifier map update. Ref: `wallet.cpp`, `wallet_changeindicator.py`.
 
-**Numeric policy (NUM-01).** Consensus and subsidy paths should be **integer-only**; default rounding for reward splits: **truncate toward zero**. **Trigger:** changes to **`main.cpp`**, **`miner.cpp`**, **`zeronode/payments.cpp`**, **`consensus/`**, or subsidy/fee math in **`wallet/`**; or audit before a major release. **Owner:** **TODO.md** + **BUILD_ZERO.md** §4.10–4.10.1. **Steps:** (1) Grep **`double`**, **`float`**, **`/ 100.0`**, **`0.075`**, **`10.8 * COIN`** under **`src/`** in those areas. (2) For each subsidy / founders / zeronode / miner split, match **validation** and **mining** paths for identical order of operations. (3) Prefer **`a * b / c`** on widened integers; no new float in consensus without review. (4) Add regression tests for far-future halving. (5) After refactors, **ZERO_COIN** states user-visible numbers; code is truth. **Exit:** no stray float in targeted paths or each documented non-consensus; tests aligned with **BUILD_ZERO** §4.10.
+**Python 3.** `serialize_script_num`: `bytearray.append(int)`, not `chr(...)`. Import `initialize_chain_clean` when used.
 
-**C++ exceptions.** Use **`throw std::runtime_error("…");`**, not **`throw new …`**. **`throw new`** has been removed from **`src/**/*.cpp`** on the integration line. Test with **`EXPECT_THROW`**, **`CheckRPCThrows`**, or Python **`JSONRPCException`** where the error crosses a boundary.
+**Partition tests.** `split=True`: only edges 0-1 and 2-3; `CHAIN_BOOTSTRAP` + guard before re-mine. Ref: `getchaintips.py`.
 
-**Raw transaction RPC (#70).** Verbose **`getrawtransaction`** / **`decoderawtransaction`** use **`TxToJSONExpanded`**. **`size`** is present; **`fees`** deferred (spent index / shielded economics).
-
----
-
-## 5. Release, tags, and roadmap
-
-**Release artifacts.** Tag **`vMAJOR.MINOR.PATCH`**; archives **`Zero-<ver>-<target>-<triplet>.<ext>`**; one checksum convention (e.g. **`SHA256SUMS-<ver>.txt`**) and optional detached **`*.asc`**. Guix undocumented until adopted (**REL-HOST**). Params and mirror policy: describe in **BUILD_ZERO.md**.
-
-**Tags.** **REL-4.0.1** — release validation (§2), zeronode robustness (§3). **NUM-01** — §4 numeric policy. **NU-01** — branch-id posture in **ZERO_COIN**; optional CI. **REL-HOST** — mirrors and signing.
-
-**Roadmap.** Near term: run validation after each bump; close zeronode **`chainActive[]`** audit items (**TODO**); keep Tier A RPC **serial** as the gate (**`--jobs>1`** experimental). Backlog themes: keep **ZERO_COIN** and **Appendix C/D** aligned with **`src/`** after consensus edits; align **README** with §1 map; **NUM-01** and expiry-at-zero research; **REL-HOST** and **fetch-params** (**TODO**); P1–P4 and harness work in **UpdateTests**. Per tag: **REL-4.0.1** — green strict gate + notes; **NUM-01** — §4 steps + **BUILD_ZERO** §4.10; **NU-01** — **ZERO_COIN** subsection complete; **REL-HOST** — manifest owner.
+New prescription: add a row here and a TEST_ZERO harness changelog entry if behavior is user-visible.
 
 ---
 
-## 6. Rollout and decisions
+## 7. Subsidy implementation reference
 
-**Phased rollout.** **A** — README hero, links, partitioning blurb. **B** — **ZERO_COIN** body from **Appendix C** + glossary; **Appendix D** for maintainer subsidy excerpts. **C** — **BUILD_ZERO** / **TEST_ZERO** / **TODO** aligned with §1; **TEST_ZERO** leads with Quick Start and harness overview. **D** — README doc map lists **ZERO_COIN** as the chain reference. **E** — **UpdateBuild** / **UpdateTests** hold only what user docs do not. **F** — **Zeronode_wallet** placement (standalone vs **BUILD_ZERO** `--disable-wallet` note).
+Code excerpts for consensus subsidy paths. File:line drift possible -- verify against `src/`. User narrative: ZERO_COIN.md.
 
-**Tracking.** **TODO.md**, **TEST_ZERO** (known failures / changelog), **UpdateTests** (IDs, P1–P4), this file. GitHub Issues deferred. External presence (site, socials, brand) should match **README** / **ZERO_COIN** facts.
-
-**Impact categories** for prioritization: non-consensus bugfix (node release only); consensus / fork (NU + comms); index / explorer (redeploy); wallets (wallet release + notice).
-
-**Decisions (detail elsewhere):** OpenSSL **1.1.1w** in **depends** until audited **3.x** — **BUILD_ZERO** §4.1, **UpdateBuild**. Sapling/Cosmos **`nBranchId`** **`0x7361707a`** — §3, **ZERO_COIN**, **NU-01**. System Rust where supported — **BUILD_ZERO** §4.11–4.12. Float / **NUM-01** — §4, **BUILD_ZERO** §4.10. **`throw new`** removed — §4. Zeronode NULL **`pConfIndex`** — §3, **TODO**. Params — **TODO**, **BUILD_ZERO**. Test backlog — **UpdateTests**, **TEST_ZERO**.
-
----
-
-## 7. Fork-specific implementation
-
-**Witness path.** Upstream Zcash often increments witnesses from **ChainTip** without **`ReadBlockFromDisk`** in the wallet. Zero uses **`VerifyAndSetInitialWitness`** and **`BuildWitnessCache`** with optional **`pblockIn`**, coupling to **`pcoinsTip`** and chain views. Hardening: null checks, **`pblockIn`**, nullifier guards. **Tradeoff:** harder unit testing → exclusions in **UpdateTests.md**; commands **TEST_ZERO.md**. Code: **`src/wallet/wallet.cpp`**, **`wallet.h`**.
-
-**Equihash.** Zero keeps **libsodium C** **`crypto_generichash_blake2b_state`** for **`eh_HashState`**. A Rust/CXX bridge like Zcash v6+ would need **`librustzcash`** / **`rustcxx`** alignment—out of scope unless the PoW stack moves.
-
-**Branding.** User-visible strings should read **ZERO**. Clean residual **Zcash** / **Bitcoin** names in tests or metadata when touching those files; not consensus.
-
----
-
-## Appendix A — Test and harness change prescriptions
-
-Use when **porting or fixing** RPC tests. **How to run** and log reading: **TEST_ZERO.md**. **Backlog IDs:** **UpdateTests.md**.
-
-**P2P / regtest.** Peers must advertise **`nVersion` ≥ 170007**; **`mininode.py`** default **170009**. Regtest **magic** must match **`chainparams.cpp`**. Do not cap **`ver_send`** at Sprout for Sapling tests. Refs: **`p2p_txexpiry_dos.py`**, **`p2p_nu_peer_management.py`**, **TEST_ZERO**.
-
-**Coinbase maturity 720.** After short or clean chains, call **`mine_until_node_has_mature_coinbase`** or **`ensure_mature_coinbase_or_skip`** before spends. Optional **`ZERO_MINE_COINBASE=1`** for bulk mine. Refs: **`wallet_changeindicator.py`**, **`wallet_changeaddresses.py`**, **`util.py`**.
-
-**Regtest NU.** **`-nuparams=6f76727a:1`** (Overwinter), **`-nuparams=7361707a:1`** (Sapling). Blossom tests: set Blossom **`-nuparams`** above tip after maturity mining. Refs: **`wallet_changeaddresses.py`**, **`wallet_overwintertx.py`**.
-
-**Wallet.** Sprout viewing key: if **`GetSproutNoteNullifier`** is empty, skip nullifier map update (no **`assert(false)`**). Ref: **`wallet.cpp`**, **`wallet_changeindicator.py`**.
-
-**Python 3.** **`serialize_script_num`**: **`bytearray.append(int)`**, not **`chr(...)`**. Import **`initialize_chain_clean`** when used.
-
-**Partition tests.** **`split=True`**: only edges **0–1** and **2–3**; **`CHAIN_BOOTSTRAP`** + guard before re-mine. Ref: **`getchaintips.py`**.
-
-**Parallel Tier A.** **`--jobs>1`** is best-effort; serial **`N=1`** is the gate. **TODO.md**: **`paymentdisclosure`** hang under load.
-
-New prescription: add a row above and a **TEST_ZERO** harness changelog entry if behavior is user-visible.
-
----
-
-## Appendix B — Notes for documentation editors
-
-- §1 is the **only** full documentation map; user-facing files repeat the short partitioning paragraph only.
-- **TEST_ZERO** order: Quick Start → harness **prose** → then tables (changelog, reference, allowlists).
-- **Appendix C** supplies **ZERO_COIN** draft text; **Appendix D** holds subsidy code excerpts—update **D** when consensus paths change.
-
----
-
-## Appendix C — Source material for ZERO_COIN.md
-
-**Purpose.** Editors **adapt** the subsections below into **ZERO_COIN.md** narrative sections. Code excerpts and file:line-heavy material live in **Appendix D**. This appendix is **maintainer-only**; do not link it from user-facing docs.
-
-**Do not paste into ZERO_COIN:** long **` ```cpp `** blocks, ConnectBlock validation snippets, cross-chain source comparisons, RPC test file inventories—those stay in **Appendix D**, **TEST_ZERO**, **UpdateTests**, or **src/**.
-
-### C.1 Economics and emission (draft for ZERO_COIN)
-
-**Summary vs other chains (one paragraph).** Zero uses a **block subsidy** with **halving** steps, **no Zcash-style slow start**, a **7.5% founders** allocation on the subsidy in eligible heights, and a **zeronode** share of block value (**20–40%** tiered, spork-gated). Base subsidy is **10 ZER** before the fee-start height and **10.8 ZER** after (mainnet fee-start **412300**). Halving interval is **800,000** blocks pre-Blossom and **1,600,000** post-Blossom; **Blossom** is not activated at a fixed height on mainnet in current params—the pre-Blossom halving formula applies for height accounting used in docs unless that changes. Target spacing **120 s** pre-Blossom. Actual halving dates on mainnet can be taken from chain explorers (e.g. heights **800k**, **1.6M**, **2.4M** with ~3-year spacing).
-
-**Constants (operator table).** Pre-Blossom target spacing **120 s**; post-Blossom **60 s** when active; pre-Blossom halving interval **800,000** blocks; post-Blossom **1,600,000**; regtest uses shorter intervals for testing (**ZERO_COIN** timing table; **params.h** for exact names).
-
-**Subsidy rule (prose).** Starting from **10 ZER** (or **10.8 ZER** at and after fee-start), the subsidy is right-shifted by the **halving count**. When Blossom rules apply, the base is also divided by the Blossom spacing ratio (**2**) before halving shifts. Subsidy hits zero after 64 halvings.
-
-**Fee-start height (table).** Mainnet **412300**; testnet **1**; regtest **5000**. At fee-start on mainnet: base steps to **10.8 ZER** and founders outputs become required in coinbase through the last founders height per consensus.
-
-**Founders (7.5%).** Applied when height is between fee-start and **`GetLastFoundersRewardBlockHeight`** (pre-Blossom last founders height **7,999,999** per current formula). Recipient rotates through **`vFoundersRewardAddress`** by height.
-
-**Zeronodes.** **`GetZeronodePayment`**: default **20%** of block value when sporks enable full tier schedule; tiers step at halving multiples (**25%**, **30%**, **35%**, **40%**) with **SPORK_6** and **SPORK_7**; without **SPORK_6**, a fixed **100,000** zatoshis; without **SPORK_7**, **0**. Budget superblocks can replace the normal payee path when enabled.
-
-**Payee order (bullets).** Typical block: **`blockValue`** from **`GetBlockSubsidy`**; founders take **7.5%** of that when required; zeronode payment computed from **`GetZeronodePayment`**; **miner** receives remainder plus fees (see **`FillBlockPayee`** in **`zeronode/payments.cpp`** / budget path).
-
-**Worked example (refresh periodically).** Example height **2,382,565**: halvings **2** → subsidy **2.7 ZER**; founders **0.2025 ZER**; zeronode **30%** in that band → **0.81 ZER**; miner **~1.6875 ZER** plus fees (**ZERO_COIN** worked example).
-
-**Total issued (summary).** Roughly **~25.6M ZER** long-run under the documented piecewise sum (pre-fee era, post-fee pre-halving, geometric halving chain). **MAX_MONEY** in **`amount.h`** caps **single-output** amounts and does **not** equal total issued supply—validation uses **`MoneyRange`** per subsidy output; state this clearly for integrators.
-
-### C.2 Operations (draft for ZERO_COIN)
-
-**Ports and config.** Default RPC port **23801** (see README / **contrib/zero.conf**). Datadir **`.zero`**; proving params via **fetch-params** scripts (**BUILD_ZERO** for mirrors and naming).
-
-**P2P.** Subversion string uses Zero branding (not upstream “MagicBean”); exact pattern in node and **doc/tor.md** should match shipped builds.
-
-**Security warnings.** Experimental software; backup **`wallet.zero`**; key custody; link README security and Zcash security page where appropriate.
-
-### C.3 Addresses and on-chain references (draft for ZERO_COIN)
-
-**Founders addresses (mainnet).** Rotate by height; **`chainparams.cpp`** and **ZERO_COIN** founder table.
-
-**Zeronode dummy address.** Used for **collateral validation** constructs, not a normal payout sink—**ZERO_COIN** + **Appendix D.11**.
-
-**ZeroWallet donation address.** Lives in **zerowallet** tree, not this repo—point readers to wallet documentation.
-
-### C.4 Integrator alignment (branch id)
-
-Ensure **ZERO_COIN** *Network upgrades and branch identifiers* states: Sapling and Cosmos share **`0x7361707a`**; wallets and signers must follow **`getblockchaininfo`** activation heights for their network; replay between chains depends on chain ID and peers, not branch id alone.
-
-### C.5 What stays out of ZERO_COIN (reference only)
-
-Long **` ```cpp `** blocks, **ConnectBlock** founders check, cross-chain source comparisons, §11.1 internal review table, §11.2/§14 test file lists—**Appendix D** below (or **src/**). Integer migration spec: **BUILD_ZERO** §4.10. Harness porting: **Appendix A** above.
-
----
-
-## Appendix D — Subsidy implementation reference
-
-**Purpose.** Code excerpts, validation references, and porter notes for consensus subsidy paths. **File:line** drift is possible—verify against **`src/`**. User narrative: **ZERO_COIN.md**.
-
-### D.1 Base block subsidy — `GetBlockSubsidy`
-
-**Location:** `src/main.cpp` (search `GetBlockSubsidy`).
+**GetBlockSubsidy** (`src/main.cpp`):
 
 ```cpp
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
@@ -198,108 +100,325 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 }
 ```
 
-- Pre-fee: **10 ZER** base; post-fee: **10.8 ZER**; halvings: right-shift; Blossom path divides base by **2** before shift when that NU is active.
+**Params::Halving** (`src/consensus/params.cpp`): pre-Blossom `halvings = nHeight / nPreBlossomSubsidyHalvingInterval` (800000). No slow start.
 
-### D.2 Halving — `Params::Halving`
+**GetLastFoundersRewardBlockHeight:** pre-Blossom `800000*10 - 1 = 7,999,999`.
 
-**Location:** `src/consensus/params.cpp` (search `Params::Halving`).
+**Founders:** `src/zeronode/payments.cpp`, `budget.cpp` -- `blockValue * 7.5 / 100`.
 
-```cpp
-int Params::Halving(int nHeight) const {
-    if (NetworkUpgradeActive(nHeight, Consensus::UPGRADE_BLOSSOM)) {
-        int64_t blossomActivationHeight = vUpgrades[Consensus::UPGRADE_BLOSSOM].nActivationHeight;
-        int64_t scaledHalvings = ((blossomActivationHeight - SubsidySlowStartShift()) * Consensus::BLOSSOM_POW_TARGET_SPACING_RATIO)
-            + (nHeight - blossomActivationHeight);
-        return (int) (scaledHalvings / nPostBlossomSubsidyHalvingInterval);
-    } else {
-        return nHeight / nPreBlossomSubsidyHalvingInterval;
-    }
-}
-```
+**GetZeronodePayment** (`src/main.cpp`): default 20% of `blockValue`; tier steps at 800k multiples with SPORK_6/7.
 
-**Zero:** no slow start (`SubsidySlowStartShift() == 0`); pre-Blossom: `halvings = nHeight / 800000`.
+**FillBlockPayee** (`src/zeronode/payments.cpp`): superblock path vs default; order: blockValue, founders, zeronode, miner + fees.
 
-### D.3 Last founders block — `GetLastFoundersRewardBlockHeight`
+**Consensus validation** (`src/main.cpp`): requires founders output when `nFeeStartBlockHeight <= height <= GetLastFoundersRewardBlockHeight`.
 
-**Location:** `src/consensus/params.cpp`.
+**Addresses in code:** `src/chainparams.cpp` -- `vFoundersRewardAddress` (mainnet/testnet/regtest); RPC `developmentfee` (`src/rpc/zeronode.cpp`). `ZeronodeDummyAddress` -- collateral validation only.
 
-```cpp
-int Params::GetLastFoundersRewardBlockHeight(int nHeight) const {
-    bool blossomActive = NetworkUpgradeActive(nHeight, Consensus::UPGRADE_BLOSSOM);
-    if (blossomActive) {
-        int blossomActivationHeight = vUpgrades[Consensus::UPGRADE_BLOSSOM].nActivationHeight;
-        return blossomActivationHeight + nPostBlossomSubsidyHalvingInterval
-            - (blossomActivationHeight - SubsidySlowStartShift()) * BLOSSOM_POW_TARGET_SPACING_RATIO - 1;
-    } else {
-        return (nPreBlossomSubsidyHalvingInterval*10)  - 1;
-    }
-}
-```
+---
 
-Pre-Blossom: **`800000*10 - 1 = 7,999,999`**. **`GetFoundersRewardScriptAtHeight`** / **`GetFoundersRewardAddressAtHeight`** require fee-start ≤ height ≤ last founders height.
+## 8. Build reference
 
-### D.4 Founders and zeronode excerpts
+### Autoconf macros
 
-**Founders (example pattern):** `src/zeronode/payments.cpp`, `src/zeronode/budget.cpp` — `blockValue * 7.5 / 100` when height is in the founders window.
+`build-aux/m4/` -- when refreshing `ax_pthread.m4` or other vendored macros, prefer `AS_ECHO` patterns from current autoconf-archive (reduces Autoconf deprecation noise vs `$as_echo`).
 
-**`GetZeronodePayment`:** `src/main.cpp` — default **20%** of `blockValue`; with **SPORK_7** and **SPORK_6**, tier steps at **800k** multiples (**25%** … **40%**); without **SPORK_6**, **100000** zatoshis; without **SPORK_7**, **0**.
+### Source-tree build fixes (applied)
 
-**`FillBlockPayee`:** `src/zeronode/payments.cpp` — superblock path vs **`zeronodePayments.FillBlockPayee`**; order: **`blockValue`**, founders, zeronode, miner + fees (**`miner.cpp`** **`CreateNewBlock`**).
+- `equihash.cpp`: template instantiations guarded with `ENABLE_MINING`.
+- `hash.h`: `CSHA256::OUTPUT_SIZE` for stack buffers (Clang VLA warnings).
+- `secp256k1 .la`: `fzero.sh` `cleanup_secp256k1_la()` drops stale `.la` when embedded HOST disagrees with current `$HOST`; invoked by `build-native.sh` / `build-win.sh`.
+- Automake: `distcleancheck_listfiles = find . -false` override intentional (vendored trees / dist hooks).
+- `secp256k1 configure`: `AC_PROG_CC` instead of obsolete C89 macro.
+- ZMQ on Darwin: `configure.ac` strips `-lstdc++` from `ZMQ_LIBS` on `*darwin*` when `libc++` is selected (avoids duplicate C++ stdlib linkage).
+- GTest: `test_miner.cpp` only in `zero_gtest_SOURCES` when `ENABLE_MINING` (`src/Makefile.gtest.include`).
+- Zeronode: `SliceHash` `memcpy` source pointer arithmetic corrected (fortify / correctness).
+- Spork sentinels: `4070908800` in `src/zeronode/spork.h` `SPORK_*_DEFAULT` values is intentional "off" encoding; `budget.cpp` `GetBudgetPaymentCycleBlocks()` uses `INT_MAX` for the same purpose on mainnet.
 
-### D.5 Total supply formula (maintainer)
+### Peer dependency snapshot (Apr 2026)
 
-Piecewise sum (mainnet, fee-start **412300**): pre-fee **[0, 412299]**; post-fee segment before first halving; then geometric halving tail → long-run **≈ 25.6M ZER**. **`MAX_MONEY`** vs cumulative issuance: see **ZERO_COIN** *Total supply and MAX_MONEY*.
+| Library | Zero | Zcash | Pirate | Bitcoin | Zero source |
+|---------|------|-------|--------|---------|-------------|
+| BDB | 6.2.32 | 6.2.23 | 6.2.32 | removed | `depends/packages/bdb.mk` |
+| libsodium | 1.0.21 | 1.0.20 | 1.0.18 | -- | `depends/packages/libsodium.mk` |
+| Boost | 1.88.0 | 1.83.0 | 1.83.0 | 1.88.0 | `depends/packages/boost.mk` |
+| Rust | 1.32.0 | 1.81.0 | 1.69.0 | -- | `depends/packages/rust.mk` |
+| OpenSSL | 1.1.1w | removed | -- | removed | `depends/packages/openssl.mk` |
 
-### D.6 Internal review table (§11.1 migration)
+Version pins live in `depends/packages/*.mk` (`$(package)_version` variable). The table above is a point-in-time comparison. Zcash/Pirate/Bitcoin columns are historical snapshots of their respective trees; re-verify against upstream before any merge or release.
 
-| Location | Issue |
-|----------|-------|
-| `src/amount.h` | `MAX_MONEY` vs total issued ~25.6M ZER — per-output **`MoneyRange`** only. |
-| `TODO.md` / legacy docs | Drop outdated **`338665500000000`** total-subsidy zatoshi references if any remain. |
-| `doc/tor.md` | **subver** examples must match shipped Zero branding, not legacy MagicBean. |
+---
 
-### D.7 RPC Python tests — sample inventory
+## 9. Issues and Tasks
 
-| File | Note |
+All tracked issues, deferred decisions, and work backlog. TODO.md is a minimal contributor-facing subset.
+
+**Impact categories:** non-consensus bugfix (node release only); consensus/fork (NU + comms); index/explorer (redeploy); wallets (wallet release + notice).
+
+**Rule:** Items about possible errors, misstatements, or unconfirmed arithmetic (e.g. supply computation, subsidy rounding) stay here until researched, confirmed, and fixed or mitigated. They do not go into user-facing documentation until resolved.
+
+### README rewrite (high urgency)
+
+Merge/rewrite README.md and README0.md into a single coherent front page. Current README has era-dependent figures, marketing-era copy, and inconsistencies with ZERO_COIN.md.
+
+### Params archival
+
+`zcutil/fetch-params.sh` still references upstream Zcash parameter file names and mirror URLs. Tasks: (1) Audit parameter file names vs what `zerod` actually loads at startup. (2) Verify mirror URLs are live. (3) If mirrors are dead or renamed, update the script or document the manual procedure. See BUILD_ZERO §3.
+
+### Chain bootstrap procedure
+
+Document a bootstrap procedure for new node operators: where to obtain a trusted chain snapshot, verification steps, and datadir placement. This is separate from params (proving key files) -- bootstrap is about the block/chainstate data. Currently undocumented.
+
+### Debian packaging
+
+`zcutil/build-debian-package.sh` (zcash naming) likely superseded by `zcutil/release-linux.sh` (zero naming). Confirm and deprecate.
+
+### Parallel Tier A RPC (deprioritized)
+
+`paymentdisclosure` hang under `--jobs>1`. Serial gate is sufficient. Deprioritized with other CI-focused issues.
+
+### Release branch cleanup
+
+Fifteen release branches (v1.0.12 through z21) are redundant with their corresponding tags and safe to delete remotely. No commits are reachable only from the branch.
+
+### SUPPLY-01 -- Total supply discrepancy
+
+Project target is some **20M ZER**. Current `GetBlockSubsidy` piecewise sum (fee-start 412300, 10.8 ZER post-fee base, geometric halving) computes ~25.6M ZER long-run. This exceeds the target.
+
+**Action:** (1) Review implementation arithmetic vs original spec. (2) Determine whether the 10.8 post-fee base or the fee-start transition needs adjustment. (3) Compare upstream Zcash and Pirate supply computations. (4) `MAX_MONEY` in `amount.h` caps per-output amounts only; not a total-supply cap. User-facing docs say "some 20M" until resolved.
+
+### NUM-01 -- Consensus integer math
+
+Replace `double`/`COIN` mixes in `GetBlockSubsidy`, founders `* 0.075`, and validation paths with `CAmount` integer policy. Audit touchpoints in BUILD_ZERO §4.8. Steps: grep `double`/`float`/`0.075`/`10.8 * COIN` under `src/` in consensus paths; match validation and mining for identical order of operations; add far-future halving tests.
+
+### NU-01 -- Branch id posture
+
+Sapling and Cosmos share `0x7361707a`. No planned fork to split. Optional: CI guard for duplicate active mainnet `nBranchId`.
+
+### chainActive[] audit
+
+Full audit of `src/zeronode/` for `chainActive[` bracket access and `chainActive.Tip()` dereference without null guard. `CChain::operator[]` returns NULL when `nHeight < 0` or `nHeight >= vChain.size()` (`src/chain.h:644-647`).
+
+**Unguarded sites (fix required):**
+
+| File | Line | Function | Risk |
+|------|------|----------|------|
+| `zeronode.cpp` | 685 | `CZeronodePing::CZeronodePing(CTxIn&)` | `chainActive[chainActive.Height() - 12]` -- NULL if chain < 12 blocks (startup/regtest). Not external input. |
+| `swifttx.cpp` | 231 | `CreateNewLock` | `chainActive.Tip()->nHeight` -- NULL if no tip (empty chain). Internal/tx-driven. |
+
+**Already guarded (no action):**
+
+| File | Line | Function |
+|------|------|----------|
+| `zeronode.cpp` | 613 | `CheckInputsAndAdd` -- `pConfIndex` null-checked before use. |
+| `swifttx.cpp` | 424 | `CleanTransactionLocksList` -- `if (chainActive.Tip() == NULL) return`. |
+| `budget.cpp` | multiple | `FillBlockPayee`, `GetBudget`, `IsValid`, `GetBlockCurrentCycle`, `AutoCheck` -- all assign `pindexPrev = chainActive.Tip()` then check before use. |
+| `payments.cpp` | multiple | `IsBlockValueValid`, `FillBlockPayee`, `ProcessMessage`, `IsScheduled`, `Sync` -- compound `if (!locked \|\| chainActive.Tip() == NULL) return` guards. |
+| `zeronode-sync.cpp` | | `Process` -- `pindexPrev` checked. |
+
+**Fix:** Add null checks at `zeronode.cpp:685` and `swifttx.cpp:231`. Both trigger only on very short chains (< 12 blocks), not from peer-supplied input, so crash risk is startup/regtest-only. Not exploitable.
+
+### Deferred upgrades
+
+| Item | Note |
 |------|------|
-| `test_framework/blocktools.py` | Regtest halving interval, founder % from fee-start height |
-| `test_framework/util.py` | Zero branch IDs |
-| `blockchain.py` / `wallet.py` | Amount expectations — align with Zero params when porting |
+| Rust pin | Replace 1.32.0 + ARM symlink with one pinned modern toolchain. |
+| OpenSSL | Remain on 1.1.1w until audited 3.x or removal. |
+| librustzcash | With network upgrades only. |
+| Proton / AMQP | Revisit only if AMQP productized. AMQP options (`-amqppub{hashblock,hashtx,rawblock,rawtx}`) exist in init.cpp HelpMessage but are not tracked in Options.csv pending productization. |
+| Boost >1.88 | Requires C++ standard and `ax_boost_*` revalidation. |
 
-### D.8 Consensus validation (founders output)
+### Hidden options (no HelpMessageOpt, parsed in init.cpp)
 
-**Location:** `src/main.cpp` (coinbase check near founders height range).
+| Option | Default | Effect |
+|--------|---------|--------|
+| `-deleteconflicttx` | true | With `-deletetx`, allow removing conflicted (depth -1) wallet txs. Wallet-only. |
+| `-enableswifttx` | true | Wallet-side SwiftTX lock depth/signatures. Does not disable `main.cpp` IX helpers. |
+| `-swifttxdepth` | 5 (clamp 0-60) | Virtual confirmation boost for SwiftTX-locked txs in wallet and `GetIXConfirmations`. |
 
-```cpp
-if ((nHeight >= consensusParams.nFeeStartBlockHeight) && (nHeight <= consensusParams.GetLastFoundersRewardBlockHeight(nHeight))) {
-    // Must find output: scriptPubKey == GetFoundersRewardScriptAtHeight(nHeight)
-    //                   nValue == GetBlockSubsidy(nHeight, ...) * 0.075
-    if (!found) return state.DoS(100, error("founders reward missing"), REJECT_INVALID, "cb-no-founders-reward");
-}
-```
+Added to Options.csv as `*-hidden` category. Not in `-help` output.
 
-### D.9 Comparison with other chains (summary)
+### zcrawreceive (legacy Sprout)
 
-**Bitcoin:** `halvings = nHeight / 210000`; **50 BTC >> halvings**; no founder/zeronode slice in coinbase taxonomy used here.
+Sprout-only note decryption + commitment witness probe. Self-marked DEPRECATED in RPC help. Both params are strings so missing `vRPCConvertParams` entry is correct (no fix needed). Still operable for Sprout ciphertexts. Deprecate and remove with Sprout removal; do not expose in user docs.
 
-**Zcash:** 20% founder era, slow start, **`SubsidySlowStartShift`**, Blossom-scaled halving; later funding streams (ZIP 214).
+### Release build flags
 
-**Pirate:** asset-chain **`komodo_ac_block_subsidy`**, **`ASSETCHAINS_*`** parameters.
+Current state of optimization and debug flags:
 
-### D.10 Tests and logs
+| Source | Flag | Effect |
+|--------|------|--------|
+| `depends/hosts/linux.mk` (and darwin, mingw32, freebsd) | `-O1 -pipe` | Injected via `config.site` for both release and debug. Conservative; Zcash-like. Bitcoin Core uses `-O2`. |
+| `zcutil/build-native.sh` | `CXXFLAGS='-g'` | Always passed to `./configure`. Adds debug symbols to every native build. Also suppresses `configure.ac` warning flags (`-Wall`/`-Wextra`) because setting `CXXFLAGS` triggers `CXXFLAGS_overridden`. |
+| `zcutil/build-win.sh` | `CXXFLAGS="-DPTW32_STATIC_LIB ..."` | No `-g`; no explicit optimization (inherits depends `-O1`). |
+| `zcutil/release-linux.sh` | `strip` on staged copies | Strips `zerod`, `zero-cli`, `zero-tx` in tarball and .deb by default. `-s` flag skips. |
+| `contrib/devtools/split-debug.sh` | `objcopy --only-keep-debug` | Exists but not wired into release pipeline. |
 
-**C++:** `main_tests.cpp` — subsidy tests may skip under Zero reference model; `test_foundersreward.cpp`; regtest halving intervals.
+**Proposed changes:**
 
-**Logs:** `payments.cpp` — zeronode/founder/miner/coinbase trace lines.
+1. **`build-native.sh`:** Gate `-g` behind `ZERO_DEBUG=1` or remove it from the default configure line. Currently it inflates objects and suppresses warning flags for all builds.
+2. **`depends/hosts/*.mk`:** Evaluate `-O2` for release (benchmark first); `-O1` is Zcash-inherited, not optimal.
+3. **`configure.ac`:** Decouple `CXXFLAGS_overridden` from bare `-g` so warning flags are not suppressed when only debug symbols are requested.
+4. **`release-linux.sh`:** Optionally integrate `split-debug.sh` for a separate `-dbg` package.
 
-### D.11 Addresses and keys in code
+### Release signing and integrity
 
-**Founders:** `src/chainparams.cpp` — **`vFoundersRewardAddress`** mainnet/testnet/regtest; RPC **`developmentfee`** (`src/rpc/zeronode.cpp`).
+No release checksum or signing procedure exists. Minimum viable and ideal approaches:
 
-**Zeronode dummy:** `chainparams.cpp` **`ZeronodeDummyAddress`** — collateral validation only (`zeronode.cpp` **`GetTestingCollateralScript`**).
+**Linux:** Publish `SHA256SUMS` + detached GPG signature (`SHA256SUMS.asc`) from a dedicated release key. Document: import key, `gpg --verify`, `sha256sum -c`. Ideal: reproducible builds + multi-builder attestations (Bitcoin Core Guix model). Cost: time only.
 
-**ZeroWallet donation:** out-of-tree **`zerowallet`** settings.
+**macOS:** Apple Developer ID signing + notarization (`codesign` + `xcrun notarytool`). $99/year. Without it, Gatekeeper blocks or warns; users must bypass ("developer cannot be verified"). Ad-hoc signing (`codesign -s -`) satisfies Apple Silicon requirements but does not pass Gatekeeper for downloads.
 
-**Test WIF / extended keys:** `src/test/rpc_tests.cpp`, `qa/rpc-tests/sprout_sapling_migration.py` (verify paths in tree).
+**Windows:** Authenticode OV certificate + `signtool sign`. Typically several hundred USD/year from a public CA; hardware token often required. Without it, SmartScreen shows "Windows protected your PC" on every download. EV certificates may build reputation faster.
 
-**Alert signing:** legacy P2P alert tests vs Zcash removal — see codebase and **ZERO_COIN** security note; product decision is maintainer scope.
+**Cross-platform:** Sigstore/cosign as supplementary attestation layer. Does not replace GPG or OS signing for end-user trust.
+
+**What peers do:** Bitcoin Core uses Guix + multi-builder GPG attestations + codesigned macOS/Windows. Zcash uses Gitian + gitian.sigs. Monero uses GPG-signed hashes.
+
+### macOS developer signing (tracking)
+
+Enroll in Apple Developer Program. Sign with Developer ID Application identity (`--options runtime`, `--timestamp`). Notarize with `xcrun notarytool`. Staple ticket for .dmg distribution. Without this, macOS users face Gatekeeper quarantine on every download.
+
+### Build validation (pending)
+
+| Check | Purpose |
+|-------|---------|
+| Parity | Same configure knobs on `build.sh --daemon` and `build-win.sh`. |
+| Depends smoke | `make -C depends HOST=x86_64-w64-mingw32` succeeds before full Windows build. |
+
+### Test exclusions and root causes
+
+**GTest:** CachedWitnesses* excluded (harness lacks pcoinsTip). WriteCryptedSaplingZkeyDirectToDb hangs (CDB::Rewrite deadlock). 4.3-4.8 fixed.
+
+**Boost:** Alert_tests excluded (MagicBean subver). equihash_tests excluded (96,5 vs 192,7). miner_tests excluded (same). rpc_wallet_encrypted_wallet_sapzkeys excluded (CDB::Rewrite). 5.4-5.8 fixed.
+
+**RPC Python:** Skips for coinbase maturity (720), protocol version, clean-chain amounts. getchaintips main path fixed. Parallel Tier A (`--jobs>1`) unreliable.
+
+### Test coverage gaps
+
+| Area | Coverage | Key gaps |
+|------|----------|----------|
+| zero_exclusive RPCs | 0% | zs_listtransactions, zs_gettransaction, getalldata, getsupply |
+| zero_experimental | 0% | getsaplingwitness, getsaplingwitnessatheight, getsaplingblocks |
+| Zeronode logic | 0% | Payment calc, budget validation, collateral |
+| SwiftTX / Spork | 0% | Lock conflict, activation |
+| Zeronode RPC | ~25% | zeronodecurrent, getzeronodeoutputs, startzeronode, budget subcmds |
+| Mining/PoW | 75% | miner_tests excluded (192,7 vs 96,5) |
+| Wallet | 80% | CDB::Rewrite blocks 3 tests |
+| RPC Python (Tier A) | 19 pass-only | exit 0 != full scenario coverage |
+| Fuzz | 0% | No infra |
+
+### zero_exclusive param validation (high importance)
+
+Zero's own RPCs (`zs_listtransactions`, `zs_gettransaction`, `getalldata`, `getsupply`, `zs_listspentbyaddress`, `zs_listreceivedbyaddress`, `zs_listsentbyaddress`) and experimental RPCs (`getsaplingwitness`, `getsaplingwitnessatheight`, `getsaplingblocks`) have 0% test coverage. Minimum: Boost param-validation tests (bad-arg / missing-arg / help output). These are the only RPCs unique to Zero and the most likely to carry undiscovered issues.
+
+### Test work priorities
+
+**P1 (quick):** zeronode super/znbudget super subcmd validation; zero_experimental param validation.
+
+**P2 (medium):** Zeronode logic GTest (mock znodeman, budget); SwiftTX/Spork GTest; Zeronode Python integration; CDB::Rewrite fix; CachedWitnesses pcoinsTip population.
+
+**P3:** Zero (192,7) Equihash vectors; partition/misbehavior P2P; parallel Tier A stabilization; wallet backup/restore.
+
+**P4 (deferred):** Fuzz infra; functional test migration.
+
+### Debug notes
+
+**CachedWitnesses*:** Partial fixes applied (index lifetime, pblockIn path). Still fails on pre-add witnesses and EXPECT_DEATH vs no assert. Debug: `./src/zero-gtest --gtest_filter='WalletTests.CachedWitnessesEmptyChain' --gtest_break_on_failure`.
+
+**CDB::Rewrite:** `wallet/db.cpp` busy-waits on mapFileUseCount while EncryptWallet holds DB open. Fix path: close wallet DB before rewrite, or copy-then-rename.
+
+**wallet.py node0 balance:** Node0 ~19 vs expected 29 on clean chain; COINBASE_MATURITY/subsidy. Debug: `--nocleanup`, `listunspent` at heights 4-6.
+
+### CSV inventories
+
+Repo-root CSVs (`RPCs.csv`, `RPCs_extended.csv`, `Options.csv`, `Options_extended.csv`, `Reindex_Rescan.csv`) track RPC/option comparison. Update both base and extended when adding/removing RPCs.
+
+### Completed
+
+- ZERO_COIN + UpdateZero §7: Chain economics and ops in ZERO_COIN.md; maintainer subsidy excerpts in UpdateZero §7.
+- UpdateBuild / UpdateTests consolidation: Folded into UpdateZero §8 and §9.
+- `run-tests.sh` background jobs: `run_bg` uses `BG_LAST_PID`; child exit codes correct.
+- `getchaintips` RPC test: Split-network topology, CHAIN_BOOTSTRAP, branch/rejoin assertions.
+- `rescan_import.py` executable: Git index 100755.
+- macOS system Rust: `depends/packages/rust.mk` RUST_USE_SYSTEM.
+- Zeronode `pConfIndex` null guard: `CheckInputsAndAdd` null-checked.
+- Decorative Unicode stripped: Em-dashes, curly quotes, arrows replaced with ASCII in all docs except README.md. Rule added to AGENTS.md.
+- `backup/attribution-rewrite-202603201534` branch deleted.
+- Tag typos: `v.3.3.1` and `v3.3.12` replaced with `v3.3.1` (pushed to remote).
+- Iterator bug (zeronodeman.cpp cleanup loop): erase order corrected, `mapSeenSyncZNB` first.
+- `throw new std::runtime_error` removed from all 5 C++ sites.
+- Debug `std::cout` leaks: cited paths (`wallet/src/rpc.cpp`, `websockets.cpp`) not present in this tree; only remaining `std::cout` is in test code (`test_paymentdisclosure.cpp`).
+
+---
+
+## Appendix: Identified issues (from zero_errs.txt)
+
+Source: external AI-assisted code audit (Mar 2026), maintainer triage, and subsequent review. Original log in `zero_errs.txt`. Each item below gives the original finding, cited file/lines, actual status, and tracking chain.
+
+### A1. Iterator bug in zeronode cleanup
+
+**Cited:** `src/zeronode/zeronodeman.cpp:323-324`. Two-map erase in wrong order; `mapSeenZeronodeBroadcast.erase(it3++)` before `mapSeenZeronodePing.erase((*it_map).second...)` reads advanced/invalidated iterator. Fires every 60s in `CheckAndRemove` on any broadcast older than ~4.3h. Segfault if last entry; silent wrong-entry erase otherwise. Correct pattern existed 60 lines up (line 263-267).
+
+**Status:** Fixed. Lines 318-326 now erase `mapSeenSyncZNB` first, then `mapSeenZeronodeBroadcast.erase(it3++)`. -> §9 Completed.
+
+### A2. throw new std::runtime_error (5 sites)
+
+**Cited:** `src/transaction_builder.cpp:82`, `src/main.cpp:7477`, + 3 in `src/zcbenchmarks.cpp`. Throws a pointer; all catch handlers catch by reference. If triggered, `std::terminate()`. Inherited from upstream Zcash; same pattern in Horizen at same lines. 3 of 5 in benchmark code (low risk); 2 in real validation paths.
+
+**Status:** Fixed. All 5 sites corrected to `throw std::runtime_error(...)`. -> §9 Completed. -> §3 Engineering policy now mandates `throw`, not `throw new`.
+
+### A3. Floating-point in block subsidy
+
+**Cited:** `src/main.cpp:2113` (`nSubsidy = 10.8 * COIN`), `src/main.cpp:4508` (founders `* 0.075`). Double arithmetic. Works by coincidence on 64-bit for current values, but at halving 7 (~block 5.6M) founders fraction `8437500 * 0.075 = 632812.5` causes miner path (truncates to 632812) and validator path (keeps 632812.5 as double) to disagree. Deterministic consensus failure ~21 years out.
+
+**Status:** Open. Tracked as SUPPLY-01 (total supply discrepancy) and NUM-01 (integer math policy) in §9. Fix: `blockValue * 75 / 1000` for both paths; audit all `double`/`float` in consensus. -> §9 SUPPLY-01, NUM-01.
+
+### A4. Duplicate branch ID (Sapling == Cosmos)
+
+**Cited:** `src/consensus/upgrades.cpp:28-33`. Both use `0x7361707a`. Transactions signed in one era are valid in the other; no replay protection between eras.
+
+**Status:** Open. Tracked as NU-01 in §9. Internal idea, never fully activated. If long-lived UTXOs spent across eras, replay is possible. Evaluate whether unique Cosmos branch ID is needed or whether the upgrade can be formally retired. -> §9 NU-01.
+
+### A5. Debug output leaks transaction data
+
+**Cited:** `wallet/src/rpc.cpp:1281`, `wallet/src/websockets.cpp:698`. Two `std::cout` calls dumping full transaction JSON.
+
+**Status:** False positive. Cited paths do not exist in Zero's source tree. Zero uses `src/wallet/rpcwallet.cpp` (not `wallet/src/rpc.cpp`) and has no `websockets.cpp`. Full `std::cout` audit of `src/` found: `metrics.cpp` (intentional TUI), test code behind `#ifdef` guards, `tinyformat.h` (library infra), `test_paymentdisclosure.cpp` (test only). No release-path stdout leaks exist. -> §9 Completed (false positive documented).
+
+### A6. Null deref in CheckInputsAndAdd
+
+**Cited:** `src/zeronode/zeronode.cpp:615-616`. `chainActive[pMNIndex->nHeight + 14]` returns NULL on short chains; any peer can trigger via znb message.
+
+**Status:** Fixed. Null guard added. Two additional unguarded sites found in audit: `zeronode.cpp:685` (`CZeronodePing` constructor, `Height() - 12`) and `swifttx.cpp:231` (`CreateNewLock`, `Tip()->nHeight`). Both trigger only on chains < 12 blocks. -> §9 chainActive[] audit (expanded with full site table).
+
+### A7. OpenSSL 1.1.1w + Rust 1.32.0
+
+**Cited:** `depends/packages/openssl.mk:2`, `depends/packages/rust.mk:31`. OpenSSL 1.1.1 EOL Sep 2023. Rust 1.32.0 has known CVEs in vendored crates.
+
+**Status:** Open. Tracked in §9 Deferred upgrades. OpenSSL 3.x migration is non-trivial; evaluated across Bitcoin/Zcash/clones. Rust uses system toolchain on macOS/Linux; pinned 1.32.0 only for depends cross-compile. -> §9 Deferred upgrades (Rust pin, OpenSSL).
+
+### A8. Build notes (fetch-params, debug symbols, checksums)
+
+**Cited:** `fetch-params.sh` downloads from `download.z.cash`. Debug symbols `-g` in release. No release checksums/signing.
+
+**Status:**
+- **fetch-params:** Open. Tracked as Params archival in §9. Mirror URLs and naming need audit.
+- **Chain bootstrap:** Open. Tracked as separate item in §9.
+- **Debug symbols:** Open. Tracked in §9 Release build flags. `build-native.sh` forces `CXXFLAGS='-g'`; `release-linux.sh` strips staged binaries.
+- **Checksums/signing:** Open. Tracked in §9 Release signing and integrity + macOS developer signing. No procedure exists yet.
+
+### Tracking chain summary
+
+| ID | Description | Status | §9 tracking |
+|----|-------------|--------|-------------|
+| A1 | Iterator erase order | Fixed | Completed |
+| A2 | throw new (5 sites) | Fixed | Completed |
+| A3 | Float in subsidy/founders | Open | SUPPLY-01, NUM-01 |
+| A4 | Duplicate branch ID | Open | NU-01 |
+| A5 | Debug stdout leaks | False positive | Completed |
+| A6 | Null deref chainActive | Partial (1 fixed, 2 remaining) | chainActive[] audit |
+| A7 | OpenSSL/Rust versions | Open | Deferred upgrades |
+| A8a | fetch-params mirrors | Open | Params archival |
+| A8b | Chain bootstrap | Open | Chain bootstrap procedure |
+| A8c | Debug symbols in release | Open | Release build flags |
+| A8d | Checksums/signing | Open | Release signing, macOS signing |

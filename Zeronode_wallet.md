@@ -2,7 +2,7 @@
 
 Wallet abstraction for Zero's zeronode (masternode) functionality. Addresses circular linking, enables wallet-optional builds, and decouples server from wallet.
 
-**Status:** Complete (June 2025). **Architecture:** Strategy pattern — `CZeronodeWalletInterface` (real) and `CZeronodeWalletStub` (wallet-disabled).
+**Status:** Complete (June 2025). **Architecture:** Strategy pattern -- `CZeronodeWalletInterface` (real) and `CZeronodeWalletStub` (wallet-disabled).
 
 ---
 
@@ -12,17 +12,17 @@ Wallet abstraction for Zero's zeronode (masternode) functionality. Addresses cir
 
 Zeronode code was tightly coupled to the wallet library. Server code directly accessed `pwalletMain` and wallet types, causing:
 
-- **Circular linking** — Server ↔ wallet dependencies; linker errors
-- **Wallet-required builds** — No clean `--disable-wallet` path
-- **Scattered `#ifdef ENABLE_WALLET`** — Brittle guards around direct access
-- **Header pollution** — `wallet.h`, `CWallet`, `CReserveKey` pulled into server
+- **Circular linking** -- Server <-> wallet dependencies; linker errors
+- **Wallet-required builds** -- No clean `--disable-wallet` path
+- **Scattered `#ifdef ENABLE_WALLET`** -- Brittle guards around direct access
+- **Header pollution** -- `wallet.h`, `CWallet`, `CReserveKey` pulled into server
 
 ### Solution
 
-1. **Interface abstraction** — `IZeronodeWalletInterface` with 13 methods; server calls `g_zeronodeWallet->Method()` instead of `pwalletMain->Method()`.
-2. **Two implementations** — Real (forwards to `pwalletMain`) and stub (safe no-ops); selected at init.
-3. **Library restructuring** — `zeronodeconfig.cpp`, `swifttx.cpp`, `activezeronode.cpp` moved to server lib; only `zeronode-wallet-interface.cpp` in wallet lib.
-4. **Type erasure** — `CommitTransaction(..., void* reservekey, ...)` avoids `wallet.h` in headers; call sites construct `CReserveKey(pwalletMain)` locally when needed.
+1. **Interface abstraction** -- `IZeronodeWalletInterface` with 13 methods; server calls `g_zeronodeWallet->Method()` instead of `pwalletMain->Method()`.
+2. **Two implementations** -- Real (forwards to `pwalletMain`) and stub (safe no-ops); selected at init.
+3. **Library restructuring** -- `zeronodeconfig.cpp`, `swifttx.cpp`, `activezeronode.cpp` moved to server lib; only `zeronode-wallet-interface.cpp` in wallet lib.
+4. **Type erasure** -- `CommitTransaction(..., void* reservekey, ...)` avoids `wallet.h` in headers; call sites construct `CReserveKey(pwalletMain)` locally when needed.
 
 ### How It Works
 
@@ -34,7 +34,7 @@ Zeronode code was tightly coupled to the wallet library. Server code directly ac
 
 ## 2. Interface and Usage
 
-### Interface — 13 methods
+### Interface -- 13 methods
 
 | Category | Methods |
 |----------|---------|
@@ -141,8 +141,8 @@ zero-cli submitbudget "name" "url" 1 100 "addr" 100 "fee-tx"
 
 | File | Change |
 |------|--------|
-| `zeronode-wallet-interface.h` | Created — interface definition |
-| `zeronode-wallet-interface.cpp` | Created — real and stub impls |
+| `zeronode-wallet-interface.h` | Created -- interface definition |
+| `zeronode-wallet-interface.cpp` | Created -- real and stub impls |
 | `Makefile.am` | Library restructuring, linking order |
 | `Makefile.test.include` | Test linking deps |
 | `rpc/register.h` | Conditional RPC |
