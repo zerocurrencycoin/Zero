@@ -474,7 +474,7 @@ boost::filesystem::path GetDefaultDataDir()
     // Windows < Vista: C:\Documents and Settings\Username\Application Data\zero
     // Windows >= Vista: C:\Users\Username\AppData\Roaming\zero
     // Mac: ~/Library/Application Support/zero
-    // Unix: ~/.zcash
+    // Unix: ~/.zero
 #ifdef WIN32
     // Windows
     return GetSpecialFolderPath(CSIDL_APPDATA) / "zero";

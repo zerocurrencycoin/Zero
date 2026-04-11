@@ -1,6 +1,6 @@
 # ZERO_COIN - User-observable chain and node
 
-Reference for **what the Zero network and this node do** from an operator, miner, pool, exchange, and integrator perspective: economics visible on-chain, heights and dates, ports, operational facts, and how Zero differs from upstream where it matters.
+Chain economics, consensus parameters, operational facts, and where Zero differs from upstream.
 
 | Audience | Use |
 |----------|-----|
@@ -188,7 +188,7 @@ Mainnet donation address (zerowallet repo): `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP
 
 - **Default RPC port:** **23801** (see [README -- Running Zero](README.md#-running-zero), `contrib/zero.conf`).
 - **Datadir:** `~/.zero`; wallet file `wallet.zero` -- **back up** before upgrades.
-- **Proving params:** `zcutil/fetch-params.sh`; see [BUILD_ZERO -- Data directory](BUILD_ZERO.md#3-data-directory-and-params).
+- **Proving params:** `zcutil/fetch-params.sh`; see [BUILD_ZERO -- .zero directory](BUILD_ZERO.md#3-zero-directory).
 - **Tor:** `doc/tor.md`.
 - **New addresses:** `getnewaddress` (transparent), `z_getnewaddress sapling` (shielded); list: `getaddressesbyaccount ""`, `z_listaddresses`.
 

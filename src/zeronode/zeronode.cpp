@@ -682,7 +682,12 @@ CZeronodePing::CZeronodePing()
 CZeronodePing::CZeronodePing(CTxIn& newVin)
 {
     vin = newVin;
-    blockHash = chainActive[chainActive.Height() - 12]->GetBlockHash();
+    {
+        LOCK(cs_main);
+        int h = chainActive.Height();
+        CBlockIndex* pindex = (h >= 12) ? chainActive[h - 12] : chainActive.Genesis();
+        blockHash = pindex ? pindex->GetBlockHash() : uint256();
+    }
     sigTime = GetAdjustedTime();
     vchSig = std::vector<unsigned char>();
 }
