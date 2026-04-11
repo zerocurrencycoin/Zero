@@ -195,9 +195,11 @@ All tracked issues, deferred decisions, and work backlog.
 | Params fetched | `sapling-spend.params`, `sapling-output.params`, `sprout-groth16.params` | `zcutil/fetch-params.sh` |
 | Sprout keys | `sprout-proving.key`, `sprout-verifying.key` -- **commented out**, no longer fetched | same |
 | Help `-port` text | **Fixed:** was showing Zcash defaults 8233/18233; corrected to 23801/23802 | `src/init.cpp:417` |
-| `util.cpp` comment | Line ~486 says `Unix: ~/.zcash` but code returns `~/.zero` -- stale comment | `src/util.cpp` |
+| `util.cpp` comment | **Fixed:** was `Unix: ~/.zcash`; corrected to `~/.zero` | `src/util.cpp` |
 
-Gaps to address in BUILD_ZERO / README: minimal quickstart (install deps, build, fetch-params, launch `zerod`), verify `zero-cli getinfo` works, explain `zero.conf` RPC credentials.
+**Runtime check:** `zerod` runs fine on the maintainer tree (Apr 2026).
+
+Gaps to address in BUILD_ZERO / README: minimal quickstart (install deps, build, fetch-params, launch `zerod`), explain `zero.conf` RPC credentials for first-time operators.
 
 *B. Zeronode setup* (validated against code):
 
