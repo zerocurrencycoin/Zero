@@ -69,7 +69,7 @@ bool CZeronodeWalletInterface::GetZeronodeVinAndKeys(CTxIn& txin, CPubKey& pubKe
                                                     CKey& keyCollateralAddress, std::string& strTxHash, 
                                                     std::string& strOutputIndex)
 {
-    // Zeronode-specific operation: Find suitable 1000 ZERO collateral and extract keys
+    // Zeronode-specific operation: Find suitable 10000 ZER collateral and extract keys
     if (!pwalletMain) return false;
     return pwalletMain->GetZeronodeVinAndKeys(txin, pubKeyCollateralAddress, keyCollateralAddress, strTxHash, strOutputIndex);
 }

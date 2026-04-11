@@ -10,7 +10,7 @@ Build guide for the Zero full node binary `zerod`.
 
 ## 1. Introduction
 
-Zero is a Zcash-family cryptocurrency node. Build `zerod` from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). **OS coverage tested for builds:** Ubuntu 24.04, macOS 24.5.0. The tree uses Autotools with **`depends/`** for deterministic dependency builds.
+Build `zerod` from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). **Tested:** Ubuntu 24.04, macOS 24.5.0. The tree uses Autotools with **`depends/`** for deterministic dependency builds.
 
 ### 1.1 System requirements
 
@@ -19,7 +19,7 @@ Zero is a Zcash-family cryptocurrency node. Build `zerod` from source on Linux, 
 | **Disk (build)** | Mac &lt;6 GB, Linux &lt;5 GB for toolchain + object files (more for `depends/` caches). |
 | **Disk (runtime)** | Full node datadir and params: see §3. |
 | **RAM** | ~4 cores / 16 GB RAM comfortable for parallel `make`; reduce `-j` if the linker is OOM-killed. |
-| **Toolchain** | **C++14:** GCC 7.0+ (Linux), Apple Clang (macOS), MXE mingw-w64 (Windows cross). **GNU Make** 4.0+. **Git** 2.0+. |
+| **Toolchain** | **C++14.** Linux: **GCC 7.0+** (tested: GCC 13.3 on Ubuntu 24.04). macOS: **Apple Clang** (tested: Apple Clang 17.0 on macOS 24.5.0). Windows cross: **MXE mingw-w64**. **GNU Make** 4.0+. **Git** 2.0+. |
 | **Boost (from depends)** | 1.88.x (see §4.1). |
 | **Python** | **3.10+** for `depends` scripts, RPC tests, and `qa/zcash/full_test_suite.py`. Maintainer validation uses **Python 3.12**; use 3.10+ for supported behavior. |
 
@@ -142,6 +142,44 @@ Output: `artifacts/linux-zero-v<VERSION>.tgz` and `artifacts/linux-zero-v<VERSIO
 
 Default builds are **not** stripped. `release-linux.sh` strips unless you pass `-s`.
 
+### 2.6 Release lifecycle
+
+**Version bump.** `configure.ac` (`_CLIENT_VERSION_*`), `src/config/bitcoin-config.h`, `src/clientversion.h`. After bump: build per §2, run contributor gate, confirm `zerod -version`.
+
+**Git.**
+
+```bash
+git fetch origin
+git checkout zero-merge
+git pull --ff-only origin zero-merge
+```
+
+Tag `vMAJOR.MINOR.PATCH`. Archives: `Zero-<ver>-<target>-<triplet>.<ext>`.
+
+**Build and test.** Build per §2. Then:
+
+```bash
+./contrib/run-tests.sh --strict
+```
+
+Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`. On failure: [TEST_ZERO.md](TEST_ZERO.md).
+
+**Package.** `zcutil/release-linux.sh` stages stripped binaries into tarball and .deb. `contrib/devtools/split-debug.sh` exists for separate debuginfo but is not wired in.
+
+**Signing.** No procedure exists yet. Minimum viable: Linux `SHA256SUMS` + GPG; macOS Developer ID + notarization; Windows Authenticode OV.
+
+### 2.7 Compiler and release flags
+
+| Source | Flag | Effect |
+|--------|------|--------|
+| `depends/hosts/linux.mk` (darwin, mingw32) | `-O1 -pipe` | Via `config.site`. Zcash-inherited. Bitcoin Core uses `-O2`. |
+| `zcutil/build-native.sh` | `CXXFLAGS='-g'` | Always. Inflates objects; suppresses `-Wall`/`-Wextra` via `CXXFLAGS_overridden`. |
+| `zcutil/build-win.sh` | `CXXFLAGS="-DPTW32_STATIC_LIB ..."` | No `-g`; inherits `-O1`. |
+| `zcutil/release-linux.sh` | `strip` | Strips staged binaries by default. |
+| `contrib/devtools/split-debug.sh` | `objcopy --only-keep-debug` | Not wired into release. |
+
+**Proposed changes:** (1) Gate `-g` behind `ZERO_DEBUG=1`. (2) Evaluate `-O2` for release. (3) Decouple `CXXFLAGS_overridden` from bare `-g`. (4) Integrate `split-debug.sh` for `-dbg` package.
+
 ---
 
 ## 3. .zero Directory
@@ -190,7 +228,7 @@ See [doc/files.md](doc/files.md) for details.
 
 Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params only (~800 MB). Sprout params are not used. Source: `https://download.z.cash/downloads`. If present and checksum-valid, no download occurs.
 
-**Planned:** Backup, blockchain snapshot, sample files, params mirror.
+**Planned:** Params mirror, chain bootstrap snapshot.
 
 ---
 
@@ -209,7 +247,7 @@ Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 | libevent | 2.1.12 | `libevent.mk` | Network stack. |
 | ZeroMQ | 4.3.5 | `zeromq.mk` | Default **ZMQ** notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, ...). |
 | ccache | 4.13.1 | `native_ccache.mk` | Optional faster rebuilds; **`CCACHE_DIR`**, **`--enable-ccache`**. |
-| Rust | **system** or **depends 1.32.0** | `rust.mk` | **Default system:** **macOS** always (unless **`FORCE_DEPENDS_RUST=1`**); **Linux/FreeBSD/Windows:** set **`RUST_USE_SYSTEM=1`** when invoking **`make -C depends`**. **`FORCE_DEPENDS_RUST=1`** forces pinned **1.32.0** tarballs on all platforms. Cross-builds: install the **Rust target** with **`rustup target add`** (see **§4.9**). **Target:** one modern pinned toolchain for every host remains **deferred**. |
+| Rust | **system** (no pin; 1.90 on macOS) | `rust.mk` | **Default: system `cargo`/`rustc`** on macOS (always) and Linux/Windows when **`RUST_USE_SYSTEM=1`**. Symlinks into `depends` prefix. **`FORCE_DEPENDS_RUST=1`** forces legacy pinned **1.32.0** tarballs (CI / reproducibility only). Cross-builds: **`rustup target add`** for the host triple. |
 | librustzcash | snapshot `06da3b9` | `crate_*.mk`, `Cargo.lock` | Consensus-linked; upgrade only with protocol work. |
 | Googletest | 1.16.0 | `googletest.mk` | Last GTest line on **C++14**; 1.17+ expects C++17. |
 | utfcpp | 3.1 | `utfcpp.mk` | Header-only; UTF-8 checks in wallet RPC paths. |
@@ -248,8 +286,8 @@ Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 | `CC`, `CXX` | Compiler override |
 | `HOST` | Target triplet for cross-compile |
 | `CONFIGURE_FLAGS` | Extra configure options |
-| `FORCE_DEPENDS_RUST` | `1` = pinned Rust 1.32.0 on all platforms |
-| `RUST_USE_SYSTEM` | `1` = system `cargo`/`rustc` on non-macOS (macOS default) |
+| `FORCE_DEPENDS_RUST` | `1` = legacy pinned Rust 1.32.0 on all platforms (CI only) |
+| `RUST_USE_SYSTEM` | `1` = system `cargo`/`rustc` on Linux/Windows (macOS always uses system) |
 
 ### 4.6 Configure options
 
@@ -267,7 +305,7 @@ Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 | **Boost** | Darwin bootstrap uses **`--toolset=clang`**; **`$(build_SED_INPLACE)`** adjusts the toolset line in **`boost.mk`**. If **`AX_BOOST_THREAD`** fails on Darwin+Clang, ensure **`boost_thread`** can link (static archive path). |
 | **OpenSSL** | Recipe preprocesses with **`build_SED_INPLACE`**. **aarch64** Darwin uses OpenSSL's **`darwin64-arm64-cc`** target. |
 | **Berkeley DB** | **6.2.32**; recipe must stay on portable **`sed`** patterns--GNU-only **`sed -i -e`** in patches breaks **macOS** (and is wrong for any strict BSD **`sed`**). |
-| **Rust / librustzcash** | **macOS:** system **`cargo`/`rustc`** by default. **Other OS:** **`RUST_USE_SYSTEM=1`** for system, else pinned **1.32.0**. **`FORCE_DEPENDS_RUST=1`** -> pinned everywhere. **`librustzcash`** runs **`$(host_prefix)/native/bin/cargo`**. See **§4.9**. |
+| **Rust / librustzcash** | System Rust by default on macOS; Linux/Windows use system when **`RUST_USE_SYSTEM=1`**, else legacy 1.32.0. **`librustzcash`** invokes **`$(host_prefix)/native/bin/cargo`** (symlinked). |
 | **Googletest** | If you change macOS deployment targets or see link warnings about **OSX** version, **`googletest.mk`** aligns **`OSX_MIN_VERSION`** with the rest of the graph--**rebuild depends** after changing it. |
 | **libsodium, libevent, ZeroMQ, ccache** | Routine version bumps: update version + hash in **`.mk`**, then full depends rebuild and smoke test. |
 
@@ -283,7 +321,7 @@ Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 4. **RPC / metrics** -- compute amounts as **`CAmount`**, then **`ValueFromAmount`** (or equivalent) for JSON; do not subtract **`subsidy * 0.075`** in **`double`** for displayed totals if that can diverge from chain rules.
 5. **Change control** -- any edit to subsidy or founders split is a **consensus** change: tests in **`main_tests`**, **`rpc_wallet_tests`** **`getblocksubsidy`**, **`test_foundersreward`**, and re-sync from a known height.
 
-**Tracking:** **[TODO.md](TODO.md)** (active item: consensus subsidy / founders integer refactor).
+**Tracking:** see TODO.md.
 
 #### 4.8.1 Current code touchpoints (`double` / mixed arithmetic)
 

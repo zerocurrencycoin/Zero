@@ -46,26 +46,17 @@ Validation runbook: commands, modes, harness behavior, known failures.
 | Branch assertions | Same | **`expected_branchlen`** from **`shortTip['height'] - CHAIN_BOOTSTRAP`**; active height matches long chain after rejoin; accepts one or two tips per existing semantics. |
 | Background wait / exit codes | **`contrib/run-tests.sh`** **`run_bg`** | Set **`BG_LAST_PID=$!`**; avoid **`$(run_bg ...)`** (subshell caused **`wait $pid`** to fail). GTest/Boost and Tier A parallel children wait on real child PIDs. |
 | **`rescan_import` executable bit | Git index **`qa/rpc-tests/rescan_import.py`** | **`100755`** so **`rpc-tests.sh`** can execute the script (avoids **`Permission denied`** when checkout mode was **`100644`**). |
-| **`wallet_changeaddresses` Zero port | **`qa/rpc-tests/wallet_changeaddresses.py`** | **`initialize_chain_clean`** (2 nodes); **`-nuparams`** Overwinter (**`6f76727a`**) and Sapling (**`7361707a`**) at height **1**; **`-txindex`** (RPC needs tx details); **`-experimentalfeatures`** + **`-zmergetoaddress`**; **`ensure_mature_coinbase_or_skip`** before **`get_coinbase_address`** / **`z_shieldcoinbase`** so **720**-deep maturity is satisfied via incremental mining (optional **`ZERO_MINE_COINBASE`** bulk still applies to other helpers). |
-| **`wallet_changeindicator` + Sprout VK | **`qa/rpc-tests/wallet_changeindicator.py`**, **`src/wallet/wallet.cpp`** | Default **200**-block cache: **`mine_until_node_has_mature_coinbase`** at **`run_test`** start. **`z_importviewingkey`**: **`UpdateSproutNullifierNoteMapWithTx`** skips when **`GetSproutNoteNullifier`** is empty (viewing key only; no spending key)--avoids **`assert(false)`** on that path. |
+| **`wallet_changeaddresses` Zero port | **`qa/rpc-tests/wallet_changeaddresses.py`** | 2 nodes, Overwinter+Sapling at height 1, `-txindex`, `-experimentalfeatures` + `-zmergetoaddress`. Uses `ensure_mature_coinbase_or_skip` for 720-deep maturity. |
+| **`wallet_changeindicator` + Sprout VK | **`qa/rpc-tests/wallet_changeindicator.py`**, **`src/wallet/wallet.cpp`** | `mine_until_node_has_mature_coinbase` at `run_test` start. `UpdateSproutNullifierNoteMapWithTx` skips when `GetSproutNoteNullifier` is empty (viewing key only)--avoids `assert(false)`. |
 | **`serialize_script_num` (Python 3) | **`qa/rpc-tests/test_framework/blocktools.py`** | **`bytearray.append`** takes an **int** (**0-255**), not **`chr(...)`** (would raise **`TypeError`** on scripts that use **`serialize_script_num`**). |
 
 **Open (harness):** **`--jobs>1`** Tier A RPC is **best-effort** only--**`paymentdisclosure`** has been observed **hung** under **`--jobs=4`** (macOS). No fix in-tree yet; use **serial** for the contributor gate. See **Parallel Tier A** under Reference.
 
 ---
 
-## Verification snapshot (working vs pending)
+## Verification snapshot
 
-**Treated as working (serial default gate):**
-
-| Step | Command / scope | Notes |
-|------|-------------------|--------|
-| Quick + symbols | **`./contrib/run-tests.sh --quick --strict`** | No GTest/Boost/RPC. |
-| C++ only | **`./contrib/run-tests.sh --no-python --strict`** | Pass-only GTest + Boost; **~1m20s-1m30s** wall indicative (hardware-dependent). |
-| Full default gate | **`./contrib/run-tests.sh --strict`** | Pass-only GTest + Boost + **Tier A serial** (**`PYTHON_PASSING`**). |
-| Single Tier A script | **`env PYTHON=python3 ./qa/pull-tester/rpc-tests.sh <basename>`** | Isolates one RPC test. |
-
-**Tier A scripts (all on allowlist):** **`blockchain`**, **`disablewallet`**, **`httpbasics`**, **`reindex`**, **`rescan_import`**, **`rescan_startup`**, **`decodescript`**, **`keypool`**, **`paymentdisclosure`**, **`prioritisetransaction`**, **`wallet_treestate`**, **`wallet_anchorfork`**, **`getchaintips`**, **`rewind_index`**, **`wallet_overwintertx`**, **`wallet_changeaddresses`**, **`wallet_changeindicator`**, **`shorter_block_times`**, **`p2p_nu_peer_management`**, **`txn_doublespend`**.
+**Tier A scripts (allowlist order per `PYTHON_PASSING`):** `blockchain`, `disablewallet`, `httpbasics`, `reindex`, `rescan_import`, `rescan_startup`, `decodescript`, `keypool`, `paymentdisclosure`, `prioritisetransaction`, `wallet_treestate`, `wallet_anchorfork`, `getchaintips`, `rewind_index`, `wallet_overwintertx`, `wallet_changeaddresses`, `wallet_changeindicator`, `shorter_block_times`, `p2p_nu_peer_management`, `txn_doublespend`.
 
 **Not gate-ready:** `--jobs>1` (hangs possible); extended/Tier B+C bulk; excluded C++ suites (see **Known failures**).
 
@@ -146,30 +137,7 @@ Zeronode RPC coverage: **`rpc_zeronode_tests`**, **`rpc_zeronode_budget_tests`**
 
 ## Reference
 
-### Harness roles
-
-| Harness | Entry | Role |
-|---------|-------|------|
-| Util | `src/test/bitcoin-util-test.py` | Vectors / encoding |
-| secp256k1 / univalue | `make -C src/secp256k1 check`, `make -C src/univalue check` | Libraries |
-| check-symbols / check-security | `make -C src ...` | Policy / hardening |
-| GTest | `src/zero-gtest` | Wallet / consensus-oriented cases |
-| Boost | `src/test/test_bitcoin` | RPC, script, PoW, zeronode RPC |
-| RPC Python | `qa/pull-tester/rpc-tests.sh` | Multi-node regtest |
-| full_test_suite | `qa/zcash/full_test_suite.py` | Ordered stages, fail-fast |
-
-### Common commands
-
-```bash
-./contrib/run-tests.sh --quick          # smoke: util, secp, univalue (+ optional symbol/security)
-./contrib/run-tests.sh --strict         # contributor gate + exit 1 on any failure
-./contrib/run-tests.sh                  # pass-only C++ + Tier A RPC (serial)
-./contrib/run-tests.sh --full           # full_test_suite.py (see below)
-./qa/pull-tester/rpc-tests.sh NAME      # one script (basename or .py)
-./qa/pull-tester/rpc-tests.sh -extended # Tier B + Tier C per rpc-tests.sh
-./src/zero-gtest '--gtest_filter=Suite.Case'
-./src/test/test_bitcoin -t rpc_tests
-```
+Harness inventory and commands: see **Harness landscape** and **Quick start** above.
 
 ### `contrib/run-tests.sh` modes
 
@@ -230,9 +198,7 @@ Requires wallet-enabled build (**`ENABLE_BITCOIND`**, **`ENABLE_UTILS`**, **`ENA
 
 ### Tier A (contributor gate)
 
-**Order matches `PYTHON_PASSING` in `contrib/run-tests.sh`:** `blockchain`, `disablewallet`, `httpbasics`, `reindex`, `rescan_import`, `rescan_startup`, `decodescript`, `keypool`, `paymentdisclosure`, `prioritisetransaction`, `wallet_treestate`, `wallet_anchorfork`, `getchaintips`, `rewind_index`, `wallet_overwintertx`, `wallet_changeaddresses`, `wallet_changeindicator`, `shorter_block_times`, `p2p_nu_peer_management`, `txn_doublespend`.
-
-**Per-script skip RCA and IDs (6.x):** RPC Python. **Common themes:** **720** maturity, **`chaintip`** / NU height vs mining plan, **`getchaintips`** shape after rejoin, P2P **`version`** set.
+Script list: see **Verification snapshot** above. Common porting themes: **720** maturity, chaintip / NU height vs mining plan, `getchaintips` shape after rejoin, P2P `version` set.
 
 **Parallel Tier A (`--jobs=N`, `N>1`):** Only when the RPC step is the **default Tier A** list (**`PYTHON_PASSING`**): not with **`--fail`** / **`--all`** (those use **`-extended`**), not with **`--no-python`**, not with **`--full`**. **`N=1`** (serial) is the path **CI and the contributor gate** assume.
 
@@ -272,8 +238,6 @@ Default **pass-only** filters exist because of the items below. **Do not** use *
 | Boost **`rpc_wallet_encrypted_wallet_sapzkeys`** | Hang | Same **rewrite** class over RPC |
 | Boost **`miner_tests`** | Fail | Block assembly vs **(192,7)** |
 
-**Mitigation directions:** Close wallet before rewrite or test-only persistence path (**encrypt** family**). For **CachedWitnesses**:** seed **`CCoinsViewCache`** / manual witnesses / replace death test
-
 **Mitigation directions:** Close wallet before rewrite or test-only persistence path (encrypt family). For CachedWitnesses: seed `CCoinsViewCache` / manual witnesses / replace death test.
 
 ### Fix and retest procedure
@@ -291,8 +255,3 @@ After a change, run the **narrowest** check first, then widen.
 | **`run-tests.sh`** background / **`wait`** | **`./contrib/run-tests.sh --no-python --strict`** then full **`./contrib/run-tests.sh --strict`** |
 | Release-style gate | **`./contrib/run-tests.sh --strict`** |
 
----
-
-## Appendix: Coinbase maturity
-
-Zero **720** (`src/consensus/consensus.h`); Bitcoin/Zcash **100** upstream.
