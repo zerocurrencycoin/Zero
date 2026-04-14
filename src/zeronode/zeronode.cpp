@@ -255,9 +255,7 @@ int64_t CZeronode::GetLastPaid()
     // use a deterministic offset to break a tie -- 2.5 minutes
     int64_t nOffset = (UintToArith256(hash)).GetCompact(false) % 150;
 
-    if (chainActive.Tip() == NULL) return false;
-
-    const CBlockIndex* BlockReading = chainActive.Tip();
+    const CBlockIndex* BlockReading = pindexPrev;
 
     int nMnCount = znodeman.CountEnabled() * 1.25;
     int n = 0;
