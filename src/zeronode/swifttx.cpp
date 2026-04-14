@@ -231,6 +231,8 @@ int64_t CreateNewLock(CTransaction tx)
     CBlockIndex* pTip = chainActive.Tip();
     if (!pTip) return 0;
     int nBlockHeight = (pTip->nHeight - nTxAge) + 4;
+    if (nBlockHeight < 0)
+        return 0;
 
     if (!mapTxLocks.count(tx.GetHash())) {
         LogPrintf("CreateNewLock - New Transaction Lock %s !\n", tx.GetHash().ToString().c_str());

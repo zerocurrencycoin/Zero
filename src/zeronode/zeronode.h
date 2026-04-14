@@ -255,14 +255,22 @@ public:
 
     int GetZeronodeInputAge()
     {
-        if (chainActive.Tip() == NULL) return 0;
+        CBlockIndex* pTip = chainActive.Tip();
+        if (pTip == NULL) return 0;
+
+        // Reorg can lower tip below the height when we cached; reset to avoid negative age.
+        if (cacheInputAge != 0 && pTip->nHeight < cacheInputAgeBlock) {
+            cacheInputAge = 0;
+            cacheInputAgeBlock = 0;
+        }
 
         if (cacheInputAge == 0) {
             cacheInputAge = GetInputAge(vin);
-            cacheInputAgeBlock = chainActive.Tip()->nHeight;
+            cacheInputAgeBlock = pTip->nHeight;
         }
 
-        return cacheInputAge + (chainActive.Tip()->nHeight - cacheInputAgeBlock);
+        int nAge = cacheInputAge + (pTip->nHeight - cacheInputAgeBlock);
+        return nAge > 0 ? nAge : 0;
     }
 
     std::string GetStatus();

@@ -212,6 +212,81 @@ Gaps to address in BUILD_ZERO / README: minimal quickstart (install deps, build,
 | Key generation | `zero-cli zeronode genkey` | `src/rpc/zeronode.cpp` |
 | Stale comment | `zeronode-wallet-interface.cpp:72` said "1000 ZERO" -- **fixed** to 10000 ZER | code fix applied |
 
+### Zeronode `chainActive` hardening: reasoning and tests (DOC-02)
+
+**Scope.** Edits in `src/zeronode/zeronode.cpp`, `zeronode.h`, `swifttx.cpp` (and related audit of `payments.cpp`, `budget.cpp`, `zeronode-sync.cpp`, `spork.cpp`). Tracked as **C-21** in Completed.
+
+**Invariant (why any of this matters).** `CChain::operator[]` returns NULL for out-of-range or negative height (`src/chain.h:644-647`). `chainActive.Tip()` can be NULL on an empty chain. Reads of `chainActive` must hold **`cs_main`** so height and `vChain` do not change under the reader.
+
+**Prior state and risk.**
+
+| Location | Risk | Mitigation |
+|----------|------|------------|
+| `CZeronodePing(CTxIn&)` | `chainActive[Height()-12]` null deref when `Height() < 12`; possible race without lock | `LOCK(cs_main)`; use genesis or null hash when short chain |
+| `CreateNewLock` | `Tip()` null; `(height - nTxAge) + 4` negative | Guard `pTip`; `if (nBlockHeight < 0) return 0` |
+| `GetZeronodeInputAge` | After reorg down, `Tip()->nHeight < cacheInputAgeBlock` -> negative "age" | Invalidate cache; clamp return `>= 0` |
+| `GetLastPaid` | Redundant second `Tip()` check | Reuse `pindexPrev` after first null check |
+| `CheckInputsAndAdd` | `chainActive[...]` past tip | Existing `if (!pConfIndex)` defer path (unchanged) |
+
+---
+
+#### 1. `CZeronodePing(CTxIn&)` and `LOCK(cs_main)` (`zeronode.cpp` ~680)
+
+**Reasoning.** Ping `blockHash` binds the ping to a block deep enough to limit abuse (`height - 12`). That requires reading `chainActive.Height()` and `chainActive[...]`. Same-thread callers (`activezeronode.cpp` ~180 `SendZeronodePing`, ~263 `Register`) may or may not already hold `cs_main`; the constructor must not assume. Locking in the constructor makes the read **self-contained** and matches the rest of the codebase (validation-style access to `chainActive`).
+
+**Expected behavior.**
+
+- `h = chainActive.Height()`. If `h >= 12`, `blockHash` = hash of block at height `h - 12`. If `h < 12`, use **genesis** index when present, else `uint256()`.
+- Peers still validate in `CZeronodePing::CheckAndUpdate` (`zeronode.cpp` ~749): unknown `blockHash` or block too old (`nHeight < chainActive.Height() - 24`) rejects the ping without updating state.
+
+**Test steps (regtest).**
+
+1. Build `zerod` / `zero-cli`. Start: `zerod -regtest -daemon -zeronode=1 -debug=zeronode` (add usual `-datadir` if needed).
+2. Mine or sync until zeronode registration is allowed (`zeronodeSync` / logs). Note `getblockcount`.
+3. Trigger a ping path: e.g. `startzeronode` / `startalias` per your RPC surface after collateral + `zeronode.conf` setup, or the code path that calls `CActiveZeronode::SendZeronodePing`.
+4. **Case A -- short chain:** With `getblockcount` **&lt; 12**, repeat step 3. **Pass:** no crash; log may show ping flow; `blockHash` should match **`getblockhash 0`** (genesis) when genesis exists.
+5. **Case B -- long chain:** Mine to `getblockcount` **>= 12**. Repeat step 3. **Pass:** `blockHash` matches **`getblockhash ($height - 12)`** (compare manually).
+6. **Mainnet / normal:** Regression only: pings still sign; compatible peers accept or reject per existing rules.
+
+---
+
+#### 2. `GetZeronodeInputAge` cache (`zeronode.h` ~256, caller `zeronodeman.cpp` ~503)
+
+**Reasoning.** The method caches `GetInputAge(vin)` and the tip height at fill time to avoid recomputation. If the chain **reorgs downward**, the new tip height can be **below** `cacheInputAgeBlock`, so `cacheInputAge + (pTip->nHeight - cacheInputAgeBlock)` becomes **negative** (undefined semantics for "age"). Clearing the cache forces a fresh `GetInputAge`; clamping `nAge` to `>= 0` is a last-resort guard.
+
+**Expected behavior.** If `pTip->nHeight >= cacheInputAgeBlock` or cache empty: same as before. If tip dropped below cached height: cache zeroed; next call refills from current chain.
+
+**Test steps (regtest).**
+
+1. Run zeronode on regtest with collateral and listing working (`zeronode list` / `list-conf` as applicable).
+2. Record `getblockcount` and best-block hash.
+3. `zero-cli invalidateblock <hash_of_recent_block>` (RPC table: `hidden` / `blockchain.cpp`). Tip moves back.
+4. Wait for zeronode scoring / peer logic to touch `GetZeronodeInputAge`, or restart `zerod` and reconnect peers to force passes.
+5. **Pass:** no crash; no negative values in `-debug=zeronode` logs tied to input age; zeronode list remains coherent.
+6. **Fallback:** Two-node regtest, longer fork wins (classic reorg); same pass criteria.
+
+**Automated backlog.** No harness test today; candidate for TST-03 (GTest with controlled `CZeronode` + mock chain) or contributor brief.
+
+---
+
+#### 3. `CreateNewLock` (`swifttx.cpp` ~228)
+
+**Reasoning.** SwiftTX lock height uses tip and input age. Null tip must not deref. Extreme `nTxAge` vs tip can make `(pTip->nHeight - nTxAge) + 4` negative; storing that would corrupt lock metadata. Early `return 0` skips creating/updating the lock.
+
+**Test steps.** Mainnet: spork usually off -> **no behavior change**. Testnet/dev with `SPORK_2_SWIFTTX` on: `-debug=swiftx`, exercise `ix` / lock flow; **pass:** no crash; logs may show early return on bad inputs only.
+
+---
+
+#### 4. `GetLastPaid` (`zeronode.cpp` ~242)
+
+**Reasoning.** After `pindexPrev == NULL` return, `BlockReading` should use the same pointer to avoid a second `Tip()` read (clarity; same correctness).
+
+**Test steps.** Covered by general zeronode RPC / sync regression; no separate protocol surface.
+
+---
+
+**Note on filename.** There is no `ZeroUpdate.md` in this tree; this subsection lives in **UpdateZero.md** under DOC-02 so maintainer reasoning and tests stay next to the node-setup audit.
+
 *C. External install script audit.* The `zeronode_install.sh` from `ZeroNodes-UpdatesPending` repo is **obsolete**:
 
 | Issue | Detail |
@@ -475,6 +550,7 @@ Kept for merge-conflict prevention: if an upstream merge re-introduces a pattern
 | C-18 | Proton / AMQP | Recipe disabled by default; duplicates ZMQ; no productization planned. Ref: DEF-04. |
 | C-19 | `-port` help text | Was 8233/18233 (Zcash); fixed to 23801/23802. `src/init.cpp:417`. |
 | C-20 | Stale comments | `util.cpp` data dir comment `~/.zcash` -> `~/.zero`; collateral comment `1000` -> `10000`. |
+| C-21 | Zeronode chainActive | Negative `nBlockHeight` guard in `swifttx.cpp`; reorg-safe `GetZeronodeInputAge`; `GetLastPaid` uses `pindexPrev` only. |
 
 ---
 
