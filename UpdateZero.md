@@ -29,7 +29,11 @@ What makes Zero different from upstream Zcash and Bitcoin: consensus parameters,
 
 **Height and expiry.** `TransactionBuilder::SetExpiryHeight` mixes `int` chain height with `uint32_t` expiry. Prefer explicit casts or `int64_t` for height in new code.
 
-**C++ exceptions.** `throw std::runtime_error("...")`, not `throw new`.
+**C++ exceptions.** Use `throw std::runtime_error("...");` -- **not** `throw new std::runtime_error("...");`.
+
+**Why `throw new` is wrong.** `throw new T(...)` allocates on the heap, throws a pointer type (`T*`), and nothing deletes the object unless the catcher uses `catch (T* e) { delete e; }`. Typical `catch (const std::exception&)` or `catch (...)` does **not** free it -> **leak** and mismatched catch types. Standard style is `throw std::runtime_error(...)` (by value); the exception object is copied/moved into the unwind machinery.
+
+**Change record.** Five C++ sites were fixed in commit `a09cea932` (Mar 2026): `src/transaction_builder.cpp` (`SetExpiryHeight`), `src/main.cpp` (`CreateNewContextualCMutableTransaction`), `src/zcbenchmarks.cpp` (three sites). See Appendix A2, Completed C-12. **Verification:** `rg 'throw new' src --glob '*.cpp'` should return no matches (Java under `secp256k1` may still use `throw new` for Java exceptions; out of scope for C++ policy).
 
 **Branding.** User-visible strings should read ZERO. Clean residual Zcash/Bitcoin names when touching files; not consensus.
 
@@ -567,6 +571,20 @@ External AI-assisted code audit (Mar 2026), maintainer triage, subsequent review
 ### A2. throw new std::runtime_error (5 sites)
 
 **Cited:** `src/transaction_builder.cpp:82`, `src/main.cpp:7477`, + 3 in `src/zcbenchmarks.cpp`. Inherited from upstream Zcash (same pattern in `zcash/zcash` master and Horizen).
+
+**Fix (pattern).** Replace:
+
+```cpp
+throw new std::runtime_error("message");
+```
+
+with:
+
+```cpp
+throw std::runtime_error("message");
+```
+
+**Commit:** `a09cea932` (Renames and fixes, Mar 2026).
 
 **Status:** Fixed. -> C-12. Policy: §2 (C++ exceptions).
 
