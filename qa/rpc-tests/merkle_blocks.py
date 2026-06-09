@@ -11,7 +11,7 @@
 import string
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, assert_raises, \
+from test_framework.util import assert_equal, assert_raises, coinbase_mature_tip, \
     initialize_chain_clean, start_node, connect_nodes
 
 
@@ -38,11 +38,12 @@ class MerkleBlockTest(BitcoinTestFramework):
 
     def run_test(self):
         print("Mining blocks...")
-        self.nodes[0].generate(105)
+        mature_tip = coinbase_mature_tip(5)
+        self.nodes[0].generate(mature_tip)
         self.sync_all()
 
         chain_height = self.nodes[1].getblockcount()
-        assert_equal(chain_height, 105)
+        assert_equal(chain_height, mature_tip)
         assert_equal(self.nodes[1].getbalance(), 0)
         assert_equal(self.nodes[2].getbalance(), 0)
 

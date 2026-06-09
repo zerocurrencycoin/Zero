@@ -14,7 +14,7 @@ def create_block(hashprev, coinbase, nTime=None, nBits=None, hashFinalSaplingRoo
         import time
         block.nTime = int(time.time()+600)
     else:
-        block.nTime = nTime
+        block.nTime = int(nTime)
     block.hashPrevBlock = hashprev
     if hashFinalSaplingRoot is not None:
         block.hashFinalSaplingRoot = hashFinalSaplingRoot

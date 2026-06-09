@@ -6,7 +6,7 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, initialize_chain_clean, \
+from test_framework.util import assert_equal, COINBASE_MATURITY, initialize_chain_clean, \
     start_node, connect_nodes_bi, sync_blocks, sync_mempools, \
     wait_and_assert_operationid_status, get_coinbase_address
 
@@ -167,9 +167,9 @@ class WalletShieldCoinbaseTest (BitcoinTestFramework):
         self.sync_all()
 
         # Verify maximum number of utxos which node 0 can shield is set by default limit parameter of 50
-        self.nodes[0].generate(100)
+        self.nodes[0].generate(100)  # 100 new blocks (not COINBASE_MATURITY); indexed by get_coinbase_address(..., 100)
         self.sync_all()
-        self.nodes[1].generate(720)
+        self.nodes[1].generate(COINBASE_MATURITY + 1)
         self.sync_all()
         mytaddr = get_coinbase_address(self.nodes[0], 100)
         result = self.nodes[0].z_shieldcoinbase(mytaddr, myzaddr, Decimal('0.0001'))

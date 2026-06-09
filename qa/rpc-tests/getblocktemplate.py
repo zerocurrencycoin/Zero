@@ -52,14 +52,15 @@ class GetBlockTemplateTest(BitcoinTestFramework):
         tmpl = node.getblocktemplate()
         assert_equal(16, len(tmpl['noncerange']))
 
-        # Test 6: coinbasetxn checks
-        assert('foundersreward' in tmpl['coinbasetxn'])
+        # Test 6: coinbasetxn checks (required flag only).
+        # Zero mainnet uses 7.5% development fee in eligible heights; regtest defers
+        # fee-start to height 5000 so short tests never see foundersreward in GBT.
         assert(tmpl['coinbasetxn']['required'])
 
-        # Test 7: hashFinalSaplingRoot checks
+        # Test 7: hashFinalSaplingRoot matches chain tip (not upstream constant)
         assert('finalsaplingroothash' in tmpl)
-        finalsaplingroothash = '3e49b5f954aa9d3545bc6c37744661eea48d7c34e3000d82b7f0010c30f4c2fb'
-        assert_equal(finalsaplingroothash, tmpl['finalsaplingroothash'])
+        tip_header = node.getblockheader(node.getbestblockhash())
+        assert_equal(tip_header['finalsaplingroot'], tmpl['finalsaplingroothash'])
 
 if __name__ == '__main__':
     GetBlockTemplateTest().main()

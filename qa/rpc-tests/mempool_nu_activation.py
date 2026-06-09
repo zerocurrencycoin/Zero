@@ -6,7 +6,7 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
-    assert_equal, assert_true, initialize_chain_clean,
+    assert_equal, assert_true, COINBASE_MATURITY, initialize_chain_clean,
     start_node, connect_nodes, wait_and_assert_operationid_status,
     get_coinbase_address
 )
@@ -34,7 +34,7 @@ class MempoolUpgradeActivationTest(BitcoinTestFramework):
         initialize_chain_clean(self.options.tmpdir, 2)
 
     def run_test(self):
-        self.nodes[1].generate(100)
+        self.nodes[1].generate(COINBASE_MATURITY)
         self.sync_all()
 
         # Mine 97 blocks. After this, nodes[1] blocks

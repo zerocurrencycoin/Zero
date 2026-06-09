@@ -25,6 +25,7 @@ from test_framework.comptool import TestInstance, TestManager
 from test_framework.mininode import NetworkThread
 from test_framework.blocktools import create_block, create_coinbase, create_transaction
 from test_framework.script import CScript, CScriptOp, CScriptNum, OPCODES_BY_NAME
+from test_framework.util import COINBASE_MATURITY
 
 import os
 import json
@@ -176,7 +177,6 @@ class ScriptTest(ComparisonTestFramework):
         self.tip = block.sha256
         test.blocks_and_transactions = [[block, True]]
 
-        COINBASE_MATURITY = 720  # Zero
         for i in range(COINBASE_MATURITY):
             block = create_block(self.tip, create_coinbase(), self.block_time)
             self.block_time += 1
@@ -211,7 +211,6 @@ class ScriptTest(ComparisonTestFramework):
         Build out to COINBASE_MATURITY blocks total, maturing the coinbase.
         Zero uses 720; Zcash/Bitcoin use 100.
         '''
-        COINBASE_MATURITY = 720  # Zero
         test = TestInstance(objects=[], sync_every_block=False, sync_every_tx=False)
         for i in range(COINBASE_MATURITY):
             b = create_block(self.tip, create_coinbase(), self.block_time)
@@ -225,7 +224,6 @@ class ScriptTest(ComparisonTestFramework):
         counter = 0
         for script_test in self.scripts.get_records():
             ''' Reset the blockchain to genesis block + COINBASE_MATURITY blocks. '''
-            COINBASE_MATURITY = 720  # Zero
             if self.nodes[0].getblockcount() > COINBASE_MATURITY + 1:
                 self.nodes[0].invalidateblock(self.nodes[0].getblockhash(COINBASE_MATURITY + 2))
                 self.nodes[1].invalidateblock(self.nodes[1].getblockhash(COINBASE_MATURITY + 2))

@@ -2,7 +2,7 @@
 
 
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, assert_true, initialize_chain_clean, start_node
+from test_framework.util import assert_equal, assert_true, COINBASE_MATURITY, initialize_chain_clean, start_node
 from test_framework.authproxy import JSONRPCException
 
 class SignOfflineTest (BitcoinTestFramework):
@@ -19,7 +19,7 @@ class SignOfflineTest (BitcoinTestFramework):
     # Tests
     def run_test(self):
         print("Mining blocks...")
-        self.nodes[0].generate(101)
+        self.nodes[0].generate(COINBASE_MATURITY + 1)
 
         offline_node = start_node(1, self.options.tmpdir, ["-maxconnections=0", "-nuparams=2bb40e60:10"])
         self.nodes.append(offline_node)

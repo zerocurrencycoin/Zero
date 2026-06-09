@@ -5,9 +5,11 @@
 
 
 from decimal import Decimal
+from functools import reduce
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, assert_greater_than, start_nodes,\
-    initialize_chain_clean, connect_nodes_bi, wait_and_assert_operationid_status
+    initialize_chain_clean, connect_nodes_bi, wait_and_assert_operationid_status, \
+    mine_until_node_has_mature_coinbase
 
 import logging
 
@@ -48,10 +50,7 @@ class ZkeyImportExportTest (BitcoinTestFramework):
             amts.sort(reverse=True)
             txs = node.z_listreceivedbyaddress(zaddr)
 
-            def cmp_confirmations_high_to_low(a, b):
-                return cmp(b["amount"], a["amount"])
-
-            txs.sort(cmp_confirmations_high_to_low)
+            txs.sort(key=lambda t: t["amount"], reverse=True)
             print(("Sorted txs", txs))
             print(("amts", amts))
 
@@ -71,18 +70,17 @@ class ZkeyImportExportTest (BitcoinTestFramework):
 
         def get_private_balance(node):
             balance = node.z_gettotalbalance()
-            return balance['private']
+            return Decimal(balance['private'])
 
         def find_imported_key(node, import_zaddr):
             zaddrs = node.z_listaddresses()
             assert(import_zaddr in zaddrs)
             return import_zaddr
 
-        # Seed Alice with some funds
+        # Seed Alice with some funds (720 maturity before shielding coinbase).
         alice.generate(10)
         self.sync_all()
-        miner.generate(720)
-        self.sync_all()
+        mine_until_node_has_mature_coinbase(miner, self.nodes)
         # Shield Alice's coinbase funds to her zaddr
         alice_zaddr = alice.z_getnewaddress('sprout')
         res = alice.z_shieldcoinbase("*", alice_zaddr)
@@ -98,7 +96,7 @@ class ZkeyImportExportTest (BitcoinTestFramework):
         # verify_utxos(charlie, [])
 
         # the amounts of each txn embodied which generates a single UTXO:
-        amounts = map(Decimal, ['2.3', '3.7', '0.1', '0.5', '1.0', '0.19'])
+        amounts = list(map(Decimal, ['2.3', '3.7', '0.1', '0.5', '1.0', '0.19']))
 
         # Internal test consistency assertion:
         assert_greater_than(

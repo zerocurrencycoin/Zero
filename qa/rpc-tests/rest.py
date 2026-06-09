@@ -9,7 +9,7 @@
 
 
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, assert_greater_than, \
+from test_framework.util import assert_equal, assert_greater_than, COINBASE_MATURITY, \
     initialize_chain_clean, start_nodes, connect_nodes_bi
 
 import struct
@@ -78,7 +78,7 @@ class RESTTest (BitcoinTestFramework):
 
         self.nodes[0].generate(1)
         self.sync_all()
-        self.nodes[2].generate(100)
+        self.nodes[2].generate(COINBASE_MATURITY)
         self.sync_all()
 
         assert_equal(self.nodes[0].getbalance(), 10)

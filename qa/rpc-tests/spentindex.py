@@ -11,6 +11,7 @@ from test_framework.authproxy import JSONRPCException
 
 from test_framework.util import (
     assert_equal,
+    coinbase_mature_tip,
     initialize_chain_clean,
     start_nodes,
     stop_nodes,
@@ -41,11 +42,12 @@ class SpentIndexTest(BitcoinTestFramework):
         self.sync_all()
 
     def run_test(self):
-        self.nodes[0].generate(105)
+        mature_tip = coinbase_mature_tip(5)
+        self.nodes[0].generate(mature_tip)
         self.sync_all()
 
         chain_height = self.nodes[1].getblockcount()
-        assert_equal(chain_height, 105)
+        assert_equal(chain_height, mature_tip)
 
         # Test getrawtransaction changes and the getspentinfo RPC
 

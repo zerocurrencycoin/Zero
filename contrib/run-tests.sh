@@ -1,22 +1,18 @@
 #!/usr/bin/env bash
 # Run Zero tests. Modes:
-#   passing (default): only tests that pass; excludes known failures and hang/crash.
-#   --fail: pass + fail; excludes only hang/crash.
-#   --all: everything including hang/crash (no exclusions; GTest may hang on WriteCryptedSaplingZkeyDirectToDb).
+#   passing (default): pass-only C++ + Tier A RPC; excludes known hang/crash/fail suites.
+#   --fail: ONLY the C++ suites excluded from default (known hang, crash, or fail; see TEST_ZERO.md).
+#   --all: same C++ filters as default + rpc-tests.sh -all (-A -B -E pass tiers).
+#   --rpcfail: rpc-tests.sh -rpcfail (-Bfail -Efail diagnostic; no C++, no util).
 #
-# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|--full-suite|--full]
+# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|--rpcfail|--suite]
 # --strict: after all selected steps, exit 1 if any failed (default: exit 0 with WARNING if any failed).
 # Env: ZERO_MINE_COINBASE=1 to mine 1000 blocks for get_coinbase_address tests (slow).
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
-# --no-python: skip Python RPC tests (qa/rpc-tests)
+# --no-python: skip Python RPC tests (qa/rpc-tests); superset of --quick (adds C++ layers per mode).
 # --build-checks: run make check-security (requires python on PATH; see TEST_ZERO.md)
-# --jobs=N: Tier A RPC only, default pass-only mode (--fail/--all unchanged). Serial (N=1) is the
-# supported path (CI / contributor gate). N>1 is best-effort: many zerod instances; hangs or flakes
-# possible—lower N or omit if a run stalls (see TEST_ZERO.md).
-# ZERO_MINE_COINBASE=1: mine 1000 blocks when tests need get_coinbase_address (slow; not used in main run).
-# --fail: pass + fail (exclude only hang/crash)
-# --all: everything including hang/crash (no exclusions)
-# --full-suite, --full: run qa/zcash/full_test_suite.py (btest, gtest, sec-hard, no-dot-so, util-test, secp256k1, univalue, rpc). On failure: exit 1. btest/gtest use same pass-only exclusions as default run unless ZERO_FULL_SUITE_UNFILTERED=1 or --unfiltered (see TEST_ZERO.md).
+# --jobs=N: Tier A RPC only, default pass-only mode. Serial (N=1) is the supported path (CI / contributor gate).
+# --suite: run qa/zcash/full_test_suite.py only (ordered stages; not --all, not default).
 
 set -e
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,14 +23,16 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
 
-BOOST_EXCLUDE='!Alert_tests:!miner_tests:!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'
+# Default: exclude these suites. --fail: run ONLY these (must match TEST_ZERO.md Known failures).
+# Canonical values: qa/zcash/test_filters.sh
+. "$REPO_ROOT/qa/zcash/test_filters.sh"
 
+# Tier A basenames for --jobs=N parallel runs only. Canonical list: testScriptsTierA in qa/pull-tester/rpc-tests.sh.
+# Serial gate uses: rpc-tests.sh -A
 PYTHON_PASSING=(
-    blockchain disablewallet httpbasics reindex rescan_import rescan_startup decodescript keypool
-    paymentdisclosure prioritisetransaction wallet_treestate wallet_anchorfork
-    getchaintips rewind_index wallet_overwintertx wallet_changeaddresses wallet_changeindicator
-    shorter_block_times p2p_nu_peer_management
-    txn_doublespend
+    blockchain disablewallet httpbasics reindex decodescript keypool
+    paymentdisclosure
+    getchaintips rewind_index shorter_block_times p2p_nu_peer_management
 )
 
 echo "Zero test validation - $TIMESTAMP"
@@ -64,7 +62,8 @@ for arg in "$@"; do
         --strict) STRICT=1 ;;
         --fail) MODE=fail ;;
         --all) MODE=all ;;
-        --full-suite|--full) FULL_SUITE=1 ;;
+        --rpcfail) MODE=rpcfail ;;
+        --suite) FULL_SUITE=1 ;;
         --jobs=*) PYTHON_JOBS="${arg#--jobs=}" ;;
     esac
 done
@@ -77,8 +76,13 @@ run_cmd() {
     local name="$1"
     shift
     local log="$LOG_PREFIX-$name.log"
+    local status
     echo "=== $name ==="
-    if "$@" 2>&1 | tee "$log"; then
+    set +e
+    "$@" 2>&1 | tee "$log"
+    status=${PIPESTATUS[0]}
+    set -e
+    if [ "$status" -eq 0 ]; then
         echo "PASS: $name"
         return 0
     else
@@ -87,7 +91,6 @@ run_cmd() {
     fi
 }
 
-# Sets BG_LAST_PID to the background shell job (must not call via $(...) — subshell breaks wait).
 run_bg() {
     local name="$1"
     shift
@@ -125,12 +128,82 @@ if [ "$FULL_SUITE" -eq 1 ]; then
     if [ "$(uname -s)" = "Darwin" ]; then
         FULL_SUITE_SKIP=(--skip sec-hard --skip no-dot-so)
     fi
-    echo "--- full_test_suite ---"
+    echo "--- full_test_suite (--suite) ---"
     if ! run_cmd "full_test_suite" "$PY3" "$REPO_ROOT/qa/zcash/full_test_suite.py" "${FULL_SUITE_SKIP[@]}"; then
         echo "FAIL: full_test_suite exited with error"
         exit 1
     fi
     echo "--- Done. Logs in $LOG_DIR ---"
+    exit 0
+fi
+
+# --rpcfail: RPC known-fail tiers only (-Bfail -Efail).
+if [ "$MODE" = "rpcfail" ]; then
+    echo "--- --rpcfail: RPC -Bfail -Efail (diagnostic; no util, no C++) ---"
+    PY3=$(find_python3)
+    if [ -n "$PY3" ]; then
+        export PYTHON="$PY3"
+        if ! run_cmd "rpc-rpcfail" \
+            env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -rpcfail; then
+            bump_fail
+        fi
+    else
+        echo "Skipping Python RPC tests: Python 3.10+ not found"
+    fi
+    echo ""
+    echo "--- Done. Logs in $LOG_DIR ---"
+    if [ "$OVERALL_FAIL" -eq 1 ]; then
+        if [ "$STRICT" -eq 1 ]; then
+            echo "FAIL: one or more steps failed (--strict)"
+            exit 1
+        fi
+        echo "WARNING: one or more steps failed. Use --strict to exit with code 1."
+    fi
+    exit 0
+fi
+
+# --fail: only suites listed in TEST_ZERO.md Known failures (hang / crash / fail).
+if [ "$MODE" = "fail" ]; then
+    echo "--- --fail: known hang / crash / fail C++ suites only (no util, no RPC) ---"
+    if [ "$QUICK" -eq 1 ]; then
+        echo "NOTE: --quick with --fail skips C++; run without --quick to execute excluded suites."
+    else
+        GTEST_PID=""
+        if [ -x "src/zero-gtest" ]; then
+            echo "--- GTest: WriteCryptedSaplingZkey* (hang), CachedWitnesses* (fail) ---"
+            run_bg "zero-gtest-fail-only" \
+                ./src/zero-gtest --gtest_filter="$GTEST_FAIL_ONLY"
+            GTEST_PID=$BG_LAST_PID
+        fi
+        BTEST_PID=""
+        if [ -x "src/test/test_bitcoin" ]; then
+            echo "--- Boost: miner_tests (fail), rpc_wallet_encrypted_wallet_sapzkeys (hang) ---"
+            run_bg "test_bitcoin-fail-only" \
+                ./src/test/test_bitcoin --run_test="$BOOST_FAIL_ONLY" --log_level=test_suite
+            BTEST_PID=$BG_LAST_PID
+        fi
+        if [ -n "$GTEST_PID" ] && ! wait "$GTEST_PID" 2>/dev/null; then
+            echo "FAIL: zero-gtest (see $LOG_PREFIX-zero-gtest-fail-only.log)"
+            bump_fail
+        fi
+        if [ -n "$BTEST_PID" ] && ! wait "$BTEST_PID" 2>/dev/null; then
+            echo "FAIL: test_bitcoin (see $LOG_PREFIX-test_bitcoin-fail-only.log)"
+            bump_fail
+        fi
+        if [ -z "$GTEST_PID" ] && [ -z "$BTEST_PID" ]; then
+            echo "FAIL: --fail requires src/zero-gtest and/or src/test/test_bitcoin"
+            bump_fail
+        fi
+    fi
+    echo ""
+    echo "--- Done. Logs in $LOG_DIR ---"
+    if [ "$OVERALL_FAIL" -eq 1 ]; then
+        if [ "$STRICT" -eq 1 ]; then
+            echo "FAIL: one or more steps failed (--strict)"
+            exit 1
+        fi
+        echo "WARNING: one or more steps failed. Use --strict to exit with code 1."
+    fi
     exit 0
 fi
 
@@ -160,30 +233,19 @@ if [ "$QUICK" -eq 0 ]; then
     echo ""
     GTEST_PID=""
     if [ -x "src/zero-gtest" ]; then
-        if [ "$MODE" = "all" ]; then
-            echo "--- GTest (all; includes hang/crash) ---"
-            run_bg "zero-gtest" ./src/zero-gtest
-            GTEST_PID=$BG_LAST_PID
-        else
-            echo "--- GTest (excludes hang/crash: WriteCryptedSaplingZkey*, CachedWitnesses*) ---"
-            run_bg "zero-gtest" \
-                ./src/zero-gtest --gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkey*:WalletTests.CachedWitnesses*'
-            GTEST_PID=$BG_LAST_PID
-        fi
+        echo "--- GTest (excludes --fail suites: WriteCryptedSaplingZkey*, CachedWitnesses*) ---"
+        run_bg "zero-gtest" \
+            ./src/zero-gtest --gtest_filter="$GTEST_PASS_EXCLUDE"
+        GTEST_PID=$BG_LAST_PID
     fi
 
     echo ""
     BTEST_PID=""
     if [ -x "src/test/test_bitcoin" ]; then
-        if [ "$MODE" = "fail" ] || [ "$MODE" = "all" ]; then
-            echo "--- Boost (all) ---"
-            run_bg "test_bitcoin" ./src/test/test_bitcoin --log_level=test_suite
-            BTEST_PID=$BG_LAST_PID
-        else
-            echo "--- Boost (pass-only: exclude Alert, miner, rpc_wallet_encrypted_wallet_sapzkeys) ---"
-            run_bg "test_bitcoin" ./src/test/test_bitcoin --run_test="$BOOST_EXCLUDE" --log_level=test_suite
-            BTEST_PID=$BG_LAST_PID
-        fi
+        echo "--- Boost (excludes --fail suites: miner, rpc_wallet_encrypted_wallet_sapzkeys) ---"
+        run_bg "test_bitcoin" \
+            ./src/test/test_bitcoin --run_test="$BOOST_PASS_EXCLUDE" --log_level=test_suite
+        BTEST_PID=$BG_LAST_PID
     fi
 
     echo "zero-gtest PID: $GTEST_PID"
@@ -211,10 +273,10 @@ if [ "$NO_PYTHON" -eq 0 ]; then
     PY3=$(find_python3)
     if [ -n "$PY3" ]; then
         export PYTHON="$PY3"
-        if [ "$MODE" = "fail" ] || [ "$MODE" = "all" ]; then
-            echo "--- Python RPC (all) ---"
+        if [ "$MODE" = "all" ]; then
+            echo "--- Python RPC (rpc-tests.sh -all: -A -B -E pass) ---"
             if ! run_cmd "rpc-all" \
-                env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -extended; then
+                env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -all; then
                 bump_fail
             fi
         elif [ "$PYTHON_JOBS" -gt 1 ]; then
@@ -238,13 +300,11 @@ if [ "$NO_PYTHON" -eq 0 ]; then
                 fi
             done
         else
-            echo "--- Python RPC (pass-only: ${#PYTHON_PASSING[@]} verified) ---"
-            for t in "${PYTHON_PASSING[@]}"; do
-                if ! run_cmd "rpc-$t" \
-                    env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$t"; then
-                    bump_fail
-                fi
-            done
+            echo "--- Python RPC (Tier A: rpc-tests.sh -A) ---"
+            if ! run_cmd "rpc-tier-a" \
+                env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -A; then
+                bump_fail
+            fi
         fi
     else
         echo "Skipping Python RPC tests: Python 3.10+ not found"

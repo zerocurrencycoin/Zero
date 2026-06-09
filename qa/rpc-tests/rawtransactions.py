@@ -11,7 +11,7 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, initialize_chain_clean, \
+from test_framework.util import assert_equal, COINBASE_MATURITY, initialize_chain_clean, \
     start_nodes, connect_nodes_bi
 
 from decimal import Decimal
@@ -44,7 +44,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         #prepare some coins for multiple *rawtransaction commands
         self.nodes[2].generate(1)
         self.sync_all()
-        self.nodes[0].generate(101)
+        self.nodes[0].generate(COINBASE_MATURITY + 1)
         self.sync_all()
         self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(),1.5);
         self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(),1.0);

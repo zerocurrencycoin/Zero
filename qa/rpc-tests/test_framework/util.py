@@ -108,8 +108,9 @@ def initialize_datadir(dirname, n):
 
 def initialize_chain(test_dir):
     """
-    Create (or copy from cache) a 200-block-long chain and
-    4 wallets.
+    Create (or copy from cache) a regtest chain and 4 wallets.
+    Cache build: 200-block distribution (upstream layout), then extra mining
+    until tip >= COINBASE_MATURITY + 5 so at least one coinbase is mature (Zero 720).
     bitcoind and bitcoin-cli must be in search path.
     """
 
@@ -142,11 +143,8 @@ def initialize_chain(test_dir):
                 sys.stderr.write("Error connecting to "+url+"\n")
                 sys.exit(1)
 
-        # Create a 200-block-long chain; each of the 4 nodes
-        # gets 25 mature blocks and 25 immature.
-        # blocks are created with timestamps 10 minutes apart, starting
-        # at 1 Jan 2014
-        #block_time = 1388534400
+        # 200-block distribution (upstream: 25+25 per node at maturity 100).
+        # Zero COINBASE_MATURITY=720: follow with extra mining on node 0.
         block_time = 1531037936
         for i in range(2):
             for peer in range(4):
@@ -154,8 +152,14 @@ def initialize_chain(test_dir):
                     set_node_times(rpcs, block_time)
                     rpcs[peer].generate(1)
                     block_time += 10*60
-                # Must sync before next peer starts generating blocks
                 sync_blocks(rpcs)
+
+        mature_tip = COINBASE_MATURITY + 5
+        need = mature_tip - rpcs[0].getblockcount()
+        if need > 0:
+            set_node_times(rpcs, block_time)
+            rpcs[0].generate(need)
+            sync_blocks(rpcs)
 
         # Shut them down, and clean up cache directories:
         stop_nodes(rpcs)
@@ -454,8 +458,26 @@ def wait_and_assert_operationid_status(node, myopid, in_status='success', in_err
     else:
         return None
 
-# Zero COINBASE_MATURITY=720: listunspent only returns coinbase after 720 confirmations.
-# Tests need 720+ blocks before get_coinbase_address can succeed.
+# Keep in sync with src/consensus/consensus.h (static const int COINBASE_MATURITY).
+COINBASE_MATURITY = 720
+
+def coinbase_mature_tip(spendable_coinbases=1):
+    """Minimum chain tip so coinbase at height spendable_coinbases is mature."""
+    return COINBASE_MATURITY + spendable_coinbases
+
+def mine_to_height(node, nodes, target_height):
+    """Mine on node until chain tip reaches target_height (inclusive).
+
+    Use when the test asserts NU heights or needs an exact tip (batch mine_until_* can overshoot).
+    Returns the tip height after mining."""
+    need = target_height - node.getblockcount()
+    if need > 0:
+        node.generate(need)
+    if nodes is not None:
+        sync_blocks(nodes)
+    return node.getblockcount()
+
+# listunspent only returns coinbase after COINBASE_MATURITY confirmations.
 # Set ZERO_MINE_COINBASE=1 to mine 1000 blocks when needed (slow; not used in main passing run).
 def should_mine_for_coinbase():
     return os.getenv("ZERO_MINE_COINBASE", "") == "1"
@@ -481,7 +503,7 @@ def ensure_coinbase_utxos(node, nodes=None, blocks=1000):
     return False
 
 def mine_until_node_has_mature_coinbase(node, nodes=None, batch=50, max_blocks=2000):
-    """Mine regtest blocks until node has at least one mature coinbase UTXO (Zero: 720 confs)."""
+    """Mine regtest blocks until node has at least one mature coinbase UTXO (COINBASE_MATURITY confs)."""
     if has_coinbase_utxos(node):
         return True
     total = 0
@@ -509,8 +531,8 @@ def _coinbase_diagnostic(node):
         h = node.getblockcount()
     except Exception:
         h = None
-    return "listunspent=%d total, %d generated; getblockcount=%s (need 720+ for mature coinbase)" % (
-        len(lu), len(gen), h)
+    return "listunspent=%d total, %d generated; getblockcount=%s (need %d+ for mature coinbase)" % (
+        len(lu), len(gen), h, COINBASE_MATURITY)
 
 def has_coinbase_utxos(node):
     """Return True if node has any mature coinbase UTXOs (for skip checks)."""
