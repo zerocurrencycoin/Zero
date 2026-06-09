@@ -6,7 +6,7 @@
 
 from decimal import Decimal
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, get_coinbase_address, \
+from test_framework.util import assert_equal, COINBASE_MATURITY, get_coinbase_address, \
     initialize_chain_clean, start_nodes, wait_and_assert_operationid_status
 from mergetoaddress_helper import assert_mergetoaddress_exception
 
@@ -23,7 +23,9 @@ class MergeToAddressMixedNotes(BitcoinTestFramework):
 
     def run_test(self):
         print("Mining blocks...")
-        self.nodes[0].generate(102)
+        self.nodes[0].generate(1)
+        self.sync_all()
+        self.nodes[0].generate(COINBASE_MATURITY + 1)
         self.sync_all()
 
         # Send some ZEC to Sprout/Sapling addresses

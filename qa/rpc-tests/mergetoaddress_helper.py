@@ -7,7 +7,7 @@
 #
 
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, connect_nodes_bi, fail, \
+from test_framework.util import assert_equal, COINBASE_MATURITY, connect_nodes_bi, fail, \
     initialize_chain_clean, start_node, sync_blocks, sync_mempools, \
     wait_and_assert_operationid_status
 
@@ -72,7 +72,7 @@ class MergeToAddressHelper:
         test.nodes[2].getnewaddress()
         test.nodes[2].generate(1)
         test.sync_all()
-        test.nodes[1].generate(101)
+        test.nodes[1].generate(COINBASE_MATURITY + 1)
         test.sync_all()
         assert_equal(test.nodes[0].getbalance(), 50)
         assert_equal(test.nodes[1].getbalance(), 10)

@@ -18,6 +18,8 @@ from test_framework.test_framework import BitcoinTestFramework
 
 from test_framework.util import (
     assert_equal,
+    COINBASE_MATURITY,
+    coinbase_mature_tip,
     initialize_chain_clean,
     start_nodes,
     stop_nodes,
@@ -91,10 +93,11 @@ class AddressIndexTest(BitcoinTestFramework):
 
         # begin test
 
-        self.nodes[0].generate(105)
+        mature_tip = coinbase_mature_tip(5)
+        self.nodes[0].generate(mature_tip)
         self.sync_all()
         assert_equal(self.nodes[0].getbalance(), 5 * 10)
-        assert_equal(self.nodes[1].getblockcount(), 105)
+        assert_equal(self.nodes[1].getblockcount(), mature_tip)
         assert_equal(self.nodes[1].getbalance(), 0)
 
         # only the oldest 5; subsequent are not yet mature
@@ -109,17 +112,17 @@ class AddressIndexTest(BitcoinTestFramework):
         addr_p2pkh = tx['vout'][0]['scriptPubKey']['addresses'][0]
         addr_p2sh = tx['vout'][1]['scriptPubKey']['addresses'][0]
 
-        # Check that balances from mining are correct (105 blocks mined); in
+        # Check that balances from mining are correct (mature_tip blocks mined); in
         # regtest, all mining rewards from a single call to generate() are sent
         # to the same pair of addresses.
-        check_balance(1, addr_p2pkh, 105 * 10 * COIN)
-        check_balance(1, addr_p2sh, 105 * 2.5 * COIN)
+        check_balance(1, addr_p2pkh, mature_tip * 10 * COIN)
+        check_balance(1, addr_p2sh, mature_tip * 2.5 * COIN)
 
         # Multiple address arguments, results are the sum
-        check_balance(1, [addr_p2sh, addr_p2pkh], 105 * 12.5 * COIN)
+        check_balance(1, [addr_p2sh, addr_p2pkh], mature_tip * 12.5 * COIN)
 
-        assert_equal(len(self.nodes[1].getaddresstxids(addr_p2pkh)), 105)
-        assert_equal(len(self.nodes[1].getaddresstxids(addr_p2sh)), 105)
+        assert_equal(len(self.nodes[1].getaddresstxids(addr_p2pkh)), mature_tip)
+        assert_equal(len(self.nodes[1].getaddresstxids(addr_p2sh)), mature_tip)
 
         # only the oldest 5 transactions are in the unspent list,
         # dup addresses are ignored
@@ -139,7 +142,7 @@ class AddressIndexTest(BitcoinTestFramework):
         expected = 0
         expected_deltas = []  # for checking getaddressdeltas (below)
         for i in range(5):
-            # first transaction happens at height 105, mined in block 106
+            # first transaction happens at height mature_tip, mined in block mature_tip+1
             txid = self.nodes[0].sendtoaddress(addr1, i + 1)
             txids_a1.append(txid)
             self.nodes[0].generate(1)

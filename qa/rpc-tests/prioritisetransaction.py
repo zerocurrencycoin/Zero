@@ -30,6 +30,10 @@ class PrioritiseTransactionTest (BitcoinTestFramework):
     def run_test (self):
         # tx priority is calculated: priority = sum(input_value_in_base_units * input_age)/size_in_bytes
 
+        # 1121 blocks: (1) tip >> COINBASE_MATURITY [720] for spendable coinbase;
+        # (2) long chain history for priority = sum(value * input_age) / size;
+        # (3) fund 900+ sendtoaddress(0.1) loop. Not a maturity constant -- do not
+        # substitute COINBASE_MATURITY here. Moved out of Tier A (slow; RPC-only debug).
         print("Mining 11kb blocks...")
         self.nodes[0].generate(1121)
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Run each test_bitcoin (Boost) suite individually. Reports pass/fail per suite.
 # Usage: ./contrib/run-boost-individual.sh [--exclude=SUITE,SUITE,...]
-# --exclude: comma-separated suite names to skip. Default excludes Alert_tests (deprecated).
+# --exclude: comma-separated suite names to skip.
 
 set -e
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-DEFAULT_EXCLUDE="Alert_tests,miner_tests,Checkpoints_tests"
+DEFAULT_EXCLUDE="miner_tests,Checkpoints_tests"
 
 LOG_DIR="${LOG_DIR:-$REPO_ROOT/test-logs}"
 mkdir -p "$LOG_DIR"

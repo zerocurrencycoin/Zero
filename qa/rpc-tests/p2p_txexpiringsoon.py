@@ -14,6 +14,16 @@ from tx_expiry_helper import TestNode, create_transaction
 
 from binascii import hexlify
 
+# Zero regtest: activate Overwinter/Sapling and satisfy COINBASE_MATURITY (720).
+NU_ARGS = [
+    '-nuparams=6f76727a:1',
+    '-nuparams=7361707a:1',
+]
+TX_EXPIRING_SOON_THRESHOLD = 3
+# First coinbase height + COINBASE_MATURITY + (spend indices 0..2)
+MATURITY_BLOCKS = 720
+SPENDABLE_COINBASES = 3
+
 
 class TxExpiringSoonTest(BitcoinTestFramework):
 
@@ -22,8 +32,9 @@ class TxExpiringSoonTest(BitcoinTestFramework):
         initialize_chain_clean(self.options.tmpdir, 3)
 
     def setup_network(self):
-        self.nodes = start_nodes(3, self.options.tmpdir)
-        connect_nodes_bi(self.nodes, 0, 1)
+        self.nodes = start_nodes(3, self.options.tmpdir,
+                                 extra_args=[NU_ARGS, NU_ARGS, NU_ARGS])
+        # Defer connect_nodes_bi until after mininode peer check (expects one Sapling peer).
         # We don't connect node 2
 
     def send_transaction(self, testnode, block, address, expiry_height):
@@ -96,21 +107,28 @@ class TxExpiringSoonTest(BitcoinTestFramework):
         assert_equal(1, versions.count(SAPLING_PROTO_VERSION))
         assert_equal(0, peerinfo[0]["banscore"])
 
-        # Mine some blocks so we can spend
-        coinbase_blocks = self.nodes[0].generate(200)
+        connect_nodes_bi(self.nodes, 0, 1)
+
+        # Mine enough blocks for three mature coinbases (720 maturity on regtest).
+        total_blocks = MATURITY_BLOCKS + SPENDABLE_COINBASES
+        coinbase_blocks = self.nodes[0].generate(total_blocks)
+        tip = self.nodes[0].getblockcount()
         node_address = self.nodes[0].getnewaddress()
+        expiry_soon = tip + TX_EXPIRING_SOON_THRESHOLD
+        expiry_ok = tip + TX_EXPIRING_SOON_THRESHOLD + 1
+        expiry_far = tip + 1000
 
         # Sync nodes 0 and 1
         sync_blocks(self.nodes[:2])
         sync_mempools(self.nodes[:2])
 
         # Verify block count
-        assert_equal(self.nodes[0].getblockcount(), 200)
-        assert_equal(self.nodes[1].getblockcount(), 200)
+        assert_equal(self.nodes[0].getblockcount(), tip)
+        assert_equal(self.nodes[1].getblockcount(), tip)
         assert_equal(self.nodes[2].getblockcount(), 0)
 
         # Mininodes send expiring soon transaction in "tx" message to zcashd node
-        self.send_transaction(testnode0, coinbase_blocks[0], node_address, 203)
+        self.send_transaction(testnode0, coinbase_blocks[0], node_address, expiry_soon)
 
         # Assert that the tx is not in the mempool (expiring soon)
         assert_equal([], self.nodes[0].getrawmempool())
@@ -118,7 +136,7 @@ class TxExpiringSoonTest(BitcoinTestFramework):
         assert_equal([], self.nodes[2].getrawmempool())
 
         # Mininodes send transaction in "tx" message to zcashd node
-        tx2 = self.send_transaction(testnode0, coinbase_blocks[1], node_address, 204)
+        tx2 = self.send_transaction(testnode0, coinbase_blocks[1], node_address, expiry_ok)
 
         # tx2 is not expiring soon
         assert_equal([tx2.hash], self.nodes[0].getrawmempool())
@@ -138,9 +156,10 @@ class TxExpiringSoonTest(BitcoinTestFramework):
         self.nodes[2].generate(1)
 
         # Verify block count
-        assert_equal(self.nodes[0].getblockcount(), 200)
-        assert_equal(self.nodes[1].getblockcount(), 200)
-        assert_equal(self.nodes[2].getblockcount(), 201)
+        tip_after_isolate = tip + 1
+        assert_equal(self.nodes[0].getblockcount(), tip)
+        assert_equal(self.nodes[1].getblockcount(), tip)
+        assert_equal(self.nodes[2].getblockcount(), tip_after_isolate)
 
         # Reconnect node 2 to the network
         connect_nodes_bi(self.nodes, 0, 2)
@@ -153,9 +172,9 @@ class TxExpiringSoonTest(BitcoinTestFramework):
 
         # Verify block count
         sync_blocks(self.nodes[:3])
-        assert_equal(self.nodes[0].getblockcount(), 201)
-        assert_equal(self.nodes[1].getblockcount(), 201)
-        assert_equal(self.nodes[2].getblockcount(), 201)
+        assert_equal(self.nodes[0].getblockcount(), tip_after_isolate)
+        assert_equal(self.nodes[1].getblockcount(), tip_after_isolate)
+        assert_equal(self.nodes[2].getblockcount(), tip_after_isolate)
 
         # Verify contents of mempool
         assert_equal([tx2.hash], self.nodes[0].getrawmempool())
@@ -164,12 +183,14 @@ class TxExpiringSoonTest(BitcoinTestFramework):
 
         # Confirm tx2 cannot be submitted to a mempool because it is expiring soon.
         try:
-            rawtx2 = hexlify(tx2.serialize())
+            rawtx2 = hexlify(tx2.serialize()).decode('ascii')
             self.nodes[2].sendrawtransaction(rawtx2)
             fail("Sending transaction should have failed")
         except JSONRPCException as e:
+            min_expiry = expiry_ok + 1
             assert_equal(
-                "tx-expiring-soon: expiryheight is 204 but should be at least 205 to avoid transaction expiring soon",
+                "tx-expiring-soon: expiryheight is %d but should be at least %d to avoid transaction expiring soon"
+                % (expiry_ok, min_expiry),
                 e.error['message']
             )
 
@@ -189,7 +210,7 @@ class TxExpiringSoonTest(BitcoinTestFramework):
             assert_equal(tx2.sha256, msg.inv[0].hash)
 
         # Create a transaction to verify that processing of "getdata" messages is functioning
-        tx3 = self.send_transaction(testnode0, coinbase_blocks[2], node_address, 999)
+        tx3 = self.send_transaction(testnode0, coinbase_blocks[2], node_address, expiry_far)
 
         self.send_data_message(testnode0, tx3)
         self.verify_last_tx(testnode0, tx3)

@@ -7,6 +7,13 @@
 
 
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.authproxy import JSONRPCException
+from test_framework.util import (
+    COINBASE_MATURITY,
+    initialize_chain_clean,
+    start_nodes,
+    connect_nodes_bi,
+)
 
 from decimal import Decimal
 
@@ -53,10 +60,26 @@ def check_array_result(object_array, to_match, expected, should_not_find = False
 
 class ReceivedByTest(BitcoinTestFramework):
 
+    def setup_chain(self):
+        print(("Initializing test directory " + self.options.tmpdir))
+        initialize_chain_clean(self.options.tmpdir, 2)
+
+    def setup_network(self, split=False):
+        self.nodes = start_nodes(2, self.options.tmpdir)
+        connect_nodes_bi(self.nodes, 0, 1)
+        self.is_network_split = False
+        self.sync_all()
+
     def run_test(self):
         '''
         listreceivedbyaddress Test
         '''
+        # Zero COINBASE_MATURITY=720: mature coinbase before node 0 spends.
+        self.nodes[0].generate(1)
+        self.sync_all()
+        self.nodes[1].generate(COINBASE_MATURITY)
+        self.sync_all()
+
         # Send from node 0 to 1
         addr = self.nodes[1].getnewaddress()
         txid = self.nodes[0].sendtoaddress(addr, 0.1)
@@ -114,6 +137,16 @@ class ReceivedByTest(BitcoinTestFramework):
         '''
         listreceivedbyaccount + getreceivedbyaccount Test
         '''
+        # Zero wallet rejects non-empty account names (RPC_WALLET_ACCOUNTS_UNSUPPORTED).
+        try:
+            self.nodes[1].getaccountaddress("mynewaccount")
+            named_accounts = True
+        except JSONRPCException as e:
+            if e.error.get('code') != -11:
+                raise
+            print("Skipping named-account RPC tests: Accounts are unsupported")
+            return
+
         # set pre-state
         addrArr = self.nodes[1].getnewaddress()
         account = self.nodes[1].getaccount(addrArr)

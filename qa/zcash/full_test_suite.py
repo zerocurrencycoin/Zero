@@ -18,18 +18,19 @@ REPOROOT = os.path.dirname(
     )
 )
 
-# Same exclusions as contrib/run-tests.sh default (passing) run — unfiltered btest/gtest
-# can hang on wallet DB rewrite / witness harness cases.
-BOOST_PASS_EXCLUDE = (
-    '!Alert_tests:!miner_tests:'
-    '!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'
-)
-GTEST_PASS_FILTER = (
-    '-wallet_zkeys_tests.WriteCryptedSaplingZkey*:WalletTests.CachedWitnesses*'
-)
-
 def repofile(filename):
     return os.path.join(REPOROOT, filename)
+
+# Same exclusions as contrib/run-tests.sh — canonical source: qa/zcash/test_filters.sh
+def _load_test_filters():
+    script = repofile('qa/zcash/test_filters.sh')
+    out = subprocess.check_output(
+        ['bash', '-c', 'source "$1" && printf "%s\\n%s" "$BOOST_PASS_EXCLUDE" "$GTEST_PASS_EXCLUDE"', 'bash', script],
+        text=True,
+    ).strip().split('\n', 1)
+    return out[0], out[1] if len(out) > 1 else ''
+
+BOOST_PASS_EXCLUDE, GTEST_PASS_FILTER = _load_test_filters()
 
 
 def btest_command(unfiltered):
@@ -232,7 +233,7 @@ def main():
     parser.add_argument(
         '--unfiltered',
         action='store_true',
-        help='btest/gtest: no exclusions (may hang; same as run-tests.sh --all C++ suites).',
+        help='btest/gtest: no exclusions (may hang; includes suites run only under run-tests.sh --fail).',
     )
     parser.add_argument('stage', nargs='*', default=STAGES,
                         help='One of %s' % STAGES)

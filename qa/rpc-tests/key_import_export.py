@@ -5,8 +5,9 @@
 
 
 from decimal import Decimal
+from functools import reduce
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, assert_greater_than, start_nodes, initialize_chain_clean, connect_nodes_bi
+from test_framework.util import assert_equal, assert_greater_than, start_nodes, initialize_chain_clean, connect_nodes_bi, mine_until_node_has_mature_coinbase
 
 import logging
 
@@ -40,10 +41,7 @@ class KeyImportExportTest (BitcoinTestFramework):
         def verify_utxos(node, amounts):
             utxos = node.listunspent(1, 10**9, [addr])
 
-            def cmp_confirmations_high_to_low(a, b):
-                return cmp(b["confirmations"], a["confirmations"])
-
-            utxos.sort(cmp_confirmations_high_to_low)
+            utxos.sort(key=lambda u: u["confirmations"], reverse=True)
 
             try:
                 assert_equal(amounts, [utxo["amount"] for utxo in utxos])
@@ -56,7 +54,7 @@ class KeyImportExportTest (BitcoinTestFramework):
         # Seed Alice with some funds
         alice.generate(10)
         self.sync_all()
-        miner.generate(100)
+        mine_until_node_has_mature_coinbase(miner, self.nodes)
         self.sync_all()
 
         # Now get a pristine address for receiving transfers:
@@ -65,7 +63,7 @@ class KeyImportExportTest (BitcoinTestFramework):
         verify_utxos(charlie, [])
 
         # the amounts of each txn embodied which generates a single UTXO:
-        amounts = map(Decimal, ['2.3', '3.7', '0.1', '0.5', '1.0', '0.19'])
+        amounts = list(map(Decimal, ['2.3', '3.7', '0.1', '0.5', '1.0', '0.19']))
 
         # Internal test consistency assertion:
         assert_greater_than(

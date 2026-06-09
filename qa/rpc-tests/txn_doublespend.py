@@ -44,7 +44,11 @@ class TxnMallTest(BitcoinTestFramework):
         self.sync_all()
         self.nodes[3].generate(25)
         self.sync_all()
-        self.nodes[0].generate(720)
+        # All four nodes mined 25 blocks each (100 total); need height >= 100+720
+        # so every bootstrap coinbase is mature (mine_until stops at first UTXO).
+        need = 100 + 720 - self.nodes[0].getblockcount()
+        if need > 0:
+            self.nodes[0].generate(need)
         self.sync_all()
 
     def run_test(self):

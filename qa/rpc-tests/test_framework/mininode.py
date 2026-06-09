@@ -895,7 +895,7 @@ class CBlock(CBlockHeader):
 
     def is_valid(self, n=48, k=5):
         # H(I||...
-        digest = blake2b(digest_size=(512/n)*n/8, person=zcash_person(n, k))
+        digest = blake2b(digest_size=(512//n)*n//8, person=zcash_person(n, k))
         digest.update(super(CBlock, self).serialize()[:108])
         hash_nonce(digest, self.nNonce)
         if not gbp_validate(self.nSolution, digest, n, k):
@@ -914,7 +914,7 @@ class CBlock(CBlockHeader):
     def solve(self, n=48, k=5):
         target = uint256_from_compact(self.nBits)
         # H(I||...
-        digest = blake2b(digest_size=(512/n)*n/8, person=zcash_person(n, k))
+        digest = blake2b(digest_size=(512//n)*n//8, person=zcash_person(n, k))
         digest.update(super(CBlock, self).serialize()[:108])
         self.nNonce = 0
         while True:
@@ -936,81 +936,6 @@ class CBlock(CBlockHeader):
             % (self.nVersion, self.hashPrevBlock, self.hashMerkleRoot,
                self.hashFinalSaplingRoot, time.ctime(self.nTime), self.nBits,
                self.nNonce, self.nSolution, self.vtx)
-
-
-class CUnsignedAlert(object):
-    def __init__(self):
-        self.nVersion = 1
-        self.nRelayUntil = 0
-        self.nExpiration = 0
-        self.nID = 0
-        self.nCancel = 0
-        self.setCancel = []
-        self.nMinVer = 0
-        self.nMaxVer = 0
-        self.setSubVer = []
-        self.nPriority = 0
-        self.strComment = ""
-        self.strStatusBar = ""
-        self.strReserved = ""
-
-    def deserialize(self, f):
-        self.nVersion = struct.unpack("<i", f.read(4))[0]
-        self.nRelayUntil = struct.unpack("<q", f.read(8))[0]
-        self.nExpiration = struct.unpack("<q", f.read(8))[0]
-        self.nID = struct.unpack("<i", f.read(4))[0]
-        self.nCancel = struct.unpack("<i", f.read(4))[0]
-        self.setCancel = deser_int_vector(f)
-        self.nMinVer = struct.unpack("<i", f.read(4))[0]
-        self.nMaxVer = struct.unpack("<i", f.read(4))[0]
-        self.setSubVer = deser_string_vector(f)
-        self.nPriority = struct.unpack("<i", f.read(4))[0]
-        self.strComment = deser_string(f)
-        self.strStatusBar = deser_string(f)
-        self.strReserved = deser_string(f)
-
-    def serialize(self):
-        r = b""
-        r += struct.pack("<i", self.nVersion)
-        r += struct.pack("<q", self.nRelayUntil)
-        r += struct.pack("<q", self.nExpiration)
-        r += struct.pack("<i", self.nID)
-        r += struct.pack("<i", self.nCancel)
-        r += ser_int_vector(self.setCancel)
-        r += struct.pack("<i", self.nMinVer)
-        r += struct.pack("<i", self.nMaxVer)
-        r += ser_string_vector(self.setSubVer)
-        r += struct.pack("<i", self.nPriority)
-        r += ser_string(self.strComment)
-        r += ser_string(self.strStatusBar)
-        r += ser_string(self.strReserved)
-        return r
-
-    def __repr__(self):
-        return "CUnsignedAlert(nVersion %d, nRelayUntil %d, nExpiration %d, nID %d, nCancel %d, nMinVer %d, nMaxVer %d, nPriority %d, strComment %s, strStatusBar %s, strReserved %s)" \
-            % (self.nVersion, self.nRelayUntil, self.nExpiration, self.nID,
-               self.nCancel, self.nMinVer, self.nMaxVer, self.nPriority,
-               self.strComment, self.strStatusBar, self.strReserved)
-
-
-class CAlert(object):
-    def __init__(self):
-        self.vchMsg = b""
-        self.vchSig = b""
-
-    def deserialize(self, f):
-        self.vchMsg = deser_string(f)
-        self.vchSig = deser_string(f)
-
-    def serialize(self):
-        r = b""
-        r += ser_string(self.vchMsg)
-        r += ser_string(self.vchSig)
-        return r
-
-    def __repr__(self):
-        return "CAlert(vchMsg.sz %d, vchSig.sz %d)" \
-            % (len(self.vchMsg), len(self.vchSig))
 
 
 # Objects that correspond to messages on the wire
@@ -1099,25 +1024,6 @@ class msg_addr(object):
 
     def __repr__(self):
         return "msg_addr(addrs=%r)" % (self.addrs,)
-
-
-class msg_alert(object):
-    command = "alert"
-
-    def __init__(self):
-        self.alert = CAlert()
-
-    def deserialize(self, f):
-        self.alert = CAlert()
-        self.alert.deserialize(f)
-
-    def serialize(self):
-        r = b""
-        r += self.alert.serialize()
-        return r
-
-    def __repr__(self):
-        return "msg_alert(alert=%r)" % (self.alert,)
 
 
 class msg_inv(object):
@@ -1436,7 +1342,6 @@ class NodeConnCB(object):
             "version": self.on_version,
             "verack": self.on_verack,
             "addr": self.on_addr,
-            "alert": self.on_alert,
             "inv": self.on_inv,
             "getdata": self.on_getdata,
             "notfound": self.on_notfound,
@@ -1482,7 +1387,6 @@ class NodeConnCB(object):
             conn.send_message(want)
 
     def on_addr(self, conn, message): pass
-    def on_alert(self, conn, message): pass
     def on_getdata(self, conn, message): pass
     def on_notfound(self, conn, message): pass
     def on_getblocks(self, conn, message): pass
@@ -1507,7 +1411,6 @@ class NodeConn(asyncore.dispatcher):
         "version": msg_version,
         "verack": msg_verack,
         "addr": msg_addr,
-        "alert": msg_alert,
         "inv": msg_inv,
         "getdata": msg_getdata,
         "notfound": msg_notfound,

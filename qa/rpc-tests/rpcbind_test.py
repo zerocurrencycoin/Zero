@@ -56,8 +56,31 @@ def run_allowip_test(tmpdir, allow_ips, rpchost, rpcport):
         wait_bitcoinds()
 
 
+def bind_addr_checks_available():
+    # get_bind_addrs reads /proc/net and /proc/pid/fd (Linux only).
+    return os.path.isdir('/proc')
+
+def run_localhost_rpc_smoke(tmpdir):
+    '''Reduced path for macOS and other non-Linux hosts without /proc bind inspection.'''
+    defaultport = rpc_port(0)
+    base_args = ['-disablewallet', '-nolisten', '-rpcbind=127.0.0.1', '-rpcallowip=127.0.0.1']
+    nodes = start_nodes(1, tmpdir, [base_args])
+    try:
+        url = "http://rt:rt@127.0.0.1:%d" % (defaultport,)
+        node = AuthServiceProxy(url)
+        node.getblockchaininfo()
+    finally:
+        stop_nodes(nodes)
+        wait_bitcoinds()
+
 def run_test(tmpdir):
-    assert(sys.platform == 'linux2') # due to OS-specific network stats queries, this test works only on Linux
+    defaultport = rpc_port(0)
+
+    if not bind_addr_checks_available():
+        print("Skipping get_bind_addrs checks on %s (no /proc); running localhost RPC smoke only" % sys.platform)
+        run_localhost_rpc_smoke(tmpdir)
+        return
+
     # find the first non-loopback interface for testing
     non_loopback_ip = None
     for name,ip in all_interfaces():
@@ -67,8 +90,6 @@ def run_test(tmpdir):
     if non_loopback_ip is None:
         assert(not 'This test requires at least one non-loopback IPv4 interface')
     print(("Using interface %s for testing" % non_loopback_ip))
-
-    defaultport = rpc_port(0)
 
     # check default without rpcallowip (IPv4 and IPv6 localhost)
     run_bind_test(tmpdir, None, '127.0.0.1', [],

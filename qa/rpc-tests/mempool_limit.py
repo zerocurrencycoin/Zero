@@ -7,6 +7,7 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
+    COINBASE_MATURITY,
     get_coinbase_address,
     fail,
     initialize_chain_clean,
@@ -51,7 +52,7 @@ class MempoolLimit(BitcoinTestFramework):
         self.sync_all()
         self.nodes[3].generate(1)
         self.sync_all()
-        self.nodes[0].generate(100)
+        self.nodes[0].generate(COINBASE_MATURITY)
         self.sync_all()
         assert_equal(Decimal("10.00"), Decimal(self.nodes[1].z_gettotalbalance()['transparent']))
         assert_equal(Decimal("10.00"), Decimal(self.nodes[2].z_gettotalbalance()['transparent']))
