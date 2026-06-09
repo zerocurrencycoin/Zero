@@ -12,7 +12,7 @@ import json
 import struct
 import re
 import base64
-import httplib
+import http.client
 import sys
 
 settings = {}
@@ -20,8 +20,8 @@ settings = {}
 class BitcoinRPC:
 	def __init__(self, host, port, username, password):
 		authpair = "%s:%s" % (username, password)
-		self.authhdr = "Basic %s" % (base64.b64encode(authpair))
-		self.conn = httplib.HTTPConnection(host, port, False, 30)
+		self.authhdr = "Basic %s" % base64.b64encode(authpair.encode()).decode()
+		self.conn = http.client.HTTPConnection(host, port, timeout=30)
 
 	def execute(self, obj):
 		self.conn.request('POST', '/', json.dumps(obj),
@@ -82,12 +82,12 @@ if __name__ == '__main__':
 	f = open(sys.argv[1])
 	for line in f:
 		# skip comment lines
-		m = re.search('^\s*#', line)
+		m = re.search(r'^\s*#', line)
 		if m:
 			continue
 
 		# parse key=value lines
-		m = re.search('^(\w+)\s*=\s*(\S.*)$', line)
+		m = re.search(r'^(\w+)\s*=\s*(\S.*)$', line)
 		if m is None:
 			continue
 		settings[m.group(1)] = m.group(2)
@@ -102,7 +102,7 @@ if __name__ == '__main__':
 	if 'max_height' not in settings:
 		settings['max_height'] = 313000
 	if 'rpcuser' not in settings or 'rpcpassword' not in settings:
-		print("Missing username and/or password in cfg file", file=stderr)
+		print("Missing username and/or password in cfg file", file=sys.stderr)
 		sys.exit(1)
 
 	settings['port'] = int(settings['port'])
