@@ -21,6 +21,7 @@ Status and tracked work items for the Zero node.
 
 ## Pending
 
+- P2P logging (postponed): remove misleading `Unknown command` log after zeronode extension dispatch (`src/main.cpp` ~7025-7033). Valid commands (`znp`, `znb`, `znget`, `dseg`, spork, etc.) are handled in `znodeman` / budget / payments subsystems but still log when `-debug=net`. TENT extension `else` omits this log; `notfound` already has a no-log exception. Fix: drop trailing `LogPrint` or log only when no subsystem handled the command.
 - Params archival: audit `fetch-params.sh` file names and URLs.
 - Build validation: Windows hardening flag gap identified
 - Branch id posture: CI guard for duplicate `nBranchId` (Sapling/Cosmos share `0x7361707a`).

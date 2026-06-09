@@ -6,15 +6,14 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 #
+# Zero: block files use CBlockHeader + nSolution (Equihash), not Bitcoin's
+# 80-byte header. Block hash matches SerializeHash(CBlockHeader) / getblockhash.
 
 
-import json
 import struct
 import re
 import os
 import os.path
-import base64
-import http.client
 import sys
 import hashlib
 import datetime
@@ -23,71 +22,68 @@ from collections import namedtuple
 
 settings = {}
 
-def uint32(x):
-	return x & 0xffffffff
+# CBlockHeader field layout (serialize order); nTime at byte 100.
+ZERO_HEADER_NTIME_OFF = 4 + 32 + 32 + 32
 
-def bytereverse(x):
-	return uint32(( ((x) << 24) | (((x) << 8) & 0x00ff0000) |
-		       (((x) >> 8) & 0x0000ff00) | ((x) >> 24) ))
 
-def bufreverse(in_buf):
-	out_words = []
-	for i in range(0, len(in_buf), 4):
-		word = struct.unpack('@I', in_buf[i:i+4])[0]
-		out_words.append(struct.pack('@I', bytereverse(word)))
-	return ''.join(out_words)
+def read_compact_size(data, off):
+	ch = data[off]
+	off += 1
+	if ch < 253:
+		return ch, off
+	if ch == 253:
+		return struct.unpack_from('<H', data, off)[0], off + 2
+	if ch == 254:
+		return struct.unpack_from('<I', data, off)[0], off + 4
+	return struct.unpack_from('<Q', data, off)[0], off + 8
 
-def wordreverse(in_buf):
-	out_words = []
-	for i in range(0, len(in_buf), 4):
-		out_words.append(in_buf[i:i+4])
-	out_words.reverse()
-	return ''.join(out_words)
 
-def calc_hdr_hash(blk_hdr):
-	hash1 = hashlib.sha256()
-	hash1.update(blk_hdr)
-	hash1_o = hash1.digest()
+def header_serialize_bytes(payload):
+	"""Bytes serialized for CBlockHeader::GetHash (header fields through nSolution)."""
+	off = 0
+	start = off
+	off += 4 + 32 + 32 + 32 + 4 + 4 + 32
+	sol_len, off_after = read_compact_size(payload, off)
+	off = off_after + sol_len
+	return payload[start:off]
 
-	hash2 = hashlib.sha256()
-	hash2.update(hash1_o)
-	hash2_o = hash2.digest()
 
-	return hash2_o
+def block_hash_hex(payload):
+	"""Match zerod getblockhash / SerializeHash(CBlockHeader)."""
+	hdr = header_serialize_bytes(payload)
+	digest = hashlib.sha256(hashlib.sha256(hdr).digest()).digest()
+	return digest[::-1].hex()
 
-def calc_hash_str(blk_hdr):
-	hash = calc_hdr_hash(blk_hdr)
-	hash = bufreverse(hash)
-	hash = wordreverse(hash)
-	hash_str = hash.encode('hex')
-	return hash_str
 
-def get_blk_dt(blk_hdr):
-	members = struct.unpack("<I", blk_hdr[68:68+4])
+def get_blk_dt(payload):
+	members = struct.unpack("<I", payload[ZERO_HEADER_NTIME_OFF:ZERO_HEADER_NTIME_OFF + 4])
 	nTime = members[0]
 	dt = datetime.datetime.fromtimestamp(nTime)
 	dt_ym = datetime.datetime(dt.year, dt.month, 1)
 	return (dt_ym, nTime)
 
+
 def get_block_hashes(settings):
 	blkindex = []
-	f = open(settings['hashlist'], "r")
-	for line in f:
-		line = line.rstrip()
-		blkindex.append(line)
+	with open(settings['hashlist'], "r") as f:
+		for line in f:
+			line = line.rstrip()
+			blkindex.append(line)
 
 	print("Read " + str(len(blkindex)) + " hashes")
 
 	return blkindex
 
+
 def mkblockmap(blkindex):
 	blkmap = {}
-	for height,hash in enumerate(blkindex):
+	for height, hash in enumerate(blkindex):
 		blkmap[hash] = height
 	return blkmap
 
-# Block header and extent on disk
-BlockExtent = namedtuple('BlockExtent', ['fn', 'offset', 'inhdr', 'blkhdr', 'size'])
+# Block extent on disk (payload only; inhdr stored separately)
+BlockExtent = namedtuple('BlockExtent', ['fn', 'offset', 'inhdr', 'size'])
+
 
 class BlockDataCopier:
 	def __init__(self, settings, blkindex, blkmap):
@@ -116,30 +112,30 @@ class BlockDataCopier:
 			self.setFileTime = True
 		if settings['split_timestamp'] != 0:
 			self.timestampSplit = True
-		# Extents and cache for out-of-order blocks
 		self.blockExtents = {}
 		self.outOfOrderData = {}
-		self.outOfOrderSize = 0 # running total size for items in outOfOrderData
+		self.outOfOrderSize = 0
 
-	def writeBlock(self, inhdr, blk_hdr, rawblock):
-		blockSizeOnDisk = len(inhdr) + len(blk_hdr) + len(rawblock)
+	def writeBlock(self, inhdr, payload):
+		blockSizeOnDisk = len(inhdr) + len(payload)
 		if not self.fileOutput and ((self.outsz + blockSizeOnDisk) > self.maxOutSz):
 			self.outF.close()
 			if self.setFileTime:
-				os.utime(outFname, (int(time.time()), highTS))
+				os.utime(self.outFname, (int(time.time()), self.highTS))
 			self.outF = None
 			self.outFname = None
 			self.outFn = self.outFn + 1
 			self.outsz = 0
 
-		(blkDate, blkTS) = get_blk_dt(blk_hdr)
+		(blkDate, blkTS) = get_blk_dt(payload)
 		if self.timestampSplit and (blkDate > self.lastDate):
+			hash_str = block_hash_hex(payload)
 			print("New month " + blkDate.strftime("%Y-%m") + " @ " + hash_str)
-			lastDate = blkDate
-			if outF:
-				outF.close()
-				if setFileTime:
-					os.utime(outFname, (int(time.time()), highTS))
+			self.lastDate = blkDate
+			if self.outF:
+				self.outF.close()
+				if self.setFileTime:
+					os.utime(self.outFname, (int(time.time()), self.highTS))
 				self.outF = None
 				self.outFname = None
 				self.outFn = self.outFn + 1
@@ -147,59 +143,55 @@ class BlockDataCopier:
 
 		if not self.outF:
 			if self.fileOutput:
-				outFname = self.settings['output_file']
+				self.outFname = self.settings['output_file']
 			else:
-				outFname = os.path.join(self.settings['output'], "blk%05d.dat" % self.outFn)
-			print("Output file " + outFname)
-			self.outF = open(outFname, "wb")
+				self.outFname = os.path.join(self.settings['output'], "blk%05d.dat" % self.outFn)
+			print("Output file " + self.outFname)
+			self.outF = open(self.outFname, "wb")
 
 		self.outF.write(inhdr)
-		self.outF.write(blk_hdr)
-		self.outF.write(rawblock)
-		self.outsz = self.outsz + len(inhdr) + len(blk_hdr) + len(rawblock)
+		self.outF.write(payload)
+		self.outsz = self.outsz + blockSizeOnDisk
 
 		self.blkCountOut = self.blkCountOut + 1
 		if blkTS > self.highTS:
 			self.highTS = blkTS
 
 		if (self.blkCountOut % 1000) == 0:
-			print('%i blocks scanned, %i blocks written (of %i, %.1f%% complete)' % 
+			print('%i blocks scanned, %i blocks written (of %i, %.1f%% complete)' %
 					(self.blkCountIn, self.blkCountOut, len(self.blkindex), 100.0 * self.blkCountOut / len(self.blkindex)))
 
 	def inFileName(self, fn):
 		return os.path.join(self.settings['input'], "blk%05d.dat" % fn)
 
 	def fetchBlock(self, extent):
-		'''Fetch block contents from disk given extents'''
 		with open(self.inFileName(extent.fn), "rb") as f:
 			f.seek(extent.offset)
 			return f.read(extent.size)
 
 	def copyOneBlock(self):
-		'''Find the next block to be written in the input, and copy it to the output.'''
 		extent = self.blockExtents.pop(self.blkCountOut)
 		if self.blkCountOut in self.outOfOrderData:
-			# If the data is cached, use it from memory and remove from the cache
-			rawblock = self.outOfOrderData.pop(self.blkCountOut)
-			self.outOfOrderSize -= len(rawblock)
-		else: # Otherwise look up data on disk
-			rawblock = self.fetchBlock(extent)
+			payload = self.outOfOrderData.pop(self.blkCountOut)
+			self.outOfOrderSize -= len(payload)
+		else:
+			payload = self.fetchBlock(extent)
 
-		self.writeBlock(extent.inhdr, extent.blkhdr, rawblock)
+		self.writeBlock(extent.inhdr, payload)
 
 	def run(self):
 		while self.blkCountOut < len(self.blkindex):
 			if not self.inF:
 				fname = self.inFileName(self.inFn)
-				print("Input file " + fname)
-				try:
-					self.inF = open(fname, "rb")
-				except IOError:
-					print("Premature end of block data")
+				if not os.path.exists(fname):
+					print("Premature end of block data (%i blocks written, expected %i)" %
+						(self.blkCountOut, len(self.blkindex)))
 					return
+				print("Input file " + fname)
+				self.inF = open(fname, "rb")
 
 			inhdr = self.inF.read(8)
-			if (not inhdr or (inhdr[0] == "\0")):
+			if (not inhdr or (inhdr[0] == 0)):
 				self.inF.close()
 				self.inF = None
 				self.inFn = self.inFn + 1
@@ -207,68 +199,61 @@ class BlockDataCopier:
 
 			inMagic = inhdr[:4]
 			if (inMagic != self.settings['netmagic']):
-				print("Invalid magic: " + inMagic.encode('hex'))
+				print("Invalid magic: " + inMagic.hex())
 				return
-			inLenLE = inhdr[4:]
-			su = struct.unpack("<I", inLenLE)
-			inLen = su[0] - 80 # length without header
-			blk_hdr = self.inF.read(80)
-			inExtent = BlockExtent(self.inFn, self.inF.tell(), inhdr, blk_hdr, inLen)
+			nsize = struct.unpack("<I", inhdr[4:])[0]
+			payload_offset = self.inF.tell()
+			payload = self.inF.read(nsize)
+			if len(payload) != nsize:
+				print("Truncated block in " + self.inFileName(self.inFn))
+				return
 
-			hash_str = calc_hash_str(blk_hdr)
-			if not hash_str in blkmap:
+			hash_str = block_hash_hex(payload)
+			if hash_str not in self.blkmap:
 				print("Skipping unknown block " + hash_str)
-				self.inF.seek(inLen, os.SEEK_CUR)
 				continue
 
 			blkHeight = self.blkmap[hash_str]
 			self.blkCountIn += 1
+			inExtent = BlockExtent(self.inFn, payload_offset, inhdr, nsize)
 
 			if self.blkCountOut == blkHeight:
-				# If in-order block, just copy
-				rawblock = self.inF.read(inLen)
-				self.writeBlock(inhdr, blk_hdr, rawblock)
+				self.writeBlock(inhdr, payload)
 
-				# See if we can catch up to prior out-of-order blocks
 				while self.blkCountOut in self.blockExtents:
 					self.copyOneBlock()
 
-			else: # If out-of-order, skip over block data for now
+			else:
 				self.blockExtents[blkHeight] = inExtent
 				if self.outOfOrderSize < self.settings['out_of_order_cache_sz']:
-					# If there is space in the cache, read the data
-					# Reading the data in file sequence instead of seeking and fetching it later is preferred,
-					# but we don't want to fill up memory
-					self.outOfOrderData[blkHeight] = self.inF.read(inLen)
-					self.outOfOrderSize += inLen
-				else: # If no space in cache, seek forward
-					self.inF.seek(inLen, os.SEEK_CUR)
+					self.outOfOrderData[blkHeight] = payload
+					self.outOfOrderSize += nsize
 
 		print("Done (%i blocks written)" % (self.blkCountOut))
+
 
 if __name__ == '__main__':
 	if len(sys.argv) != 2:
 		print("Usage: linearize-data.py CONFIG-FILE")
 		sys.exit(1)
 
-	f = open(sys.argv[1])
-	for line in f:
-		# skip comment lines
-		m = re.search('^\s*#', line)
-		if m:
-			continue
+	with open(sys.argv[1]) as f:
+		for line in f:
+			m = re.search(r'^\s*#', line)
+			if m:
+				continue
+			m = re.search(r'^(\w+)\s*=\s*(\S.*)$', line)
+			if m is None:
+				continue
+			settings[m.group(1)] = m.group(2)
 
-		# parse key=value lines
-		m = re.search('^(\w+)\s*=\s*(\S.*)$', line)
-		if m is None:
-			continue
-		settings[m.group(1)] = m.group(2)
-	f.close()
+	if 'split_timestamp' not in settings and 'split_year' in settings:
+		settings['split_timestamp'] = settings['split_year']
 
 	if 'netmagic' not in settings:
-		settings['netmagic'] = 'f9beb4d9'
+		settings['netmagic'] = '5a45524f'
 	if 'genesis' not in settings:
-		settings['genesis'] = '000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f'
+		settings['genesis'] = '068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6'
 	if 'input' not in settings:
 		settings['input'] = 'input'
 	if 'hashlist' not in settings:
@@ -285,7 +270,7 @@ if __name__ == '__main__':
 	settings['max_out_sz'] = int(settings['max_out_sz'])
 	settings['split_timestamp'] = int(settings['split_timestamp'])
 	settings['file_timestamp'] = int(settings['file_timestamp'])
-	settings['netmagic'] = settings['netmagic'].decode('hex')
+	settings['netmagic'] = bytes.fromhex(settings['netmagic'])
 	settings['out_of_order_cache_sz'] = int(settings['out_of_order_cache_sz'])
 
 	if 'output_file' not in settings and 'output' not in settings:
@@ -295,9 +280,7 @@ if __name__ == '__main__':
 	blkindex = get_block_hashes(settings)
 	blkmap = mkblockmap(blkindex)
 
-	if not settings['genesis'] in blkmap:
+	if settings['genesis'] not in blkmap:
 		print("Genesis block not found in hashlist")
 	else:
 		BlockDataCopier(settings, blkindex, blkmap).run()
-
-
