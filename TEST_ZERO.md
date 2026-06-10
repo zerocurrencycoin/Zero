@@ -506,7 +506,7 @@ First build is slow (200-block distribution + ~525 extra blocks for maturity). L
 |------|---------------------------------------------|-------|
 | B pass | `wallet_import_export`, `wallet_changeindicator`, `nodehandling`, `proxy_test` | Implicit cache; no tip-**200** assert |
 | Bfail Debug | `wallet_addresses`, `rescan_import`, `reorg_limit`, `wallet_listnotes`, `wallet_sapling` | Default cache + tip **200** assert -- see **Tip 200 debt** and per-script debug sections |
-| Bfail Debug | `wallet_listnotes`, `wallet_sapling`, `wallet_listreceived`, `mempool_spendcoinbase`, `mempool_reorg`, `mempool_tx_expiry`, `bip65-cltv-p2p`, `bipdersig-p2p`, `regtest_signrawtransaction` | See **Bfail and Efail cache exposure** below |
+| Bfail Debug | `wallet_listnotes`, `wallet_sapling`, `wallet_listreceived`, `mempool_reorg`, `mempool_tx_expiry`, `bip65-cltv-p2p`, `bipdersig-p2p`, `regtest_signrawtransaction` | See **Bfail and Efail cache exposure** below |
 | Efail | `getblocktemplate_longpoll`, `getblocktemplate_proposals`, `smartfees`, `invalidblockrequest` | Comptool / long-chain scripts; tip **725** may skew timing assumptions |
 | Other | `mempool_reorg`, `proton_test`, `script_test`, `zmq_test`, ... | Same default path |
 
