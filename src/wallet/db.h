@@ -45,6 +45,9 @@ public:
 
     void MakeMock();
     bool IsMock() { return fMockDb; }
+    //! Directory the environment was opened in; wallet files live here.
+    //! The environment is process-wide and bound to the first datadir opened.
+    const std::string& GetPath() const { return strPath; }
 
     /**
      * Verify that database file strFile is OK. If it is not,
