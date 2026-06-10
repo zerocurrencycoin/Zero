@@ -5,8 +5,10 @@ CURDIR=$(cd $(dirname "$0"); pwd)
 # Get BUILDDIR and REAL_BITCOIND
 . "${CURDIR}/tests-config.sh"
 
+export BUILDDIR
 export BITCOINCLI=${BUILDDIR}/qa/pull-tester/run-bitcoin-cli
 export BITCOIND=${REAL_BITCOIND}
+export ZERO_RPC_CACHE_DIR="${ZERO_RPC_CACHE_DIR:-$BUILDDIR/cache}"
 export PYTHON
 export PYTHONPATH="${BUILDDIR}/qa/rpc-tests${PYTHONPATH:+:${PYTHONPATH}}"
 
@@ -123,23 +125,20 @@ testScriptsTierA=(
     'paymentdisclosure.py'
     'getchaintips.py'
     'rewind_index.py'
-    'shorter_block_times.py'
     'p2p_nu_peer_management.py'
 )
 
+# Tier counts (pass tiers): A=10, B pass=21 (20 unique; txn_doublespend x2), E pass=2; -all runs 33.
+# Bfail: Debug=32, Retired=6; -rpcfail runs Bfail+Efail diagnostic tiers.
 # Tier B pass: in testScripts but not Tier A.
 testScriptsTierBPass=(
     'wallet_anchorfork.py'
-    'wallet_changeaddresses.py'
     'wallet_changeindicator.py'
     'wallet_import_export.py'
     'wallet_protectcoinbase.py'
     'wallet_shieldcoinbase_sapling.py'
-    'wallet.py'
-    'wallet_overwintertx.py'
     'wallet_nullifiers.py'
     'wallet_1941.py'
-    'wallet_addresses.py'
     'listtransactions.py'
     'mempool_resurrect_test.py'
     'txn_doublespend.py'
@@ -148,10 +147,8 @@ testScriptsTierBPass=(
     'proxy_test.py'
     'signrawtransactions.py'
     'nodehandling.py'
-    'rescan_import.py'
     'rescan_startup.py'
     'zkey_import_export.py'
-    'reorg_limit.py'
     'getblocktemplate.py'
     'p2p_txexpiry_dos.py'
     'p2p_txexpiringsoon.py'
@@ -162,6 +159,12 @@ testScriptsTierBPass=(
 #   BfailDebug: porting / maturity / insight / comptool / Py3 -- needs engineering
 #   BfailRetired: Sprout-era, manual testnet, merge-to-address sprout -- low priority
 testScriptsTierBFailDebug=(
+    'shorter_block_times.py'
+    'wallet.py'
+    'wallet_changeaddresses.py'
+    'wallet_addresses.py'
+    'rescan_import.py'
+    'reorg_limit.py'
     'wallet_listreceived.py'
     'wallet_persistence.py'
     'wallet_sapling.py'
@@ -193,6 +196,7 @@ testScriptsTierBFailDebug=(
 testScriptsTierBFailRetired=(
     'prioritisetransaction.py'
     'wallet_treestate.py'
+    'wallet_overwintertx.py'
     'mergetoaddress_sprout.py'
     'sprout_sapling_migration.py'
     'turnstile.py'
@@ -220,6 +224,7 @@ testScriptsExtFail=(
 )
 
 # Invocation tiers (documented in TEST_ZERO.md; inventory: -list-csv):
+#   Pass: A=10, B=21, E=2 (-all = 33). Bfail: Debug=32, Retired=6. Efail=8.
 #   -A | --tier-a       Tier A gate
 #   -B | --tier-b       Tier B pass only
 #   -Bfail              Tier B fail only (Debug then Retired; diagnostic)

@@ -69,12 +69,8 @@ class WalletTest (BitcoinTestFramework):
         self.sync_all()
 
         # node0 should end up with 50 ZER (5 blocks) minus 21 sent to node2 = 29.
-        # Zero: node0 sometimes gets ~19; block 5 reward not maturing (UpdateTests.md 6.3).
         node0_bal = self.nodes[0].getbalance()
-        if node0_bal != 50 - 21:
-            print(("Skipping wallet balance assertions: node0 got %s, expected 29 (block 5 reward not maturing)" % node0_bal))
-            return
-        assert_equal(node0_bal, 50-21)
+        assert_equal(node0_bal, 50 - 21)
         assert_equal(self.nodes[2].getbalance(), 21)
         assert_equal(self.nodes[0].getbalance("*"), 50-21)
         assert_equal(self.nodes[2].getbalance("*"), 21)

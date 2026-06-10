@@ -37,9 +37,9 @@ class ShorterBlockTimes(BitcoinTestFramework):
         # Sanity-check the block height
         assert_equal(self.nodes[0].getblockcount(), 101)
 
-        if not ensure_coinbase_utxos(self.nodes[0], self.nodes, 1000):
-            print("Skipping shorter_block_times: " + coinbase_diagnostic(self.nodes[0]))
-            return
+        assert ensure_coinbase_utxos(self.nodes[0], self.nodes, 1000), (
+            "shorter_block_times needs a mature coinbase UTXO: "
+            + coinbase_diagnostic(self.nodes[0]))
         node0_taddr = get_coinbase_address(self.nodes[0])
         node0_zaddr = self.nodes[0].z_getnewaddress('sapling')
         recipients = [{'address': node0_zaddr, 'amount': Decimal('10')}]

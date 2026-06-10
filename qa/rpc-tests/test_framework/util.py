@@ -21,7 +21,7 @@ import subprocess
 import time
 import re
 
-from .authproxy import AuthServiceProxy
+from .authproxy import AuthServiceProxy, JSONRPCException
 
 def p2p_port(n):
     return 11000 + n + os.getpid()%999
@@ -92,6 +92,65 @@ def sync_mempools(rpc_connections, wait=1):
 
 bitcoind_processes = {}
 
+# Regtest NU flags used for cache build and start_node (must match).
+NU_TEST_ARGS = [
+    '-nuparams=6f76727a:1',  # Overwinter (Zero branch ID)
+    '-nuparams=7361707a:1',  # Sapling (Zero branch ID)
+]
+
+def rpc_cache_root():
+    """
+    Frozen regtest cache parent directory (contains node0..node3).
+    Prefer ZERO_RPC_CACHE_DIR, then BUILDDIR/cache, else <repo>/cache from this file.
+    """
+    override = os.getenv('ZERO_RPC_CACHE_DIR')
+    if override:
+        return override
+    builddir = os.getenv('BUILDDIR')
+    if builddir:
+        return os.path.join(builddir, 'cache')
+    return os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        '..', '..', '..', 'cache'))
+
+def _daemon_debug_tail(datadir, max_lines=25):
+    logpath = os.path.join(datadir, 'regtest', 'debug.log')
+    if not os.path.isfile(logpath):
+        return '(no debug.log at %s)' % logpath
+    with open(logpath, 'rb') as f:
+        lines = f.readlines()
+    tail = b''.join(lines[-max_lines:]).decode('utf-8', 'replace')
+    return 'debug.log tail (%s):\n%s' % (logpath, tail)
+
+def wait_for_daemon_rpc(datadir, proc, rpchost=None, timeout_sec=300):
+    """Wait until zerod RPC is past warmup (-rpcwait), or raise with diagnostics."""
+    if proc.poll() is not None:
+        raise RuntimeError(
+            'zerod exited before RPC became available (code %s, datadir=%s)\n%s' % (
+                proc.returncode, datadir, _daemon_debug_tail(datadir)))
+    cli = [os.getenv('BITCOINCLI', 'bitcoin-cli'), '-rpcwait', '-datadir=' + datadir]
+    cli.extend(_rpchost_to_args(rpchost))
+    try:
+        result = subprocess.run(
+            cli + ['getblockcount'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout_sec,
+            check=False)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            'timed out after %ds waiting for RPC (datadir=%s)\n%s' % (
+                timeout_sec, datadir, _daemon_debug_tail(datadir)))
+    if proc.poll() is not None:
+        raise RuntimeError(
+            'zerod exited while waiting for RPC (code %s, datadir=%s)\n%s' % (
+                proc.returncode, datadir, _daemon_debug_tail(datadir)))
+    if result.returncode != 0:
+        err = result.stderr.decode('utf-8', 'replace').strip()
+        raise RuntimeError(
+            'getblockcount failed (exit %s, datadir=%s): %s\n%s' % (
+                result.returncode, datadir, err, _daemon_debug_tail(datadir)))
+
 def initialize_datadir(dirname, n):
     datadir = os.path.join(dirname, "node"+str(n))
     if not os.path.isdir(datadir):
@@ -111,29 +170,26 @@ def initialize_chain(test_dir):
     Create (or copy from cache) a regtest chain and 4 wallets.
     Cache build: 200-block distribution (upstream layout), then extra mining
     until tip >= COINBASE_MATURITY + 5 so at least one coinbase is mature (Zero 720).
+    Frozen cache path: rpc_cache_root() (see ZERO_RPC_CACHE_DIR / BUILDDIR).
     bitcoind and bitcoin-cli must be in search path.
     """
+    cache_root = rpc_cache_root()
+    cache_marker = os.path.join(cache_root, "node0")
 
-    if not os.path.isdir(os.path.join("cache", "node0")):
-        devnull = open("/dev/null", "w+")
+    if not os.path.isdir(cache_marker):
         # Create cache directories, run bitcoinds:
         for i in range(4):
-            datadir=initialize_datadir("cache", i)
+            datadir=initialize_datadir(cache_root, i)
             args = [ os.getenv("BITCOIND", "bitcoind"), "-keypool=1", "-datadir="+datadir, "-discover=0" ]
-            args.extend([
-                '-nuparams=6f76727a:1', # Overwinter (Zero branch ID)
-                '-nuparams=7361707a:1', # Sapling (Zero branch ID)
-            ])
+            args.extend(NU_TEST_ARGS)
             if i > 0:
                 args.append("-connect=127.0.0.1:"+str(p2p_port(0)))
             bitcoind_processes[i] = subprocess.Popen(args)
             if os.getenv("PYTHON_DEBUG", ""):
-                print("initialize_chain: bitcoind started, calling bitcoin-cli -rpcwait getblockcount")
-            subprocess.check_call([ os.getenv("BITCOINCLI", "bitcoin-cli"), "-datadir="+datadir,
-                                    "-rpcwait", "getblockcount"], stdout=devnull)
+                print("initialize_chain: zerod started, waiting for RPC on " + datadir)
+            wait_for_daemon_rpc(datadir, bitcoind_processes[i])
             if os.getenv("PYTHON_DEBUG", ""):
-                print("initialize_chain: bitcoin-cli -rpcwait getblockcount completed")
-        devnull.close()
+                print("initialize_chain: RPC ready on " + datadir)
         rpcs = []
         for i in range(4):
             try:
@@ -165,13 +221,13 @@ def initialize_chain(test_dir):
         stop_nodes(rpcs)
         wait_bitcoinds()
         for i in range(4):
-            os.remove(log_filename("cache", i, "debug.log"))
-            os.remove(log_filename("cache", i, "db.log"))
-            os.remove(log_filename("cache", i, "peers.dat"))
-            os.remove(log_filename("cache", i, "fee_estimates.dat"))
+            os.remove(log_filename(cache_root, i, "debug.log"))
+            os.remove(log_filename(cache_root, i, "db.log"))
+            os.remove(log_filename(cache_root, i, "peers.dat"))
+            os.remove(log_filename(cache_root, i, "fee_estimates.dat"))
 
     for i in range(4):
-        from_dir = os.path.join("cache", "node"+str(i))
+        from_dir = os.path.join(cache_root, "node"+str(i))
         to_dir = os.path.join(test_dir,  "node"+str(i))
         shutil.copytree(from_dir, to_dir)
         initialize_datadir(test_dir, i) # Overwrite port/rpcport in zero.conf
@@ -213,21 +269,14 @@ def start_node(i, dirname, extra_args=None, rpchost=None, timewait=None, binary=
     if binary is None:
         binary = os.getenv("BITCOIND", "bitcoind")
     args = [ binary, "-datadir="+datadir, "-keypool=1", "-discover=0", "-rest" ]
-    args.extend([
-        '-nuparams=6f76727a:1', # Overwinter (Zero branch ID)
-        '-nuparams=7361707a:1', # Sapling (Zero branch ID)
-    ])
+    args.extend(NU_TEST_ARGS)
     if extra_args is not None: args.extend(extra_args)
     bitcoind_processes[i] = subprocess.Popen(args)
-    devnull = open("/dev/null", "w+")
     if os.getenv("PYTHON_DEBUG", ""):
-        print("start_node: bitcoind started, calling bitcoin-cli -rpcwait getblockcount")
-    subprocess.check_call([ os.getenv("BITCOINCLI", "bitcoin-cli"), "-datadir="+datadir] +
-                          _rpchost_to_args(rpchost)  +
-                          ["-rpcwait", "getblockcount"], stdout=devnull)
+        print("start_node: zerod started, waiting for RPC on " + datadir)
+    wait_for_daemon_rpc(datadir, bitcoind_processes[i], rpchost=rpchost)
     if os.getenv("PYTHON_DEBUG", ""):
-        print("start_node: calling bitcoin-cli -rpcwait getblockcount returned")
-    devnull.close()
+        print("start_node: RPC ready on " + datadir)
     url = "http://rt:rt@%s:%d" % (rpchost or '127.0.0.1', rpc_port(i))
     if timewait is not None:
         proxy = AuthServiceProxy(url, timeout=timewait)
@@ -258,7 +307,10 @@ def stop_node(node, i):
 
 def stop_nodes(nodes):
     for node in nodes:
-        node.stop()
+        try:
+            node.stop()
+        except JSONRPCException:
+            pass
     del nodes[:] # Emptying array closes connections as a side effect
 
 def set_node_times(nodes, t):

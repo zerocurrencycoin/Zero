@@ -73,6 +73,11 @@ class TxnMallTest(BitcoinTestFramework):
         doublespend = self.nodes[0].signrawtransaction(rawtx)
         assert_equal(doublespend["complete"], True)
 
+        # Zero rejects mempool conflicts (replacement disabled in AcceptToMemoryPool).
+        # Submit the doublespend to node2 before txid1/txid2 so node2's mempool has it first.
+        if not self.options.mine_block:
+            self.nodes[2].sendrawtransaction(doublespend["hex"])
+
         # Create two transaction from node[0] to node[1]; the
         # second must spend change from the first because the first
         # spends all mature inputs:
@@ -113,9 +118,7 @@ class TxnMallTest(BitcoinTestFramework):
                 errorString = e.error['message']
                 assert("Missing inputs" in errorString)
         else:
-            # Now give doublespend to miner:
-            self.nodes[2].sendrawtransaction(doublespend["hex"])
-            # ... mine a block...
+            # ... mine a block (doublespend already on node2 from above)...
             self.nodes[2].generate(1)
 
             # Reconnect the split network, and sync chain:

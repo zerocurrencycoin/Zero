@@ -152,7 +152,7 @@ New prescription: add here and add a TEST_ZERO harness changelog entry if user-v
 | Zeronode RPC | ~25% | `zeronodecurrent`, `getzeronodeoutputs`, `startzeronode`, budget subcmds |
 | Mining/PoW | 75% | `miner_tests` excluded (192,7 vs 96,5) |
 | Wallet | 80% | CDB::Rewrite blocks 3 tests |
-| RPC Python (Tier A) | 20 pass-only | exit 0 != full scenario coverage |
+| RPC Python (Tier A) | 10 pass-only | exit 0 != full scenario coverage; see **`TEST_ZERO.md`** tier counts |
 | Fuzz | 0% | No infra |
 
 **Debug notes.**

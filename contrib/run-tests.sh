@@ -17,6 +17,8 @@
 set -e
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+export BUILDDIR="${BUILDDIR:-$REPO_ROOT}"
+export ZERO_RPC_CACHE_DIR="${ZERO_RPC_CACHE_DIR:-$REPO_ROOT/cache}"
 
 LOG_DIR="${LOG_DIR:-$REPO_ROOT/test-logs}"
 mkdir -p "$LOG_DIR"
@@ -32,7 +34,7 @@ LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
 PYTHON_PASSING=(
     blockchain disablewallet httpbasics reindex decodescript keypool
     paymentdisclosure
-    getchaintips rewind_index shorter_block_times p2p_nu_peer_management
+    getchaintips rewind_index p2p_nu_peer_management
 )
 
 echo "Zero test validation - $TIMESTAMP"
