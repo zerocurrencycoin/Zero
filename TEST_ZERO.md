@@ -47,7 +47,9 @@ Validation runbook: commands, modes, harness behavior, known failures.
 | **Encrypt-hang class fixed** (2026-06-09) | **`src/wallet/crypter.cpp`** `AddCryptedSaplingSpendingKey`, **`src/wallet/wallet.cpp`** `AddSaplingFullViewingKey` | Crypted-key add called the **virtual** `AddSaplingFullViewingKey` (CWallet override writes to wallet DB), re-entering BDB inside `EncryptWallet`'s open transaction / `LoadWallet`'s open cursor -> page-lock deadlock. Now calls `CBasicKeyStore::` explicitly (as upstream); CWallet override also routes through `pwalletdbEncryption` when set. **`WriteCryptedSaplingZkey*`** (GTest) and **`rpc_wallet_encrypted_wallet_sapzkeys`** (Boost) pass and are back in the default gate. |
 | **`CachedWitnesses*` ported** (2026-06-09) | **`src/wallet/gtest/test_wallet.cpp`**, **`src/utiltest.cpp`** | `CreateValidBlock` keeps the index header in sync (merkle root, `hashFinalSproutRoot`/`hashFinalSaplingRoot`) so depth checks and witness-root validation work without `pcoinsTip`; decrement expectations rewritten to Zero semantics (last cached witness is never popped); dummy Sapling output gets a random `cm`. `EmptyChain`, `ChainTip`, `DecrementFirst` pass; **`CleanIndex` stays excluded** (reindex scenario needs `pcoinsTip` anchors + `ReadBlockFromDisk`). |
 | **`mempool_spendcoinbase` -> B pass** (2026-06-09) | **`qa/rpc-tests/mempool_spendcoinbase.py`**, **`rpc-tests.sh`** | Ported maturity-100 assumptions to **`COINBASE_MATURITY`** [720]; boundary heights derived from cached tip (725); spends actual coinbase value minus fee instead of hardcoded 10. Moved from Bfail Debug to **`testScriptsTierBPass`**. |
-| **`blockchain.py` cache-height fix** (2026-06-09) | **`qa/rpc-tests/blockchain.py`** | `gettxoutsetinfo` expectations derived from actual tip via regtest subsidy schedule (10 ZER >> floor(h/150), zatoshi math) instead of hardcoded height-200 totals; passes against both fresh (200) and warm (725) cache. |
+| **`blockchain.py` cache-height fix** (2026-06-09) | **`qa/rpc-tests/blockchain.py`** | `gettxoutsetinfo` expectations at **`CACHE_CHAIN_TIP`** (725) via **`regtest_supply_at_height()`** (10 ZER >> floor(h/150), zatoshi math) instead of hardcoded height-200 totals. |
+| **`initialize_chain` stale-cache guard** (2026-06-10) | **`qa/rpc-tests/test_framework/util.py`** | Writes **`cache/CACHE_TIP`** on build; auto-deletes and rebuilds when marker missing or tip != **`COINBASE_MATURITY + 5`**. See **Stale cache guards** under **`initialize_chain` cache**. |
+| **`proxy_test` IPv6 skip** (2026-06-10) | **`qa/rpc-tests/proxy_test.py`**, **`util.py`** **`ipv6_loopback_available()`** | Skips IPv6 SOCKS leg when **`::1`** bind fails (e.g. lazu IPv6 disabled); IPv4/onion legs still run. |
 | Split topology when **`split=True`** | **`qa/rpc-tests/getchaintips.py`** **`setup_network`** | Connect only **0-1** and **2-3** during the partition so the two halves actually fork (previously **0-2** / **1-2** bridged the split). |
 | Shorter bootstrap | Same | **`CHAIN_BOOTSTRAP = 30`** for initial mining (was 200); **`join_network`** still avoids re-mining when the chain is already long enough. |
 | Branch assertions | Same | **`expected_branchlen`** from **`shortTip['height'] - CHAIN_BOOTSTRAP`**; active height matches long chain after rejoin; accepts one or two tips per existing semantics. |
@@ -55,7 +57,7 @@ Validation runbook: commands, modes, harness behavior, known failures.
 | **`rescan_import` / `rescan_startup` executable bit | Git index **`qa/rpc-tests/rescan_*.py`** | **`100755`** (`git update-index --chmod=+x`); was **`100644`** -> **`Permission denied`** under **`rpc-tests.sh`**. |
 | **`prioritisetransaction` retired** | **`rpc-tests.sh`** | Moved to **Bfail Retired** (legacy 1121-block Bitcoin priority test; Zcash/Bitcoin upstream replaced). |
 | **`wallet_treestate` retired** | **`rpc-tests.sh`** | Moved to **Bfail Retired** (Sprout `z_sendmany` / joinsplit treestate; Zcash upstream uses Sapling-only). |
-| **`initialize_chain` maturity** | **`util.py`** | Cache tip **725**; **`rpc_cache_root()`**; **`wait_for_daemon_rpc`** uses **`-rpcwait`**. See **`initialize_chain` cache** for users, implicit exposure, and tip-**200** debt. |
+| **`initialize_chain` maturity** | **`util.py`** | Cache tip **725**; **`rpc_cache_root()`**; **`CACHE_TIP`** marker + stale auto-rebuild; **`wait_for_daemon_rpc`** uses **`-rpcwait`**. See **`initialize_chain` cache**. |
 | **Bfail subgroups** | **`rpc-tests.sh`** | **`testScriptsTierBFailDebug`** / **`Retired`**; **`-list-csv`**. |
 | **`wallet_changeaddresses` Zero port | **`qa/rpc-tests/wallet_changeaddresses.py`** | 2 nodes, Overwinter+Sapling at height 1, `-txindex`, `-experimentalfeatures` + `-zmergetoaddress`. **`initialize_chain_clean`**; **`get_coinbase_address`** fails hard without mature UTXO. |
 | **`shorter_block_times` / `wallet.py` -> Bfail Debug** | **`rpc-tests.sh`**, scripts | Removed skip/`return` masks; Blossom@106 vs maturity **720** and node0 block-5 balance bug -- see per-script debug sections |
@@ -123,14 +125,12 @@ The verification table at the end of this file still records **`--all --strict` 
 | If this fails | Likely cause | Next step |
 |---------------|--------------|-----------|
 | Tier B script | Implicit cache + wrong maturity math, or unported **`generate(720)`** | Run basename; see **Bfail Debug** tables |
-| Tier A script | Cache stale after **`NU_TEST_ARGS`** / **`COINBASE_MATURITY`** change | **`rm -rf cache`**; rebuild per **`initialize_chain` cache** |
+| Tier A script | Cache stale after harness pull / tag checkout (old tip **200**) | Auto-rebuild via **`CACHE_TIP`** marker, or **`rm -rf cache`**; see **Stale cache guards** |
 | C++ (default/`--all`) | Unmerged encrypt hang or filter drift | Compare **`test_filters.sh`** with **`tests-debug`** |
 
 ### Parallel Tier A (**`--jobs>1`**)
 
 **`paymentdisclosure`** has hung under **`--jobs=4`** (macOS). No fix in-tree. Contributor gate stays **serial** (**omit `--jobs`**). See **Parallel Tier A** under Reference.
-
-**Open (Tier A cache):** **`blockchain.py`** still asserts **`gettxoutsetinfo`** at height **200** / **1745 ZER** while **`initialize_chain`** cache builds to **`COINBASE_MATURITY + 5` (725)** -- update assertions or skip until aligned.
 
 ---
 
@@ -470,6 +470,7 @@ rm -rf qa/rpc-tests/cache
 | Distribution | 2 rounds x 4 nodes x 25 blocks = **200** (upstream wallet layout; 25 ZER per node per round on regtest) |
 | Maturity extension | Node 0 mines until tip **725** |
 | Snapshot | Full datadir copied to **`cache/node{0..3}/`** |
+| Marker | **`cache/CACHE_TIP`** written with expected tip (**725**) after build |
 | Reuse | Each test: `shutil.copytree(cache/node{i} -> $TMPDIR/node{i})`; **`zero.conf`** ports rewritten |
 
 First build is slow (200-block distribution + ~525 extra blocks for maturity). Later runs copy the snapshot and avoid re-mining.
@@ -621,19 +622,77 @@ src/zero-cli -datadir=cache/node0 stop
 
 Or rely on **`wait_for_daemon_rpc`** / **`start_node`** -- do not call **`bitcoin-cli -rpcwait`** without a running **`zerod`**.
 
-### Stale cache recovery
+### Stale cache guards
 
-Delete cache after changing **`COINBASE_MATURITY`**, the post-200 extension target, **`NU_TEST_ARGS`**, or subsidy rules that affect **`blockchain.py`**:
+An old **200-block** snapshot under **`<repo>/cache/`** survives across git tag checkouts and harness merges unless invalidated. Symptoms: **`blockchain.py`** asserts height **725** but **`gettxoutsetinfo`** reports **200**; **`mempool_spendcoinbase.py`** fails **`200 <= 720`**. Root cause: **`initialize_chain`** only rebuilt when **`cache/node0`** was missing; copying a pre-extension cache silently reused tip **200**.
+
+#### Automatic (in harness)
+
+**`initialize_chain`** (`util.py`) before reuse:
+
+1. Reads **`cache/CACHE_TIP`** (written at end of cache build).
+2. If **`cache/node0`** exists but marker is missing or value != **`COINBASE_MATURITY + 5`**, prints **`stale cache ... rebuilding`**, **`shutil.rmtree(cache_root)`**, then mines a fresh snapshot.
+3. First test after a bad cache is slow (200-block distribution + ~525 extra blocks); later runs copy the warm snapshot.
+
+**Gap (follow-up):** marker tracks tip height only. It does **not** yet invalidate when **`NU_TEST_ARGS`** changes but tip stays **725**. Planned: single **`CACHE_SCHEMA`** string (tip + NU fingerprint); bump when cache semantics change.
+
+| Change | Invalidate cache? |
+|--------|-------------------|
+| **`COINBASE_MATURITY`** in C++ / **`util.py`** | Yes |
+| Post-200 extension target (**`+ 5`**) | Yes |
+| **`NU_TEST_ARGS`** / **`-nuparams`** policy | Yes (manual until **`CACHE_SCHEMA`**) |
+| Regtest subsidy / founder rules affecting **`blockchain.py`** | Yes |
+| Harness tier moves only | No |
+
+#### Manual recovery
+
+Force delete when auto-rebuild is not yet landed, you want a clean rebuild without running a test, or a stray legacy path exists:
 
 ```bash
 rm -rf cache qa/rpc-tests/cache
 killall zerod 2>/dev/null || true
 ```
 
+Also delete after changing **`COINBASE_MATURITY`**, the post-200 extension target, **`NU_TEST_ARGS`**, or subsidy rules -- until **`CACHE_SCHEMA`** covers NU changes.
+
+#### Release / platform checklist
+
+After **`git checkout v4.0.1`** or **`git pull`** harness changes on a machine that already ran RPC tests (lazu, Windows):
+
+```bash
+killall zerod 2>/dev/null || true
+# Optional force (auto-rebuild usually enough once CACHE_TIP is in tree):
+# rm -rf cache qa/rpc-tests/cache
+
+./qa/pull-tester/rpc-tests.sh blockchain.py   # first initialize_chain rebuilds if stale
+```
+
+Confirm tip before a full gate:
+
+```bash
+test -f cache/CACHE_TIP && cat cache/CACHE_TIP    # expect 725
+```
+
+Or inspect live (see **Inspect cache tip** below): **`getblockcount`** must be **725**.
+
+**Rule:** never assume an existing **`cache/`** matches the checked-out harness. Branch and tag pushes do not clear local cache. **`ZERO_RPC_CACHE_DIR`** / gate scripts point at **`<repo>/cache`**; delete legacy **`qa/rpc-tests/cache/`** if present.
+
+#### Test-side asserts (defense in depth)
+
+Scripts that depend on warm cache should assert the tip they need (clear failure if marker logic regresses):
+
+| Script | Guard |
+|--------|-------|
+| **`blockchain.py`** | **`CACHE_CHAIN_TIP`** + **`regtest_supply_at_height()`** |
+| **`mempool_spendcoinbase.py`** | **`chain_height > COINBASE_MATURITY`** |
+
+Scripts still asserting tip **200** on default **`setup_chain`** stay in **Bfail Debug** until ported to **`initialize_chain_clean`** + **`generate(200)`** or relative baselines.
+
 ### Harness RPC and cleanup (cache build and reuse)
 
 | Symptom | Cause | Mitigation |
 |---------|-------|------------|
+| **`blockchain.py`**: left **725**, right **200**; **`mempool_spendcoinbase`**: **`200 <= 720`** | Stale **`cache/`** (pre-extension tip **200**) | **`rm -rf cache`** or let **`CACHE_TIP`** auto-rebuild; see **Stale cache guards** |
 | **`JSONRPC error: Initializing...`** on first real RPC after startup | **`addnode`** / **`stop`** while **`zerod`** still in RPC warmup | **`wait_for_daemon_rpc`** uses **`bitcoin-cli -rpcwait getblockcount`** (300s cap) in **`start_node`** and cache build |
 | Hang on **`bitcoin-cli -rpcwait`** with no **`zerod`** | Probe or stale script waiting forever | Start **`zerod`** first; same **`-nuparams`** as **`NU_TEST_ARGS`** |
 | **`rewind ... shutting down`** opening frozen cache | Manual **`zerod`** without **`NU_TEST_ARGS`** | Match harness flags; see **Inspect cache tip** above |

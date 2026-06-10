@@ -17,6 +17,7 @@ from decimal import Decimal, ROUND_DOWN
 import json
 import random
 import shutil
+import socket
 import subprocess
 import time
 import re
@@ -113,6 +114,37 @@ def rpc_cache_root():
         os.path.dirname(os.path.abspath(__file__)),
         '..', '..', '..', 'cache'))
 
+def _rpc_cache_tip_marker_path(cache_root):
+    return os.path.join(cache_root, 'CACHE_TIP')
+
+def _rpc_cache_is_current(cache_root, expected_tip):
+    """True when frozen cache exists and matches the expected chain tip."""
+    if not os.path.isdir(os.path.join(cache_root, 'node0')):
+        return False
+    marker = _rpc_cache_tip_marker_path(cache_root)
+    if not os.path.isfile(marker):
+        return False
+    try:
+        with open(marker) as f:
+            return int(f.read().strip()) == expected_tip
+    except (IOError, ValueError):
+        return False
+
+def _rpc_cache_write_tip_marker(cache_root, tip):
+    with open(_rpc_cache_tip_marker_path(cache_root), 'w') as f:
+        f.write('%d\n' % tip)
+
+def ipv6_loopback_available():
+    """True if binding to ::1 is expected to work (IPv6 loopback enabled)."""
+    try:
+        s = socket.socket(socket.AF_INET6)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('::1', 0))
+        s.close()
+        return True
+    except OSError:
+        return False
+
 def _daemon_debug_tail(datadir, max_lines=25):
     logpath = os.path.join(datadir, 'regtest', 'debug.log')
     if not os.path.isfile(logpath):
@@ -175,6 +207,12 @@ def initialize_chain(test_dir):
     """
     cache_root = rpc_cache_root()
     cache_marker = os.path.join(cache_root, "node0")
+    mature_tip = COINBASE_MATURITY + 5
+
+    if os.path.isdir(cache_marker) and not _rpc_cache_is_current(cache_root, mature_tip):
+        print("initialize_chain: stale cache at %s (expected tip %d), rebuilding" % (
+            cache_root, mature_tip))
+        shutil.rmtree(cache_root)
 
     if not os.path.isdir(cache_marker):
         # Create cache directories, run bitcoinds:
@@ -210,7 +248,6 @@ def initialize_chain(test_dir):
                     block_time += 10*60
                 sync_blocks(rpcs)
 
-        mature_tip = COINBASE_MATURITY + 5
         need = mature_tip - rpcs[0].getblockcount()
         if need > 0:
             set_node_times(rpcs, block_time)
@@ -225,6 +262,7 @@ def initialize_chain(test_dir):
             os.remove(log_filename(cache_root, i, "db.log"))
             os.remove(log_filename(cache_root, i, "peers.dat"))
             os.remove(log_filename(cache_root, i, "fee_estimates.dat"))
+        _rpc_cache_write_tip_marker(cache_root, mature_tip)
 
     for i in range(4):
         from_dir = os.path.join(cache_root, "node"+str(i))
