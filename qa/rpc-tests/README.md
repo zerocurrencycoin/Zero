@@ -22,10 +22,11 @@ Examples:
 
 ```bash
 ./qa/pull-tester/rpc-tests.sh rpcbind_test
-./qa/pull-tester/rpc-tests.sh wallet_overwintertx
+./qa/pull-tester/rpc-tests.sh getchaintips
+./qa/pull-tester/rpc-tests.sh wallet_changeaddresses   # Bfail Debug (clean chain + mature coinbase)
 ```
 
-Standalone scripts (`rpcbind_test.py`, `keypool.py`) can also be invoked directly; **`cache/`** is cwd-relative, so run from repo root when using `initialize_chain`:
+Standalone scripts (`rpcbind_test.py`, `keypool.py`) can also be invoked directly. Cache path is **`rpc_cache_root()`** in `util.py` (default **`<repo>/cache/`**); gate scripts export **`ZERO_RPC_CACHE_DIR`**.
 
 ```bash
 export PATH="$PWD/src:$PATH"
@@ -39,6 +40,8 @@ Add `--nocleanup` to keep the temp datadir after a standalone run.
 ### RPC tiers
 
 See `TEST_ZERO.md`. Script names are authoritative in `qa/pull-tester/rpc-tests.sh` arrays only.
+
+Pass-tier counts (regenerate via **`-list-csv`**): **A=10**, **B pass=21**, **E pass=2** (**`-all`** = **33** invocations). **Bfail Debug=32**, **Bfail Retired=6**, **Efail=8**.
 
 - `qa/pull-tester/rpc-tests.sh -A` -- Tier A gate
 - `qa/pull-tester/rpc-tests.sh -B` -- Tier B pass
@@ -58,15 +61,13 @@ Regenerate human-review tier inventory:
 
 ### `initialize_chain` cache
 
-Defined in `test_framework/util.py`. Frozen datadir: **`<cwd>/cache/node{0..3}/`**. With `contrib/run-tests.sh` or `./qa/pull-tester/rpc-tests.sh` from repo root, cwd is the repo -> **`<repo>/cache/`** (gitignored), **not** `qa/rpc-tests/cache/`. Verified: `keypool` / `blockchain` / `rpcbind_test` create `<repo>/cache/` only.
+Defined in `test_framework/util.py`. Frozen datadir: **`<repo>/cache/node{0..3}/`** via **`rpc_cache_root()`** (see **`TEST_ZERO.md`**). Only **four** scripts use it: **`blockchain.py`**, **`keypool.py`**, **`httpbasics.py`** (framework default), **`rpcbind_test.py`**.
 
-First build: 200-block upstream distribution, then mine to **`COINBASE_MATURITY` [720] + 5** on node 0. Only **`blockchain.py`**, **`keypool.py`**, and **`rpcbind_test.py`** copy this cache; other scripts use **`initialize_chain_clean`**.
-
-Delete `cache/` after changing `COINBASE_MATURITY`, post-200 extension, or cache-build `-nuparams` in `util.py`.
+First build: 200-block distribution, then mine to **`COINBASE_MATURITY` [720] + 5** (tip **725**) on node 0.
 
 ```bash
-rm -rf cache
-killall zerod
+rm -rf cache qa/rpc-tests/cache
+killall zerod 2>/dev/null || true
 ```
 
 ### Framework options

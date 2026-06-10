@@ -17,7 +17,24 @@ from test_framework.util import (
     assert_equal,
     start_nodes,
     connect_nodes_bi,
+    COINBASE_MATURITY,
 )
+
+# Regtest halving interval (consensus/params.h PRE_BLOSSOM_REGTEST_HALVING_INTERVAL).
+REGTEST_HALVING_INTERVAL = 150
+
+# initialize_chain mines to COINBASE_MATURITY + 5 after the 200-block distribution.
+CACHE_CHAIN_TIP = COINBASE_MATURITY + 5
+
+
+def regtest_supply_at_height(height):
+    """Coinbase subsidy sum for regtest heights 1..height (no founder before block 5000)."""
+    total_sat = 0
+    for h in range(1, height + 1):
+        halvings = h // REGTEST_HALVING_INTERVAL
+        total_sat += (10 * 100000000) >> halvings
+    return decimal.Decimal(total_sat) / decimal.Decimal(100000000)
+
 
 class BlockchainTest(BitcoinTestFramework):
     """
@@ -41,11 +58,14 @@ class BlockchainTest(BitcoinTestFramework):
         node = self.nodes[0]
         res = node.gettxoutsetinfo()
 
-        # Zero: 149*10 + 51*5 = 1745 ZER (blocks 1-149: 10 ZER, 150-200: 5 ZER; no founder before block 5000)
-        assert_equal(res[u'total_amount'], decimal.Decimal('1745.00000000'))
-        assert_equal(res[u'transactions'], 200)
-        assert_equal(res[u'height'], 200)
-        assert_equal(res[u'txouts'], 200)  # 1 output per block (no founder before block 5000)
+        # Warm cache tip (COINBASE_MATURITY + 5): regtest 10 ZER base, halving every 150 blocks.
+        assert_equal(res[u'height'], CACHE_CHAIN_TIP)
+        assert_equal(res[u'transactions'], CACHE_CHAIN_TIP)
+        assert_equal(res[u'txouts'], CACHE_CHAIN_TIP)  # 1 output per block (no founder before block 5000)
+        assert_equal(
+            res[u'total_amount'],
+            regtest_supply_at_height(CACHE_CHAIN_TIP).quantize(decimal.Decimal('0.00000001')),
+        )
         assert res[u'bytes_serialized'] > 0
         assert_equal(len(res[u'bestblock']), 64)
         assert_equal(len(res[u'hash_serialized']), 64)

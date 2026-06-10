@@ -7,7 +7,6 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     connect_nodes_bi,
-    ensure_mature_coinbase_or_skip,
     get_coinbase_address,
     initialize_chain_clean,
     start_node,
@@ -38,10 +37,9 @@ class WalletChangeAddressesTest(BitcoinTestFramework):
         self.sync_all()
 
     def run_test(self):
-        if not ensure_mature_coinbase_or_skip(self.nodes[0], self.nodes, "wallet_changeaddresses"):
-            return
+        coinbase_taddr = get_coinbase_address(self.nodes[0])
         midAddr = self.nodes[0].z_getnewaddress('sapling')
-        myopid = self.nodes[0].z_shieldcoinbase(get_coinbase_address(self.nodes[0]), midAddr, 0)['opid']
+        myopid = self.nodes[0].z_shieldcoinbase(coinbase_taddr, midAddr, 0)['opid']
         wait_and_assert_operationid_status(self.nodes[0], myopid)
         self.nodes[1].generate(1)
         self.sync_all()

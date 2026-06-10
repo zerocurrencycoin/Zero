@@ -54,6 +54,7 @@ release/
 build-logs/
 logs/
 cache/
+qa/rpc-tests/cache/
 venv-mnf/
 src/univalue/gen
 
