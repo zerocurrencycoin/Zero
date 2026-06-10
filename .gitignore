@@ -1,3 +1,6 @@
+contrib/linearize/bootstrap.dat
+contrib/linearize/hashlist.txt
+contrib/linearize/linearize.cfg
 README0.md
 throw/
 *.tar.gz
