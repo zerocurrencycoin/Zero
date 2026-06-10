@@ -6,10 +6,11 @@
 
 from test_framework.socks5 import Socks5Configuration, Socks5Command, Socks5Server, AddressType
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, start_nodes
+from test_framework.util import assert_equal, ipv6_loopback_available, start_nodes
 
 import socket
 import os
+import sys
 
 '''
 Test plan:
@@ -37,6 +38,7 @@ addnode connect to generic DNS name
 
 class ProxyTest(BitcoinTestFramework):        
     def __init__(self):
+        self.ipv6_loopback = ipv6_loopback_available()
         # Create two proxies on different ports
         # ... one unauthenticated
         self.conf1 = Socks5Configuration()
@@ -59,18 +61,25 @@ class ProxyTest(BitcoinTestFramework):
         self.serv1.start()
         self.serv2 = Socks5Server(self.conf2)
         self.serv2.start()
-        self.serv3 = Socks5Server(self.conf3)
-        self.serv3.start()
+        self.serv3 = None
+        if self.ipv6_loopback:
+            self.serv3 = Socks5Server(self.conf3)
+            self.serv3.start()
+        else:
+            print("Skipping IPv6 proxy server on %s (no ::1 loopback)" % sys.platform)
 
     def setup_nodes(self):
         # Note: proxies are not used to connect to local nodes
         # this is because the proxy to use is based on CService.GetNetwork(), which return NET_UNROUTABLE for localhost
-        return start_nodes(4, self.options.tmpdir, extra_args=[
+        extra_args = [
             ['-listen', '-debug=net', '-debug=proxy', '-proxy=%s:%i' % (self.conf1.addr),'-proxyrandomize=1'], 
             ['-listen', '-debug=net', '-debug=proxy', '-proxy=%s:%i' % (self.conf1.addr),'-onion=%s:%i' % (self.conf2.addr),'-proxyrandomize=0'], 
             ['-listen', '-debug=net', '-debug=proxy', '-proxy=%s:%i' % (self.conf2.addr),'-proxyrandomize=1'], 
             ['-listen', '-debug=net', '-debug=proxy', '-proxy=[%s]:%i' % (self.conf3.addr),'-proxyrandomize=0', '-noonion']
-            ])
+        ]
+        if not self.ipv6_loopback:
+            extra_args = extra_args[:3]
+        return start_nodes(len(extra_args), self.options.tmpdir, extra_args=extra_args)
 
     def node_test(self, node, proxies, auth, test_onion=True):
         rv = []
@@ -140,8 +149,9 @@ class ProxyTest(BitcoinTestFramework):
         credentials = set((x.username,x.password) for x in rv)
         assert_equal(len(credentials), 4)
 
-        # proxy on IPv6 localhost
-        self.node_test(self.nodes[3], [self.serv3, self.serv3, self.serv3, self.serv3], False, False)
+        if self.ipv6_loopback:
+            # proxy on IPv6 localhost
+            self.node_test(self.nodes[3], [self.serv3, self.serv3, self.serv3, self.serv3], False, False)
 
         def networks_dict(d):
             r = {}
@@ -170,11 +180,12 @@ class ProxyTest(BitcoinTestFramework):
             assert_equal(n2[net]['proxy_randomize_credentials'], True)
         assert_equal(n2['onion']['reachable'], True)
 
-        n3 = networks_dict(self.nodes[3].getnetworkinfo())
-        for net in ['ipv4','ipv6']:
-            assert_equal(n3[net]['proxy'], '[%s]:%i' % (self.conf3.addr))
-            assert_equal(n3[net]['proxy_randomize_credentials'], False)
-        assert_equal(n3['onion']['reachable'], False)
+        if self.ipv6_loopback:
+            n3 = networks_dict(self.nodes[3].getnetworkinfo())
+            for net in ['ipv4','ipv6']:
+                assert_equal(n3[net]['proxy'], '[%s]:%i' % (self.conf3.addr))
+                assert_equal(n3[net]['proxy_randomize_credentials'], False)
+            assert_equal(n3['onion']['reachable'], False)
 
 if __name__ == '__main__':
     ProxyTest().main()
