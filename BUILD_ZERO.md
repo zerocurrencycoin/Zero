@@ -60,6 +60,24 @@ sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib \
 
 **Other Linux distros:** Install the same toolchain roles as the Ubuntu list above. BDB comes from `depends/`. If `make -C depends` fails, see §4.8-4.9.
 
+#### 2.2a Remote Linux build host (lazu / ZeroLinux)
+
+Maintainer clone: **`/home/ubuntu/Work/ZK/ZeroLinux`** on host **`lazu`** (Ubuntu 24.04, **2** cores, **~4 GB** RAM). Same upstream remote as macOS; branch **`zero-400names`**.
+
+```bash
+cd /home/ubuntu/Work/ZK/ZeroLinux
+git fetch origin
+git checkout zero-400names
+git pull --ff-only origin zero-400names
+./zcutil/fetch-params.sh
+./zcutil/build.sh -j2
+./contrib/run-tests.sh --strict
+```
+
+Optional widen: **`./contrib/run-tests.sh --suite`** (Linux ELF stages). See [TEST_ZERO.md](TEST_ZERO.md).
+
+Disk: full native + depends build needs several GB free. If **`/`** is near full, see §6.9 before building.
+
 ### 2.3 macOS ARM64
 
 **OS tested:** macOS 24.5.0 (darwin 24.5.0).
@@ -83,7 +101,10 @@ brew install automake cmake pkg-config coreutils
 
 Windows builds use [MXE](https://mxe.cc/) (M Cross Environment). Build MXE once (2-4 h), then reuse.
 
-**1. Set MXE root** (default `$HOME/mxe`; use `/usr/lib/mxe` for system install):
+**1. Set MXE root** (default **`$HOME/mxe`**):
+
+Use a **home-built** MXE (GCC 11.x on lazu). Apt **`mxe-*`** packages install **`/usr/lib/mxe`** with an older toolchain (GCC 5.5) -- **`build-win.sh`** does not use that path unless **`MXE_ROOT`** is set explicitly.
+
 ```bash
 export MXE_ROOT="${MXE_ROOT:-$HOME/mxe}"
 export MXE_PATH="${MXE_ROOT}/usr/bin"
@@ -228,7 +249,18 @@ See [doc/files.md](doc/files.md) for details.
 
 Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params only (~800 MB). Sprout params are not used. Source: `https://download.z.cash/downloads`. If present and checksum-valid, no download occurs.
 
-**Planned:** Params mirror, chain bootstrap snapshot.
+**Params mirror:** still planned.
+
+**Chain bootstrap (linearize):** Build **`bootstrap.dat`** from a synced node's **`blocks/`** dir. Zero block files include **Equihash `nSolution`**; use this tree's **`contrib/linearize/`** (not upstream Bitcoin linearize). See [contrib/linearize/README.md](contrib/linearize/README.md).
+
+```bash
+cd contrib/linearize
+cp example-linearize.cfg linearize.cfg   # edit: rpcuser/rpcpassword, input=blocks dir, output path with ~8+ GB free
+./linearize-hashes.py linearize.cfg > hashlist.txt
+./linearize-data.py linearize.cfg
+```
+
+Import: copy **`bootstrap.dat`** to datadir; **`zerod`** auto-imports on first start when the file is present (see **`src/init.cpp`**). Local cfg/hashlist/output are gitignored.
 
 ---
 
@@ -409,4 +441,23 @@ make -j4
 make -j4 2>&1 | tee build.log
 grep -i error build.log
 ```
+
+### 6.9 Disk space on build hosts
+
+Low disk causes failed links, truncated depends tarballs, and RPC cache build failures. On a tight VPS, reclaim before **`./zcutil/build.sh`** or **`./contrib/run-tests.sh`**.
+
+| Target | Command / notes |
+|--------|-----------------|
+| apt package indexes | **`sudo rm -rf /var/lib/apt/lists/*`** then **`sudo apt-get update`** (~900 MB on typical Ubuntu) |
+| apt `.deb` cache | **`sudo apt-get clean`** / **`autoclean`** |
+| compiler cache | **`ccache -C`** or **`rm -rf ~/.ccache`** |
+| depends work dirs | **`rm -rf depends/work/*`** per clone (rebuilt on next depends make) |
+| RPC harness cache | **`<repo>/cache/`** (gitignored; safe to delete; Tier A rebuilds to maturity **725**) |
+| MXE build artifacts | **`rm -rf ~/mxe/pkg/* ~/mxe/log/*`** (keep **`~/mxe/usr`**) |
+| Duplicate apt MXE | **`sudo apt-get purge 'mxe-*'`** if Windows builds use **`$HOME/mxe`** only (~1.9 GB under **`/usr/lib/mxe`**) |
+| journald | **`sudo journalctl --vacuum-time=7d`** |
+| snap old revisions | **`snap list --all`**; remove **`disabled`** revisions |
+| swapfile | **`/swapfile`** reserves disk whether used or not; shrink/remove only if RAM headroom allows (see session notes) |
+
+**Not helpful on typical dev VPS:** **`/var/cache`** (~200 MB), Apache logs (~6 MB). Largest consumer is usually **`~/Work`** build trees -- audit with **`du -sh ~/Work/ZK/*`**.
 

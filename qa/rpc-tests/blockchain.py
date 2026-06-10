@@ -57,6 +57,7 @@ class BlockchainTest(BitcoinTestFramework):
     def run_test(self):
         node = self.nodes[0]
         res = node.gettxoutsetinfo()
+        height = node.getblockcount()
 
         # Warm cache tip (COINBASE_MATURITY + 5): regtest 10 ZER base, halving every 150 blocks.
         assert_equal(res[u'height'], CACHE_CHAIN_TIP)
