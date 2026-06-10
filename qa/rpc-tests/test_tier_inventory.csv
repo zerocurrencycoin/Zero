@@ -18,6 +18,7 @@ B,pass,wallet_nullifiers.py
 B,pass,wallet_1941.py
 B,pass,listtransactions.py
 B,pass,mempool_resurrect_test.py
+B,pass,mempool_spendcoinbase.py
 B,pass,txn_doublespend.py
 B,pass,txn_doublespend.py --mineblock
 B,pass,zapwallettxes.py
@@ -46,7 +47,6 @@ Bfail,debug,rawtransactions.py
 Bfail,debug,getrawtransaction_insight.py
 Bfail,debug,rest.py
 Bfail,debug,mempool_limit.py
-Bfail,debug,mempool_spendcoinbase.py
 Bfail,debug,mempool_reorg.py
 Bfail,debug,mempool_nu_activation.py
 Bfail,debug,mempool_tx_expiry.py

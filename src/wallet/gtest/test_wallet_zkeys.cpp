@@ -511,6 +511,9 @@ TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDb) {
 /**
  * Option b): Same as WriteCryptedSaplingZkeyDirectToDb but uses separate DB file
  * (copy) for wallet2 to avoid mapFileUseCount conflict.
+ * Note: the BDB environment is a process-wide singleton bound to the first
+ * datadir it opened, so wallet filenames must be unique across this test
+ * binary (the _b suffix avoids colliding with WriteCryptedSaplingZkeyDirectToDb).
  */
 TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDbSeparateFile) {
     SelectParams(CBaseChainParams::TESTNET);
@@ -527,7 +530,7 @@ TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDbSeparateFile) {
     strWalletPass = "hello";
 
     {
-        CWallet wallet("wallet_crypted_sapling.dat");
+        CWallet wallet("wallet_crypted_sapling_b.dat");
         ASSERT_EQ(DB_LOAD_OK, wallet.LoadWallet(fFirstRun));
         ASSERT_TRUE(fFirstRun);
         ASSERT_FALSE(wallet.HaveHDSeed());
@@ -556,12 +559,16 @@ TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDbSeparateFile) {
         wallet.Flush();
     }
 
-    // Option b): Copy to separate file so wallet2 uses its own DB
-    boost::filesystem::path pathSrc = pathTemp / "wallet_crypted_sapling.dat";
-    boost::filesystem::path pathDest = pathTemp / "wallet_crypted_sapling2.dat";
+    // Option b): Copy to separate file so wallet2 uses its own DB.
+    // Wallet files live in the BDB environment root (first datadir opened in
+    // this process), not necessarily in this test's pathTemp.
+    bitdb.Flush(false);
+    boost::filesystem::path envRoot(bitdb.GetPath());
+    boost::filesystem::path pathSrc = envRoot / "wallet_crypted_sapling_b.dat";
+    boost::filesystem::path pathDest = envRoot / "wallet_crypted_sapling_b2.dat";
     boost::filesystem::copy_file(pathSrc, pathDest);
 
-    CWallet wallet2("wallet_crypted_sapling2.dat");
+    CWallet wallet2("wallet_crypted_sapling_b2.dat");
     ASSERT_EQ(DB_LOAD_OK, wallet2.LoadWallet(fFirstRun));
     ASSERT_TRUE(wallet2.HaveHDSeed());
 

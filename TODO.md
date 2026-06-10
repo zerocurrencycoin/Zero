@@ -9,18 +9,20 @@ Status and tracked work items for the Zero node.
 - README rewrite: merge README0.md in
 - Node setup and maintenance docs: validate all user-facing instructions
 - Release signing: establish checksum and signing procedure.
-- Chain bootstrap: document snapshot sourcing and verification.
+- Chain bootstrap: document end-user import path (`-loadblock` / auto-import); linearize tool fixed in **`contrib/linearize/`** (commit **`f66b8b52b`**).
 - macOS developer signing (codesign + notarization).
 - Total supply discrepancy: review arithmetic vs project target of some 20M ZER.
 - Consensus integer math: replace `double`/`COIN` mixes in subsidy and founders paths.
 - zero_exclusive RPC param validation
 - Zeronode/budget subcmd validation
-- GTest fixes: CachedWitnesses, CDB::Rewrite
+- GTest fixes done 2026-06-09: **`CachedWitnesses*`** ported (harness merkle/commitment roots; Zero decrement semantics) except **`CleanIndex`** (needs coins-view harness); **`WriteCryptedSaplingZkey*`** / **`rpc_wallet_encrypted_wallet_sapzkeys`** encrypt-hang class fixed (wallet-DB re-entry deadlock in `AddCryptedSaplingSpendingKey`) -- back in default gate
 - Equihash (192,7) test vectors
 - Fuzz harness setup
 
 ## Pending
 
+- Linux RC validation (lazu **`ZeroLinux`**): rebuild on **`zero-400names`**, run **`./contrib/run-tests.sh --strict`** (optional **`--suite`**). Blocked on disk headroom (~97% full, ~4 GB free).
+- ~~**`blockchain.py` vs cache:**~~ done 2026-06-09: `gettxoutsetinfo` expectations now derived from actual tip via regtest subsidy schedule; passes at fresh (200) and warm (725) cache.
 - P2P logging (postponed): remove misleading `Unknown command` log after zeronode extension dispatch (`src/main.cpp` ~7025-7033). Valid commands (`znp`, `znb`, `znget`, `dseg`, spork, etc.) are handled in `znodeman` / budget / payments subsystems but still log when `-debug=net`. TENT extension `else` omits this log; `notfound` already has a no-log exception. Fix: drop trailing `LogPrint` or log only when no subsystem handled the command.
 - Params archival: audit `fetch-params.sh` file names and URLs.
 - Build validation: Windows hardening flag gap identified

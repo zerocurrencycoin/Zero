@@ -44,6 +44,10 @@ Validation runbook: commands, modes, harness behavior, known failures.
 
 | Change | Location | Effect |
 |--------|----------|--------|
+| **Encrypt-hang class fixed** (2026-06-09) | **`src/wallet/crypter.cpp`** `AddCryptedSaplingSpendingKey`, **`src/wallet/wallet.cpp`** `AddSaplingFullViewingKey` | Crypted-key add called the **virtual** `AddSaplingFullViewingKey` (CWallet override writes to wallet DB), re-entering BDB inside `EncryptWallet`'s open transaction / `LoadWallet`'s open cursor -> page-lock deadlock. Now calls `CBasicKeyStore::` explicitly (as upstream); CWallet override also routes through `pwalletdbEncryption` when set. **`WriteCryptedSaplingZkey*`** (GTest) and **`rpc_wallet_encrypted_wallet_sapzkeys`** (Boost) pass and are back in the default gate. |
+| **`CachedWitnesses*` ported** (2026-06-09) | **`src/wallet/gtest/test_wallet.cpp`**, **`src/utiltest.cpp`** | `CreateValidBlock` keeps the index header in sync (merkle root, `hashFinalSproutRoot`/`hashFinalSaplingRoot`) so depth checks and witness-root validation work without `pcoinsTip`; decrement expectations rewritten to Zero semantics (last cached witness is never popped); dummy Sapling output gets a random `cm`. `EmptyChain`, `ChainTip`, `DecrementFirst` pass; **`CleanIndex` stays excluded** (reindex scenario needs `pcoinsTip` anchors + `ReadBlockFromDisk`). |
+| **`mempool_spendcoinbase` -> B pass** (2026-06-09) | **`qa/rpc-tests/mempool_spendcoinbase.py`**, **`rpc-tests.sh`** | Ported maturity-100 assumptions to **`COINBASE_MATURITY`** [720]; boundary heights derived from cached tip (725); spends actual coinbase value minus fee instead of hardcoded 10. Moved from Bfail Debug to **`testScriptsTierBPass`**. |
+| **`blockchain.py` cache-height fix** (2026-06-09) | **`qa/rpc-tests/blockchain.py`** | `gettxoutsetinfo` expectations derived from actual tip via regtest subsidy schedule (10 ZER >> floor(h/150), zatoshi math) instead of hardcoded height-200 totals; passes against both fresh (200) and warm (725) cache. |
 | Split topology when **`split=True`** | **`qa/rpc-tests/getchaintips.py`** **`setup_network`** | Connect only **0-1** and **2-3** during the partition so the two halves actually fork (previously **0-2** / **1-2** bridged the split). |
 | Shorter bootstrap | Same | **`CHAIN_BOOTSTRAP = 30`** for initial mining (was 200); **`join_network`** still avoids re-mining when the chain is already long enough. |
 | Branch assertions | Same | **`expected_branchlen`** from **`shortTip['height'] - CHAIN_BOOTSTRAP`**; active height matches long chain after rejoin; accepts one or two tips per existing semantics. |
@@ -60,6 +64,7 @@ Validation runbook: commands, modes, harness behavior, known failures.
 | **`serialize_script_num` (Python 3) | **`qa/rpc-tests/test_framework/blocktools.py`** | **`bytearray.append`** takes an **int** (**0-255**), not **`chr(...)`** (would raise **`TypeError`** on scripts that use **`serialize_script_num`**). |
 | **Tip-200 cache scripts -> Bfail Debug** | **`rpc-tests.sh`**, **`rescan_import.py`** | **`wallet_addresses`**, **`rescan_import`**, **`reorg_limit`** moved off Tier B pass; **`rescan_import`** **`ensure_mature_coinbase_or_skip`** removed (was masking failures after a wrong tip) |
 | **`wallet_overwintertx` retired** | **`rpc-tests.sh`** | Moved from Tier B pass to **Bfail Retired** (Sprout zaddrs, expiry overlap with Bfail mempool/P2P scripts) |
+| **`CachedWitnesses*` gtest port** | **`src/wallet/gtest/test_wallet.cpp`**, **`src/wallet/wallet.cpp`** | Harness sets block merkle + Sprout/Sapling commitment roots on **`CBlockIndex`**; tests match Zero **`DecrementNoteWitnesses`** (never pops last witness). **`AddSaplingFullViewingKey`** avoids BDB self-deadlock during **`EncryptWallet`**. **`CachedWitnessesCleanIndex`** still excluded in **`test_filters.sh`**. |
 
 **Open (harness):** see **Open work** below. **`--jobs>1`** Tier A RPC remains **best-effort** only.
 
@@ -80,7 +85,6 @@ Six Bfail Debug scripts still use default **`setup_chain`** (warm cache tip **72
 | `reorg_limit.py` | tip **725** vs **200** on split nodes | **`initialize_chain_clean`** + mine **200** on all nodes before partition, **or** **`BASE = getblockcount()`** and relative reorg depths |
 | `wallet_listnotes.py` | tip **200** assert | Clean chain + **`generate(200)`** or drop tip assert |
 | `wallet_sapling.py` | tip **200** assert | Same |
-| `mempool_spendcoinbase.py` | tip **200** + maturity-**100** coinbase math | Clean chain; replace blocks **101/102** logic with **`COINBASE_MATURITY`** helpers |
 
 **Pattern:** preserve upstream **200-block wallet layout** intent on a **fresh** chain; do **not** warm-cache copy without updating asserts. Insight scripts already follow this (**`initialize_chain_clean`** + **`coinbase_mature_tip(5)`**). Full inventory: **Tip 200 debt** under **`initialize_chain` cache**.
 
@@ -94,19 +98,17 @@ Six Bfail Debug scripts still use default **`setup_chain`** (warm cache tip **72
 
 Skip/`return` masks on **`shorter_block_times`** and **`wallet.py`** are removed; failures are visible under **`-Bfail`**.
 
-### Merge **`tests-debug`** branch (C++ + partial RPC)
+### Post-merge validation (**`tests-debug`** integrated)
 
-Branch tip **`4f430f5c5`** (*Zero tests: harness cache alignment, CachedWitnesses gtests, encrypt-wallet fixes*) is **complementary** to uncommitted harness work on the working tree:
+**`tests-debug`** (`4f430f5c5`) is merged into **`tests-harness`**. Landed: C++ encrypt-wallet deadlock fix, **`CachedWitnesses*`** gtest port (except **`CleanIndex`**), **`test_filters.sh`** filter updates, **`mempool_spendcoinbase.py`** -> Tier B pass.
 
-| Area | On **`tests-debug`** (`4f430f5c5`) | On working tree (uncommitted / tier moves) |
-|------|-------------------------------------|---------------------------------------------|
-| C++ wallet encrypt hang | **`crypter.cpp`**, **`wallet.cpp`**, **`test_wallet_zkeys.cpp`** | -- |
-| GTest **`CachedWitnesses*`** | **`test_wallet.cpp`** port | -- |
-| Boost/GTest filters | **`qa/zcash/test_filters.sh`** re-enable encrypt suites | **`contrib/run-tests.sh`** cache exports |
-| RPC cache | **`blockchain.py`**, **`mempool_spendcoinbase.py`** partial port | **`util.py`** **`rpc_cache_root`**, **`-rpcwait`**; large **`TEST_ZERO.md`** cache section; tier array moves |
-| Docs | **`TEST_ZERO.md`**, **`BUILD_ZERO.md`** deltas on branch | Tier counts, Bfail debug sections, **`wallet_changeaddresses`** retirement |
+**Retest after merge:**
 
-**Suggested merge order:** integrate **`4f430f5c5`** (or cherry-pick C++ + **`test_filters.sh`** + **`mempool_spendcoinbase.py`**), then re-apply tier-list and documentation changes from the working tree. Resolve **`TEST_ZERO.md`** / **`rpc-tests.sh`** / **`blockchain.py`** overlaps manually. After merge, run **`./contrib/run-tests.sh --fail`** to confirm encrypt and **`CachedWitnesses*`** behavior; update **Known failures** if suites graduate off the exclude list.
+```bash
+./contrib/run-tests.sh --strict
+./contrib/run-tests.sh --fail --strict   # CachedWitnessesCleanIndex + miner_tests only
+./contrib/run-tests.sh --all --strict    # refresh bulk RPC timing in Verification snapshot
+```
 
 ### Re-validate bulk RPC (**`-all`**)
 
@@ -127,6 +129,8 @@ The verification table at the end of this file still records **`--all --strict` 
 ### Parallel Tier A (**`--jobs>1`**)
 
 **`paymentdisclosure`** has hung under **`--jobs=4`** (macOS). No fix in-tree. Contributor gate stays **serial** (**omit `--jobs`**). See **Parallel Tier A** under Reference.
+
+**Open (Tier A cache):** **`blockchain.py`** still asserts **`gettxoutsetinfo`** at height **200** / **1745 ZER** while **`initialize_chain`** cache builds to **`COINBASE_MATURITY + 5` (725)** -- update assertions or skip until aligned.
 
 ---
 
@@ -151,10 +155,10 @@ Regenerate human-review CSV:
 | Tier | Count | Notes |
 |------|-------|-------|
 | A | 10 | Contributor gate (**`-A`**, **`PYTHON_PASSING`**) |
-| B pass | 21 | 20 unique scripts; **`txn_doublespend`** runs twice |
+| B pass | 22 | 21 unique scripts; **`txn_doublespend`** runs twice |
 | E pass | 2 | **`invalidateblock`**, **`maxblocksinflight`** |
-| **`-all`** | **33** | A + B + E pass invocations |
-| Bfail Debug | 32 | **`-Bfail`** first group |
+| **`-all`** | **34** | A + B + E pass invocations |
+| Bfail Debug | 31 | **`-Bfail`** first group |
 | Bfail Retired | 6 | Sprout / legacy |
 | Efail | 8 | Comptool / long-chain diagnostics |
 
@@ -292,21 +296,21 @@ Harness inventory and commands: see **Harness landscape** and **Quick start** ab
 **GTest**
 
 ```text
---gtest_filter='-wallet_zkeys_tests.WriteCryptedSaplingZkey*:WalletTests.CachedWitnesses*'
+--gtest_filter='-WalletTests.CachedWitnessesCleanIndex'
 ```
 
 **Boost**
 
 ```text
---run_test='!miner_tests:!rpc_wallet_tests/rpc_wallet_encrypted_wallet_sapzkeys'
+--run_test='!miner_tests'
 ```
 
 | Layer | Excluded (default) | Reason (summary) |
 |-------|-------------------|------------------|
-| GTest | **`WriteCryptedSaplingZkey*`** | **`CDB::Rewrite`** / wallet open -> **hang** |
-| GTest | **`CachedWitnesses*`** | Harness / **`pcoinsTip`** / death test mismatch -> **fail** |
+| GTest | **`CachedWitnessesCleanIndex`** | Reindex scenario needs incremental **`BuildWitnessCache`** path (**`pcoinsTip`** anchors + **`ReadBlockFromDisk`**); gtest harness has neither |
 | Boost | **`miner_tests`** | **`CreateNewBlock_validity`**: **`blockinfo`** **(96,5)** vs Zero **(192,7)** MAIN -> skip via `nEquihashN != 96`; excluded in **`test_filters.sh`** |
-| Boost | **`rpc_wallet_encrypted_wallet_sapzkeys`** | Same rewrite **hang** class as GTest encrypt tests |
+
+**Fixed 2026-06-09 (now in gate):** GTest **`WriteCryptedSaplingZkey*`**, **`CachedWitnessesEmptyChain/ChainTip/DecrementFirst`**; Boost **`rpc_wallet_encrypted_wallet_sapzkeys`**. See **Harness changelog**.
 
 **Alerts:** Bitcoin P2P alert tests are not compiled (**`alert_tests.cpp`** omitted from **`BITCOIN_TESTS`**). Product code may still expose **`-alerts`** / **`-alertnotify`** stubs; no harness exclusion needed.
 
@@ -399,7 +403,7 @@ No automated test connects to public mainnet or testnet. All harness layers use 
 | **`--rpcfail`** | skip | **`-rpcfail`** | Diagnostic |
 | **`rpc-tests.sh <name>`** | none | one script | Isolate |
 
-**Deprioritized (not gate):** Bfail Debug/Retired, Efail, C++ encrypt hang suites (Sapling-era; see **Appendix: Retired tests**).
+**Deprioritized (not gate):** Bfail Debug/Retired, Efail, GTest `CachedWitnessesCleanIndex` (see **Appendix: Retired tests**).
 
 ---
 
@@ -563,7 +567,7 @@ A **separate** insight-enabled cache (built with the flag bundle above) is possi
 | `wallet_addresses.py` | Bfail Debug | default cache + tip **200** | **Open:** see **height 200/201** and **Open work** |
 | `wallet_listnotes.py` | Bfail Debug | default cache + **`assert_equal(200, getblockcount())`** | **Open:** clean chain + **`generate(200)`** |
 | `wallet_sapling.py` | Bfail Debug | default cache + tip **200** | **Open:** same |
-| `mempool_spendcoinbase.py` | Bfail Debug | default cache + **`assert_equal(chain_height, 200)`** and maturity-**100** coinbase math (blocks **101** / **102**) | **Open:** clean chain + **`COINBASE_MATURITY`** spend logic |
+| `mempool_spendcoinbase.py` | B pass | warm cache tip **725** + **`COINBASE_MATURITY`** boundary math | **Fixed 2026-06-09** (merged from **`tests-debug`**) |
 | `test_framework.py` | framework | default **`run_test`**: tip **200**, balance **`25*10`** | Dead template for scripts that override **`run_test`** |
 
 **Not the same issue:** scripts that **`generate(200)`** on **`initialize_chain_clean`** (e.g. **`wallet_persistence.py`**, **`finalsaplingroot.py`**) choose tip **200** on purpose.
@@ -583,7 +587,6 @@ Bfail and Efail lists are in **`testScriptsTierBFailDebug`**, **`testScriptsTier
 | `reorg_limit` | default | **Tip 200 assert** on split nodes |
 | `wallet_listnotes` | default | **Tip 200 assert** -- fails immediately at **725** |
 | `wallet_sapling` | default | **Tip 200 assert** -- same |
-| `mempool_spendcoinbase` | default | **Tip 200 assert** + upstream maturity-**100** spend logic -- fails before real mempool checks |
 | `wallet_listreceived` | default | No tip assert; uses relative heights -- may run on cache; failures likely wallet/API, not cache |
 | `mempool_reorg` | default | Starts at **725**; mines fresh blocks in **`run_test`** -- cache changes baseline, not necessarily a hard fail |
 | `mempool_tx_expiry` | default | Comment assumes tip **199**; no assert -- cache skews expiry height math; failure mode unclear |
@@ -1006,12 +1009,12 @@ Default and **`--all`** share the same C++ exclusions (**Known failures** below)
 
 | Item | Count | Risk | Notes |
 |------|-------|------|-------|
-| GTest **`WriteCryptedSaplingZkey*`** | **2** tests (`WriteCryptedSaplingZkeyDirectToDb`, `...SeparateFile`) | Hang | **`EncryptWallet`** -> **`CDB::Rewrite`** with DB open (**`test_wallet_zkeys.cpp`**). **Deprioritize:** Sapling encrypt path; not gate. |
-| GTest **`CachedWitnesses*`** | 1+ | Fail / "failed to die" | **`pcoinsTip`** null; death test mismatch |
-| Boost **`rpc_wallet_encrypted_wallet_sapzkeys`** | 1 suite | Hang | **Same as GTest encrypt:** `EncryptWallet` / **`CDB::Rewrite`** hang class via RPC |
+| GTest **`CachedWitnessesCleanIndex`** | 1 test | Fail | Reindex scenario needs incremental **`BuildWitnessCache`** (**`pcoinsTip`** anchors + **`ReadBlockFromDisk`**); not available in gtest harness |
 | Boost **`miner_tests`** | 1 case (`CreateNewBlock_validity`) | Skip / no-op on Zero | **`blockinfo`** is **(96,5)**; Zero mainnet **(192,7)** -> `nEquihashN != 96` skip; need **(48,5)** regtest **`blockinfo`** to enable |
 
-**Mitigation:** close wallet before rewrite (encrypt family); seed coins view for CachedWitnesses; Zero **`blockinfo`** for **`miner_tests`**. Partial fixes exist on branch **`tests-debug`** (`4f430f5c5`); merge status and retest steps: **Open work -> Merge `tests-debug` branch**.
+**Fixed 2026-06-09:** the encrypt-hang class (GTest **`WriteCryptedSaplingZkey*`**, Boost **`rpc_wallet_encrypted_wallet_sapzkeys`**) -- root cause was a wallet-DB re-entry deadlock in `CCryptoKeyStore::AddCryptedSaplingSpendingKey` (virtual `AddSaplingFullViewingKey` persisted during `EncryptWallet`/`LoadWallet`); this also deadlocked the **`encryptwallet`** RPC on any wallet holding Sapling keys. `CachedWitnessesEmptyChain/ChainTip/DecrementFirst` ported to Zero witness semantics.
+
+**Mitigation (remaining):** Zero **(48,5)** **`blockinfo`** for **`miner_tests`**; coins-view harness for **`CachedWitnessesCleanIndex`**.
 
 ### RPC Tier Bfail groups
 
@@ -1025,8 +1028,8 @@ Authoritative arrays: **`testScriptsTierBFailDebug`**, **`testScriptsTierBFailRe
 | **NU / Blossom** | `shorter_block_times` | Maturity **720** vs Blossom at **106** | Reschedule NU or mine plan; see **`shorter_block_times.py` debug** |
 | **Wallet / merge** | `mergetoaddress_sapling`, `mergetoaddress_mixednotes` | `z_mergetoaddress` async, maturity, note selection | `mine_until_*`; Sapling-only; check `mergetoaddress_helper.py` |
 | **Insight** | `addressindex`, `spentindex`, `timestampindex`, `getrawtransaction_insight` | **`COINBASE_MATURITY` [720]** + `-insightexplorer` | **`initialize_chain_clean`** only (not shared cache); `coinbase_mature_tip(5)` |
-| **Cache / tip 200** | `wallet_addresses`, `rescan_import`, `reorg_limit`, `wallet_listnotes`, `wallet_sapling`, `mempool_spendcoinbase` | Default **`setup_chain`** + tip **200** or maturity-**100** math | Bfail Debug; **`initialize_chain_clean`** + **`generate(200)`** or baseline-relative reorg -- see **height 200/201** and per-script debug sections |
-| **Mempool** | `mempool_limit`, `mempool_spendcoinbase`, `mempool_reorg`, `mempool_nu_activation`, `mempool_tx_expiry` | Maturity / NU heights | `COINBASE_MATURITY` mining; align `-nuparams` |
+| **Cache / tip 200** | `wallet_addresses`, `rescan_import`, `reorg_limit`, `wallet_listnotes`, `wallet_sapling` | Default **`setup_chain`** + tip **200** assert | Bfail Debug; **`initialize_chain_clean`** + **`generate(200)`** or baseline-relative reorg -- see **height 200/201** and per-script debug sections |
+| **Mempool** | `mempool_limit`, `mempool_reorg`, `mempool_nu_activation`, `mempool_tx_expiry` | Maturity / NU heights | `COINBASE_MATURITY` mining; align `-nuparams`. **`mempool_spendcoinbase` -> B pass** (2026-06-09) |
 | **Raw / REST** | `rawtransactions`, `rest`, `fundrawtransaction`, `signrawtransaction_offline` | Maturity bootstrap | `rawtransactions`, `fundrawtransaction`, `signrawtransaction_offline`: **`generate(COINBASE_MATURITY + 1)`** (2026-06-08); `rest` ported earlier |
 | **Comptool P2P** | `bip65-cltv-p2p`, `bipdersig-p2p` | Python **(48,5)** vs node rules | `equihash.py` / comptool; or retire |
 | **Other** | `merkle_blocks`, `walletbackup`, `key_import_export`, `regtest_signrawtransaction`, `finalsaplingroot` | Maturity / constants | **`walletbackup`**: wrong upstream total **7340** removed; uses **`COINBASE_MATURITY`**; restore equality is the gate |
@@ -1078,18 +1081,23 @@ Record after harness changes (macOS, `./contrib/run-tests.sh --strict` unless no
 
 | Run | Result | Wall time | Notes |
 |-----|--------|-----------|-------|
+| Default `(none) --strict` | **PASS** | **~211s** | macOS 2026-06-09; widened filters (encrypt class + 3 CachedWitnesses in gate); `blockchain.py` vs warm cache fixed |
+| `--no-python --strict` | **PASS** | **~84s** | macOS 2026-06-09; GTest 206/206, Boost no errors |
+| `mempool_spendcoinbase.py` | **PASS** | **~3s** | macOS 2026-06-09; warm cache; ported to 720 |
 | Default `(none) --strict` | **PASS** | **~212s** | macOS 2026-06-08; GTest+Boost parallel with Tier A |
 | `--quick --strict` | **PASS** | **~142s** | util/secp/univalue + Tier A RPC |
 | `--all --strict` | **PASS** (stale) | **~1275s** | macOS 2026-06-08; **before** tip-**200** / vacuous-pass tier moves; **`-all`** now **33** invocations -- **re-run required** (**Open work**) |
 | `--suite` | **PASS** | **~1306s** | `full_test_suite.py`; RPC stage = no-args (`-all`) |
 | Bfail `COINBASE_MATURITY+1` ports | **PASS** | see below | macOS 2026-06-08, from repo root |
 | `walletbackup.py` (post-fix) | **PASS** | **~85s** | total **2886.875**; restore/importwallet equality OK |
+| Linux **`zero-400names`** on lazu (`ZeroLinux`) | **pending** | -- | Branch at **`f66b8b52b`**; rebuild + **`--strict`** not run (disk **~97%**, **~4 GB** free) |
+| **`CachedWitnesses*` gtest port** | **WIP** (uncommitted) | -- | Local harness fix; still filtered in default gate |
 
 **Bfail `COINBASE_MATURITY + 1` timings:** `rawtransactions` ~34s; `fundrawtransaction` ~54s; `signrawtransaction_offline` ~18s; `mergetoaddress_sapling` ~135s; `mergetoaddress_mixednotes` ~39s (after script-local maturity fix).
 
 Tier inventory: `./qa/pull-tester/rpc-tests.sh -list-csv` or `qa/rpc-tests/test_tier_inventory.csv`
 
-**Stale entries:** **`--all --strict`** row above predates Bfail moves documented in **Open work**. Update result and wall time after **`./contrib/run-tests.sh --all --strict`**.
+**Stale entries:** **`--all --strict`** row above predates Bfail moves and **`mempool_spendcoinbase`** promotion documented in **Open work**. Update result and wall time after **`./contrib/run-tests.sh --all --strict`**.
 
 ---
 
@@ -1112,7 +1120,7 @@ Scripts remain in `testScripts` inventory but are excluded from pass tiers (`-A`
 | `zcjoinsplit*` | removed from inventory | Sprout joinsplit RPC tests removed from driver |
 | `wallet_shieldcoinbase_sprout` | removed from inventory | Sprout shieldcoinbase removed from driver |
 
-**C++ deprioritized (not retired):** GTest **`WriteCryptedSaplingZkey*`** (2 cases), **`CachedWitnesses*`**, Boost **`rpc_wallet_encrypted_wallet_sapzkeys`** -- Sapling encrypt / `CDB::Rewrite` hang class; excluded in `test_filters.sh`.
+**C++ deprioritized (not retired):** GTest **`WalletTests.CachedWitnessesCleanIndex`** -- needs coins-view + disk-block harness; excluded in `test_filters.sh`. (Encrypt-hang class fixed 2026-06-09; those tests are back in the gate.)
 
 ---
 

@@ -128,7 +128,7 @@ testScriptsTierA=(
     'p2p_nu_peer_management.py'
 )
 
-# Tier counts (pass tiers): A=10, B pass=21 (20 unique; txn_doublespend x2), E pass=2; -all runs 33.
+# Tier counts (pass tiers): A=10, B pass=22 (21 unique; txn_doublespend x2), E pass=2; -all runs 34.
 # Bfail: Debug=32, Retired=6; -rpcfail runs Bfail+Efail diagnostic tiers.
 # Tier B pass: in testScripts but not Tier A.
 testScriptsTierBPass=(
@@ -141,6 +141,7 @@ testScriptsTierBPass=(
     'wallet_1941.py'
     'listtransactions.py'
     'mempool_resurrect_test.py'
+    'mempool_spendcoinbase.py'
     'txn_doublespend.py'
     'txn_doublespend.py --mineblock'
     'zapwallettxes.py'
@@ -175,7 +176,6 @@ testScriptsTierBFailDebug=(
     'getrawtransaction_insight.py'
     'rest.py'
     'mempool_limit.py'
-    'mempool_spendcoinbase.py'
     'mempool_reorg.py'
     'mempool_nu_activation.py'
     'mempool_tx_expiry.py'
@@ -224,7 +224,7 @@ testScriptsExtFail=(
 )
 
 # Invocation tiers (documented in TEST_ZERO.md; inventory: -list-csv):
-#   Pass: A=10, B=21, E=2 (-all = 33). Bfail: Debug=32, Retired=6. Efail=8.
+#   Pass: A=10, B=22, E=2 (-all = 34). Bfail: Debug=31, Retired=6. Efail=8.
 #   -A | --tier-a       Tier A gate
 #   -B | --tier-b       Tier B pass only
 #   -Bfail              Tier B fail only (Debug then Retired; diagnostic)

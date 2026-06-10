@@ -108,6 +108,28 @@ std::vector<SaplingOutPoint> SetSaplingNoteData(CWalletTx& wtx) {
     return saplingNotes;
 }
 
+// Append all note commitments in a block to the test's cumulative merkle
+// trees and freeze the resulting roots on the index, as ConnectBlock would.
+// VerifyAndSetInitialWitness validates cached witness roots against
+// hashFinalSproutRoot / hashFinalSaplingRoot of the witness-height index.
+void SetBlockCommitmentTrees(const CBlock& block,
+                             CBlockIndex& index,
+                             SproutMerkleTree& sproutTree,
+                             SaplingMerkleTree& saplingTree) {
+    for (const CTransaction& tx : block.vtx) {
+        for (const JSDescription& jsdesc : tx.vJoinSplit) {
+            for (const uint256& note_commitment : jsdesc.commitments) {
+                sproutTree.append(note_commitment);
+            }
+        }
+        for (const OutputDescription& od : tx.vShieldedOutput) {
+            saplingTree.append(od.cm);
+        }
+    }
+    index.hashFinalSproutRoot = sproutTree.root();
+    index.hashFinalSaplingRoot = saplingTree.root();
+}
+
 std::pair<JSOutPoint, SaplingOutPoint> CreateValidBlock(TestWallet& wallet,
                             const libzcash::SproutSpendingKey& sk,
                             CBlockIndex& index,
@@ -130,7 +152,13 @@ std::pair<JSOutPoint, SaplingOutPoint> CreateValidBlock(TestWallet& wallet,
     auto blockHash = block.GetHash();
     auto it = mapBlockIndex.insert(std::make_pair(blockHash, &index));
     index.phashBlock = &(it.first->first);
+    // The caller may have constructed the index from the block header before
+    // vtx was populated; a stale merkle root makes GetDepthInMainChain()
+    // return 0 and BuildWitnessCache skips the transaction entirely.
+    index.hashMerkleRoot = block.hashMerkleRoot;
     chainActive.SetTip(&index);
+
+    SetBlockCommitmentTrees(block, index, sproutTree, saplingTree);
 
     wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
@@ -1190,17 +1218,16 @@ TEST(WalletTests, SpentSaplingNoteIsFromMe) {
     RegtestDeactivateSapling();
 }
 
-// CachedWitnesses* tests: Partial fix applied (keep indices in scope for ChainTip, DecrementFirst).
-// Still excluded: BuildWitnessCache returns early when pcoinsTip is null, so witnesses never built.
-// To re-enable: populate pcoinsTip in harness, or build witnesses manually (see UpdateTests.md §4.1).
-//
-// PARTIAL FIX (commented): Manual witness build to bypass BuildWitnessCache.
-// Pattern: NavigateFromSaplingNullifierToNote (lines ~967–981) — build SaplingMerkleTree from
-// block.vtx, append commitments, call witness(), store in mapSaplingNoteData. For Sprout: iterate
-// vJoinSplit commitments, build SproutMerkleTree, witness per JSOutPoint. Then UpdateNullifierNoteMapForBlock.
-//
-// ALTERNATIVE: Replace EXPECT_DEATH — DecrementNoteWitnesses has no assert; current code only pops when size>1.
-//   // EXPECT_DEATH(wallet.DecrementNoteWitnesses(&index), ".*nWitnessCacheSize > 0.*");
+// CachedWitnesses* tests, ported to Zero's BuildWitnessCache semantics:
+// - CBlockIndex headers are kept in sync with block contents (merkle root,
+//   hashFinalSproutRoot / hashFinalSaplingRoot) so depth checks and witness
+//   root validation work without pcoinsTip.
+// - DecrementNoteWitnesses never pops the last cached witness (deque size 1),
+//   so "decrement at tip" keeps the witness; upstream EXPECT_DEATH and
+//   witness-gone expectations are replaced accordingly.
+// CachedWitnessesCleanIndex remains excluded: its reindex scenario requires the
+// incremental BuildWitnessCache path (pcoinsTip anchors + ReadBlockFromDisk),
+// which the gtest harness cannot provide.
 TEST(WalletTests, CachedWitnessesEmptyChain) {
     TestWallet wallet;
 
@@ -1263,9 +1290,14 @@ TEST(WalletTests, CachedWitnessesEmptyChain) {
     EXPECT_TRUE((bool) sproutWitnesses[1]);
     EXPECT_TRUE((bool) saplingWitnesses[0]);
 
-    // Until #1302 is implemented, this should trigger an assertion
-    EXPECT_DEATH(wallet.DecrementNoteWitnesses(&index),
-                 ".*nWitnessCacheSize > 0.*");
+    // Zero semantics: DecrementNoteWitnesses keeps the last cached witness
+    // (it only pops when more than one witness is cached), so decrementing at
+    // the tip is a no-op rather than an assertion failure.
+    wallet.DecrementNoteWitnesses(&index);
+    ::GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses, saplingWitnesses);
+    EXPECT_TRUE((bool) sproutWitnesses[0]);
+    EXPECT_TRUE((bool) sproutWitnesses[1]);
+    EXPECT_TRUE((bool) saplingWitnesses[0]);
 
     // Tear down
     chainActive.SetTip(NULL);
@@ -1321,14 +1353,26 @@ TEST(WalletTests, CachedWitnessesChainTip) {
         EXPECT_FALSE((bool) sproutWitnesses[0]);
         EXPECT_FALSE((bool) saplingWitnesses[0]);
 
-        // Second block
+        // Second block: wire it up like CreateValidBlock does, so the wallet
+        // tx has a verifiable merkle branch and the index has final roots.
         CBlock block2;
         block2.hashPrevBlock = block1.GetHash();
         block2.vtx.push_back(wtx);
+        block2.hashMerkleRoot = block2.BuildMerkleTree();
         CBlockIndex index2(block2);
         index2.nHeight = 2;
+        index2.pprev = &index1;
+        auto blockHash2 = block2.GetHash();
+        auto it2 = mapBlockIndex.insert(std::make_pair(blockHash2, &index2));
+        index2.phashBlock = &(it2.first->first);
+        chainActive.SetTip(&index2);
+
         SproutMerkleTree sproutTree2 {sproutTree};
         SaplingMerkleTree saplingTree2 {saplingTree};
+        SetBlockCommitmentTrees(block2, index2, sproutTree2, saplingTree2);
+
+        wtx.SetMerkleBranch(block2);
+        wallet.AddToWallet(wtx, true, NULL);
         wallet.BuildWitnessCache(&index2, false, &block2);
 
         auto anchors2 = GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses, saplingWitnesses);
@@ -1339,15 +1383,15 @@ TEST(WalletTests, CachedWitnessesChainTip) {
         EXPECT_NE(anchors1.first, anchors2.first);
         EXPECT_NE(anchors1.second, anchors2.second);
 
-        // Decrementing should give us the previous anchor
+        // Zero semantics: decrementing never pops the last cached witness, so
+        // the witness and its anchor are retained.
         wallet.DecrementNoteWitnesses(&index2);
         auto anchors3 = GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses, saplingWitnesses);
 
-        EXPECT_FALSE((bool) sproutWitnesses[0]);
-        EXPECT_FALSE((bool) saplingWitnesses[0]);
-        // Should not equal first anchor because none of these notes had witnesses
-        EXPECT_NE(anchors1.first, anchors3.first);
-        EXPECT_NE(anchors1.second, anchors3.second);
+        EXPECT_TRUE((bool) sproutWitnesses[0]);
+        EXPECT_TRUE((bool) saplingWitnesses[0]);
+        EXPECT_EQ(anchors2.first, anchors3.first);
+        EXPECT_EQ(anchors2.second, anchors3.second);
 
         // Re-incrementing with the same block should give the same result
         wallet.BuildWitnessCache(&index2, false, &block2);
@@ -1383,6 +1427,11 @@ TEST(WalletTests, CachedWitnessesChainTip) {
         }
         EXPECT_EQ(anchors4.first, anchors5.first);
         EXPECT_EQ(anchors4.second, anchors5.second);
+
+        // Tear down: stack-allocated indices must not leak into the globals.
+        chainActive.SetTip(NULL);
+        mapBlockIndex.erase(block1.GetHash());
+        mapBlockIndex.erase(blockHash2);
     }
 }
 
@@ -1464,6 +1513,11 @@ TEST(WalletTests, CachedWitnessesDecrementFirst) {
         EXPECT_EQ(anchors3.first, anchors5.first);
         EXPECT_EQ(anchors3.second, anchors5.second);
     }
+
+    // Tear down: stack-allocated indices must not leak into the globals.
+    chainActive.SetTip(NULL);
+    mapBlockIndex.erase(block1.GetHash());
+    mapBlockIndex.erase(block2.GetHash());
 }
 
 TEST(WalletTests, CachedWitnessesCleanIndex) {
@@ -1550,6 +1604,12 @@ TEST(WalletTests, CachedWitnessesCleanIndex) {
                 EXPECT_EQ(saplingAnchors.back(), anchors.second);
             }
         }
+    }
+
+    // Tear down: stack-allocated indices must not leak into the globals.
+    chainActive.SetTip(NULL);
+    for (size_t i = 0; i < numBlocks; i++) {
+        mapBlockIndex.erase(blocks[i].GetHash());
     }
 }
 

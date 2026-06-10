@@ -172,14 +172,14 @@ if [ "$MODE" = "fail" ]; then
     else
         GTEST_PID=""
         if [ -x "src/zero-gtest" ]; then
-            echo "--- GTest: WriteCryptedSaplingZkey* (hang), CachedWitnesses* (fail) ---"
+            echo "--- GTest: CachedWitnessesCleanIndex (needs pcoinsTip/disk-block harness) ---"
             run_bg "zero-gtest-fail-only" \
                 ./src/zero-gtest --gtest_filter="$GTEST_FAIL_ONLY"
             GTEST_PID=$BG_LAST_PID
         fi
         BTEST_PID=""
         if [ -x "src/test/test_bitcoin" ]; then
-            echo "--- Boost: miner_tests (fail), rpc_wallet_encrypted_wallet_sapzkeys (hang) ---"
+            echo "--- Boost: miner_tests (blockinfo is (96,5); skips on Zero) ---"
             run_bg "test_bitcoin-fail-only" \
                 ./src/test/test_bitcoin --run_test="$BOOST_FAIL_ONLY" --log_level=test_suite
             BTEST_PID=$BG_LAST_PID
@@ -235,7 +235,7 @@ if [ "$QUICK" -eq 0 ]; then
     echo ""
     GTEST_PID=""
     if [ -x "src/zero-gtest" ]; then
-        echo "--- GTest (excludes --fail suites: WriteCryptedSaplingZkey*, CachedWitnesses*) ---"
+        echo "--- GTest (excludes --fail suites: CachedWitnessesCleanIndex) ---"
         run_bg "zero-gtest" \
             ./src/zero-gtest --gtest_filter="$GTEST_PASS_EXCLUDE"
         GTEST_PID=$BG_LAST_PID
@@ -244,7 +244,7 @@ if [ "$QUICK" -eq 0 ]; then
     echo ""
     BTEST_PID=""
     if [ -x "src/test/test_bitcoin" ]; then
-        echo "--- Boost (excludes --fail suites: miner, rpc_wallet_encrypted_wallet_sapzkeys) ---"
+        echo "--- Boost (excludes --fail suites: miner_tests) ---"
         run_bg "test_bitcoin" \
             ./src/test/test_bitcoin --run_test="$BOOST_PASS_EXCLUDE" --log_level=test_suite
         BTEST_PID=$BG_LAST_PID

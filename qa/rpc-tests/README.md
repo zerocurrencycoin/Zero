@@ -41,7 +41,7 @@ Add `--nocleanup` to keep the temp datadir after a standalone run.
 
 See `TEST_ZERO.md`. Script names are authoritative in `qa/pull-tester/rpc-tests.sh` arrays only.
 
-Pass-tier counts (regenerate via **`-list-csv`**): **A=10**, **B pass=21**, **E pass=2** (**`-all`** = **33** invocations). **Bfail Debug=32**, **Bfail Retired=6**, **Efail=8**.
+Pass-tier counts (regenerate via **`-list-csv`**): **A=10**, **B pass=22**, **E pass=2** (**`-all`** = **34** invocations). **Bfail Debug=31**, **Bfail Retired=6**, **Efail=8**.
 
 - `qa/pull-tester/rpc-tests.sh -A` -- Tier A gate
 - `qa/pull-tester/rpc-tests.sh -B` -- Tier B pass
