@@ -502,8 +502,13 @@ bool CCryptoKeyStore::AddCryptedSaplingSpendingKey(
             return false;
         }
 
-        // if SaplingFullViewingKey is not in SaplingFullViewingKeyMap, add it
-        if (!AddSaplingFullViewingKey(extfvk)) {
+        // if SaplingFullViewingKey is not in SaplingFullViewingKeyMap, add it.
+        // Call the CBasicKeyStore implementation explicitly (as upstream does):
+        // the virtual CWallet override persists to the wallet DB, which
+        // re-enters BDB and deadlocks when this runs inside EncryptWallet's
+        // open transaction or LoadWallet's open cursor. The crypted zkey
+        // record already carries the extfvk, so no separate write is needed.
+        if (!CBasicKeyStore::AddSaplingFullViewingKey(extfvk)) {
             return false;
         }
 

@@ -40,12 +40,25 @@ class BlockchainTest(BitcoinTestFramework):
     def run_test(self):
         node = self.nodes[0]
         res = node.gettxoutsetinfo()
+        height = node.getblockcount()
 
-        # Zero: 149*10 + 51*5 = 1745 ZER (blocks 1-149: 10 ZER, 150-200: 5 ZER; no founder before block 5000)
-        assert_equal(res[u'total_amount'], decimal.Decimal('1745.00000000'))
-        assert_equal(res[u'transactions'], 200)
-        assert_equal(res[u'height'], 200)
-        assert_equal(res[u'txouts'], 200)  # 1 output per block (no founder before block 5000)
+        # The shared initialize_chain cache tip is COINBASE_MATURITY + 5 (see
+        # TEST_ZERO.md), so derive the expected emission from the regtest
+        # subsidy schedule instead of hardcoding totals at height 200.
+        # Zero regtest: 10 ZER subsidy, halving every 150 blocks
+        # (PRE_BLOSSOM_REGTEST_HALVING_INTERVAL; Blossom not active here),
+        # no dev fee before block 5000. Mirror consensus integer math
+        # (GetBlockSubsidy: 10*COIN >> floor(h/150)) in zatoshis.
+        halving_interval = 150
+        total_zats = sum((10 * 100000000) >> (h // halving_interval)
+                         for h in range(1, height + 1))
+        expected_total = decimal.Decimal(total_zats) / 100000000
+
+        # e.g. height 200 -> 1745 ZER (149*10 + 51*5); height 725 -> 2881.25 ZER
+        assert_equal(res[u'total_amount'], expected_total)
+        assert_equal(res[u'transactions'], height)  # 1 coinbase tx per block
+        assert_equal(res[u'height'], height)
+        assert_equal(res[u'txouts'], height)  # 1 output per block (no dev fee before block 5000)
         assert res[u'bytes_serialized'] > 0
         assert_equal(len(res[u'bestblock']), 64)
         assert_equal(len(res[u'hash_serialized']), 64)

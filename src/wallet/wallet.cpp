@@ -230,6 +230,14 @@ bool CWallet::AddSaplingFullViewingKey(const libzcash::SaplingExtendedFullViewin
         return true;
     }
 
+    // During EncryptWallet a DB transaction is open on pwalletdbEncryption;
+    // opening a second CWalletDB on the same file would self-deadlock on the
+    // BDB page lock (encrypt-hang class: WriteCryptedSaplingZkey*,
+    // rpc_wallet_encrypted_wallet_sapzkeys).
+    if (pwalletdbEncryption) {
+        return pwalletdbEncryption->WriteSaplingExtendedFullViewingKey(extfvk);
+    }
+
     return CWalletDB(strWalletFile).WriteSaplingExtendedFullViewingKey(extfvk);
 }
 
