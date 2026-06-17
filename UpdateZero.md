@@ -637,4 +637,130 @@ throw std::runtime_error("message");
 | A7 | OpenSSL/Rust versions | Open | DEF-01, DEF-02 |
 | A8 | Build/params/signing | Open | REL-01..03 |
 
+---
+
+## DOC-02 follow-up: zeronode documentation and functional tests
+
+Outline for closing gaps identified in TENT comparison and mainnet coinbase verification (Jun 2026).
+
+### Documentation deliverables
+
+| Step | Deliverable | Target doc | Content |
+|------|-------------|------------|---------|
+| 1 | **Operator runbook** | `BUILD_ZERO.md` new subsection or README link | Build, `fetch-params`, `zero.conf` RPC creds, `zerod` launch, ports (23801/23811) |
+| 2 | **Zeronode setup** | Replace obsolete wiki / `ZeroNodes-UpdatesPending` script refs | Collateral 10k ZER, `zeronode.conf` format, `zeronode genkey`, `startalias`, `externalip` |
+| 3 | **Economics cross-link** | `ZERO_COIN.md` + `ZeroMac/ZERO_COIN.md` appendix | Coinbase 3-way split, pool 4-vout behavior, founders rotation |
+| 4 | **Wallet boundary** | `Zeronode_wallet.md` | Already covers interface; add "when wallet disabled" operator note |
+| 5 | **Security pointer** | `ZcashV.md` + one paragraph in README or ZERO_COIN Security | Sapling-only, no Orchard, Sprout CVE N/A |
+| 6 | **Multisig founders** | `Zeros/MULTISIG.md` appendix | Done Jun 2026 |
+
+### Functional test roadmap (TST-03 extension)
+
+| Phase | Test | Harness | Pass criteria |
+|-------|------|---------|---------------|
+| **A** | RPC argument validation | Existing `rpc_zeronode_tests`, `rpc_zeronode_budget_tests` | Expand budget subcmds per TST-03 |
+| **B** | Regtest single-node coinbase | New `qa/rpc-tests/coinbase_rewards.py` or gtest | After height 5000: founders vout 7.5%, zeronode vout when spork on |
+| **C** | Regtest 2-node zeronode | Manual -> scripted | Collateral UTXO, `startalias`, payment in coinbase within N blocks |
+| **D** | Reorg / `GetZeronodeInputAge` | Regtest `invalidateblock` | Steps in DOC-02 subsection (already written); automate when harness allows |
+| **E** | Mock wallet | Inject `CZeronodeWalletInterface` test double | Ping/payment paths without full wallet |
+| **F** | Mainnet decode regression | `contrib/decode_coinbase.py` in CI optional job | Requires archived block hash fixtures or mocked RPC |
+
+### Priority order
+
+1. Phase A (low cost, extend existing Boost suites).
+2. Phase B (consensus-critical coinbase + founders alignment with `test_foundersreward.cpp`).
+3. DOC steps 1-2 (retire broken external install docs).
+4. Phase C (multi-node -- highest value, highest setup cost).
+
+---
+
+## TENT upstream fixes as Zero candidates
+
+TENT (`ZKs/TENT`, `TENTOfficial/TENT`) is the masternode lineage ported to Zero `src/zeronode/`. Items worth porting or consciously rejecting.
+
+| ID | TENT / upstream behavior | Zero status | Recommendation |
+|----|--------------------------|-------------|----------------|
+| **TENT-01** | P2P extension dispatch: no spurious `Unknown command` log after handled zeronode messages | Zero still logs (`TODO.md`) | **Port:** drop trailing log or log only unhandled commands |
+| **TENT-02** | Testnet min-difficulty after height 13000 (`pow.cpp`) | Zero testnet: `nPowAllowMinDifficultyBlocksAfterHeight = none` | **Consensus decision:** adopt TENT rule only if operators want easier public testnet mining |
+| **TENT-03** | Equihash epoch fork (mainnet 192,7 vs testnet 144,5) | Zero uses 192,7 on testnet | **Document difference;** do not port without explicit NU |
+| **TENT-04** | LWMA3 difficulty after DIFA height | Zero uses legacy LWMA path | Evaluate if testnet instability warrants port |
+| **TENT-05** | Treasury coinbase output (5-10%) + `GetTreasuryRewardScriptAtHeight` | **Removed** in Zero | **Reject** -- not Zero tokenomics |
+| **TENT-06** | Founders schedule (5% / 7.5% / 15% by upgrade) | Zero fixed **7.5%** after fee-start | **Reject** |
+| **TENT-07** | Masternode integration tests | Neither tree has them | **Shared gap** -- implement on Zero regtest first |
+| **TENT-08** | Operational docs in GitHub org (`masternode-setup`, insight repos) | Zero has in-tree docs but obsolete external scripts | **Replace** with BUILD_ZERO operator section; link TENT org only as historical reference |
+
+**Code diff anchor:** `TENT/src/masternode-payments.cpp` vs `Zero400/src/zeronode/payments.cpp` (rename only + treasury removal + Zero spork names).
+
+---
+
+## Testnet and regtest: usage, gaps, documentation placement
+
+### Zero networks (from code + TEST_ZERO.md)
+
+| Network | P2P | RPC | Equihash | Fee-start | Harness use |
+|---------|-----|-----|----------|-----------|-------------|
+| **mainnet** | 23801 | 23811 | 192,7 | block 412300 | Manual ops only; **no CI** |
+| **testnet** | 23802 | 23812 | 192,7 | block 1 | **Not used** by qa harness |
+| **regtest** | 23803 | 23813 | 48,5 | block 5000 | **All** automated RPC/Boost tests |
+
+**Regtest notes:**
+
+- `-regtest=1`; mine with `generate` / `generatetoaddress` (not `setgenerate` on testnet -- `fMiningRequiresPeers`).
+- NU activation: `-nuparams=<branchHex>:<height>` (see `TEST_ZERO.md`, `util.py` `NU_TEST_ARGS`).
+- Frozen cache tip **725** (`COINBASE_MATURITY` 720 + 5) for fast wallet tests.
+- Public testnet: no min-difficulty rule on Zero (unlike TENT height 13000).
+
+**Testnet notes:**
+
+- Public peers exist but **qa/pull-tester never connects** to testnet (by design).
+- `turnstile.py` documents optional manual testnet steps (Bfail Retired tier).
+- Operators: same `fetch-params` as mainnet; `testnet=1` in `zero.conf`.
+
+### Where to document (future doc map)
+
+| Topic | Primary home | Secondary |
+|-------|--------------|-----------|
+| Regtest dev workflow | `TEST_ZERO.md` (exists) | `BUILD_ZERO.md` quick pointer |
+| Testnet join / faucet | **Gap** -- add `BUILD_ZERO.md` subsection | README operational |
+| Port / datadir matrix | `UpdateZero.md` DOC-02 table (exists) | `ZERO_COIN.md` |
+| `-nuparams` recipe | `TEST_ZERO.md` | Zcash regtest book pattern |
+| Coinbase inspection | `ZeroMac/ZERO_COIN.md` + `contrib/decode_coinbase.py` | `Zeros/MULTISIG.md` |
+| Zeronode regtest multi-node | **Gap** -- DOC-02 steps -> BUILD_ZERO when scripted | `Zeronode_wallet.md` |
+| Security / CVE posture | `ZcashV.md` | README Security bullet |
+
+### Ecosystem testnet instructions (survey Jun 2026)
+
+| Project | Public testnet docs | Regtest / dev | Notes |
+|---------|--------------------|--------------|----|
+| **Zcash** | [zcash.conf guide](https://zcash.readthedocs.io/en/latest/rtd_pages/zcash_conf_guide.html) `testnet=1`; NU on testnet via releases | [Regtest book](https://zcash.github.io/zcash/dev/regtest.html); `-nuparams=` | Migrating to zebrad; zcashd deprecation messaging |
+| **TENT** | P2P **8233** testnet in upstream params; sparse in-repo markdown | Same zcashd `-regtest` pattern if built | GitHub org `TENTOfficial/masternode-setup` (operational, not consensus) |
+| **Pirate** | **Orchard testnet** via `-ac_name=PIRATETST -ac_orchard=297`; [v6.0.0-beta3 release notes](https://github.com/PirateNetwork/pirate/releases/tag/v6.0.0-beta3); `addnode=64.23.167.130:59434` | Komodo-assetchain flags; **not** Zero-style regtest | Discord `#orchard-public-testnet`; mainnet Sapling-only |
+| **Hush** | [git.hush.is](https://git.hush.is/hush/hush3) FAQ / build docs | Local regtest if enabled in build | Left GitHub 2020; testnet seed docs in Gitea wiki |
+| **Komodo** | Chain-specific; KMD testnet via assetchain params | `regtest` in komodo-derived tools | Not a direct model for Zero qa harness |
+| **Horizen** | Legacy testnet deprecated with shielded removal | N/A for new L3 stack | Base L3 focus |
+| **Zero** | **Undocumented** public testnet join | **`TEST_ZERO.md`** regtest authoritative | Recommend BUILD_ZERO testnet subsection: seeds, `testnet=1`, no harness |
+
+### Suggested testnet doc snippet (for BUILD_ZERO, not yet added)
+
+```bash
+# Public testnet (operator)
+testnet=1
+rpcuser=...
+rpcpassword=...
+addnode=<seed>   # document current seeds from chainparams or community
+./src/zerod -testnet -daemon
+./src/zero-cli -testnet getblockchaininfo
+```
+
+Regtest developer path remains **`TEST_ZERO.md` Quick start** and `./contrib/run-tests.sh`.
+
+---
+
+## Mainnet RPC tooling (Jun 2026)
+
+Synced nodes: **Mac** (`~/.zero`) and **laz24** (`ssh lazu`, datadir `/home/ubuntu/.zero`, CLI `/home/ubuntu/Work/ZK/ZeroLinux/src/zero-cli`).
+
+Repeatable coinbase decode: **`contrib/decode_coinbase.py`** (see `ZeroMac/ZERO_COIN.md`).
+
+Cross-reference: **`/Users/walter/Work/ZK/ZcashV.md`** (Zcash CVEs and fork reactions).
 
