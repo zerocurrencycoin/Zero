@@ -209,3 +209,9 @@ The node is **experimental**; use at your own risk. Back up keys and wallet file
 | BitcoinTalk | [topic 3310714](https://bitcointalk.org/index.php?topic=3310714.0) |
 | Zcash protocol (PDF) | [protocol.pdf](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf) |
 | Zcash security | [z.cash/support/security](https://z.cash/support/security/) |
+
+---
+
+## Coinbase validation (extended)
+
+Mainnet-verified coinbase behavior, pool 4-vout splits, halving **2,400,000** samples, and `contrib/decode_coinbase.py` are documented in **[ZeroMac/ZERO_COIN.md](../ZeroMac/ZERO_COIN.md)** (appendix). Founders multisig detail: **`Zeros/MULTISIG.md`**. Zcash 2026 CVE applicability: **`ZcashV.md`**.
