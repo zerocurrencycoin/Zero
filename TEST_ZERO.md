@@ -1041,9 +1041,9 @@ Bitcoin **BIP34-era** mechanism: if a peer mines **51+ blocks** with **`nVersion
 
 See **Appendix: Retired tests**. Sprout RPC creation disabled since 2019 (**`zcrawkeygen`** table entry commented). **`wallet_treestate`** moved to Bfail Retired (was Tier B pass).
 
-### Pirate **`COINBASE_MATURITY`** (illustration)
+### Assetchain **`COINBASE_MATURITY`** (illustration)
 
-**`ZKs/PirateOcean`**: **`extern int COINBASE_MATURITY`** default **100**, overridden at runtime by asset chain params (**`-ac_cbmaturity`**, **`ASSETCHAINS_CBMATURITY`** in **`komodo_utils.h`**). Same pattern as other Komodo-derived chains -- mutable per-chain, unlike Zero's compile-time **720**.
+Some external assetchain daemons expose **`extern int COINBASE_MATURITY`** default **100**, overridden at runtime via chain params. Mutable per-chain, unlike Zero's compile-time **720**.
 
 ### Tier A porting for **720** + NU
 
