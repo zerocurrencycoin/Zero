@@ -52,14 +52,14 @@ Chain economics, consensus parameters, operational facts, and where Zero differs
 
 ---
 
-## Economics vs Bitcoin / Zcash / Pirate
+## Economics vs Bitcoin / Zcash / Zero
 
-| Component | Zero | Bitcoin | Zcash | Pirate |
-|-----------|------|---------|-------|--------|
-| Base subsidy | 10 ZER (pre-fee) / 10.8 ZER (post-fee) | 50 BTC (historic) | 12.5 ZEC (slow-start era) | Asset-chain config |
-| Halving interval | 800k pre-Blossom, 1.6M post-Blossom | 210k | 840k / 1.68M | ASSETCHAINS_HALVING |
-| Founder/dev | **7.5%** of subsidy | None | 20% (ECC+ZF era) | None |
-| Node reward | **20-40%** zeronode | None | None | Notary-style pay |
+| Component | Zero | Bitcoin | Zcash |
+|-----------|------|---------|-------|
+| Base subsidy | 10 ZER (pre-fee) / 10.8 ZER (post-fee) | 50 BTC (historic) | 12.5 ZEC (slow-start era) |
+| Halving interval | 800k pre-Blossom, 1.6M post-Blossom | 210k | 840k / 1.68M |
+| Founder/dev | **7.5%** of subsidy | None | 20% (ECC+ZF era) |
+| Node reward | **20-40%** zeronode | None | None |
 
 Target block spacing **120 s** (pre-Blossom); ~800k blocks per halving interval is about **1,111 days** (~3.04 years).
 
@@ -187,8 +187,19 @@ Mainnet donation address (zerowallet repo): `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP
 ## Operational reference
 
 - **Default RPC port:** **23801** (see [README -- Running Zero](README.md#-running-zero), `contrib/zero.conf`).
-- **Datadir:** `~/.zero`; wallet file `wallet.zero` -- **back up** before upgrades.
+- **Datadir / wallet:** see table below; wallet file **`wallet.zero`** -- **back up** before upgrades.
 - **Proving params:** `zcutil/fetch-params.sh`; see [BUILD_ZERO -- .zero directory](BUILD_ZERO.md#3-zero-directory).
+
+### Default data paths
+
+Replace **`USERNAME`** with your OS login. Platform setup examples: [README](README.md#data-directory-zeroconf-wallet-chain).
+
+| Platform | Data directory | Proving params |
+|----------|----------------|----------------|
+| **Linux** | `~/.zero` | `~/.zcash-params` |
+| **macOS** | `/Users/USERNAME/Library/Application Support/zero` | `/Users/USERNAME/Library/Application Support/ZcashParams` |
+| **Windows** | `C:\Users\USERNAME\AppData\Roaming\zero` | `C:\Users\USERNAME\AppData\Roaming\ZcashParams` |
+
 - **Tor:** `doc/tor.md`.
 - **New addresses:** `getnewaddress` (transparent), `z_getnewaddress sapling` (shielded); list: `getaddressesbyaccount ""`, `z_listaddresses`.
 
@@ -197,6 +208,104 @@ Mainnet donation address (zerowallet repo): `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP
 ## Security
 
 The node is **experimental**; use at your own risk. Back up keys and wallet files. See [README -- Deprecation](README.md#-deprecation-policy) and [Zcash security information](https://z.cash/support/security/).
+
+**2026 Zcash CVEs:** Zero has **no Orchard** and **no `fChecked` Sprout bypass**. Full analysis: **`ZcashFixes.md`**.
+
+---
+
+## Emission totals and chain statistics (Jun 2026)
+
+Consensus-model totals from `GetBlockSubsidy` + 7.5% dev + tiered nodes share (sporks on).
+
+```bash
+./contrib/stats/chain_stats.py --cons                  # through chain tip
+./contrib/stats/chain_stats.py --cons --thru 2400000   # fixed height
+./contrib/stats/chain_stats.py --cons --dev            # dev addr deposited + balance
+./contrib/stats/chain_stats.py --verify
+./contrib/stats/decode_coinbase.py --heights 2400000
+./contrib/stats/decode_coinbase.py --start 2471200 --count 200 --summary
+./contrib/stats/chain_stats.py --scan 2471200 200
+```
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--cons` | on | Consensus emission report |
+| `--thru HEIGHT` | chain tip | Cumulative through tip, or fixed height |
+| `--dev` | off | Dev rotation addresses: model deposited + on-chain balance |
+| `--cli PATH` | `src/zero-cli` | RPC client |
+| `--verify` | off | Model subsidy sum vs live tip |
+| `--scan START COUNT` | off | Coinbase vout histogram |
+
+Split totals (through height 2,400,000):
+
+```
+Total:     14,790,161.35 ZER
+Miner:    10,600,091.78 ZER
+Nodes:    3,390,032.47 ZER
+Dev:            800,037.10 ZER
+```
+
+Live tip (Jun 2026, height **2,477,766**): **`--verify`** -- model subsidy **~14.895M ZER**; sprout pool **~25,842 ZER**, sapling **~547,065 ZER**. On-chain dev balances need **`zerod`** with `-experimentalfeatures -insightexplorer`.
+
+### Through halving 3 (height 2,400,000 inclusive)
+
+| Component | ZER | Share of subsidy |
+|-----------|-----|------------------|
+| **Block subsidy (minted)** | **14,790,161.35** | 100% |
+| Miner | 10,600,091.78 | 71.67% |
+| Nodes (20/25/30% tiers) | 3,390,032.47 | 22.92% |
+| Dev (7.5%) | 800,037.10 | 5.41% |
+
+### Subsidy by era (same through 2,400,000)
+
+| Height range | Blocks | Subsidy/block | Era total ZER |
+|--------------|--------|---------------|---------------|
+| 0 - 412,299 | 412,300 | 10.0 | 4,123,000.00 |
+| 412,300 - 799,999 | 387,700 | 10.8 | 4,187,160.00 |
+| 800,000 - 1,599,999 | 800,000 | 5.4 | 4,320,000.00 |
+| 1,600,000 - 2,399,999 | 800,000 | 2.7 | 2,160,000.00 |
+| 2,400,000 | 1 | 1.35 | 1.35 |
+
+### Dev received through height 2,400,000 (by rotation index)
+
+| Index | Address (prefix) | Cumulative ZER |
+|-------|------------------|----------------|
+| 0 | `t3hmg6WApjq...` | 314,037.00 |
+| 1 | `t3hrh5M7eaG...` | 324,000.00 |
+| 2 | `t3aWmHqBGS7...` | 162,000.00 |
+| 3 | `t3hsi89hPsZ...` | 0.10125 (starts at 2,400,000) |
+| 4-9 | (next eras) | 0.00 |
+
+Rotation interval: **800,000** blocks per index (`height / 800000`). Full addresses: **Dev and system addresses** above.
+
+### Grand totals (projected)
+
+| Milestone | Height | Cumulative subsidy ZER |
+|-----------|--------|------------------------|
+| Halving 3 | 2,400,000 | 14,790,161.35 |
+| Dev end | 7,999,999 | 16,933,285.00 (model) |
+| Asymptotic cap | gtest `slow_start_subsidy` | **21,000,000** (`MAX_MONEY`) |
+
+Dev share continues until block **7,999,999**; nodes tiers step at each 800k boundary through 40% at 3,200,000+.
+
+### Coinbase layout and dual-miner splits
+
+Typical **3-vout** coinbase: dev P2SH + nodes P2PKH + miner P2PKH.
+
+**4-vout** coinbases (~10% of recent blocks): extra transparent output is **miner payout split** across two t-addresses (pool operator), **not** a fourth protocol fee. Zero has no treasury 4th coinbase output.
+
+Tools: see command table in **Emission totals** above.
+
+### Customary on-chain stats (when node synced)
+
+| RPC | Use |
+|-----|-----|
+| `getblockchaininfo` | Tip, `valuePools` (sprout/sapling/transparent), `developmentfee` |
+| `getblock <hash> 2` | Coinbase vout decode |
+| `gettxoutsetinfo` | UTXO set size (requires no pruning) |
+| `getmininginfo` | Network hash, difficulty |
+
+Sprout pool on mainnet remains non-zero (historical shielded balance); Sapling is the active wallet generation.
 
 ---
 
@@ -214,4 +323,4 @@ The node is **experimental**; use at your own risk. Back up keys and wallet file
 
 ## Coinbase validation (extended)
 
-Mainnet-verified coinbase behavior, pool 4-vout splits, halving **2,400,000** samples, and `contrib/decode_coinbase.py` are documented in **[ZeroMac/ZERO_COIN.md](../ZeroMac/ZERO_COIN.md)** (appendix). Founders multisig detail: **`Zeros/MULTISIG.md`**. Zcash 2026 CVE applicability: **`ZcashV.md`**.
+Mainnet-verified coinbase behavior and `contrib/stats/decode_coinbase.py` usage: run locally against synced **`src/zerod`**. Dev multisig: **`Zeros/MULTISIG.md`**. Zcash 2026 vulnerabilities: **`ZcashFixes.md`**. Emission tables: **`contrib/stats/chain_stats.py`**.

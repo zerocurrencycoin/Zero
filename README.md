@@ -132,7 +132,8 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow | Patches, review, coding expectations |
 | [TODO.md](TODO.md) | Checklist and follow-ups | Implementation status, doc debt, small tracked tasks |
 | [ZERO_COIN.md](ZERO_COIN.md) | **User-facing** chain and node reference | Observable behavior, events, operations; **Glossary** and **References**; emission, halving, founders, zeronodes, addresses |
-| [Zeronode_wallet.md](Zeronode_wallet.md) | Wallet integration note | `CZeronodeWalletInterface`, wallet-optional builds, coverage notes for zeronode↔wallet |
+| [ZeroNodes.md](ZeroNodes.md) | Zeronode operators | Setup, sporks, economics pointers |
+| [ZeroNodeDev.md](ZeroNodeDev.md) | Zeronode developers | `CZeronodeWalletInterface`, wallet-optional builds |
 | `doc/man/` | Shipped CLI manuals | `zerod`, `zero-cli`, `zero-tx` options and behavior |
 
 
@@ -153,17 +154,46 @@ git clone https://github.com/zerocurrencycoin/Zero.git && cd Zero
 
 macOS and Windows: see [BUILD_ZERO.md](BUILD_ZERO.md).
 
-### Create a Zero configuration file
-```
+### Data directory (`zero.conf`, wallet, chain)
+
+Canonical defaults (`GetDefaultDataDir()` in `src/util.cpp`):
+
+| Platform | Data directory | Proving params |
+|----------|----------------|----------------|
+| **Linux** | `~/.zero` | `~/.zcash-params` |
+| **macOS** | `/Users/USERNAME/Library/Application Support/zero` | `/Users/USERNAME/Library/Application Support/ZcashParams` |
+| **Windows** | `C:\Users\USERNAME\AppData\Roaming\zero` | `C:\Users\USERNAME\AppData\Roaming\zero\ZcashParams` |
+
+Replace **`USERNAME`** with your login. Override with `-datadir=<path>`. Wallet: **`wallet.zero`** inside the datadir.
+
+**Linux** -- create config:
+
+```bash
 mkdir -p ~/.zero
 echo "server=1" > ~/.zero/zero.conf
-```
-### To use the full node RPC interface
-```
-echo "rpcuser=<YOUR_USER_NAME>" > ~/.zero/zero.conf
-echo "rpcpassword=`head -c 32 /dev/urandom | base64`" >> ~/.zero/zero.conf
+echo "rpcuser=YOUR_NAME" >> ~/.zero/zero.conf
+echo "rpcpassword=$(head -c 32 /dev/urandom | base64)" >> ~/.zero/zero.conf
 echo "rpcport=23801" >> ~/.zero/zero.conf
 ```
+
+**macOS**:
+
+```bash
+mkdir -p "/Users/$(whoami)/Library/Application Support/zero"
+echo "server=1" > "/Users/$(whoami)/Library/Application Support/zero/zero.conf"
+# Or explicit override:
+# ./src/zerod -datadir="$HOME/.zero" -daemon
+```
+
+**Windows** (PowerShell):
+
+```powershell
+mkdir $env:APPDATA\zero
+echo server=1 > $env:APPDATA\zero\zero.conf
+# Expanded: C:\Users\USERNAME\AppData\Roaming\zero\zero.conf
+```
+
+### To use the full node RPC interface (Linux)
 
 ### Optional CPU mining
 ```
@@ -191,7 +221,7 @@ After building, binaries are in `./src`. Run the daemon in the background:
 
 Command-line options: `./src/zerod -help` (or set in zero.conf).
 
-Your wallet is created on first run in `~/.zero/wallet.zero`. [Backup your wallet](https://github.com/zerocurrencycoin/Zero/wiki/Wallet-Backup) often.
+Your wallet is created on first run as **`wallet.zero`** in the data directory (see table above). [Backup your wallet](https://github.com/zerocurrencycoin/Zero/wiki/Wallet-Backup) often.
 
 The usage is currently very similar to Zcash. For more information see the [Zcash User Guide](https://github.com/zcash/zcash/wiki/1.0-User-Guide#running-zcash).
 

@@ -205,15 +205,33 @@ Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`. On failur
 
 ## 3. .zero Directory
 
+Default paths are implemented in **`src/util.cpp`** (`GetDefaultDataDir`, `ZC_GetBaseParamsDir`). Override chain data with **`-datadir=<path>`**; params stay under the platform ZcashParams path unless you relocate them manually.
+
 ### 3.1 Location
 
 | Platform | Data directory | Params directory |
 |----------|----------------|------------------|
-| Linux | `~/.zero` | `~/.zcash-params` |
-| macOS | `~/Library/Application Support/zero` | `~/Library/Application Support/ZcashParams` |
-| Windows | `%APPDATA%\zero` | `%APPDATA%\ZcashParams` |
+| **Linux** | `~/.zero` | `~/.zcash-params` |
+| **macOS** | `/Users/USERNAME/Library/Application Support/zero` | `/Users/USERNAME/Library/Application Support/ZcashParams` |
+| **Windows** | `C:\Users\USERNAME\AppData\Roaming\zero` | `C:\Users\USERNAME\AppData\Roaming\ZcashParams` |
 
-Override with `-datadir=<path>`.
+Replace **`USERNAME`** with your login. **`~/.zero` is Linux only** unless you pass `-datadir=$HOME/.zero` on macOS.
+
+**macOS example:**
+
+```bash
+mkdir -p "/Users/$(whoami)/Library/Application Support/zero"
+echo "server=1" > "/Users/$(whoami)/Library/Application Support/zero/zero.conf"
+./src/zerod -daemon
+```
+
+**Windows example** (PowerShell; user `Alice`):
+
+```powershell
+mkdir C:\Users\Alice\AppData\Roaming\zero
+echo server=1 > C:\Users\Alice\AppData\Roaming\zero\zero.conf
+.\src\zerod.exe -daemon
+```
 
 ### 3.2 Files
 
