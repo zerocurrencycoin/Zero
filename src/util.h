@@ -152,7 +152,9 @@ boost::filesystem::path GetSpecialFolderPath(int nFolder, bool fCreate = true);
 boost::filesystem::path GetTempPath();
 void OpenDebugLog();
 void ShrinkDebugFile();
+#ifdef ENABLE_SYSTEM_COMMAND
 void runCommand(const std::string& strCommand);
+#endif
 const boost::filesystem::path GetExportDir();
 
 /** Returns privacy notice (for -version, -help and metrics screen) */

@@ -77,6 +77,7 @@ enum RPCErrorCode
     RPC_WALLET_ALREADY_UNLOCKED     = -17, //! Wallet is already unlocked
 
     RPC_ZERONODES_NOT_SYNCED        = -32, //! ZeroNodes are syncing or have fallen out of sync
+    RPC_BUILDING_WITNESS_CACHE      = -33, //! RPC disabled while witness cache is rebuilding
 };
 
 std::string JSONRPCRequest(const std::string& strMethod, const UniValue& params, const UniValue& id);

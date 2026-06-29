@@ -301,7 +301,7 @@ Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 | librustzcash | snapshot `06da3b9` | `crate_*.mk`, `Cargo.lock` | Consensus-linked; upgrade only with protocol work. |
 | Googletest | 1.16.0 | `googletest.mk` | Last GTest line on **C++14**; 1.17+ expects C++17. |
 | utfcpp | 3.1 | `utfcpp.mk` | Header-only; UTF-8 checks in wallet RPC paths. |
-| Qpid Proton | 0.26.0 recipe; **off** | `proton.mk`, configure | **AMQP** would duplicate ZMQ's role (`-amqppub*`); recipe exists but **`--enable-proton=no`** / **`NO_PROTON=1`** default--CMake/toolchain friction. |
+| Qpid Proton | 0.26.0 recipe; **off** | `proton.mk`, configure | **`--disable-proton`** / **`NO_PROTON=1`** default; optional upstream code only |
 | config.guess / config.sub | vendor drop | `depends/config.*` | **Apple Silicon** must resolve to **`aarch64-apple-darwin*`**, not **`arm-apple-darwin`**. |
 
 
@@ -347,6 +347,48 @@ Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 | `--enable-debug` | Debug symbols |
 | `--disable-mining` | Exclude mining code |
 | `--enable-ccache` | Use ccache (default: auto) |
+
+#### Shell notify hooks (`ENABLE_SYSTEM_COMMAND`)
+
+Three optional flags run an **external shell command** when an event occurs. Each substitutes **`%s`** in the command string (block hash, transaction id, or sanitized alert text), then invokes the system shell via **`::system()`**:
+
+| Flag | Trigger |
+|------|---------|
+| **`-blocknotify=<cmd>`** | Active chain tip changes |
+| **`-walletnotify=<cmd>`** | Wallet sees a new or updated transaction |
+| **`-alertnotify=<cmd>`** | Deprecation or network alert text is emitted |
+
+**Default (release) builds do not execute these commands.** The hooks are gated at **compile time** by **`ENABLE_SYSTEM_COMMAND`**. If the flag is not set at build time, **`zerod`** logs that the notification was skipped and continues. This matches the Pirate Network port (**PIR-01**): secure by default, opt-in only when the operator deliberately rebuilds.
+
+**Enable shell hooks** (operators who need them):
+
+```bash
+./configure CXXFLAGS="-DENABLE_SYSTEM_COMMAND"   # add to your usual CONFIGURE_FLAGS / zcutil/build.sh path
+make -j$(nproc)
+```
+
+Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine one regtest block, confirm the log line appears **only** on an **`ENABLE_SYSTEM_COMMAND`** build.
+
+**Why the gate exists.** Inherited Bitcoin Core behavior turns the node into a shell launcher. Config values come from **`zero.conf`** and the command line; even with sanitization on alert text, a mistaken or hostile config can run arbitrary commands as the **`zerod`** user. Most deployments use **ZMQ** or RPC polling instead; compile-time opt-in shrinks the attack surface of default binaries.
+
+**When shell hooks are still appropriate**
+
+| Use case | Example | Notes |
+|----------|---------|-------|
+| Legacy automation | **`blocknotify`** runs a fixed path script that touches a flag file for an old indexer | Prefer **`-zmqpubhashblock`** for new work |
+| Wallet-driven ops | **`walletnotify`** appends txid to a fifo for a custom accounting daemon | Wallet must be enabled; high volume can spawn many threads |
+| Deprecation / alert path | **`alertnotify`** emails or pages on deprecation banner (see GTest **`DeprecationTest.AlertNotify`**) | P2P alert relay is obsolete; deprecation still calls **`CAlert::Notify`** |
+
+**Preferred alternatives (no shell)**
+
+| Need | Use instead |
+|------|-------------|
+| New block | **`-zmqpubhashblock=tcp://127.0.0.1:28332`** (requires ZMQ-enabled build; default on) |
+| New tx | **`-zmqpubhashtx=...`**, **`-zmqpubrawtx=...`** |
+| Wallet activity | Poll **`listtransactions`** / **`zs_listtransactions`** from a sidecar, or ZMQ raw tx |
+| Explorer / Blockbook | **`txindex`**, REST, insight flags -- see explorer sections in maintainer docs |
+
+**Testing:** GTest **`DeprecationTest.AlertNotify`** in **`src/gtest/test_deprecation.cpp`** asserts the notify file is written when **`ENABLE_SYSTEM_COMMAND`** is defined and **empty** when it is not. Re-run after toggling the compile flag. Full matrix: **TEST_ZERO.md**, **Shell notify hooks**.
 
 ### 4.7 Depends recipe troubleshooting
 

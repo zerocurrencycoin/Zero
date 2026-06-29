@@ -133,6 +133,8 @@ TEST_F(DeprecationTest, AlertNotify) {
     EnforceNodeDeprecation(DEPRECATION_HEIGHT - DEPRECATION_WARN_LIMIT, false, false);
 
     std::vector<std::string> r = read_lines(temp);
+
+#ifdef ENABLE_SYSTEM_COMMAND
     EXPECT_EQ(r.size(), 1u);
 
     // -alertnotify restricts the message to safe characters.
@@ -147,5 +149,10 @@ TEST_F(DeprecationTest, AlertNotify) {
 #else
     EXPECT_EQ(r[0], strprintf("'%s' ", expectedMsg));
 #endif
+#else
+    // Default build: shell hooks are compile-time opt-in (PIR-01).
+    EXPECT_EQ(r.size(), 0u);
+#endif
+
     boost::filesystem::remove(temp);
 }
