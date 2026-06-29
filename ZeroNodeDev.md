@@ -1,12 +1,20 @@
 # ZeroNodeDev -- zeronode wallet interface
 
-Wallet abstraction for Zero's zeronode layer. **Operators:** **`ZeroNodes.md`**.
+## 1. Purpose and role
+
+**Purpose:** **Source-level** zeronode layer -- wallet abstraction, TENT lineage, **ZND anchors**, functional test roadmap.
+
+**Include:** `CZeronodeWalletInterface` / stub; library split; section **9** ZND table with diff anchors; test phases A-F.
+
+**Exclude:** Operator workflow (**`ZeroNodes.md`**); TNT execution order (**`UpdateZero.md`** section **3.5**); general zerod architecture (**`ZeroStruct.md`**).
+
+Developer documents in **UpdateZero.md** section **1**, **Documentation map**. **Operators:** **`ZeroNodes.md`**.
 
 **Status:** Complete (June 2025). Strategy pattern: `CZeronodeWalletInterface` + `CZeronodeWalletStub` (`--disable-wallet`).
 
 ---
 
-## 1. Problem, Solution, Approach
+## 2. Problem, Solution, Approach
 
 ### Problem
 
@@ -32,7 +40,7 @@ Zeronode code was tightly coupled to the wallet library. Server code directly ac
 
 ---
 
-## 2. Interface and Usage
+## 3. Interface and Usage
 
 ### Interface -- 13 methods
 
@@ -64,7 +72,7 @@ g_zeronodeWallet->LockCoin(output);
 
 ---
 
-## 3. Known Mismatches
+## 4. Known Mismatches
 
 **Minimal direct wallet access:** Almost all use goes through `g_zeronodeWallet`. Two intentional exceptions:
 
@@ -81,7 +89,7 @@ At line 339, `if (pwalletMain)` is redundant: `GetRequestCount` returns 0 when `
 
 ---
 
-## 4. Test Types and Approaches
+## 5. Test Types and Approaches
 
 ### 4.1 Build Tests
 
@@ -137,7 +145,7 @@ zero-cli submitbudget "name" "url" 1 100 "addr" 100 "fee-tx"
 
 ---
 
-## 5. Files Modified
+## 6. Files Modified
 
 | File | Change |
 |------|--------|
@@ -151,13 +159,13 @@ zero-cli submitbudget "name" "url" 1 100 "addr" 100 "fee-tx"
 
 ---
 
-## 6. Future Enhancement
+## 7. Future Enhancement
 
 **Phase 3 (optional):** Replace `bool` returns with `ZeronodeWalletResult` (error code, message, context). Design complete; not implemented.
 
 ---
 
-## 7. Lessons Learned
+## 8. Lessons Learned
 
 - Strategy pattern decouples while preserving behavior.
 - `void*` for `CReserveKey` keeps headers wallet-free.
@@ -167,11 +175,17 @@ zero-cli submitbudget "name" "url" 1 100 "addr" 100 "fee-tx"
 
 ---
 
-## 8. TENT lineage and upstream candidates
+## 9. TENT lineage and upstream candidates
 
-Zero `src/zeronode/*` maps from TENT `src/masternode/*` (`ZeroNodes.md` TENT relationship). TENT uses direct **`pwalletMain`**; Zero uses **`CZeronodeWalletInterface`** (this file, sections 1--6).
+Zero `src/zeronode/*` maps from TENT `src/masternode/*` (**`ZeroNodes.md`** section **2**). TENT uses direct **`pwalletMain`**; Zero uses **`CZeronodeWalletInterface`** (this file, sections **2**--**8**).
 
-**Maintainer cherry-pick inventory (commit refs, priorities, execution order):** **`UpdateZero.md`** section 3.5.
+**TNT execution order:** **`UpdateZero.md`** section **3.5** only. This section owns **ZND anchors**.
+
+### ZND anchors
+
+**ZND-01..08** are stable labels (**Z**ero**N**ode **D**ev) for TENT-vs-Zero zeronode topics. Each row ties **behavior** to **source paths** and a port/reject recommendation. Cite **ZND IDs only in ZeroNode* files** (`ZeroNodes.md`, this file). **`UpdateZero.md`** section **3.5** uses **TNT** (**T**ENT) IDs for execution priority, not ZND IDs in prose.
+
+**Diff anchor (payments):** `TENT/src/masternode-payments.cpp` vs `Zero400/src/zeronode/payments.cpp` (rename, treasury removal, Zero spork names).
 
 ### Port / reject table
 
@@ -184,9 +198,7 @@ Zero `src/zeronode/*` maps from TENT `src/masternode/*` (`ZeroNodes.md` TENT rel
 | **ZND-05** | Treasury coinbase + `GetTreasuryRewardScriptAtHeight` | **Removed** | **Reject** -- not Zero tokenomics |
 | **ZND-06** | Founders schedule by upgrade (5% / 7.5% / 15%) | Fixed **7.5%** after fee-start | **Reject** |
 | **ZND-07** | Masternode integration tests | None in either tree | **Implement** on Zero regtest first |
-| **ZND-08** | External masternode-setup docs | Obsolete scripts in the wild | **Replace** with BUILD_ZERO operator section |
-
-**Diff anchor:** `TENT/src/masternode-payments.cpp` vs `Zero400/src/zeronode/payments.cpp` (rename, treasury removal, Zero spork names).
+| **ZND-08** | External masternode-setup docs | Obsolete scripts in the wild | **Replace** with **`ZeroNodes.md`** / BUILD_ZERO operator section |
 
 ### Functional test roadmap (from DOC-02)
 

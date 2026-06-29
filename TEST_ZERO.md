@@ -314,6 +314,15 @@ Harness inventory and commands: see **Harness landscape** and **Quick start** ab
 
 **Alerts:** Bitcoin P2P alert tests are not compiled (**`alert_tests.cpp`** omitted from **`BITCOIN_TESTS`**). Product code may still expose **`-alerts`** / **`-alertnotify`** stubs; no harness exclusion needed.
 
+**Shell notify hooks (`ENABLE_SYSTEM_COMMAND`, PIR-01):** Default builds do **not** run **`-blocknotify`**, **`-walletnotify`**, or **`-alertnotify`**. GTest **`DeprecationTest.AlertNotify`** (**`src/gtest/test_deprecation.cpp`**) is the Tier A regression for **`-alertnotify`**:
+
+| Build | Command | Pass criterion |
+|-------|---------|----------------|
+| Default | **`./src/zero-gtest --gtest_filter=DeprecationTest.AlertNotify`** | Notify temp file **0** lines (hook skipped) |
+| Opt-in shell | Reconfigure with **`CXXFLAGS="-DENABLE_SYSTEM_COMMAND"`**, rebuild, same filter | Temp file **1** line (sanitized deprecation text) |
+
+Manual check (either mode): regtest **`zerod`** with **`-blocknotify='echo %s >> /tmp/zero-block.log'`**, generate one block -- log appended **only** on opt-in build; default logs **"Block notification skipped"** in **`debug.log`**. No Tier A RPC script covers **`blocknotify`** (**`forknotify.py`** removed). See **BUILD_ZERO.md** section **4.6** (Shell notify hooks).
+
 **`equihash_tests`** stays in pass-only; interpretation: **Interpreting results -> Equihash**. List suites: **`./src/zero-gtest --gtest_list_tests`**, **`./src/test/test_bitcoin --list_content`**.
 
 ### RPC driver (`qa/pull-tester/rpc-tests.sh`)
@@ -509,7 +518,7 @@ First build is slow (200-block distribution + ~525 extra blocks for maturity). L
 | Bfail Debug | `wallet_addresses`, `rescan_import`, `reorg_limit`, `wallet_listnotes`, `wallet_sapling` | Default cache + tip **200** assert -- see **Tip 200 debt** and per-script debug sections |
 | Bfail Debug | `wallet_listnotes`, `wallet_sapling`, `wallet_listreceived`, `mempool_reorg`, `mempool_tx_expiry`, `bip65-cltv-p2p`, `bipdersig-p2p`, `regtest_signrawtransaction` | See **Bfail and Efail cache exposure** below |
 | Efail | `getblocktemplate_longpoll`, `getblocktemplate_proposals`, `smartfees`, `invalidblockrequest` | Comptool / long-chain scripts; tip **725** may skew timing assumptions |
-| Other | `mempool_reorg`, `proton_test`, `script_test`, `zmq_test`, ... | Same default path |
+| Other | `mempool_reorg`, `script_test`, `zmq_test`, ... | Same default path |
 
 **Explicit clean chain (`initialize_chain_clean` in `setup_chain`):** all other RPC scripts (**~50+**), including every Tier A script except the four cache users above, plus most Bfail scripts that override **`setup_chain`**.
 
@@ -1025,7 +1034,73 @@ Example from `addressindex.py` `setup_network`: `args = ('-debug', '-txindex', '
 
 Maturity: upstream `generate(105)` assumed maturity **100**. Zero scripts use **`coinbase_mature_tip(5)`** (= **725**, same tip as cache build policy) on a fresh chain. Insight indexing does not require 720; **funding transactions** do.
 
-### Version-fork **alert** (historical)
+---
+
+## Experimental and insight feature tests
+
+Flag bundles below match **`qa/pull-tester/rpc-tests.sh`** and script `extra_args`. See **Required node flag bundles** and script tables in this section.
+
+### Required node flag bundles
+
+| Feature | Flags | Reindex? |
+|---------|-------|----------|
+| **Insight addressindex RPCs** | `-debug -txindex -experimentalfeatures -insightexplorer` | Yes on first enable |
+| **`z_mergetoaddress`** | `-experimentalfeatures -zmergetoaddress` (+ often `-debug=zrpcunsafe`) | No |
+| **REST HTTP** | `-rest` | No |
+| **Payment disclosure** | `-experimentalfeatures -paymentdisclosure` | Varies |
+| **Wallet encryption (dev)** | `-experimentalfeatures -developerencryptwallet` | N/A |
+
+Insight RPCs require **both** `-experimentalfeatures` and `-insightexplorer` (`fExperimentalMode && fInsightExplorer` in `src/rpc/misc.cpp`).
+
+### Insight RPC scripts (regtest)
+
+All use **`initialize_chain_clean`**, **3 nodes**, maturity **`coinbase_mature_tip(5)`** (= 725). **Not** compatible with shared **`initialize_chain` cache** (indexes built at startup; cache has foreign wallet UTXOs).
+
+| Script | RPCs / behavior exercised |
+|--------|---------------------------|
+| **`addressindex.py`** | `getaddresstxids`, `getaddressbalance`, `getaddressdeltas`, `getaddressutxos`, `getaddressmempool`; reorg via `invalidateblock`; restart persistence |
+| **`spentindex.py`** | `getspentinfo`; enriched `getrawtransaction` vin/vout fields |
+| **`timestampindex.py`** | `getblockhashes` (time ranges, logical times) |
+| **`getrawtransaction_insight.py`** | Spent-index fields on `getrawtransaction` verbosity 1 |
+
+Also: **`src/test/rpc_tests.cpp`** `rpc_insightexplorer` (disabled/enabled parameter checks).
+
+Tier: **Bfail Debug** in `rpc-tests.sh`. Run alone:
+
+```bash
+./qa/pull-tester/rpc-tests.sh addressindex
+```
+
+### Experimental wallet RPC scripts
+
+| Script | Flags | What it validates |
+|--------|-------|-------------------|
+| **`wallet_mergetoaddress.py`** | `-experimentalfeatures -zmergetoaddress` | Async merge; `z_getoperationresult`; transparent + shielded paths |
+| **`mergetoaddress_sapling.py`** | via `mergetoaddress_helper.py` | Sapling note merge |
+| **`mergetoaddress_mixednotes.py`** | `-experimentalfeatures -zmergetoaddress` | Rejects Sprout+Sapling same tx |
+| **`wallet_changeaddresses.py`** | `-txindex -experimentalfeatures -zmergetoaddress` | Sapling change addresses with merge enabled |
+| **`rescan_import.py`** | `-experimentalfeatures -zmergetoaddress` | Rescan + merge interaction |
+| **`wallet_sapling.py`** | `-experimentalfeatures -zmergetoaddress` | Sapling wallet RPCs with merge flag |
+
+`z_mergetoaddress` produces **on-chain** transactions (`CommitTransaction` -> mempool) unless test mode.
+
+### Other experimental-adjacent tests
+
+| Script | Notes |
+|--------|-------|
+| **`rest.py`** | `-rest`; Core-style `/rest/*` endpoints |
+| **`wallet_paymentdisclosure.py`** | `-paymentdisclosure` if present in driver |
+
+### GTest / Boost
+
+| Suite | Case | Feature |
+|-------|------|---------|
+| `rpc_tests.cpp` | `rpc_insightexplorer` | Insight RPC disabled/enabled |
+| `rpc_wallet_tests.cpp` | `rpc_z_mergetoaddress_*` | Merge RPC parameters |
+
+Coverage gap: no RPC test for **auto `-consolidation`** (background `AsyncRPCOperation_saplingconsolidation`); Pirate **`consolidateaddress`** not in tree.
+
+### Version-fork alert (historical)
 
 Bitcoin **BIP34-era** mechanism: if a peer mines **51+ blocks** with **`nVersion`** above your **`VERSIONBITS`** threshold, **`-alertnotify=<cmd>`** runs ( **`forknotify.py`** tested this). Deprecated P2P alert system; unrelated to Zero NU activation (**`-nuparams`**).
 
@@ -1087,6 +1162,8 @@ Authoritative arrays: **`testScriptsTierBFailDebug`**, **`testScriptsTierBFailRe
 | **NU / Blossom** | `shorter_block_times` | Maturity **720** vs Blossom at **106** | Reschedule NU or mine plan; see **`shorter_block_times.py` debug** |
 | **Wallet / merge** | `mergetoaddress_sapling`, `mergetoaddress_mixednotes` | `z_mergetoaddress` async, maturity, note selection | `mine_until_*`; Sapling-only; check `mergetoaddress_helper.py` |
 | **Insight** | `addressindex`, `spentindex`, `timestampindex`, `getrawtransaction_insight` | **`COINBASE_MATURITY` [720]** + `-insightexplorer` | **`initialize_chain_clean`** only (not shared cache); `coinbase_mature_tip(5)` |
+| **Experimental wallet** | `wallet_mergetoaddress`, `mergetoaddress_sapling`, `mergetoaddress_mixednotes`, `wallet_changeaddresses`, `rescan_import`, `wallet_sapling` | `-experimentalfeatures` + `-zmergetoaddress` where merge tests apply | See **Experimental and insight feature tests** below |
+| **REST** | `rest` | `-rest` on all nodes | `initialize_chain_clean`; not Insight |
 | **Cache / tip 200** | `wallet_addresses`, `rescan_import`, `reorg_limit`, `wallet_listnotes`, `wallet_sapling` | Default **`setup_chain`** + tip **200** assert | Bfail Debug; **`initialize_chain_clean`** + **`generate(200)`** or baseline-relative reorg -- see **height 200/201** and per-script debug sections |
 | **Mempool** | `mempool_limit`, `mempool_reorg`, `mempool_nu_activation`, `mempool_tx_expiry` | Maturity / NU heights | `COINBASE_MATURITY` mining; align `-nuparams`. **`mempool_spendcoinbase` -> B pass** (2026-06-09) |
 | **Raw / REST** | `rawtransactions`, `rest`, `fundrawtransaction`, `signrawtransaction_offline` | Maturity bootstrap | `rawtransactions`, `fundrawtransaction`, `signrawtransaction_offline`: **`generate(COINBASE_MATURITY + 1)`** (2026-06-08); `rest` ported earlier |
@@ -1206,7 +1283,7 @@ P2P alert system is obsolete; **`alert_tests.cpp`** is not in default **`BITCOIN
 | `src/chainparams.h` | 71, 123 | `vAlertPubKey` / `AlertKey()` |
 | `src/chainparams.cpp` | 138, 309, 463 | `vAlertPubKey = ParseHex("73B0")` |
 | `src/deprecation.cpp` | 35, 45 | deprecation -> `CAlert::Notify` |
-| `src/gtest/test_deprecation.cpp` | 128-130 | `-alertnotify` in deprecation test |
+| `src/gtest/test_deprecation.cpp` | 126-151 | **`DeprecationTest.AlertNotify`**: **`-alertnotify`**; **`#ifdef ENABLE_SYSTEM_COMMAND`** (0 vs 1 line) |
 | `src/test/alert_tests.cpp` | (file) | source only; not default build |
 | `src/rpc/net.cpp` | 461, 492 | `warnings` field in network info RPC |
 

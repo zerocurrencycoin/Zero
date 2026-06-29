@@ -76,11 +76,11 @@ estimatefee,util,n,n,n,y
 estimatepriority,util,n,n,n,y
 estimatesmartfee,util,y,n,n,n
 estimaterawfee,util,y,n,n,n
-getaddresstxids,addressindex,n,y,n,y
-getaddressbalance,addressindex,n,y,n,y
-getaddressdeltas,addressindex,n,y,n,y
-getaddressutxos,addressindex,n,y,n,y
-getaddressmempool,addressindex,n,y,n,y
+getaddresstxids,addressindex,n,y,y,y
+getaddressbalance,addressindex,n,y,y,y
+getaddressdeltas,addressindex,n,y,y,y
+getaddressutxos,addressindex,n,y,y,y
+getaddressmempool,addressindex,n,y,y,y
 getspentinfo,blockchain,n,y,y,y
 setmocktime,hidden,y,y,y,y
 mockscheduler,hidden,y,n,n,n
@@ -248,6 +248,8 @@ walletconfirmbackup,wallet,n,y,n,n
 convertpassphrase,wallet,n,n,y,n
 rescan,wallet,n,n,y,n
 consolidationstatus,wallet,n,n,y,n
+consolidateaddress,wallet,n,n,y,n
+z_getbalances,wallet,n,n,y,n
 createwallet,wallet,y,n,n,n
 restorewallet,wallet,y,n,n,n
 loadwallet,wallet,y,n,n,n

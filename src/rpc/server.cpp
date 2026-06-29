@@ -34,6 +34,7 @@ using namespace RPCServer;
 using namespace std;
 
 bool initWitnessesBuilt = false;
+bool fBuildingWitnessCache = false;
 static bool fRPCRunning = false;
 static bool fRPCInWarmup = true;
 static std::string rpcWarmupStatus("RPC server started");
@@ -446,6 +447,9 @@ UniValue CRPCTable::execute(const std::string &strMethod, const UniValue &params
 
     if (!initWitnessesBuilt && pcmd->name == "z_sendmany")
         throw JSONRPCError(RPC_DISABLED_BEFORE_WITNESSES, "RPC Command disabled until witnesses are built.");
+
+    if (fBuildingWitnessCache)
+        throw JSONRPCError(RPC_BUILDING_WITNESS_CACHE, "RPC interface disabled while building witness cache. Check debug.log for progress.");
 
     g_rpcSignals.PreCommand(*pcmd);
 

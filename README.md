@@ -132,8 +132,6 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow | Patches, review, coding expectations |
 | [TODO.md](TODO.md) | Checklist and follow-ups | Implementation status, doc debt, small tracked tasks |
 | [ZERO_COIN.md](ZERO_COIN.md) | **User-facing** chain and node reference | Observable behavior, events, operations; **Glossary** and **References**; emission, halving, founders, zeronodes, addresses |
-| [ZeroNodes.md](ZeroNodes.md) | Zeronode operators | Setup, sporks, economics pointers |
-| [ZeroNodeDev.md](ZeroNodeDev.md) | Zeronode developers | `CZeronodeWalletInterface`, wallet-optional builds |
 | `doc/man/` | Shipped CLI manuals | `zerod`, `zero-cli`, `zero-tx` options and behavior |
 
 

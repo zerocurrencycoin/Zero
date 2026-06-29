@@ -1,29 +1,26 @@
 # Zero Nodes -- zeronode operator guide
 
-Operators and integrators: setup, economics, sporks, testing. **Developers (wallet boundary, TENT port work):** **`ZeroNodeDev.md`**.
+## 1. Purpose and role
+
+**Purpose:** Run a **zeronode** on mainnet or testnet -- collateral, config, RPC, sporks, and pointers to economics docs.
+
+**Include:** Operator setup, spork effects, coinbase order summary, P2P/discovery, testing pointers.
+
+**Exclude:** `CZeronodeWalletInterface` and `--disable-wallet` (**`ZeroNodeDev.md`**); TNT execution (**`UpdateZero.md`** section **3.5**); port/reject anchors (**`ZeroNodeDev.md`** section **9**); insight/explorer flags (**`ZeroStruct.md`**).
+
+Developer documents in **UpdateZero.md** section **1**, **Documentation map**. **Developers:** **`ZeroNodeDev.md`**.
 
 Last updated: Jun 2026.
 
 ---
 
-## Document split
+## 2. TENT relationship
 
-| Doc | Audience |
-|-----|----------|
-| **`ZeroNodes.md`** (this file) | Run a zeronode, RPC, sporks, economics pointers |
-| **`ZeroNodeDev.md`** | Wallet interface, TENT lineage, upstream port candidates, test gaps |
-| **`ZERO_COIN.md`** | Coinbase split, emission, datadir |
-| **`UpdateZero.md`** | Maintainer roadmap, bootstrap, regtest map |
+Zero's zeronode layer is a port of **TENT** (`ZKs/TENT`) masternode code into `src/zeronode/` (wire commands renamed `mn*` -> `zn*`). TENT kept a treasury coinbase output and direct `pwalletMain` access; Zero removed the treasury and added **`CZeronodeWalletInterface`**. File map: **`TENTZero.md`**. Port/reject detail: **`ZeroNodeDev.md`** section **9**; execution order: **`UpdateZero.md`** section **3.5**.
 
 ---
 
-## TENT relationship
-
-Zero's zeronode layer is a port of **TENT** (`ZKs/TENT`) masternode code into `src/zeronode/` (wire commands renamed `mn*` -> `zn*`). TENT kept a treasury coinbase output and direct `pwalletMain` access; Zero removed the treasury and added **`CZeronodeWalletInterface`**. File map: **`TENTZero.md`**. Port/reject decisions: **`ZeroNodeDev.md`** section 8.
-
----
-
-## What a zeronode is
+## 3. What a zeronode is
 
 - **Collateral:** 10,000 ZER locked UTXO
 - **Payment:** 20% -> 40% of block subsidy by 800k tiers (spork-gated)
@@ -33,7 +30,7 @@ Code: **`src/zeronode/`**.
 
 ---
 
-## Coinbase order
+## 4. Coinbase order
 
 1. `GetBlockSubsidy(height)`
 2. Founders **7.5%** (mainnet heights 412300-7999999)
@@ -44,7 +41,7 @@ Tables: **`ZERO_COIN.md`** (emission totals and `contrib/stats/` tooling).
 
 ---
 
-## Sporks
+## 5. Sporks
 
 | Spork | Effect |
 |-------|--------|
@@ -55,7 +52,7 @@ Tables: **`ZERO_COIN.md`** (emission totals and `contrib/stats/` tooling).
 
 ---
 
-## Operator setup
+## 6. Operator setup
 
 ```bash
 ./zcutil/fetch-params.sh
@@ -71,26 +68,27 @@ Tables: **`ZERO_COIN.md`** (emission totals and `contrib/stats/` tooling).
 
 ---
 
-## P2P
+## 7. P2P
 
-**Discovery:** ten DNS seeds (`seed0`..`seed9`.zerocurrency.io); `peers.dat` via `CAddrDB`. No fixed IP seeds in `chainparamsseeds.h` today -- see **`UpdateZero.md`** bootstrap note.
+**Discovery:** ten DNS seeds (`seed0`..`seed9`.zerocurrency.io); `peers.dat` via `CAddrDB`. No fixed IP seeds in `chainparamsseeds.h` today.
 
 **Zeronode extensions:** `spork`, `zn winner`, `zn announce`, `zn ping`, budget messages, SwiftTX locks. Dispatch: `src/main.cpp` -> `znodeman`, `budget`, `zeronodePayments`, `zeronodeSync`.
 
-**Known issue:** spurious `Unknown command` log for handled extensions -- **`ZeroNodeDev.md`** ZND-01, **`TODO.md`**.
+**Known issue:** spurious `Unknown command` log for handled extensions when `-debug=net` -- **`ZeroNodeDev.md`** section **9**; **`TODO.md`**.
 
 ---
 
-## Testing
+## 8. Testing
 
-Regtest: **`TEST_ZERO.md`**. Node test phases: **`ZeroNodeDev.md`** section 8. Live-chain stats: **`ZERO_COIN.md`** (Emission totals).
+Regtest: **`TEST_ZERO.md`**. Node test phases: **`ZeroNodeDev.md`** section **9**. Live-chain stats: **`ZERO_COIN.md`**.
 
 ---
 
-## References
+## 9. References
 
 | Topic | Doc |
 |-------|-----|
-| Dev / TENT ports | `ZeroNodeDev.md` |
-| Economics | `ZERO_COIN.md` |
-| CVE posture | `ZcashFixes.md` |
+| Dev / TENT ports | **`ZeroNodeDev.md`** |
+| Economics | **`ZERO_COIN.md`** |
+| CVE posture | **`ZcashFixes.md`** |
+| Maintainer map | **`UpdateZero.md`** section **1** |

@@ -23,7 +23,7 @@ Status and tracked work items for the Zero node.
 
 - Linux RC validation (lazu **`ZeroLinux`**): rebuild on **`zero-400names`**, run **`./contrib/run-tests.sh --strict`** (optional **`--suite`**). Blocked on disk headroom (~97% full, ~4 GB free).
 - ~~**`blockchain.py` vs cache:**~~ done 2026-06-09: `gettxoutsetinfo` expectations now derived from actual tip via regtest subsidy schedule; passes at fresh (200) and warm (725) cache.
-- P2P logging (postponed): remove misleading `Unknown command` log after zeronode extension dispatch (`src/main.cpp` ~7025-7033). Valid commands (`znp`, `znb`, `znget`, `dseg`, spork, etc.) are handled in `znodeman` / budget / payments subsystems but still log when `-debug=net`. See **`ZeroNodeDev.md`** ZND-01; `notfound` already has a no-log exception.
+- P2P logging (postponed): remove misleading `Unknown command` log after zeronode extension dispatch (`src/main.cpp` ~7025-7033). Valid commands (`znp`, `znb`, `znget`, `dseg`, spork, etc.) are handled in `znodeman` / budget / payments subsystems but still log when `-debug=net`. See **`ZeroNodeDev.md`** section **9**; `notfound` already has a no-log exception.
 - Params archival: audit `fetch-params.sh` file names and URLs.
 - Build validation: Windows hardening flag gap identified
 - Branch id posture: CI guard for duplicate `nBranchId` (Sapling/Cosmos share `0x7361707a`).
@@ -48,7 +48,7 @@ Status and tracked work items for the Zero node.
 - zcrawreceive: legacy Sprout, no action needed.
 - Rust: system default on all platforms; 1.32.0 legacy/CI only.
 - librustzcash: pinned, consensus-linked, no upgrade without new NU.
-- Proton/AMQP: disabled, duplicates ZMQ, not productized.
+- Legacy Proton build off by default (`NO_PROTON=1`); optional `src/amqp/` -- use ZMQ for pub/sub instead.
 - Tag typos corrected (`v3.3.1`).
 - `-port` help text: was Zcash defaults; fixed to 23801/23802.
 - Stale code comments: `~/.zcash` -> `~/.zero`; collateral `1000` -> `10000`.

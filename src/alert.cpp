@@ -260,8 +260,12 @@ CAlert::Notify(const std::string& strMessage, bool fThread)
     safeStatus = singleQuote+safeStatus+singleQuote;
     boost::replace_all(strCmd, "%s", safeStatus);
 
+#ifdef ENABLE_SYSTEM_COMMAND
     if (fThread)
         boost::thread t(runCommand, strCmd); // thread runs free
     else
         runCommand(strCmd);
+#else
+    LogPrintf("Alert notification skipped: %s\nTo enable, rebuild with: ./configure CXXFLAGS=\"-DENABLE_SYSTEM_COMMAND\"\n", strCmd);
+#endif
 }

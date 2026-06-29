@@ -1596,6 +1596,9 @@ void CWallet::BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, con
     return;
   }
 
+  fBuildingWitnessCache = true;
+  initWitnessesBuilt = false;
+
   uint256 sproutRoot;
   uint256 saplingRoot;
   CBlockIndex* pblockindex = chainActive[startHeight];
@@ -1685,7 +1688,7 @@ void CWallet::BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, con
 
   }
 
-  //Set witnessBuilt to true to allow zsendmany to run
+  fBuildingWitnessCache = false;
   initWitnessesBuilt = true;
 }
 
@@ -2124,7 +2127,11 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
         if ( !strCmd.empty())
         {
             boost::replace_all(strCmd, "%s", wtxIn.GetHash().GetHex());
+#ifdef ENABLE_SYSTEM_COMMAND
             boost::thread t(runCommand, strCmd); // thread runs free
+#else
+            LogPrintf("Wallet notification skipped: %s\nTo enable, rebuild with: ./configure CXXFLAGS=\"-DENABLE_SYSTEM_COMMAND\"\n", strCmd);
+#endif
         }
 
     }

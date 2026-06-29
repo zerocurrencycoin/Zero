@@ -588,9 +588,15 @@ std::string HelpMessage(HelpMessageMode mode)
 static void BlockNotifyCallback(const uint256& hashNewTip)
 {
     std::string strCmd = GetArg("-blocknotify", "");
+    if (strCmd.empty())
+        return;
 
     boost::replace_all(strCmd, "%s", hashNewTip.GetHex());
+#ifdef ENABLE_SYSTEM_COMMAND
     boost::thread t(runCommand, strCmd); // thread runs free
+#else
+    LogPrintf("Block notification skipped: %s\nTo enable, rebuild with: ./configure CXXFLAGS=\"-DENABLE_SYSTEM_COMMAND\"\n", strCmd);
+#endif
 }
 
 struct CImportingNow
