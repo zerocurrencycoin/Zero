@@ -386,9 +386,30 @@ Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine on
 | New block | **`-zmqpubhashblock=tcp://127.0.0.1:28332`** (requires ZMQ-enabled build; default on) |
 | New tx | **`-zmqpubhashtx=...`**, **`-zmqpubrawtx=...`** |
 | Wallet activity | Poll **`listtransactions`** / **`zs_listtransactions`** from a sidecar, or ZMQ raw tx |
-| Explorer / Blockbook | **`txindex`**, REST, insight flags -- see explorer sections in maintainer docs |
+| Explorer backend | **`txindex`**, **`-insightexplorer`**, REST — see [Block explorer](#block-explorer) |
 
 **Testing:** GTest **`DeprecationTest.AlertNotify`** in **`src/gtest/test_deprecation.cpp`** asserts the notify file is written when **`ENABLE_SYSTEM_COMMAND`** is defined and **empty** when it is not. Re-run after toggling the compile flag. Full matrix: **TEST_ZERO.md**, **Shell notify hooks**.
+
+### Block explorer
+
+**Public mainnet UI:** [https://insight.zeromachine.io/](https://insight.zeromachine.io/)
+
+Zero Insight is the project block explorer for the Zero mainnet chain: blocks, transactions, transparent address lookup, and REST/WebSocket APIs (`insight-api-zero`, `insight-ui-zero`, `bitcore-node-zero`, `bitcore-lib-zero` on GitHub).
+
+**Self-hosted explorer node** (dedicated server; not recommended for a desktop wallet):
+
+```ini
+experimentalfeatures=1
+insightexplorer=1
+txindex=1
+dbcache=4096
+```
+
+First enable of **`-insightexplorer`** requires one run with **`-reindex`**. Address-index data uses most of **`-dbcache`** under `blocks/index/`. Mainnet RPC default port **23811**.
+
+Address-index RPCs (require **`-experimentalfeatures`** and **`-insightexplorer`**): `getaddressbalance`, `getaddresstxids`, `getaddressdeltas`, `getaddressutxos`, `getaddressmempool`, `getspentinfo`, `getblockdeltas`, `getblockhashes`. Transparent P2PKH/P2SH addresses only; shielded payment addresses are not indexed chain-wide (privacy design).
+
+Optional HTTP REST (**`-rest=1`**) exposes Bitcoin-Core-style GET endpoints on the RPC port (`/rest/tx/`, `/rest/block/`, `/rest/mempool/`, `/rest/getutxos`). Default off. Not required for Insight.
 
 ### 4.7 Depends recipe troubleshooting
 

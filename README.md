@@ -223,3 +223,11 @@ Your wallet is created on first run as **`wallet.zero`** in the data directory (
 
 The usage is currently very similar to Zcash. For more information see the [Zcash User Guide](https://github.com/zcash/zcash/wiki/1.0-User-Guide#running-zcash).
 
+### Block explorer
+
+Mainnet block explorer: [https://insight.zeromachine.io/](https://insight.zeromachine.io/)
+
+The public **Zero Insight** site searches transparent addresses, blocks, and transactions on the Zero mainnet chain. It is powered by the open-source **`insight-ui-zero`** and **`insight-api-zero`** stack against a synced **`zerod`** with address indexes enabled. To run your own explorer backend, see [BUILD_ZERO.md -- Block explorer](BUILD_ZERO.md#block-explorer).
+
+This repository builds the full node (`zerod`, `zero-cli`, `zero-tx`). The Qt wallet (**zerowallet**) is a separate application and does not enable blockchain address indexes by default.
+
