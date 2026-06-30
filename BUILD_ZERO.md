@@ -212,10 +212,10 @@ Default paths are implemented in **`src/util.cpp`** (`GetDefaultDataDir`, `ZC_Ge
 | Platform | Data directory | Params directory |
 |----------|----------------|------------------|
 | **Linux** | `~/.zero` | `~/.zcash-params` |
-| **macOS** | `/Users/USERNAME/Library/Application Support/zero` | `/Users/USERNAME/Library/Application Support/ZcashParams` |
+| **macOS** | `~/Library/Application Support/zero` (full: `/Users/USERNAME/Library/Application Support/zero`) | `~/Library/Application Support/ZcashParams` |
 | **Windows** | `C:\Users\USERNAME\AppData\Roaming\zero` | `C:\Users\USERNAME\AppData\Roaming\ZcashParams` |
 
-Replace **`USERNAME`** with your login. **`~/.zero` is Linux only** unless you pass `-datadir=$HOME/.zero` on macOS.
+Replace **`USERNAME`** with your login (or use `$(whoami)` in shell examples). **`~/.zero` is Linux only** unless you pass `-datadir=$HOME/.zero` on macOS or Windows.
 
 **macOS example:**
 
@@ -307,9 +307,38 @@ Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 
 ### 4.2 Build flow
 
-`zcutil/build.sh` runs: `make -C depends` -> `autogen.sh` -> `configure` with `CONFIG_SITE` -> `make`. Manual steps are in §5.
+**Default:** use **`./zcutil/build.sh`**. It runs the full sequence below and sets **`CONFIG_SITE`** for you.
 
-**config.site:** `depends/$HOST/share/config.site` sets CC, CXX, flags, and pkg-config paths from the depends build. Without it, configure uses system paths.
+| Step | Command | Purpose |
+|------|---------|---------|
+| 1 | `make -C depends` (`NO_PROTON=1` by default) | Build pinned libs (BDB, Boost, OpenSSL, ...) into **`depends/$HOST/`** |
+| 2 | `./autogen.sh` | Regenerate **`configure`** after **`configure.ac`** / **`Makefile.am`** edits |
+| 3 | `./configure` with **`CONFIG_SITE=depends/$HOST/share/config.site`** | Point compilers and **`CPPFLAGS`/`LDFLAGS`** at the depends prefix |
+| 4 | `make` | Build **`src/zerod`**, **`zero-cli`**, **`zero-tx`**, tests |
+
+**`config.site`:** `depends/$HOST/share/config.site` sets CC, CXX, include/lib paths, and pkg-config from the depends build. Without it, **`./configure`** uses system paths and typically fails wallet checks (**`libdb_cxx headers missing`**) because Berkeley DB **6.2.32** comes from depends only, not Homebrew or apt.
+
+**When to use what**
+
+| Goal | Command |
+|------|---------|
+| Normal build from clean or dirty tree | **`./zcutil/build.sh -jN`** |
+| Rebuild after editing **`src/`** only | **`make -jN`** (keep existing **`config.status`**) |
+| Reconfigure after **`./autogen.sh`** | **`CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure ...`** then **`make`** (see §6.2) |
+| Depends library version bump | **`make -C depends`** then reconfigure + **`make`** |
+| Bare **`./configure`** at repo root | **Avoid** -- misses BDB and other depends unless you pass **`CONFIG_SITE`** and **`--prefix=depends/$HOST`** |
+
+**Manual configure** (same as **`build-native.sh`**, after step 1):
+
+```bash
+HOST=$(./depends/config.guess)
+make -C depends NO_PROTON=1 HOST="$HOST" -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
+CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
+  ./configure --prefix=$PWD/depends/$HOST --host="$HOST" --disable-proton CXXFLAGS='-g'
+make -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
+```
+
+Extra options (e.g. **`ENABLE_SYSTEM_COMMAND`**) go in **`CONFIGURE_FLAGS`** for **`build.sh`**, or on the **`./configure`** line when configuring manually. Per-platform flag details: §5.
 
 ### 4.3 Depends layout
 
@@ -484,9 +513,20 @@ Run `./zcutil/fetch-params.sh` before starting zerod.
 
 ### 6.2 Berkeley DB
 
-BDB 6.2.32 (depends). Used for wallet storage.
+BDB **6.2.32** (depends). Used for wallet storage. Wallet-enabled builds require depends + **`CONFIG_SITE`** (see §4.2).
 
-**Not found:** Ensure depends built: `ls depends/$HOST/lib/libdb*`.
+**`libdb_cxx headers missing` on configure:** You ran **`./configure`** without **`CONFIG_SITE`**, or depends was not built for the current **`HOST`**. Fix:
+
+```bash
+HOST=$(./depends/config.guess)
+ls depends/$HOST/include/db_cxx.h depends/$HOST/lib/libdb_cxx*   # must exist
+CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
+  ./configure --prefix=$PWD/depends/$HOST --host="$HOST" --disable-proton CXXFLAGS='-g'
+```
+
+Or run **`./zcutil/build.sh`**, which does this automatically. Do **not** use **`--disable-wallet`** unless you intentionally want a wallet-less daemon.
+
+**Not found after depends build:** `ls depends/$HOST/lib/libdb*`. If **`depends/$HOST/share/config.site`** is missing, rebuild depends: **`make -C depends NO_PROTON=1 HOST=$HOST`**.
 
 **Mutex crash (macOS):** `rm -rf "$HOME/Library/Application Support/zero/database"` and restart.
 
