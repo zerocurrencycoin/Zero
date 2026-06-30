@@ -197,7 +197,7 @@ Replace **`USERNAME`** with your OS login. Platform setup examples: [README](REA
 | Platform | Data directory | Proving params |
 |----------|----------------|----------------|
 | **Linux** | `~/.zero` | `~/.zcash-params` |
-| **macOS** | `/Users/USERNAME/Library/Application Support/zero` | `/Users/USERNAME/Library/Application Support/ZcashParams` |
+| **macOS** | `~/Library/Application Support/zero` | `~/Library/Application Support/ZcashParams` |
 | **Windows** | `C:\Users\USERNAME\AppData\Roaming\zero` | `C:\Users\USERNAME\AppData\Roaming\ZcashParams` |
 
 - **Tor:** `doc/tor.md`.
