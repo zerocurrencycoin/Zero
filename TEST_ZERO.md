@@ -219,6 +219,35 @@ Typical order for **`zero-400names`** (or any RC) -> **`master`** (remote defaul
 
 Do **not** merge before **`--strict`** passes. Do **not** tag with a dirty tree if you want a hash-free version string.
 
+### 4.0.1 handoff (macOS -> Linux)
+
+**Status (2026-06):** macOS ARM64 dev build validated; **Linux RC on lazu is the next gate** before **`v4.0.1`** tag and **`zero-400names` -> `master`** merge.
+
+| Step | macOS (done) | Linux lazu (`ZeroLinux`) |
+|------|--------------|---------------------------|
+| Branch | **`zero-400names`** | same; **`git pull --ff-only`** |
+| Build | **`./zcutil/build.sh -j4`** | **`./zcutil/build.sh -j2`** (2 cores) |
+| Contributor gate | **`./contrib/run-tests.sh --strict`** **PASS** ~211s (2026-06-09) | **Required** -- not run at RC tip yet |
+| Widen | **`--suite`** skipped on Darwin (ELF stages N/A) | **`./contrib/run-tests.sh --suite`** recommended |
+| Bulk RPC | **`--all --strict`** stale (pre tier moves); re-run optional | Re-run after **`--strict`** green |
+| Blocker | -- | Disk **~97%**, **~4 GB** free on **`/`** |
+
+**macOS scope limits:** **`full_test_suite.py`** skips **`check-security`** / **`no-dot-so`** on Darwin. **`rpcbind_test.py`** uses localhost smoke only. Parallel Tier A (**`--jobs>1`**) can hang (**`paymentdisclosure`**); gate stays serial.
+
+**Linux commands** (after disk reclaimed):
+
+```bash
+cd /home/ubuntu/Work/ZK/ZeroLinux
+git fetch origin && git checkout zero-400names && git pull --ff-only origin zero-400names
+killall zerod 2>/dev/null || true
+./zcutil/fetch-params.sh    # if needed
+./zcutil/build.sh -j2
+./contrib/run-tests.sh --strict
+./contrib/run-tests.sh --suite    # optional ELF + full rpcbind
+```
+
+**After Linux PASS:** tag **`v4.0.1`**, merge to **`master`**, push (**steps 5-7** above). Update **Verification snapshot** Linux row.
+
 ### `contrib/run-tests.sh` -- flags to re-check after parser changes
 
 | Flag / input | Expected | Quick check |
@@ -314,14 +343,22 @@ Harness inventory and commands: see **Harness landscape** and **Quick start** ab
 
 **Alerts:** Bitcoin P2P alert tests are not compiled (**`alert_tests.cpp`** omitted from **`BITCOIN_TESTS`**). Product code may still expose **`-alerts`** / **`-alertnotify`** stubs; no harness exclusion needed.
 
-**Shell notify hooks (`ENABLE_SYSTEM_COMMAND`, PIR-01):** Default builds do **not** run **`-blocknotify`**, **`-walletnotify`**, or **`-alertnotify`**. GTest **`DeprecationTest.AlertNotify`** (**`src/gtest/test_deprecation.cpp`**) is the Tier A regression for **`-alertnotify`**:
+**Shell notify hooks (`ENABLE_SYSTEM_COMMAND`, PIR-01):** Default builds do **not** run **`-blocknotify`**, **`-walletnotify`**, or **`-alertnotify`**. When a hook fires without **`ENABLE_SYSTEM_COMMAND`**, **`zerod`** logs a skip line (e.g. **`Block notification skipped:`**) and continues -- no subprocess, no **`::system()`**.
+
+| Hook | Automated coverage (default build) | Gap |
+|------|-----------------------------------|-----|
+| **`-alertnotify`** | GTest **`DeprecationTest.AlertNotify`** | Covered: temp notify file **0** lines |
+| **`-blocknotify`** | Manual regtest only | **TST-09**: marker file must stay empty after tip change; log must contain skip message |
+| **`-walletnotify`** | None | **TST-09**: marker file unchanged after wallet tx; log skip message |
 
 | Build | Command | Pass criterion |
 |-------|---------|----------------|
 | Default | **`./src/zero-gtest --gtest_filter=DeprecationTest.AlertNotify`** | Notify temp file **0** lines (hook skipped) |
 | Opt-in shell | Reconfigure with **`CXXFLAGS="-DENABLE_SYSTEM_COMMAND"`**, rebuild, same filter | Temp file **1** line (sanitized deprecation text) |
 
-Manual check (either mode): regtest **`zerod`** with **`-blocknotify='echo %s >> /tmp/zero-block.log'`**, generate one block -- log appended **only** on opt-in build; default logs **"Block notification skipped"** in **`debug.log`**. No Tier A RPC script covers **`blocknotify`** (**`forknotify.py`** removed). See **BUILD_ZERO.md** section **4.6** (Shell notify hooks).
+**TST-09 (planned):** GTest and/or regtest for **`-blocknotify`** and **`-walletnotify`** on **default** builds: command string in conf must be ignored (no side effects); optional assert **`debug.log`** substring **`notification skipped`**. Separate opt-in-build cases confirm hooks **do** run when **`ENABLE_SYSTEM_COMMAND`** is set. Contributor-ready spec: **UpdateZero.md** TST-09.
+
+Manual check (either mode): regtest **`zerod`** with **`-blocknotify='echo %s >> /tmp/zero-block.log'`**, generate one block -- log appended **only** on opt-in build; default logs **"Block notification skipped"** in **`debug.log`**. See **BUILD_ZERO.md** section **4.6** (Shell notify hooks).
 
 **Witness rebuild lockout (PIR-03, TST-08):** While **`fBuildingWitnessCache`** is true, wallet RPC dispatch must reject **`z_sendmany`** with **`RPC_BUILDING_WITNESS_CACHE` (-33)**, distinct from **-31** (witnesses never built). **Work item TST-08:** GTest that sets the flag and asserts **-33** on **`z_sendmany`**. Regtest mid-**`BuildWitnessCache`** is optional (harness gap same class as **`CachedWitnessesCleanIndex`**). See **UpdateZero.md** TST-08 and **§3.5.1** DEF-07 (reorg policy -- separate track).
 
@@ -1228,7 +1265,7 @@ Record after harness changes (macOS, `./contrib/run-tests.sh --strict` unless no
 | `--suite` | **PASS** | **~1306s** | `full_test_suite.py`; RPC stage = no-args (`-all`) |
 | Bfail `COINBASE_MATURITY+1` ports | **PASS** | see below | macOS 2026-06-08, from repo root |
 | `walletbackup.py` (post-fix) | **PASS** | **~85s** | total **2886.875**; restore/importwallet equality OK |
-| Linux **`zero-400names`** on lazu (`ZeroLinux`) | **pending** | -- | Branch at **`f66b8b52b`**; rebuild + **`--strict`** not run (disk **~97%**, **~4 GB** free) |
+| Linux **`zero-400names`** on lazu (`ZeroLinux`) | **pending** | -- | **v4.0.1 RC:** macOS **`--strict`** PASS 2026-06-09; lazu rebuild + gate **not run** (disk **~97%**, **~4 GB** free). See **4.0.1 handoff (macOS -> Linux)** |
 | **`CachedWitnesses*` gtest port** | **WIP** (uncommitted) | -- | Local harness fix; still filtered in default gate |
 
 **Bfail `COINBASE_MATURITY + 1` timings:** `rawtransactions` ~34s; `fundrawtransaction` ~54s; `signrawtransaction_offline` ~18s; `mergetoaddress_sapling` ~135s; `mergetoaddress_mixednotes` ~39s (after script-local maturity fix).
