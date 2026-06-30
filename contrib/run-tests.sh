@@ -5,7 +5,7 @@
 #   --all: same C++ filters as default + rpc-tests.sh -all (-A -B -E pass tiers).
 #   --rpcfail: rpc-tests.sh -rpcfail (-Bfail -Efail diagnostic; no C++, no util).
 #
-# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|--rpcfail|--suite]
+# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|-all|--rpcfail|--suite]
 # --strict: after all selected steps, exit 1 if any failed (default: exit 0 with WARNING if any failed).
 # Env: ZERO_MINE_COINBASE=1 to mine 1000 blocks for get_coinbase_address tests (slow).
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
@@ -15,6 +15,10 @@
 # --suite: run qa/zcash/full_test_suite.py only (ordered stages; not --all, not default).
 
 set -e
+if [ -z "${BASH_VERSION:-}" ]; then
+    echo "run-tests.sh requires bash (use ./contrib/run-tests.sh or bash contrib/run-tests.sh)" >&2
+    exit 2
+fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 export BUILDDIR="${BUILDDIR:-$REPO_ROOT}"
@@ -63,10 +67,15 @@ for arg in "$@"; do
         --build-checks) BUILD_CHECKS=1 ;;
         --strict) STRICT=1 ;;
         --fail) MODE=fail ;;
-        --all) MODE=all ;;
+        --all|-all) MODE=all ;;
         --rpcfail) MODE=rpcfail ;;
         --suite) FULL_SUITE=1 ;;
         --jobs=*) PYTHON_JOBS="${arg#--jobs=}" ;;
+        *)
+            echo "Unknown option: $arg" >&2
+            echo "Usage: $0 [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|-all|--rpcfail|--suite]" >&2
+            exit 2
+            ;;
     esac
 done
 
@@ -156,10 +165,10 @@ if [ "$MODE" = "rpcfail" ]; then
     echo "--- Done. Logs in $LOG_DIR ---"
     if [ "$OVERALL_FAIL" -eq 1 ]; then
         if [ "$STRICT" -eq 1 ]; then
-            echo "FAIL: one or more steps failed (--strict)"
+            echo "FAIL: one or more steps failed with --strict" >&2
             exit 1
         fi
-        echo "WARNING: one or more steps failed. Use --strict to exit with code 1."
+        echo "WARNING: one or more steps failed. Re-run with --strict to exit 1 on failure."
     fi
     exit 0
 fi
@@ -201,10 +210,10 @@ if [ "$MODE" = "fail" ]; then
     echo "--- Done. Logs in $LOG_DIR ---"
     if [ "$OVERALL_FAIL" -eq 1 ]; then
         if [ "$STRICT" -eq 1 ]; then
-            echo "FAIL: one or more steps failed (--strict)"
+            echo "FAIL: one or more steps failed with --strict" >&2
             exit 1
         fi
-        echo "WARNING: one or more steps failed. Use --strict to exit with code 1."
+        echo "WARNING: one or more steps failed. Re-run with --strict to exit 1 on failure."
     fi
     exit 0
 fi
@@ -318,8 +327,10 @@ echo "--- Done. Logs in $LOG_DIR ---"
 echo "Review: ls -la $LOG_PREFIX-*.log"
 if [ "$OVERALL_FAIL" -eq 1 ]; then
     if [ "$STRICT" -eq 1 ]; then
-        echo "FAIL: one or more steps failed (--strict)"
+        echo "FAIL: one or more steps failed with --strict" >&2
         exit 1
     fi
-    echo "WARNING: one or more steps failed. Use --strict to exit with code 1."
+    echo "WARNING: one or more steps failed. Re-run with --strict to exit 1 on failure."
+    exit 0
 fi
+exit 0

@@ -78,6 +78,8 @@ Optional widen: **`./contrib/run-tests.sh --suite`** (Linux ELF stages). See [TE
 
 Disk: full native + depends build needs several GB free. If **`/`** is near full, see §6.9 before building.
 
+**v4.0.1 handoff (2026-06):** macOS dev machine ran contributor gate (**`--strict`** PASS). **Linux rebuild on lazu is required** before tag/merge -- Darwin skips ELF release checks and runs a reduced **`rpcbind_test`** path. Pull **`zero-400names`**, rebuild, **`--strict`**, then optional **`--suite`**. Checklist: **TEST_ZERO.md** section **4.0.1 handoff (macOS -> Linux)**.
+
 ### 2.3 macOS ARM64
 
 **OS tested:** macOS 24.5.0 (darwin 24.5.0).
@@ -417,7 +419,7 @@ Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine on
 | Wallet activity | Poll **`listtransactions`** / **`zs_listtransactions`** from a sidecar, or ZMQ raw tx |
 | Explorer backend | **`txindex`**, **`-insightexplorer`**, REST — see [Block explorer](#block-explorer) |
 
-**Testing:** GTest **`DeprecationTest.AlertNotify`** in **`src/gtest/test_deprecation.cpp`** asserts the notify file is written when **`ENABLE_SYSTEM_COMMAND`** is defined and **empty** when it is not. Re-run after toggling the compile flag. Full matrix: **TEST_ZERO.md**, **Shell notify hooks**.
+**Testing:** GTest **`DeprecationTest.AlertNotify`** covers **`-alertnotify`** on default vs opt-in builds only. **`-blocknotify`** and **`-walletnotify`** have **no automated gate** today (manual regtest only). Planned: **TST-09** -- assert default builds accept the flags but do not create side effects and log **"… notification skipped"**; see **TEST_ZERO.md**, **UpdateZero.md** TST-09.
 
 ### Block explorer
 
@@ -529,6 +531,8 @@ Or run **`./zcutil/build.sh`**, which does this automatically. Do **not** use **
 **Not found after depends build:** `ls depends/$HOST/lib/libdb*`. If **`depends/$HOST/share/config.site`** is missing, rebuild depends: **`make -C depends NO_PROTON=1 HOST=$HOST`**.
 
 **Mutex crash (macOS):** `rm -rf "$HOME/Library/Application Support/zero/database"` and restart.
+
+**`-bind_at_load` linker warning (macOS):** Manual **`make`** or **`make check-symbols`** without **`MACOSX_DEPLOYMENT_TARGET`** can print **`ld: warning: -bind_at_load is deprecated on macOS`**. GNU libtool adds the flag when the env var is unset (defaults to **`10.0`**). **`./zcutil/build.sh`** exports **`MACOSX_DEPLOYMENT_TARGET=15.0`**; for manual builds run **`export MACOSX_DEPLOYMENT_TARGET=15.0`** first. Build still succeeds; warning is cosmetic. Permanent Makefile/configure export: **`UpdateZero.md`** **DEF-08** (postponed).
 
 ### 6.3 Boost / GCC
 
