@@ -323,6 +323,8 @@ Harness inventory and commands: see **Harness landscape** and **Quick start** ab
 
 Manual check (either mode): regtest **`zerod`** with **`-blocknotify='echo %s >> /tmp/zero-block.log'`**, generate one block -- log appended **only** on opt-in build; default logs **"Block notification skipped"** in **`debug.log`**. No Tier A RPC script covers **`blocknotify`** (**`forknotify.py`** removed). See **BUILD_ZERO.md** section **4.6** (Shell notify hooks).
 
+**Witness rebuild lockout (PIR-03, TST-08):** While **`fBuildingWitnessCache`** is true, wallet RPC dispatch must reject **`z_sendmany`** with **`RPC_BUILDING_WITNESS_CACHE` (-33)**, distinct from **-31** (witnesses never built). **Work item TST-08:** GTest that sets the flag and asserts **-33** on **`z_sendmany`**. Regtest mid-**`BuildWitnessCache`** is optional (harness gap same class as **`CachedWitnessesCleanIndex`**). See **UpdateZero.md** TST-08 and **§3.5.1** DEF-07 (reorg policy -- separate track).
+
 **`equihash_tests`** stays in pass-only; interpretation: **Interpreting results -> Equihash**. List suites: **`./src/zero-gtest --gtest_list_tests`**, **`./src/test/test_bitcoin --list_content`**.
 
 ### RPC driver (`qa/pull-tester/rpc-tests.sh`)
