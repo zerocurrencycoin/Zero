@@ -42,7 +42,9 @@ init_logging() {
   mkdir -p "$(dirname "$LOG_FILE")"
   exec > >(tee -a "$LOG_FILE") 2>&1
   notice "Log: $LOG_FILE"
-  [ -n "${ZERO_LOG_KEEP:-}" ] && prune_logs "${ZERO_LOG_KEEP}"
+  # Must not be the trailing statement: a false test returns 1 and, as the last command,
+  # would make init_logging return 1 and abort the caller under set -e.
+  if [ -n "${ZERO_LOG_KEEP:-}" ]; then prune_logs "${ZERO_LOG_KEEP}"; fi
 }
 
 # Keep only the newest N logs for this script (ME); opt-in via ZERO_LOG_KEEP or explicit call.
