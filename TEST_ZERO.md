@@ -358,7 +358,7 @@ Harness inventory and commands: see **Harness landscape** and **Quick start** ab
 
 **TST-09 (planned):** GTest and/or regtest for **`-blocknotify`** and **`-walletnotify`** on **default** builds: command string in conf must be ignored (no side effects); optional assert **`debug.log`** substring **`notification skipped`**. Separate opt-in-build cases confirm hooks **do** run when **`ENABLE_SYSTEM_COMMAND`** is set. Contributor-ready spec: **UpdateZero.md** TST-09.
 
-Manual check (either mode): regtest **`zerod`** with **`-blocknotify='echo %s >> /tmp/zero-block.log'`**, generate one block -- log appended **only** on opt-in build; default logs **"Block notification skipped"** in **`debug.log`**. See **BUILD_ZERO.md** section **4.6** (Shell notify hooks).
+Manual check (either mode): regtest **`zerod`** with **`-blocknotify='echo %s >> /tmp/zero-block.log'`**, generate one block -- log appended **only** on opt-in build; default logs **"Block notification skipped"** in **`debug.log`**. See **BUILD_ZERO.md** section **4.6.1** (**OPS-SHELL**).
 
 **Witness rebuild lockout (PIR-03, TST-08):** While **`fBuildingWitnessCache`** is true, wallet RPC dispatch must reject **`z_sendmany`** with **`RPC_BUILDING_WITNESS_CACHE` (-33)**, distinct from **-31** (witnesses never built). **Work item TST-08:** GTest that sets the flag and asserts **-33** on **`z_sendmany`**. Regtest mid-**`BuildWitnessCache`** is optional (harness gap same class as **`CachedWitnessesCleanIndex`**). See **UpdateZero.md** TST-08 and **§3.5.1** DEF-07 (reorg policy -- separate track).
 
