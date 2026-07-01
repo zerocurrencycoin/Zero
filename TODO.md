@@ -17,8 +17,8 @@ Status and tracked work items for the Zero node.
 - TST-01 scenario tests -- **`getalldata`** first (wallet UI shape: balances, addresses, txs after mine/spend); then **`getsupply`**, **`zs_*`** exclusive RPCs (**`UpdateZero.md`** TST-01; extend **`src/test/rpc_zero_exclusive_tests.cpp`** or regtest).
 - TST-01 scenario tests -- **`getsaplingblocks`**, **`getsaplingwitness`**, **`getsaplingwitnessatheight`** (**`src/test/rpc_zero_experimental_tests.cpp`**; Insight uses these).
 - TST-03 -- **`zeronodestats`** + zeronode/budget subcmds with no harness hit (**`startzeronode`**, **`zeronodecurrent`**, **`getzeronodeoutputs`**, **`znbudget*`**); arg validation first, integration optional.
-- TST-09 -- shell notify **disabled** build (default): **`-blocknotify`**, **`-walletnotify`**, **`-alertnotify`** in conf must **not** run **`::system`**; side-effect files stay empty; **`debug.log`** contains skip message. **`-alertnotify`**: extend **`DeprecationTest.AlertNotify`** (already 0 lines). **`-blocknotify`** / **`-walletnotify`**: add GTest or regtest (mine/spend + marker file). Opt-in **`ENABLE_SYSTEM_COMMAND`** build: parity tests that hooks **do** run. **UpdateZero.md** TST-09; **BUILD_ZERO.md** section **4.6**.
-- macOS datadir: zerowallet400 should use **`Application Support/zero/`** (match **`GetDefaultDataDir`**); wallet currently uses **`Zero/`** (**ZeroStruct.md** C-01).
+- TST-09 -- shell notify **disabled** build (default): **`-blocknotify`**, **`-walletnotify`**, **`-alertnotify`** in conf must **not** run **`::system`**; side-effect files stay empty; **`debug.log`** contains skip message. **`-alertnotify`**: extend **`DeprecationTest.AlertNotify`** (already 0 lines). **`-blocknotify`** / **`-walletnotify`**: add GTest or regtest (mine/spend + marker file). Opt-in **`ENABLE_SYSTEM_COMMAND`** build: parity tests that hooks **do** run. **UpdateZero.md** TST-09; **BUILD_ZERO.md** section **4.6.1** (**OPS-SHELL**).
+- macOS datadir: zerowallet400 should use **`Application Support/zero/`** (match **`GetDefaultDataDir`**); wallet currently uses **`Zero/`** (**ZeroStruct.md** **INT-01**).
 - GTest fixes done 2026-06-09: **`CachedWitnesses*`** ported (harness merkle/commitment roots; Zero decrement semantics) except **`CleanIndex`** (needs coins-view harness); **`WriteCryptedSaplingZkey*`** / **`rpc_wallet_encrypted_wallet_sapzkeys`** encrypt-hang class fixed (wallet-DB re-entry deadlock in `AddCryptedSaplingSpendingKey`) -- back in default gate
 - Equihash (192,7) test vectors
 - Fuzz harness setup
@@ -67,7 +67,7 @@ Status and tracked work items for the Zero node.
 - Zeronode: `chainActive` negative height / reorg edge cases in SwiftTX and input-age cache.
 - Decorative Unicode stripped from docs.
 - **v4.0.1 macOS contributor gate:** `./contrib/run-tests.sh --strict` **PASS** (~211s, 2026-06-09); GTest/Boost + Tier A RPC; **`blockchain.py`** warm-cache fix; encrypt + **`CachedWitnesses*`** gate widened. Darwin skips ELF **`--suite`** security stages; not a substitute for Linux RC.
-- **PIR-01 shipped:** **`ENABLE_SYSTEM_COMMAND`** compile gate on **`runCommand`**; default builds skip shell notify (**BUILD_ZERO.md** section **4.6**).
+- **PIR-01 shipped:** **`ENABLE_SYSTEM_COMMAND`** compile gate on **`runCommand`**; default builds skip shell notify (**BUILD_ZERO.md** section **4.6.1**).
 
 ---
 

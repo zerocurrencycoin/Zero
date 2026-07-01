@@ -8,7 +8,7 @@
 
 **Exclude:** Ecosystem compare (**`ZKNodes.md`**); port/cherry-pick execution (**`UpdateZero.md`**); zeronode operator/dev detail (**`ZeroNodes.md`**, **`ZeroNodeDev.md`**); wallet Qt UI (**`zerowallet400/UpdateWallet.md`**); clone source survey (**`Comparison.md`**); local clone paths (**`ZKRepos.md`**); **zerocurrencycoin** org repo audit (**`Repos.md`**).
 
-**Set rule:** **`ZeroStruct` ⊆ zerod internals + per-client requirements from the node's perspective**. No Blockbook port plan (**UpdateZero** section **4**); no cross-fork validator tables (**ZKNodes**); no GitHub org disposition (**Repos.md**).
+**Set rule:** **`ZeroStruct` ⊆ zerod internals + per-client requirements from the node's perspective**. No Blockbook port plan (**UpdateZero** section **4**); no cross-fork validator tables (**ZKNodes**); no GitHub org disposition (**Repos.md**). Integration concern IDs use prefix **INT-NN** (section **11.7**); do not reuse **C-NN** from **UpdateZero** section **8** Completed.
 
 Developer documents in **UpdateZero.md** section **1**, **Documentation map**. Regtest harness: **`TEST_ZERO.md`**.
 
@@ -204,7 +204,7 @@ With insight on **800 MiB**, most cache serves the block tree but chainstate and
 | Workload | `-insightexplorer` | Suggested `-dbcache` (mainnet) | Notes |
 |----------|-------------------|----------------------------------|-------|
 | Validator + wallet (default) | off | **800-2048** | Default **800** is fine for desktop; raise if slow IBD or heavy wallet rescan |
-| Insight explorer backend | **on** | **4096+** on hosts with **8+ GiB** RAM budget for **`zerod` alone**; **2048** practical max on a **4 GiB VPS** when bitcore-node also runs | Prod reference `dbcache=4096` in `~/Work/ZK/ZKs/insight/config/zero.conf` assumes a larger host; **`InsightInternal.md`** |
+| Insight explorer backend | **on** | **4096+** on **8+ GiB** RAM for `zerod` alone; **2048** on **4 GiB VPS** with bitcore | Set in **`zero.conf`** per **InsightBlock.md** **2.2** (not in committed sample file) |
 | Blockbook / external indexer | off | **2048-4096** | No insight bundle; benefit is faster **`txindex`** / chainstate during long RPC sync |
 | lightwalletd backend | off | **2048+** | **`txindex`** only; no address-index RAM shift |
 | Zeronode + wallet | off | **1024-2048** | Same as validator; collateral wallet + P2P; not an indexer |
@@ -239,7 +239,7 @@ pie title dbcache 800 MiB with insightexplorer
   "chainstate + UTXO cache" : 200
 ```
 
-Cross-refs: Insight node flags **section 5**; client matrix **section 11.3**; public build note **`BUILD_ZERO.md`** Block explorer; prod **`dbcache`** in **`~/Work/ZK/ZKs/insight/config/zero.conf`** (4096 assumes larger RAM than a 4 GiB VPS).
+Cross-refs: Insight **`zero.conf`** **InsightBlock.md** section **2.2**; `-dbcache` math **section 4**; Linux ABI **UpdateZero.md** section **3.6**.
 
 ---
 
@@ -260,16 +260,16 @@ Desktop **zerowallet** embeds `zerod` and uses local RPC; it does **not** enable
 
 ### Insight explorer backend
 
-Required config:
+**Central config reference:** **`~/Work/ZK/ZKs/insight/InsightBlock.md`** section **2.2** (required/suggested flags, **`-reindex`**, **`-dbcache`**, **`bitcore-node.json`** alignment). Samples: **`insight/config/zero.conf`**, **`insight/config/bitcore-node.json`**.
 
-```ini
-experimentalfeatures=1
-insightexplorer=1
-txindex=1
-dbcache=4096
-```
+Zero repo **`contrib/zero.conf`** is a **wallet** sample (peers, mining) -- not Insight.
 
-On a **4 GiB VPS**, use **`dbcache=2048`** instead; see **section 4.3**.
+| Mechanism | Detail |
+|-----------|--------|
+| Index bundle | `-insightexplorer` sets address/spent/timestamp indexes together (`src/main.cpp`) |
+| RPC gate | Addressindex RPCs need **`fExperimentalMode && fInsightExplorer`** (`src/rpc/misc.cpp`) |
+| `-dbcache` | **section 4**; prod often **2048** (4 GiB VPS) or **4096+** (8+ GiB host) -- set in **`zero.conf`** per **InsightBlock** **2.2** |
+| `-reindex` | One-time CLI when enabling insight on existing datadir -- not a permanent conf key |
 
 | Mechanism | Detail |
 |-----------|--------|
@@ -521,7 +521,7 @@ Datadir layout: **section 3**; implementation **`src/util.cpp`** (`GetDefaultDat
 | bitcore-node HTTP | **3001** | `bitcore-node.json` |
 | zerowallet mobile WS | **8237** | Qt settings |
 
-macOS path mismatch: **section 11.6** concern **C-01**.
+macOS path mismatch: **INT-01** (section **11.7**).
 
 ### 11.3 Requirement matrix
 
@@ -542,7 +542,7 @@ macOS path mismatch: **section 11.6** concern **C-01**.
 
 Transparent block explorer for mainnet ([insight.zeromachine.io](https://insight.zeromachine.io/)). Node flags: **section 5**; prod configs **`~/Work/ZK/ZKs/insight/config/`**; nginx/systemd **`InsightBlock.md`**.
 
-Representative zerod RPC groups: chain/blocks, **`getrawtransaction`**, address-index methods (**section 6.2**), `getsupply`, `zeronodestats`, `getsaplingblocks`, `estimatefee`. Insight HTTP API catalog: **`~/Work/ZK/ZKs/insight/error/insight-api-zero/README.md`**.
+Representative zerod RPC groups: chain/blocks, **`getrawtransaction`**, address-index methods (**section 6.2**), `getsupply`, `zeronodestats`, `getsaplingblocks`, `estimatefee`. Insight HTTP API catalog: **`~/Work/ZK/ZKs/insight/error/insight-api-zero/README.md`**. Prod **`zero.conf`**: **`~/Work/ZK/ZKs/insight/config/zero.conf`**.
 
 ### 11.5 zerowallet
 
@@ -552,37 +552,36 @@ Wallet-critical RPCs include **`getalldata`** (primary UI refresh), chain info R
 
 Release couples embedded **`zerod`** binary to wallet tag; exercise **`getalldata`** on release smoke.
 
-### 11.6 RPC / REST / ZMQ / notify
+### 11.6 RPC / REST / ZMQ
 
 | Surface | Enabled by | Insight | zerowallet |
 |---------|------------|---------|------------|
 | JSON-RPC | `server=1` | Yes | Yes |
 | zerod REST | `-rest=1` | No | No |
 | Insight REST/WS | bitcore-node | Yes | Browser links only |
-| ZMQ | `-zmqpub*` | Yes | No |
+| ZMQ | `-zmqpub*` | Yes (block/tx events) | No |
 
-Shell notify (`-blocknotify`, ...) skipped unless **`ENABLE_SYSTEM_COMMAND`**; Insight uses ZMQ (**`BUILD_ZERO.md` section 4.6**).
+Insight must use **ZMQ** or RPC polling, not **`-blocknotify`** / **`-walletnotify`** (inert in distributed builds; **OPS-SHELL** -> **BUILD_ZERO.md** section **4.6.1**).
 
-### 11.7 Concerns
+### 11.7 Integration concerns (INT-NN)
 
 | ID | Area | Determination | Severity | Recommendation |
 |----|------|---------------|----------|----------------|
-| C-01 | macOS paths | **Canonical: lowercase `zero`.** **`zerod`**: `GetDefaultDataDir()` -> `~/Library/Application Support/zero/` (`src/util.cpp` lines 471-492). Public docs (**`ZERO_COIN.md`**, **`BUILD_ZERO.md`**) match. **zerowallet400 bug**: `Library/Application Support/Zero/zero.conf` (`connection.cpp` lines 539-556). Params dir is separate: `ZcashParams` (both agree). APFS often masks the case mismatch. | **Medium** | Fix wallet to use `zero/`; until then symlink or single tree on case-sensitive volumes |
-| C-02 | Conf reuse | Wallet `zero.conf` lacks insight flags | **High** if reused | Never point Insight at wallet-first conf without insight bundle + reindex |
-| C-03 | Shielded explorer | Addressindex RPCs index **transparent P2PKH/P2SH (t-addresses) only**; **no chain-wide z-addr search** | Info | Match peer explorer wording (see below) |
-| C-04 | Insight stack EOL | Node 8 / Ubuntu 18.04 in prod survey | **Medium** | Plan upgrade per **`InsightPort.md`** |
-| C-05 | Wallet / node version | Embedded `zerod` must match RPC API | **High** on release | Same release tag; smoke **`getalldata`** (harness gap **section 6.2**) |
-| C-06 | REST on zerod | Optional; weak harness | **Low** | Not required for Insight or wallet |
-| C-07 | `getrawtransaction` fees | Issue #70 | **Low** | **`UpdateZero.md`** issue notes |
-| C-08 | Insight ops | No liveness watchdog | **Medium** | **`InsightBlock.md`** or external monitor |
-| C-10 | Shell notify | PIR-01 shipped: no `::system` in default builds | Info | ZMQ used by Insight; **TST-09** for **`blocknotify`** / **`walletnotify`** gate |
+| INT-01 | macOS paths | **Canonical: lowercase `zero`.** **`zerod`**: `GetDefaultDataDir()` -> `~/Library/Application Support/zero/` (`src/util.cpp` lines 471-492). Public docs (**`ZERO_COIN.md`**, **`BUILD_ZERO.md`**) match. **zerowallet400 bug**: `Library/Application Support/Zero/zero.conf` (`connection.cpp` lines 539-556). Params dir is separate: `ZcashParams` (both agree). APFS often masks the case mismatch. | **Medium** | Fix wallet to use `zero/`; until then symlink or single tree on case-sensitive volumes |
+| INT-02 | Conf reuse | Wallet `zero.conf` lacks insight flags | **High** if reused | Never point Insight at wallet-first conf without insight bundle + reindex |
+| INT-03 | Shielded explorer | Addressindex RPCs index **transparent P2PKH/P2SH (t-addresses) only**; **no chain-wide z-addr search** | Info | Match peer explorer wording (see below) |
+| INT-04 | Insight stack EOL | Node 8 / Ubuntu 18.04 in prod survey | **Medium** | Plan upgrade per **`InsightPort.md`** |
+| INT-05 | Wallet / node version | Embedded `zerod` must match RPC API | **High** on release | Same release tag; smoke **`getalldata`** (harness gap **section 6.2**) |
+| INT-06 | REST on zerod | Optional; weak harness | **Low** | Not required for Insight or wallet |
+| INT-07 | `getrawtransaction` fees | Issue #70 | **Low** | **`UpdateZero.md`** issue notes |
+| INT-08 | Insight ops | No liveness watchdog | **Medium** | **`InsightBlock.md`** or external monitor |
 
-**C-03 peer wording (transparent-only indexing):**
+**INT-03 peer wording (transparent-only indexing):**
 
 | Project | How they state the limit |
 |---------|--------------------------|
 | Zero Insight README | "Transparent **t-address** search via daemon addressindex RPCs; shielded z-addrs **not indexed chain-wide**" |
-| **`BUILD_ZERO.md`** Block explorer | "Transparent P2PKH/P2SH addresses only; shielded payment addresses **not indexed chain-wide** (privacy design)" |
+| **`BUILD_ZERO.md`** section **4.6.2** | "Transparent P2PKH/P2SH addresses only; shielded payment addresses **not indexed chain-wide** (privacy design)" |
 | **`ZKNodes.md`** | "No strategy exposes **chain-wide shielded z-address balances**; transparent P2PKH/P2SH only for addressindex-style APIs" |
 | Zcash / Blockbook ecosystem | Indexers sync **transparent** UTXOs and outputs; shielded value visible only to wallets with viewing keys or in per-tx parsed fields, not as z-addr search |
 | Modern explorer UIs (e.g. zcashexplorer-style) | Label txs shielded vs transparent; pool-level shielded **aggregates** -- not per-z-addr balance lookup |
@@ -608,17 +607,22 @@ Optional: zerod REST (`-rest=1`) -- not used by Insight or zerowallet.
 
 ## 12. Document ownership
 
+One owner per topic; elsewhere use a one-line pointer only (**UpdateZero.md** section **1**, topic registry).
+
 | Topic | Owner |
 |-------|-------|
-| zerod flags / `-dbcache` / client matrix | **ZeroStruct.md** |
-| Build / depends | **BUILD_ZERO.md** |
+| zerod flags / `-dbcache` / client matrix | **ZeroStruct.md** (this file) |
+| Integration concerns **INT-NN** | **ZeroStruct.md** section **11.7** |
+| Build / depends / **OPS-SHELL** / **OPS-EXPLORER** | **BUILD_ZERO.md** sections **4.6.1**, **4.6.2** |
+| Insight prod **`zero.conf`** / **`bitcore-node.json`** | **`InsightBlock.md`** section **2.2**; samples **`~/Work/ZK/ZKs/insight/config/`** |
 | Public datadir / ports / economics | **ZERO_COIN.md** |
 | Insight prod ops | **`~/Work/ZK/ZKs/insight/`** |
 | Wallet Qt / connect | **zerowallet400/UpdateWallet.md** |
-| Cherry-picks / Blockbook port / CSV maintenance | **UpdateZero.md** |
-| Ecosystem compare | **ZKNodes.md** |
+| Cherry-picks / Blockbook port / maintainer audit **C-NN** | **UpdateZero.md** |
+| Clone source diffs / cross-chain fork history | **`ZKs/Comparison.md`** |
+| Ecosystem compare (indexers, validators) | **`ZKs/ZKNodes.md`** |
 | RPC name matrix | **RPCs.csv** |
-| Test harness | **TEST_ZERO.md** |
+| Test harness / **TST-NN** | **TEST_ZERO.md** |
 
 ---
 
@@ -627,7 +631,7 @@ Optional: zerod REST (`-rest=1`) -- not used by Insight or zerowallet.
 | Doc | Role |
 |-----|------|
 | **`UpdateZero.md`** | Maintainer map, port execution, RPC coverage gaps |
-| **`BUILD_ZERO.md`** | Build, explorer public flags, shell notify |
+| **`BUILD_ZERO.md`** | Build, **OPS-SHELL**, **OPS-EXPLORER** |
 | **`ZERO_COIN.md`** | Chain reference, public ports/datadir |
 | **`TEST_ZERO.md`** | Harness tiers and `--all` matrix |
 | **`~/Work/ZK/ZKs/insight/`** | Insight ops and API catalog |

@@ -10,7 +10,7 @@ Build guide for the Zero full node binary `zerod`.
 
 ## 1. Introduction
 
-Build `zerod` from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). **Tested:** Ubuntu 24.04, macOS 24.5.0. The tree uses Autotools with **`depends/`** for deterministic dependency builds.
+Build `zerod` from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). **Tested:** Ubuntu 24.04, macOS 24.5.0. **Linux minimum runtime OS and glibc/libstdc++ policy:** **UpdateZero.md** section **3.6** (build OS sets the binary floor; 24-built binaries do not run on 18.04). The tree uses Autotools with **`depends/`** for deterministic dependency builds.
 
 ### 1.1 System requirements
 
@@ -379,7 +379,7 @@ Extra options (e.g. **`ENABLE_SYSTEM_COMMAND`**) go in **`CONFIGURE_FLAGS`** for
 | `--disable-mining` | Exclude mining code |
 | `--enable-ccache` | Use ccache (default: auto) |
 
-#### Shell notify hooks (`ENABLE_SYSTEM_COMMAND`)
+#### 4.6.1 Shell notify hooks (OPS-SHELL)
 
 Three optional flags run an **external shell command** when an event occurs. Each substitutes **`%s`** in the command string (block hash, transaction id, or sanitized alert text), then invokes the system shell via **`::system()`**:
 
@@ -390,6 +390,8 @@ Three optional flags run an **external shell command** when an event occurs. Eac
 | **`-alertnotify=<cmd>`** | Deprecation or network alert text is emitted |
 
 **Default (release) builds do not execute these commands.** The hooks are gated at **compile time** by **`ENABLE_SYSTEM_COMMAND`**. If the flag is not set at build time, **`zerod`** logs that the notification was skipped and continues. This matches the Pirate Network port (**PIR-01**): secure by default, opt-in only when the operator deliberately rebuilds.
+
+**Distributed release policy (decision).** Official artifacts -- Linux tarball/`.deb` from **`zcutil/release-linux.sh`**, tagged GitHub releases, and CI contributor binaries -- stay **without** **`ENABLE_SYSTEM_COMMAND`**. That is intentional: default binaries must not invoke **`::system()`** even if an operator leaves legacy notify lines in **`zero.conf`**. Custom rebuilds may opt in; do not add the flag to release scripts or default **`CONFIGURE_FLAGS`** without an explicit security review and release-notes callout. Production indexers (Insight) use **ZMQ**, not shell hooks.
 
 **Enable shell hooks** (operators who need them):
 
@@ -417,30 +419,29 @@ Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine on
 | New block | **`-zmqpubhashblock=tcp://127.0.0.1:28332`** (requires ZMQ-enabled build; default on) |
 | New tx | **`-zmqpubhashtx=...`**, **`-zmqpubrawtx=...`** |
 | Wallet activity | Poll **`listtransactions`** / **`zs_listtransactions`** from a sidecar, or ZMQ raw tx |
-| Explorer backend | **`txindex`**, **`-insightexplorer`**, REST — see [Block explorer](#block-explorer) |
+| Explorer backend | **`txindex`**, **`-insightexplorer`**, REST — see [Block explorer](#462-block-explorer) |
 
-**Testing:** GTest **`DeprecationTest.AlertNotify`** covers **`-alertnotify`** on default vs opt-in builds only. **`-blocknotify`** and **`-walletnotify`** have **no automated gate** today (manual regtest only). Planned: **TST-09** -- assert default builds accept the flags but do not create side effects and log **"… notification skipped"**; see **TEST_ZERO.md**, **UpdateZero.md** TST-09.
+**Testing:** GTest **`DeprecationTest.AlertNotify`** covers **`-alertnotify`** on default vs opt-in builds only. **`-blocknotify`** and **`-walletnotify`** have **no automated gate** today (manual regtest only). Planned: **TST-09** -- assert default builds accept the flags but do not create side effects and log **"… notification skipped"**; see **TEST_ZERO.md**, **UpdateZero.md** **TST-09**.
 
-### Block explorer
+#### 4.6.2 Block explorer (OPS-EXPLORER)
 
 **Public mainnet UI:** [https://insight.zeromachine.io/](https://insight.zeromachine.io/)
 
-Zero Insight is the project block explorer for the Zero mainnet chain: blocks, transactions, transparent address lookup, and REST/WebSocket APIs (`insight-api-zero`, `insight-ui-zero`, `bitcore-node-zero`, `bitcore-lib-zero` on GitHub).
+Self-hosted Insight uses the **`insight-*-zero`** / **`bitcore-node-zero`** stack against a synced **`zerod`**.
 
-**Self-hosted explorer node** (dedicated server; not recommended for a desktop wallet):
+**Insight prod configuration (central):** **`~/Work/ZK/ZKs/insight/InsightBlock.md`** section **2.2** — required/suggested **`zero.conf`** keys, **`-reindex`** / **`-dbcache`** rules, and alignment with **`insight/config/zero.conf`** and **`insight/config/bitcore-node.json`**. This file does not duplicate that table.
+
+**Zero repo owns:** what flags mean (`ZeroStruct.md` section **5**), `-dbcache` math (section **4**), and public one-liner below. **`contrib/zero.conf`** is a wallet sample only.
+
+Minimum insight flags:
 
 ```ini
 experimentalfeatures=1
 insightexplorer=1
 txindex=1
-dbcache=4096
 ```
 
-First enable of **`-insightexplorer`** requires one run with **`-reindex`**. Address-index data uses most of **`-dbcache`** under `blocks/index/`. Mainnet RPC default port **23811**.
-
-Address-index RPCs (require **`-experimentalfeatures`** and **`-insightexplorer`**): `getaddressbalance`, `getaddresstxids`, `getaddressdeltas`, `getaddressutxos`, `getaddressmempool`, `getspentinfo`, `getblockdeltas`, `getblockhashes`. Transparent P2PKH/P2SH addresses only; shielded payment addresses are not indexed chain-wide (privacy design).
-
-Optional HTTP REST (**`-rest=1`**) exposes Bitcoin-Core-style GET endpoints on the RPC port (`/rest/tx/`, `/rest/block/`, `/rest/mempool/`, `/rest/getutxos`). Default off. Not required for Insight.
+Transparent address index only; no chain-wide z-addr search. Optional **`-rest=1`** not used by Insight.
 
 ### 4.7 Depends recipe troubleshooting
 

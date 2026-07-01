@@ -207,7 +207,7 @@ Replace **`USERNAME`** with your OS login. Platform setup examples: [README](REA
 
 Mainnet: [https://insight.zeromachine.io/](https://insight.zeromachine.io/) — **Zero Insight** (blocks, transactions, transparent address search).
 
-Source: `insight-ui-zero`, `insight-api-zero`, `bitcore-node-zero`, `bitcore-lib-zero`. Backend **`zerod`** uses **`-experimentalfeatures`**, **`-insightexplorer`**, and **`-txindex`** (see [BUILD_ZERO.md -- Block explorer](BUILD_ZERO.md#block-explorer)).
+Source: `insight-ui-zero`, `insight-api-zero`, `bitcore-node-zero`, `bitcore-lib-zero`. Backend **`zerod`** uses **`-experimentalfeatures`**, **`-insightexplorer`**, and **`-txindex`** (see [BUILD_ZERO.md -- Block explorer](BUILD_ZERO.md#462-block-explorer)).
 
 ---
 
