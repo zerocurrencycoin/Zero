@@ -4,10 +4,12 @@
 # Requires MXE with x86_64-w64-mingw32.static-gcc. Set MXE_ROOT or pass -m/--mxe.
 set -e -u -o pipefail
 
-# Parse MXE path before other setup (depends and configure need it on PATH)
+# MXE path must be on PATH before sourcing fzero.sh (depends/configure resolve the cross gcc
+# via command -v), so -m/--mxe is parsed here, ahead of the main arg parse. Env MXE_ROOT wins.
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -m|--mxe) MXE_ROOT="$2"; shift 2 ;;
+    -m|--mxe) MXE_ROOT="${MXE_ROOT:-$2}"; shift 2 ;;
+    -m=*|--mxe=*) MXE_ROOT="${MXE_ROOT:-${1#*=}}"; shift ;;
     *) break ;;
   esac
 done
@@ -50,9 +52,9 @@ parse_build_win_args() {
 
 resolve_host_win() {
   HOST=x86_64-w64-mingw32
-  CC=$(command -v x86_64-w64-mingw32.static-gcc 2>/dev/null) || { echo "build-win: x86_64-w64-mingw32.static-gcc not found. Set MXE_ROOT (e.g. export MXE_ROOT=\$HOME/mxe)" >&2; exit 1; }
+  CC=$(command -v x86_64-w64-mingw32.static-gcc 2>/dev/null) || err "x86_64-w64-mingw32.static-gcc not found. Set MXE_ROOT (e.g. export MXE_ROOT=\$HOME/mxe) or pass -m/--mxe."
   CXX="${CC%gcc}g++"
-  WINDRES=$(command -v x86_64-w64-mingw32.static-windres 2>/dev/null) || { echo "build-win: windres not found" >&2; exit 1; }
+  WINDRES=$(command -v x86_64-w64-mingw32.static-windres 2>/dev/null) || err "x86_64-w64-mingw32.static-windres not found (MXE incomplete?)."
   PREFIX="$PWD/depends/$HOST"
   if [[ -z "${MAKE:-}" ]]; then MAKE=make; fi
   if [[ -z "${BUILD:-}" ]]; then BUILD="$(./depends/config.guess)"; fi
@@ -60,12 +62,12 @@ resolve_host_win() {
 
 build_depends_win() {
   # Proton off: NO_PROTON=1 matches depends/Makefile (same convention as build-native.sh without --enable-proton).
-  run_log env NO_PROTON=1 HOST="$HOST" BUILD="$BUILD" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
+  env NO_PROTON=1 HOST="$HOST" BUILD="$BUILD" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
 }
 
 run_configure_win() {
   export_config_site
-  run_log env CXXFLAGS="-DPTW32_STATIC_LIB -DCURVE_ALT_BN128 -fopenmp -pthread" \
+  env CXXFLAGS="-DPTW32_STATIC_LIB -DCURVE_ALT_BN128 -fopenmp -pthread" \
     ./configure --prefix="$PREFIX" --host="$HOST" --enable-static --disable-shared --disable-zmq --disable-rust --disable-proton
   # Portable in-place edit: GNU sed wants -i or -i''; BSD sed requires a backup suffix. -i.bak works on both; then drop .bak.
   sed -i.bak 's/-lboost_system-mt /-lboost_system-mt-s /' configure && rm -f configure.bak
@@ -73,15 +75,15 @@ run_configure_win() {
 
 run_make_win() {
   cd src
-  run_log env CC="$CC" CXX="$CXX" WINDRES="$WINDRES" "$MAKE" V=1 "${MAKEARGS[@]}" zerod.exe zero-cli.exe zero-tx.exe
+  env CC="$CC" CXX="$CXX" WINDRES="$WINDRES" "$MAKE" V=1 "${MAKEARGS[@]}" zerod.exe zero-cli.exe zero-tx.exe
 }
 
 parse_build_win_args "logs/build-win.log" "$@"
+init_logging
 resolve_host_win
 trap 'build_fail "build failed"' ERR
 set -x
 notice "HOST=$HOST ${MAKEARGS[*]}"
-if [ -n "${LOG_FILE:-}" ]; then notice "Log: $LOG_FILE"; fi
 
 section "Build depends"
 build_depends_win

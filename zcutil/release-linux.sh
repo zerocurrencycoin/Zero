@@ -47,7 +47,7 @@ get_version_from_zerod() {
 }
 
 parse_args "logs/release-linux.log" "$@"
-[ -n "${LOG_FILE:-}" ] && exec > >(tee -a "$LOG_FILE") 2>&1
+init_logging
 
 if [ -n "$VERSION_OVERRIDE" ]; then
   VERSION="$VERSION_OVERRIDE"
