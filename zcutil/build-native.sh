@@ -74,27 +74,27 @@ build_depends_native() {
   as --version
   ld -v
   if [[ "$BUILD_PROTON_IN_DEPENDS" -eq 1 ]]; then
-    run_log env HOST="$HOST" BUILD="$BUILD" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
+    env HOST="$HOST" BUILD="$BUILD" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
   else
-    run_log env NO_PROTON=1 HOST="$HOST" BUILD="$BUILD" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
+    env NO_PROTON=1 HOST="$HOST" BUILD="$BUILD" "$MAKE" "${MAKEARGS[@]}" -C ./depends/ V=1
   fi
 }
 
 run_configure_native() {
   export_config_site
-  run_log ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" $PROTON_CONFIGURE $DAEMON_ARG $CONFIGURE_FLAGS CXXFLAGS='-g'
+  ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" $PROTON_CONFIGURE $DAEMON_ARG $CONFIGURE_FLAGS CXXFLAGS='-g'
 }
 
 run_make_native() {
-  run_log "$MAKE" "${MAKEARGS[@]}" V=1
+  "$MAKE" "${MAKEARGS[@]}" V=1
 }
 
 parse_build_args "logs/build-native.log" "$@"
+init_logging
 resolve_host_native
 trap 'build_fail "build failed"' ERR
 set -x
 notice "HOST=$HOST ${MAKEARGS[*]}"
-if [ -n "${LOG_FILE:-}" ]; then notice "Log: $LOG_FILE"; fi
 
 section "Build depends"
 build_depends_native
