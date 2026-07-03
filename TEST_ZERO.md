@@ -166,6 +166,41 @@ Regenerate human-review CSV:
 
 **Not gate-ready:** `--jobs>1` (hangs possible); **`--all`** bulk; excluded C++ suites (see **Known failures**).
 
+### Measured timing (2026-07-02, warm cache)
+
+Actual wall-clock measurement, replacing prior qualitative "slow" callouts with real numbers. Scenario: warm `cache/` (`CACHE_TIP`=725, matches `COINBASE_MATURITY+5`), pre-built binaries, no code changes. Companion investigation to `Perf.md` (same day) -- same finding shape: most of the time is genuine work (Equihash block-solving here, Sapling tree hashing there), not harness overhead.
+
+| Phase | Wall time |
+|---|---|
+| C++ GTest (`-WalletTests.CachedWitnessesCleanIndex` excluded, see `ExtTests.md` §1) | 56.6s |
+| C++ Boost (`!miner_tests` excluded) | 62.5s |
+| RPC pass tiers (A=10 + B=22 + E=2 = 34 invocations) | 944s (15.7 min) |
+| **Sum (~= `--all --strict` scope)** | **~1063s (~17.7 min)** |
+
+This **supersedes an earlier, stale `--all --strict` estimate of ~1275s (21.25 min)** elsewhere in this doc's history -- current measured run is ~17% faster, consistent with this doc's own prediction that moving vacuous-pass/tip-**200** scripts off Tier B would reduce timing somewhat.
+
+**Per-script outliers (slowest first, all 34 passed clean, 0 failures):**
+
+| Script | Tier | Seconds | Root cause (source-verified) |
+|--------|------|---------|-------------------------------|
+| `wallet_protectcoinbase.py` | B | 220 | `initialize_chain_clean` + `generate(721)` from scratch |
+| `zkey_import_export.py` | B | 108 | `initialize_chain_clean` (5 nodes) + multiple async `z_sendmany`-style ops polled via `wait_and_assert_operationid_status` |
+| `wallet_shieldcoinbase_sapling.py` | B | 89 | shares `wallet_shieldcoinbase.py`: `generate(721)` + `generate(800)` + `generate(720)` -- over 2,200 blocks mined clean |
+| `wallet_nullifiers.py` | B | 52 | `initialize_chain_clean` + `generate(721)` |
+| `wallet_anchorfork.py` | B | 42 | clean-chain, multi-node |
+| `wallet_1941.py` | B | 40 | clean-chain |
+| `paymentdisclosure.py` | A | 37 | clean-chain (Tier A gate script) |
+| `txn_doublespend.py` (x2 invocations) | B | 30 each, 60 combined | `initialize_chain_clean` + 4x25-block mine + mine-to-maturity |
+| remaining 26 scripts | A/B/E | <=29s each | mostly warm-cache reuse or light clean-chain work |
+
+**Pattern:** every outlier above ~40s calls `initialize_chain_clean` (bypassing the warm cache entirely), then `generate(N)` for N in the hundreds -- real regtest Equihash proof-of-work solving time (regtest uses **48,5**, per section **6**; mainnet/testnet use **192,7**), not test-harness inefficiency. Same character as `Perf.md`'s finding for `zerod` itself: the cost is inherent work, not something to shave off in the harness.
+
+**`walletbackup.py` doc discrepancy (not re-measured -- it's Bfail Debug, outside the 34 timed pass-tier scripts):** confirmed from source it has the same heavy clean-chain-plus-mine-to-maturity signature as the worst offenders above (`initialize_chain_clean` + `generate(720)` + `generate(721)`). An older ~85s estimate for this script appears stale (likely predates the `COINBASE_MATURITY` port to **725**); a "15-25+ min" estimate is far more plausible given the pattern match to `wallet_protectcoinbase.py` (220s for a single `generate(721)`) and should be treated as the working assumption until directly re-measured.
+
+**Gap in "Recommended future cache adopters" below:** that list (as of this measurement) named three lighter scripts but missed the three actual worst offenders confirmed above (`wallet_protectcoinbase.py`, `wallet_shieldcoinbase_sapling.py`, `wallet_nullifiers.py`) -- all share the identical clean-chain-plus-mine-to-maturity signature and are prime candidates for cache adoption. See below.
+
+**`--jobs>1` parallel Tier A:** not exercised in this measurement pass; still flagged above as "not gate-ready (hangs possible)" per existing harness notes. Serial timing above is the only currently-trustworthy baseline.
+
 ---
 
 ## Accounting
@@ -572,6 +607,16 @@ Scripts that today call **`initialize_chain_clean`** then **`generate(720)`** (o
 | `p2p_txexpiry_dos.py` | B pass | clean + `generate(720)` | Same |
 
 **Already benefit implicitly:** `wallet_import_export`, `wallet_changeindicator`, `nodehandling`, `proxy_test` (default cache; no tip-**200** assert).
+
+**Gap found by the 2026-07-02 timing measurement above -- these are the actual worst offenders and were missing from this table:**
+
+| Script | Tier | Measured | Today | Benefit |
+|--------|------|----------|-------|---------|
+| `wallet_protectcoinbase.py` | B pass | **220s** (single worst script in the suite) | clean + `generate(721)` | Highest-value single target -- cache adoption would eliminate almost all of this script's time |
+| `wallet_shieldcoinbase_sapling.py` | B pass | 89s | clean + `generate(721)` + `generate(800)` + `generate(720)`, shared with `wallet_shieldcoinbase.py` (over 2,200 blocks mined clean) | Second-highest value; shared helper means the fix likely benefits both scripts |
+| `wallet_nullifiers.py` | B pass | 52s | clean + `generate(721)` | Same pattern, smaller win |
+
+This is a genuine **code change** (touching test scripts + tip/maturity assertions, not just a build/tooling tweak) -- a good candidate to make in a dedicated branch clone rather than the primary checkout. Not yet acted on.
 
 ### When not to use cache
 

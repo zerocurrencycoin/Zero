@@ -440,6 +440,26 @@ Same connect-order heritage as zcashd; Zero adds coinbase split and zeronode hoo
 
 ---
 
+## 7.5 Threading and concurrency architecture
+
+Research date: 2026-07-02. Comparative cross-repo context (Bitcoin Core history, zcashd/Zebra/Pirate) is owned by **`ZKs/Comparison.md`** §8 -- this section covers only Zero's own thread/lock model. Zeronode-wallet-interface thread safety (`GetCS()`) remains owned by **`ZeroNodeDev.md`**, not repeated here.
+
+**Confirmed thread inventory** (from `zerod` source, matches the thread names observed live in `Perf.md`'s profiling):
+
+| Thread | Spawned in | Role |
+|--------|-----------|------|
+| `zcash-loadblk` | `init.cpp:661` | `ThreadImport` -- runs `-reindex` / `bootstrap.dat` import / normal block-file loading. The single worker thread `Perf.md` found carrying ~100% of reindex/import cost. |
+| `zcash-scriptch` x(N-1) | spawned per `-par` core count | Script/signature-check workers, `CCheckQueue<CScriptCheck>`. Wired into `ConnectBlock` via `CCheckQueueControl`/`control.Add(vChecks)` (`main.cpp:3010`, `3121-3123`) -- same call pattern as 2016-era Bitcoin Core and pre-2022 zcashd. |
+| net / RPC / wallet threads | `init.cpp` (various) | Same general Bitcoin-Core-derived thread set (net, msghand, addcon, opencon, scheduler, flushwallet); not individually re-profiled here -- see `Perf.md` §3.1 for why they were filtered out as idle noise during reindex profiling. |
+
+**Why the script-check queue doesn't help the ~58%-of-cost anchor-hashing bottleneck** (`Perf.md` §3.3/§3.4): `AbstractPushAnchor` -> `IncrementalMerkleTree::root()` -> `librustzcash_merkle_hash` runs on the main validation thread (inside `ConnectBlock`, called from `zcash-loadblk`/`ThreadImport`), never queued to `scriptcheckqueue`. The queue was only ever built for per-transaction signature verification, not note-commitment-tree maintenance -- true in Bitcoin Core, zcashd, Zebra, and Zero alike (see `Comparison.md` §8.3 for the full cross-repo confirmation).
+
+**No in-tree Rust batch validator.** Unlike zcashd (which added `sapling::BatchValidator`/`orchard::BatchValidator` using `rayon` for parallel proof/signature batch verification, commit `90f13641b`, 2022-07-04), Zero has no `src/rust/` directory at all -- it links a prebuilt external `librustzcash` via `depends/packages/librustzcash.mk`. This is an older integration model that predates zcashd's later in-tree `cxx`-bridged Rust crate, and means Zero cannot currently gain rayon-based batch proof verification without first restructuring how it consumes `librustzcash`. See `Comparison.md` §8.2/§8.4 for the full comparative positioning (Zero sits at roughly 2016-era Bitcoin Core / pre-2022-zcashd concurrency architecture).
+
+**Known optimization lead, not yet implemented:** Zebra caches its computed Merkle-tree root (`RwLock<Option<Root>>` in `zebra-chain/src/sapling/tree.rs`) and only recomputes on read, rather than on every `append()`. Zero's `IncrementalMerkleTree::root()` appears (per `Perf.md`'s profile) to be fully recomputed on every block regardless of whether the root is read that block -- worth checking whether the same lazy/cached-root technique applies. Tracked as an optimization suggestion in `Perf.md` §7, not yet designed or implemented here.
+
+---
+
 ## 8. Wallet operations that touch the chain
 
 These run during or from **`ConnectBlock`** / wallet **`ChainTip`** handling (**section 7**), not as separate daemons.
@@ -623,6 +643,9 @@ One owner per topic; elsewhere use a one-line pointer only (**UpdateZero.md** se
 | Ecosystem compare (indexers, validators) | **`ZKs/ZKNodes.md`** |
 | RPC name matrix | **RPCs.csv** |
 | Test harness / **TST-NN** | **TEST_ZERO.md** |
+| Zero's own threading/concurrency architecture | **ZeroStruct.md** section **7.5** |
+| Cross-repo concurrency comparison / Bitcoin Core history | **`ZKs/Comparison.md`** section **8** |
+| Zeronode-wallet-interface thread safety (`GetCS()`) | **ZeroNodeDev.md** |
 
 ---
 
