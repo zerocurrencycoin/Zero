@@ -66,7 +66,7 @@ class GetrawtransactionTest(BitcoinTestFramework):
         tx_a = self.nodes[2].getrawtransaction(txid_a, 1)
 
         # txid_b is not yet confirmed, so height is invalid (-1)
-        vout = filter(lambda o: o['value'] == 2, tx_a['vout'])
+        vout = list(filter(lambda o: o['value'] == 2, tx_a['vout']))
         assert_equal(vout[0]['spentTxId'], txid_b)
         assert_equal(vout[0]['spentIndex'], 0)
         assert_equal(vout[0]['spentHeight'], -1)
@@ -83,24 +83,26 @@ class GetrawtransactionTest(BitcoinTestFramework):
         # Check new fields added to getrawtransaction
         tx_a = self.nodes[2].getrawtransaction(txid_a, 1)
         assert_equal(tx_a['vin'][0]['value'], 10) # coinbase
-        assert_equal(tx_a['vin'][0]['valueSat'], 10*COIN)
+        # vin emits valueZat (Zcash/Zero rename of valueSat); valueSat is a vout-only alias.
+        assert_equal(tx_a['vin'][0]['valueZat'], 10*COIN)
         # we want the non-change (payment) output
-        vout = filter(lambda o: o['value'] == 2, tx_a['vout'])
+        vout = list(filter(lambda o: o['value'] == 2, tx_a['vout']))
         assert_equal(vout[0]['spentTxId'], txid_b)
         assert_equal(vout[0]['spentIndex'], 0)
-        assert_equal(vout[0]['spentHeight'], 107)
-        assert_equal(tx_a['height'], 106)
+        # tx_a confirmed at mature_tip+1; its spender txid_b at mature_tip+2.
+        assert_equal(vout[0]['spentHeight'], mature_tip + 2)
+        assert_equal(tx_a['height'], mature_tip + 1)
 
         tx_b = self.nodes[2].getrawtransaction(txid_b, 1)
         assert_equal(tx_b['vin'][0]['address'], a)
         assert_equal(tx_b['vin'][0]['value'], 2)
-        assert_equal(tx_b['vin'][0]['valueSat'], 2*COIN)
+        assert_equal(tx_b['vin'][0]['valueZat'], 2*COIN)
         # since this transaction's outputs haven't yet been
         # spent, these fields should not be present
         assert('spentTxId' not in tx_b['vout'][0])
         assert('spentIndex' not in tx_b['vout'][0])
         assert('spentHeight' not in tx_b['vout'][0])
-        assert_equal(tx_b['height'], 107)
+        assert_equal(tx_b['height'], mature_tip + 2)
 
 if __name__ == '__main__':
     GetrawtransactionTest().main()

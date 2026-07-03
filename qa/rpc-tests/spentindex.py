@@ -80,31 +80,33 @@ class SpentIndexTest(BitcoinTestFramework):
         # Check new fields added to getrawtransaction
         tx1 = self.nodes[2].getrawtransaction(txid1, 1)
         assert_equal(tx1['vin'][0]['value'], 10)  # coinbase
-        assert_equal(tx1['vin'][0]['valueSat'], 10*COIN)
+        # vin emits valueZat (Zcash/Zero rename of valueSat); valueSat is a vout-only alias.
+        assert_equal(tx1['vin'][0]['valueZat'], 10*COIN)
         # we want the non-change (payment) output
-        vout = filter(lambda o: o['value'] == 2, tx1['vout'])
+        vout = list(filter(lambda o: o['value'] == 2, tx1['vout']))
         n = vout[0]['n']
         assert_equal(vout[0]['spentTxId'], txid2)
         assert_equal(vout[0]['spentIndex'], 0)
-        assert_equal(vout[0]['spentHeight'], 107)
-        assert_equal(tx1['height'], 106)
+        # tx1 confirmed at mature_tip+1; tx2 (its spender) at mature_tip+2.
+        assert_equal(vout[0]['spentHeight'], mature_tip + 2)
+        assert_equal(tx1['height'], mature_tip + 1)
 
         tx2 = self.nodes[2].getrawtransaction(txid2, 1)
         assert_equal(tx2['vin'][0]['address'], addr1)
         assert_equal(tx2['vin'][0]['value'], 2)
-        assert_equal(tx2['vin'][0]['valueSat'], 2*COIN)
+        assert_equal(tx2['vin'][0]['valueZat'], 2*COIN)
         # since this transaction's outputs haven't yet been
         # spent, these fields should not be present
         assert('spentTxId' not in tx2['vout'][0])
         assert('spentIndex' not in tx2['vout'][0])
         assert('spentHeight' not in tx2['vout'][0])
-        assert_equal(tx2['height'], 107)
+        assert_equal(tx2['height'], mature_tip + 2)
 
         # Given a transaction output, getspentinfo() returns a reference
         # to the (later, confirmed) transaction that spent that output,
         # that is, the transaction that used this output as an input.
         spentinfo = self.nodes[2].getspentinfo({'txid': txid1, 'index': n})
-        assert_equal(spentinfo['height'], 107)
+        assert_equal(spentinfo['height'], mature_tip + 2)
         assert_equal(spentinfo['index'], 0)
         assert_equal(spentinfo['txid'], txid2)
 
@@ -121,7 +123,7 @@ class SpentIndexTest(BitcoinTestFramework):
         # Test the getblockdeltas RPC
         blockdeltas = self.nodes[2].getblockdeltas(block_hash1[0])
         assert_equal(blockdeltas['confirmations'], 3)
-        assert_equal(blockdeltas['height'], 106)
+        assert_equal(blockdeltas['height'], mature_tip + 1)
         assert_equal(blockdeltas['version'], 4)
         assert_equal(blockdeltas['hash'], block_hash1[0])
         assert_equal(blockdeltas['nextblockhash'], block_hash2[0])
@@ -147,13 +149,13 @@ class SpentIndexTest(BitcoinTestFramework):
 
         assert_equal(len(to_a_tx['outputs']), 2)
         # find the nonchange output, which is the payment to addr1
-        out = filter(lambda o: o['satoshis'] == 2*COIN, to_a_tx['outputs'])
+        out = list(filter(lambda o: o['satoshis'] == 2*COIN, to_a_tx['outputs']))
         assert_equal(len(out), 1)
         assert_equal(out[0]['address'], addr1)
 
         blockdeltas = self.nodes[2].getblockdeltas(block_hash2[0])
         assert_equal(blockdeltas['confirmations'], 2)
-        assert_equal(blockdeltas['height'], 107)
+        assert_equal(blockdeltas['height'], mature_tip + 2)
         assert_equal(blockdeltas['version'], 4)
         assert_equal(blockdeltas['hash'], block_hash2[0])
         assert_equal(blockdeltas['previousblockhash'], block_hash1[0])
@@ -179,7 +181,7 @@ class SpentIndexTest(BitcoinTestFramework):
 
         assert_equal(len(to_b_tx['outputs']), 2)
         # find the nonchange output, which is the payment to addr2
-        out = filter(lambda o: o['satoshis'] == 1*COIN, to_b_tx['outputs'])
+        out = list(filter(lambda o: o['satoshis'] == 1*COIN, to_b_tx['outputs']))
         assert_equal(len(out), 1)
         assert_equal(out[0]['address'], addr2)
 

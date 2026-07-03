@@ -152,17 +152,19 @@ class RESTTest (BitcoinTestFramework):
         binaryRequest += binascii.unhexlify(vintx);
         binaryRequest += struct.pack("i", 0);
 
-        bin_response = http_post_call(url.hostname, url.port, '/rest/getutxos'+self.FORMAT_SEPARATOR+'bin', binaryRequest)
-        if isinstance(bin_response, str):
-            bin_response = bin_response.encode('latin-1')
+        # Binary endpoint: read the raw response bytes; do not utf-8 decode.
+        bin_response = http_post_call(url.hostname, url.port, '/rest/getutxos'+self.FORMAT_SEPARATOR+'bin', binaryRequest, True).read()
         output = io.BytesIO()
         output.write(bin_response)
         output.seek(0)
         chainHeight = struct.unpack("i", output.read(4))[0]
-        hashFromBinResponse = hex(deser_uint256(output))[2:].zfill(65).rstrip("L")
+        # uint256 is 64 hex chars; zfill(65) (and the Py2 "L" suffix strip) were a
+        # port bug that made this never equal the 64-char getbestblockhash().
+        hashFromBinResponse = hex(deser_uint256(output))[2:].zfill(64)
 
         assert_equal(bb_hash, hashFromBinResponse) # check if getutxo's chaintip during calculation was fine
-        assert_equal(chainHeight, 102) # chain height must be 102
+        # Height = 1 (node0) + COINBASE_MATURITY (node2) + 1 (node2) blocks mined above.
+        assert_equal(chainHeight, COINBASE_MATURITY + 2)
 
 
         ############################
@@ -251,7 +253,8 @@ class RESTTest (BitcoinTestFramework):
         assert_equal(response_hex.status, 200)
         assert_greater_than(int(response_hex.getheader('content-length')), 354)
         response_hex_str = response_hex.read()
-        assert_equal(response_str.encode("hex")[0:354], response_hex_str[0:354])
+        # Py3: bytes.encode("hex") is gone; hexlify returns the ASCII-hex bytes the .hex endpoint sends.
+        assert_equal(binascii.hexlify(response_str)[0:354], response_hex_str[0:354])
 
         # compare with hex block header
         response_header_hex = http_get_call(url.hostname, url.port, '/rest/headers/1/'+bb_hash+self.FORMAT_SEPARATOR+"hex", True)
@@ -259,7 +262,7 @@ class RESTTest (BitcoinTestFramework):
         assert_greater_than(int(response_header_hex.getheader('content-length')), 354)
         response_header_hex_str = response_header_hex.read()
         assert_equal(response_hex_str[0:354], response_header_hex_str[0:354])
-        assert_equal(response_header_str.encode("hex")[0:354], response_header_hex_str[0:354])
+        assert_equal(binascii.hexlify(response_header_str)[0:354], response_header_hex_str[0:354])
 
         # check json format
         block_json_string = http_get_call(url.hostname, url.port, '/rest/block/'+bb_hash+self.FORMAT_SEPARATOR+'json')
