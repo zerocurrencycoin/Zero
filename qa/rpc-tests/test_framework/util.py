@@ -160,7 +160,7 @@ def wait_for_daemon_rpc(datadir, proc, rpchost=None, timeout_sec=300):
         raise RuntimeError(
             'zerod exited before RPC became available (code %s, datadir=%s)\n%s' % (
                 proc.returncode, datadir, _daemon_debug_tail(datadir)))
-    cli = [os.getenv('BITCOINCLI', 'bitcoin-cli'), '-rpcwait', '-datadir=' + datadir]
+    cli = [os.getenv('BITCOINCLI', 'zero-cli'), '-rpcwait', '-datadir=' + datadir]
     cli.extend(_rpchost_to_args(rpchost))
     try:
         result = subprocess.run(
@@ -218,7 +218,7 @@ def initialize_chain(test_dir):
         # Create cache directories, run bitcoinds:
         for i in range(4):
             datadir=initialize_datadir(cache_root, i)
-            args = [ os.getenv("BITCOIND", "bitcoind"), "-keypool=1", "-datadir="+datadir, "-discover=0" ]
+            args = [ os.getenv("BITCOIND", "zerod"), "-keypool=1", "-datadir="+datadir, "-discover=0" ]
             args.extend(NU_TEST_ARGS)
             if i > 0:
                 args.append("-connect=127.0.0.1:"+str(p2p_port(0)))
@@ -305,7 +305,7 @@ def start_node(i, dirname, extra_args=None, rpchost=None, timewait=None, binary=
     """
     datadir = os.path.join(dirname, "node"+str(i))
     if binary is None:
-        binary = os.getenv("BITCOIND", "bitcoind")
+        binary = os.getenv("BITCOIND", "zerod")
     args = [ binary, "-datadir="+datadir, "-keypool=1", "-discover=0", "-rest" ]
     args.extend(NU_TEST_ARGS)
     if extra_args is not None: args.extend(extra_args)

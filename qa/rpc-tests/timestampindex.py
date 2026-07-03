@@ -78,7 +78,7 @@ class TimestampIndexTest(BitcoinTestFramework):
             firsttime+10+1, firsttime,
             {'logicalTimes': True})
         ltimes = [r['logicalts'] for r in results]
-        assert_equal(ltimes, range(firsttime, firsttime+10))
+        assert_equal(ltimes, list(range(firsttime, firsttime+10)))
 
         # there's also a flag to exclude orphaned blocks; results should
         # be the same in this test

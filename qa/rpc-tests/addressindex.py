@@ -41,6 +41,7 @@ from test_framework.mininode import (
     CTxIn, CTxOut, COutPoint,
 )
 
+import binascii
 from binascii import hexlify
 
 
@@ -149,7 +150,7 @@ class AddressIndexTest(BitcoinTestFramework):
             self.sync_all()
             expected += i + 1
             expected_deltas.append({
-                'height': 106 + i,
+                'height': mature_tip + 1 + i,
                 'satoshis': (i + 1) * COIN,
                 'txid': txid,
             })
@@ -206,11 +207,11 @@ class AddressIndexTest(BitcoinTestFramework):
         tx = self.nodes[0].getrawtransaction(txid, 1)
         assert_equal(tx['vin'][0]['address'], addr1)
         assert_equal(tx['vin'][0]['value'], 4)
-        assert_equal(tx['vin'][0]['valueSat'], 4 * COIN)
+        assert_equal(tx['vin'][0]['valueZat'], 4 * COIN)
 
         txids_a1.append(txid)
         expected_deltas.append({
-            'height': 111,
+            'height': mature_tip + 6,
             'satoshis': (-4) * COIN,
             'txid': txid,
         })
@@ -230,9 +231,9 @@ class AddressIndexTest(BitcoinTestFramework):
             check_balance(i, addr1, (expected - 4) * COIN, expected * COIN)
             check_balance(i, addr2, 3 * COIN)
 
-            assert_equal(node.getblockcount(), 111)
+            assert_equal(node.getblockcount(), mature_tip + 6)
             node.invalidateblock(tip['hash'])
-            assert_equal(node.getblockcount(), 110)
+            assert_equal(node.getblockcount(), mature_tip + 5)
 
             mempool = node.getaddressmempool({'addresses': [addr2, addr1]})
             assert_equal(len(mempool), 2)
@@ -244,7 +245,7 @@ class AddressIndexTest(BitcoinTestFramework):
         self.nodes[0].generate(1)
         self.sync_all()
         for node in self.nodes:
-            assert_equal(node.getblockcount(), 111)
+            assert_equal(node.getblockcount(), mature_tip + 6)
 
         mempool = self.nodes[0].getaddressmempool({'addresses': [addr2, addr1]})
         assert_equal(len(mempool), 0)
@@ -254,7 +255,7 @@ class AddressIndexTest(BitcoinTestFramework):
 
         # Ensure the change from that transaction appears
         tx = self.nodes[0].getrawtransaction(txid, 1)
-        change_vout = filter(lambda v: v['valueZat'] != 3 * COIN, tx['vout'])
+        change_vout = list(filter(lambda v: v['valueZat'] != 3 * COIN, tx['vout']))
         change = change_vout[0]['scriptPubKey']['addresses'][0]
         bal = self.nodes[2].getaddressbalance(change)
         assert(bal['received'] > 0)
@@ -267,10 +268,10 @@ class AddressIndexTest(BitcoinTestFramework):
 
         # various ranges
         for i in range(5):
-            height_txids = getaddresstxids(1, [addr1], 106, 106 + i)
+            height_txids = getaddresstxids(1, [addr1], mature_tip + 1, mature_tip + 1 + i)
             assert_equal(height_txids, txids_a1[0:i+1])
 
-        height_txids = getaddresstxids(1, [addr1], 1, 108)
+        height_txids = getaddresstxids(1, [addr1], 1, mature_tip + 3)
         assert_equal(height_txids, txids_a1[0:3])
 
         # Further check specifying multiple addresses
@@ -294,28 +295,28 @@ class AddressIndexTest(BitcoinTestFramework):
             assert_equal(deltas[i]['satoshis'], expected_deltas[i]['satoshis'])
             assert_equal(deltas[i]['txid'],     expected_deltas[i]['txid'])
 
-        # 106-111 is the full range (also the default)
-        deltas_limited = getaddressdeltas(1, [addr1], 106, 111)
+        # [mature_tip+1 .. mature_tip+6] is the full range (also the default)
+        deltas_limited = getaddressdeltas(1, [addr1], mature_tip + 1, mature_tip + 6)
         assert_equal(deltas_limited, deltas)
 
         # only the first element missing
-        deltas_limited = getaddressdeltas(1, [addr1], 107, 111)
+        deltas_limited = getaddressdeltas(1, [addr1], mature_tip + 2, mature_tip + 6)
         assert_equal(deltas_limited, deltas[1:])
 
-        deltas_limited = getaddressdeltas(1, [addr1], 109, 109)
+        deltas_limited = getaddressdeltas(1, [addr1], mature_tip + 4, mature_tip + 4)
         assert_equal(deltas_limited, deltas[3:4])
 
         # the full range (also the default)
-        deltas_info = getaddressdeltas(1, [addr1], 106, 111, chainInfo=True)
+        deltas_info = getaddressdeltas(1, [addr1], mature_tip + 1, mature_tip + 6, chainInfo=True)
         assert_equal(deltas_info['deltas'], deltas)
 
         # check the additional items returned by chainInfo
-        assert_equal(deltas_info['start']['height'], 106)
-        block_hash = self.nodes[1].getblockhash(106)
+        assert_equal(deltas_info['start']['height'], mature_tip + 1)
+        block_hash = self.nodes[1].getblockhash(mature_tip + 1)
         assert_equal(deltas_info['start']['hash'], block_hash)
 
-        assert_equal(deltas_info['end']['height'], 111)
-        block_hash = self.nodes[1].getblockhash(111)
+        assert_equal(deltas_info['end']['height'], mature_tip + 6)
+        block_hash = self.nodes[1].getblockhash(mature_tip + 6)
         assert_equal(deltas_info['end']['hash'], block_hash)
 
         # Test getaddressutxos by comparing results with deltas
@@ -325,7 +326,7 @@ class AddressIndexTest(BitcoinTestFramework):
         # so for comparison, remove the 4 (and -4 for output) from the
         # deltas list
         deltas = self.nodes[1].getaddressdeltas({'addresses': [addr1]})
-        deltas = filter(lambda d: abs(d['satoshis']) != 4 * COIN, deltas)
+        deltas = list(filter(lambda d: abs(d['satoshis']) != 4 * COIN, deltas))
         assert_equal(len(utxos), len(deltas))
         for i in range(len(utxos)):
             assert_equal(utxos[i]['address'],   addr1)
@@ -336,13 +337,13 @@ class AddressIndexTest(BitcoinTestFramework):
         # Check that outputs with the same address in the same tx return one txid
         # (can't use createrawtransaction() as it combines duplicate addresses)
         addr = "t2LMJ6Arw9UWBMWvfUr2QLHM4Xd9w53FftS"
-        addressHash = "97643ce74b188f4fb6bbbb285e067a969041caf2".decode('hex')
+        addressHash = binascii.unhexlify("97643ce74b188f4fb6bbbb285e067a969041caf2")
         scriptPubKey = CScript([OP_HASH160, addressHash, OP_EQUAL])
         # Add an unrecognized script type to vout[], a legal script that pays,
         # but won't modify the addressindex (since the address can't be extracted).
         # (This extra output has no effect on the rest of the test.)
         scriptUnknown = CScript([OP_HASH160, OP_DUP, OP_DROP, addressHash, OP_EQUAL])
-        unspent = filter(lambda u: u['amount'] >= 4, self.nodes[0].listunspent())
+        unspent = list(filter(lambda u: u['amount'] >= 4, self.nodes[0].listunspent()))
         tx = CTransaction()
         tx.vin = [CTxIn(COutPoint(int(unspent[0]['txid'], 16), unspent[0]['vout']))]
         tx.vout = [
