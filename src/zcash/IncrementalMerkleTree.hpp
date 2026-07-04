@@ -2,6 +2,7 @@
 #define ZC_INCREMENTALMERKLETREE_H_
 
 #include <array>
+#include <atomic>
 #include <deque>
 #include <boost/optional.hpp>
 #include <boost/static_assert.hpp>
@@ -13,6 +14,17 @@
 #include "zcash/util.h"
 
 namespace libzcash {
+
+#ifdef ZERO_PERF
+// Instrumentation for the root() latch below — temporary, for measuring
+// match/no-match rates during the perf-401 investigation. Not consensus-
+// relevant, and compiled out entirely unless ZERO_PERF is defined.
+// Matches aren't tracked separately: matches = calls - no_matches.
+struct MerkleRootCacheStats {
+    static std::atomic<uint64_t> calls;
+    static std::atomic<uint64_t> no_matches;
+};
+#endif
 
 class MerklePath {
 public:
@@ -96,8 +108,20 @@ public:
     size_t size() const;
 
     void append(Hash obj);
+    // The root only depends on `left`, `right`, and `parents`, which are
+    // otherwise only ever changed by append() and deserialization below —
+    // both invalidate the latch, so it's always either empty or correct.
     Hash root() const {
-        return root(Depth, std::deque<Hash>());
+#ifdef ZERO_PERF
+        MerkleRootCacheStats::calls.fetch_add(1, std::memory_order_relaxed);
+#endif
+        if (!cached_root) {
+#ifdef ZERO_PERF
+            MerkleRootCacheStats::no_matches.fetch_add(1, std::memory_order_relaxed);
+#endif
+            cached_root = root(Depth, std::deque<Hash>());
+        }
+        return *cached_root;
     }
     Hash last() const;
 
@@ -114,6 +138,7 @@ public:
         READWRITE(parents);
 
         wfcheck();
+        cached_root = boost::none;
     }
 
     static Hash empty_root() {
@@ -131,6 +156,10 @@ private:
 
     // Collapsed "left" subtrees ordered toward the root of the tree.
     std::vector<boost::optional<Hash>> parents;
+    // Lazily computed and cached by root(); cleared by append() and by
+    // deserialization (SerializationOp), the only two places left/right/
+    // parents change.
+    mutable boost::optional<Hash> cached_root;
     MerklePath path(std::deque<Hash> filler_hashes = std::deque<Hash>()) const;
     Hash root(size_t depth, std::deque<Hash> filler_hashes = std::deque<Hash>()) const;
     bool is_complete(size_t depth = Depth) const;

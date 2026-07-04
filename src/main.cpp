@@ -3184,6 +3184,25 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
     }
 
+#ifdef ZERO_PERF
+    // Instrumentation for the perf-401 root()-latch investigation. Compiled
+    // out entirely unless ZERO_PERF is defined. -mrclogevery=N (default
+    // 16384) logs a cumulative call/no-match summary at that block-height
+    // interval; kept coarse so the LogPrintf/modulo cost is negligible next
+    // to the per-block validation work being measured.
+    {
+        static const int64_t logEvery = GetArg("-mrclogevery", 16384);
+        if (pindex->nHeight % logEvery == 0) {
+            uint64_t calls = libzcash::MerkleRootCacheStats::calls.load(std::memory_order_relaxed);
+            uint64_t no_matches = libzcash::MerkleRootCacheStats::no_matches.load(std::memory_order_relaxed);
+            uint64_t matches = calls - no_matches;
+            LogPrintf("MerkleRootCache: height=%d calls=%llu no_matches=%llu match-rate=%.1f%%\n",
+                      pindex->nHeight, (unsigned long long)calls, (unsigned long long)no_matches,
+                      calls ? (100.0 * matches / calls) : 0.0);
+        }
+    }
+#endif
+
     int64_t nTime1 = GetTimeMicros(); nTimeConnect += nTime1 - nTimeStart;
     LogPrint("bench", "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime1 - nTimeStart), 0.001 * (nTime1 - nTimeStart) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs-1), nTimeConnect * 0.000001);
 

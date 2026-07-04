@@ -9,6 +9,11 @@
 
 namespace libzcash {
 
+#ifdef ZERO_PERF
+std::atomic<uint64_t> MerkleRootCacheStats::calls{0};
+std::atomic<uint64_t> MerkleRootCacheStats::no_matches{0};
+#endif
+
 PedersenHash PedersenHash::combine(
     const PedersenHash& a,
     const PedersenHash& b,
@@ -921,6 +926,8 @@ void IncrementalMerkleTree<Depth, Hash>::append(Hash obj) {
     if (is_complete(Depth)) {
         throw std::runtime_error("tree is full");
     }
+
+    cached_root = boost::none;
 
     if (!left) {
         // Set the left leaf

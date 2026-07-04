@@ -286,3 +286,45 @@ TEST(merkletree, testZeroElements) {
         ASSERT_TRUE(newTree.root() == oldroot);
     }
 }
+
+// Regression test for the root() cache added in IncrementalMerkleTree:
+// repeated root() calls, cache invalidation on append(), and preservation
+// of a correct root across a serialize/deserialize round-trip (regardless
+// of whether the source tree's cache happened to be warm or cold).
+TEST(merkletree, RootCacheConsistency) {
+    SaplingMerkleTree tree;
+
+    // Repeated calls on an unmodified tree must return the same, correct
+    // value (exercises the cache-hit path).
+    uint256 emptyRoot = tree.root();
+    ASSERT_TRUE(tree.root() == emptyRoot);
+    ASSERT_TRUE(tree.root() == SaplingMerkleTree::empty_root());
+
+    for (int i = 0; i < 5; i++) {
+        // Warm the cache before mutating, so append() must invalidate it
+        // rather than returning a stale value.
+        uint256 beforeAppend = tree.root();
+        tree.append(uint256S("54d626e08c1c802b305dad30b7e54a82f102390cc92c7d4db112048935236e9c"));
+        uint256 afterAppend = tree.root();
+        ASSERT_TRUE(afterAppend != beforeAppend);
+
+        // Calling root() again must be stable (cache-hit returns the same
+        // value it just computed, not something stale from before append).
+        ASSERT_TRUE(tree.root() == afterAppend);
+    }
+
+    // Serialize with a warm cache, deserialize into a fresh tree (cold
+    // cache), and confirm the root is still correctly computed.
+    uint256 expectedRoot = tree.root();
+    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+    ss << tree;
+
+    SaplingMerkleTree deserialized;
+    ss >> deserialized;
+    ASSERT_TRUE(deserialized.root() == expectedRoot);
+
+    // And the deserialized tree's cache must itself invalidate correctly
+    // on further appends.
+    deserialized.append(uint256S("54d626e08c1c802b305dad30b7e54a82f102390cc92c7d4db112048935236e9c"));
+    ASSERT_TRUE(deserialized.root() != expectedRoot);
+}
