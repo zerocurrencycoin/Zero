@@ -2075,12 +2075,20 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
 {
     block.SetNull();
 
-    // Open history file to read
-    CAutoFile filein(OpenBlockFile(pos, true), SER_DISK, CLIENT_VERSION);
+    bool fCached = false;
+    FILE* fp;
+#ifdef ZERO_FDCACHE
+    if ((fCached = GetArg("-perffdcache", false)))
+        fp = GetCachedReadFile(pos, BlockFileKind::BLK);
+    else
+#endif
+        fp = OpenBlockFile(pos, true);
+
+    CAutoFile filein(fp, SER_DISK, CLIENT_VERSION);
     if (filein.IsNull())
         return error("ReadBlockFromDisk: OpenBlockFile failed for %s", pos.ToString());
+    ReleaseOnScopeExit releaser(filein, fCached); // latch, not filein, owns fp when cached
 
-    // Read block
     try {
         filein >> block;
     }
@@ -2088,7 +2096,6 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
         return error("%s: Deserialize or I/O error - %s at %s", __func__, e.what(), pos.ToString());
     }
 
-    // Check the header
     if (!(CheckEquihashSolution(&block, consensusParams) &&
           CheckProofOfWork(block.GetHash(), block.nBits, consensusParams)))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
@@ -2549,12 +2556,20 @@ bool UndoWriteToDisk(const CBlockUndo& blockundo, CDiskBlockPos& pos, const uint
 
 bool UndoReadFromDisk(CBlockUndo& blockundo, const CDiskBlockPos& pos, const uint256& hashBlock)
 {
-    // Open history file to read
-    CAutoFile filein(OpenUndoFile(pos, true), SER_DISK, CLIENT_VERSION);
+    bool fCached = false;
+    FILE* fp;
+#ifdef ZERO_FDCACHE
+    if ((fCached = GetArg("-perffdcache", false)))
+        fp = GetCachedReadFile(pos, BlockFileKind::REV);
+    else
+#endif
+        fp = OpenUndoFile(pos, true);
+
+    CAutoFile filein(fp, SER_DISK, CLIENT_VERSION);
     if (filein.IsNull())
         return error("%s: OpenBlockFile failed", __func__);
+    ReleaseOnScopeExit releaser(filein, fCached);
 
-    // Read block
     uint256 hashChecksum;
     try {
         filein >> blockundo;
@@ -2564,7 +2579,6 @@ bool UndoReadFromDisk(CBlockUndo& blockundo, const CDiskBlockPos& pos, const uin
         return error("%s: Deserialize or I/O error - %s", __func__, e.what());
     }
 
-    // Verify checksum
     CHashWriter hasher(SER_GETHASH, PROTOCOL_VERSION);
     hasher << hashBlock;
     hasher << blockundo;
@@ -3201,6 +3215,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                       calls ? (100.0 * matches / calls) : 0.0);
         }
     }
+#endif
+
+#ifdef ZERO_FDCACHE
+    LogReadFdCacheStats(pindex->nHeight);
 #endif
 
     int64_t nTime1 = GetTimeMicros(); nTimeConnect += nTime1 - nTimeStart;
@@ -4846,6 +4864,76 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes)
     return true;
 }
 
+#ifdef ZERO_FDCACHE
+namespace {
+// One-entry read latch per prefix (blk*.dat, rev*.dat); read-only, since
+// caching write handles would conflict with FlushBlockFile's close/truncate.
+struct ReadFileLatch {
+    CCriticalSection cs;
+    int nFile = 0; // only meaningful while file != nullptr
+    FILE* file = nullptr;
+    uint64_t opens = 0, hits = 0;
+};
+ReadFileLatch blkReadLatch, revReadLatch;
+
+FILE* CacheOpen(ReadFileLatch &latch, const CDiskBlockPos &pos, const boost::filesystem::path &path)
+{
+    LOCK(latch.cs);
+    if (latch.file && latch.nFile == pos.nFile) {
+        latch.hits++;
+        if (!fseek(latch.file, pos.nPos, SEEK_SET))
+            return latch.file;
+        fclose(latch.file); // stale handle (e.g. file truncated/replaced); reopen below
+        latch.file = nullptr;
+    }
+
+    latch.opens++;
+    FILE* file = fopen(path.string().c_str(), "rb");
+    if (!file)
+        return NULL;
+    if (pos.nPos && fseek(file, pos.nPos, SEEK_SET)) {
+        fclose(file);
+        return NULL;
+    }
+    if (latch.file)
+        fclose(latch.file);
+    latch.file = file;
+    latch.nFile = pos.nFile;
+    return file;
+}
+} // namespace
+
+FILE* GetCachedReadFile(const CDiskBlockPos &pos, BlockFileKind kind)
+{
+    if (pos.IsNull())
+        return NULL;
+    switch (kind) {
+    case BlockFileKind::BLK: return CacheOpen(blkReadLatch, pos, GetBlockPosFilename(pos, "blk"));
+    case BlockFileKind::REV: return CacheOpen(revReadLatch, pos, GetBlockPosFilename(pos, "rev"));
+    }
+    return NULL; // unreachable
+}
+
+void LogReadFdCacheStats(int height)
+{
+    static const int64_t logEvery = GetArg("-mrclogevery", 16384);
+    if (height % logEvery != 0)
+        return;
+    uint64_t opens, hits;
+    {
+        LOCK(blkReadLatch.cs);
+        opens = blkReadLatch.opens; hits = blkReadLatch.hits;
+    }
+    {
+        LOCK(revReadLatch.cs);
+        opens += revReadLatch.opens; hits += revReadLatch.hits;
+    }
+    LogPrintf("ReadFdCache: height=%d opens=%llu hits=%llu hit-rate=%.1f%%\n",
+              height, (unsigned long long)opens, (unsigned long long)hits,
+              (opens + hits) ? (100.0 * hits / (opens + hits)) : 0.0);
+}
+#endif // ZERO_FDCACHE
+
 FILE* OpenDiskFile(const CDiskBlockPos &pos, const char *prefix, bool fReadOnly)
 {
     if (pos.IsNull())
@@ -4866,6 +4954,11 @@ FILE* OpenDiskFile(const CDiskBlockPos &pos, const char *prefix, bool fReadOnly)
             return NULL;
         }
     }
+#ifdef ZERO_FDCACHE
+    static const int64_t perfBufSize = GetArg("-perfbufsize", 0); // 0 = libc default
+    if (perfBufSize > 0)
+        setvbuf(file, NULL, _IOFBF, (size_t)perfBufSize);
+#endif
     return file;
 }
 

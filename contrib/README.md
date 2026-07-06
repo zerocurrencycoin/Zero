@@ -24,6 +24,9 @@ Tool to verify that every merge commit was signed by a developer using the above
 ### [Linearize](/contrib/linearize) ###
 Construct a linear, no-fork, best version of the blockchain.
 
+### [Perf](/contrib/perf) ###
+Scripts for profiling and benchmarking `zerod` sync performance (`-reindex`/`bootstrap.dat` import): a long-running capture sequence that attaches Instruments Time Profiler on a repeating schedule, a decoder that buckets the resulting traces by CPU cost and cross-references block-height ranges, and a repeated-trial A/B throughput benchmark for build-flag comparisons. See `Perf.md` at the repo root for the underlying investigation and methodology.
+
 ### [Qos](/contrib/qos) ###
 
 A Linux bash script that will set up traffic control (tc) to limit the outgoing bandwidth for connections to the Bitcoin network. This means one can have an always-on bitcoind instance running, and another local bitcoind/bitcoin-qt instance which connects to this node and receives blocks from it.

@@ -23,6 +23,7 @@
 #include "script/sigcache.h"
 #include "script/standard.h"
 #include "spentindex.h"
+#include "streams.h"
 #include "sync.h"
 #include "tinyformat.h"
 #include "txdb.h"
@@ -234,6 +235,26 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes = 0);
 FILE* OpenBlockFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 /** Open an undo file (rev?????.dat) */
 FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false);
+
+/** Releases a CAutoFile's FILE* without closing it, when fRelease is true
+ * (i.e. it's owned elsewhere, such as by a ZERO_FDCACHE read latch). */
+class ReleaseOnScopeExit {
+public:
+    ReleaseOnScopeExit(CAutoFile &fileIn, bool fReleaseIn) : file(fileIn), fRelease(fReleaseIn) {}
+    ~ReleaseOnScopeExit() { if (fRelease) file.release(); }
+private:
+    CAutoFile &file;
+    bool fRelease;
+};
+
+#ifdef ZERO_FDCACHE
+// Read-side disk-I/O optimizations (-perffdcache, -perfbufsize).
+enum class BlockFileKind { BLK, REV };
+/** Fetch (or open+cache) a read-only FILE* for the given file kind+index, seeked to pos.nPos. */
+FILE* GetCachedReadFile(const CDiskBlockPos &pos, BlockFileKind kind);
+/** Periodic opens/hits log line, called from ConnectBlock. */
+void LogReadFdCacheStats(int height);
+#endif
 /** Translation to a filesystem path */
 boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos &pos, const char *prefix);
 /** Import blocks from an external file */
