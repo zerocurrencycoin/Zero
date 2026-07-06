@@ -180,7 +180,7 @@ run_trial() {
     # runs, which can be tens of minutes on a multi-million-block index. Each
     # wait below is capped so a misbehaving trial fails fast and gets
     # escalated to SIGKILL instead of hanging the whole matrix indefinitely.
-    local max_wait_s=600  # 10 min: generous for warmup/RPC-up, still bounded
+    local max_wait_s=600  # 10 min: generous for RPC-up, still bounded
     local waited=0
     until h=$(height_of) && [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -ge 0 ]; do
         if ! kill -0 "$pid" 2>/dev/null; then
@@ -195,6 +195,14 @@ run_trial() {
         sleep 2; waited=$((waited + 2))
     done
 
+    # Warmup/measure waits scale with how many blocks they actually need to
+    # cover -- a flat 600s (fine for a small pre-Sapling warmup, where
+    # throughput is 800-1,100 blk/s per Perf.md §2) is too tight once
+    # WARMUP_HEIGHT reaches into or past post-Sapling heights, where
+    # throughput drops to ~240-290 blk/s. Floor of 600s preserves prior
+    # behavior for small targets; 200 blk/s is a conservative floor below
+    # every post-Sapling capture in Perf.md's table (237-1,103 blk/s).
+    local warmup_wait_s=$(( WARMUP_HEIGHT / 200 + 600 ))
     waited=0
     until h=$(height_of) && [ "$h" -ge "$WARMUP_HEIGHT" ]; do
         if ! kill -0 "$pid" 2>/dev/null; then
@@ -202,8 +210,8 @@ run_trial() {
             cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
             return 1
         fi
-        if [ "$waited" -ge "$max_wait_s" ]; then
-            log "ERROR: warmup height not reached within ${max_wait_s}s (trial $trial, height=$h) -- killing and failing this trial"
+        if [ "$waited" -ge "$warmup_wait_s" ]; then
+            log "ERROR: warmup height not reached within ${warmup_wait_s}s (trial $trial, height=$h) -- killing and failing this trial"
             cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
             kill_pid_hard "$pid"
             return 1
@@ -212,6 +220,7 @@ run_trial() {
     done
     log "warmup reached (height=$h)"
 
+    local measure_wait_s=$(( MEASURE_BLOCKS / 200 + 600 ))
     waited=0
     until h=$(height_of) && [ "$h" -ge "$target_end" ]; do
         if ! kill -0 "$pid" 2>/dev/null; then
@@ -219,8 +228,8 @@ run_trial() {
             cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
             return 1
         fi
-        if [ "$waited" -ge "$max_wait_s" ]; then
-            log "ERROR: target_end not reached within ${max_wait_s}s (trial $trial, height=$h) -- killing and failing this trial"
+        if [ "$waited" -ge "$measure_wait_s" ]; then
+            log "ERROR: target_end not reached within ${measure_wait_s}s (trial $trial, height=$h) -- killing and failing this trial"
             cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
             kill_pid_hard "$pid"
             return 1
@@ -257,6 +266,17 @@ run_trial() {
 }
 
 log "=== bench_matrix starting: warmup=$WARMUP_HEIGHT measure_blocks=$MEASURE_BLOCKS n_trials=$N_TRIALS bootstrap_dat=${BOOTSTRAP_DAT:-none} ==="
+
+# nofdcache is the true baseline -perffdcache is compared against -- every
+# condition before this one (see Perf.md §3/§0 item 1) had -perffdcache=1 on
+# unconditionally, so the buffer-size A/B could never actually isolate
+# -perffdcache's own effect from -perfbufsize's. This condition omits
+# -perffdcache entirely (defaults to off), giving a real 2x2-style isolation:
+# nofdcache vs defaultbuf isolates -perffdcache; defaultbuf vs 1mbbuf isolates
+# -perfbufsize with -perffdcache held fixed at on.
+for trial in $(seq 1 "$N_TRIALS"); do
+    run_trial "reindex" "nofdcache" "$trial" -reindex -mrclogevery=100000
+done
 
 for trial in $(seq 1 "$N_TRIALS"); do
     run_trial "reindex" "defaultbuf" "$trial" -reindex -perffdcache=1 -mrclogevery=100000

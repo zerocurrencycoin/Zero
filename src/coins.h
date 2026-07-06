@@ -346,6 +346,12 @@ public:
     //! Retrieve the tree (Sapling) at a particular anchored root in the chain
     virtual bool GetSaplingAnchorAt(const uint256 &rt, SaplingMerkleTree &tree) const;
 
+    //! Determine whether an anchored root (Sprout) exists, without reconstructing its tree
+    virtual bool HaveSproutAnchorAt(const uint256 &rt) const;
+
+    //! Determine whether an anchored root (Sapling) exists, without reconstructing its tree
+    virtual bool HaveSaplingAnchorAt(const uint256 &rt) const;
+
     //! Determine whether a nullifier is spent or not
     virtual bool GetNullifier(const uint256 &nullifier, ShieldedType type) const;
 
@@ -391,6 +397,8 @@ public:
     CCoinsViewBacked(CCoinsView *viewIn);
     bool GetSproutAnchorAt(const uint256 &rt, SproutMerkleTree &tree) const;
     bool GetSaplingAnchorAt(const uint256 &rt, SaplingMerkleTree &tree) const;
+    bool HaveSproutAnchorAt(const uint256 &rt) const;
+    bool HaveSaplingAnchorAt(const uint256 &rt) const;
     bool GetNullifier(const uint256 &nullifier, ShieldedType type) const;
     bool GetCoins(const uint256 &txid, CCoins &coins) const;
     bool HaveCoins(const uint256 &txid) const;
@@ -464,6 +472,8 @@ public:
     // Standard CCoinsView methods
     bool GetSproutAnchorAt(const uint256 &rt, SproutMerkleTree &tree) const;
     bool GetSaplingAnchorAt(const uint256 &rt, SaplingMerkleTree &tree) const;
+    bool HaveSproutAnchorAt(const uint256 &rt) const;
+    bool HaveSaplingAnchorAt(const uint256 &rt) const;
     bool GetNullifier(const uint256 &nullifier, ShieldedType type) const;
     bool GetCoins(const uint256 &txid, CCoins &coins) const;
     bool HaveCoins(const uint256 &txid) const;

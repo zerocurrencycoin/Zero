@@ -74,6 +74,27 @@ bool CCoinsViewDB::GetSaplingAnchorAt(const uint256 &rt, SaplingMerkleTree &tree
     return read;
 }
 
+// Existence-only checks -- same DB key (the root itself), but db.Exists()
+// skips deserializing the stored SproutMerkleTree/SaplingMerkleTree (a
+// tree-depth-sized walk of parents/hashes) when the caller only needs to
+// know the anchor is valid, not the tree contents. See HaveShieldedRequirements
+// (coins.cpp) for the caller that matters: Sapling spends never use the tree
+// after fetching it, and most Sprout joinsplits (no intra-tx chaining) don't
+// either.
+bool CCoinsViewDB::HaveSproutAnchorAt(const uint256 &rt) const {
+    if (rt == SproutMerkleTree::empty_root()) {
+        return true;
+    }
+    return db.Exists(make_pair(DB_SPROUT_ANCHOR, rt));
+}
+
+bool CCoinsViewDB::HaveSaplingAnchorAt(const uint256 &rt) const {
+    if (rt == SaplingMerkleTree::empty_root()) {
+        return true;
+    }
+    return db.Exists(make_pair(DB_SAPLING_ANCHOR, rt));
+}
+
 bool CCoinsViewDB::GetNullifier(const uint256 &nf, ShieldedType type) const {
     bool spent = false;
     char dbChar;

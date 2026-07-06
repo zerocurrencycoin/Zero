@@ -71,6 +71,20 @@ public:
         }
     }
 
+    bool HaveSproutAnchorAt(const uint256& rt) const {
+        if (rt == SproutMerkleTree::empty_root()) {
+            return true;
+        }
+        return mapSproutAnchors_.find(rt) != mapSproutAnchors_.end();
+    }
+
+    bool HaveSaplingAnchorAt(const uint256& rt) const {
+        if (rt == SaplingMerkleTree::empty_root()) {
+            return true;
+        }
+        return mapSaplingAnchors_.find(rt) != mapSaplingAnchors_.end();
+    }
+
     bool GetNullifier(const uint256 &nf, ShieldedType type) const
     {
         const std::map<uint256, bool>* mapToUse;
