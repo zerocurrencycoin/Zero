@@ -10,7 +10,7 @@ Maintainer **execution hub**. Developer documents in **UpdateZero.md** section *
 
 **Include:** CON-* rules; PIR/TNT execution (**3.4**, **3.5**); Linux binary compatibility (**3.6**); Blockbook (**4**); Pirate review (**5**); Proton (**6**); drafts (**7**); CSV (**8**); DOC-* audits; RPC test prescriptions.
 
-**Exclude:** zerod structure and client integration contract (**ZeroStruct**); zeronode operator/dev detail (**ZeroNodes**, **ZeroNodeDev**); ecosystem compare (**ZKNodes.md**); clone paths (**ZKRepos.md**); full org repo audit (**Repos.md**); clone source diffs (**Comparison.md**); Zebra research (**ZebraZero**).
+**Exclude:** zerod structure and client integration contract (**Runtime**); zeronode operator/dev detail (**ZeroNodes**, **ZeroNodeDev**); ecosystem compare (**ZKNodes.md**); clone paths (**ZKRepos.md**); full org repo audit (**Repos.md**); clone source diffs (**Comparison.md**); Zebra research (**ZebraZero**).
 
 Developer documents: **this section**.
 
@@ -39,14 +39,14 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | File                            | Purpose                                               | Include                                                                                                                                     | Exclude                                                                                                |
 | ------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | **UpdateZero.md**               | Decisions and execution order                         | This map; **3.4** PIR; **3.5** TNT; **3.6** Linux compatibility; **4**--**8**                                                                                            | Content owned by other rows                                                                            |
-| **ZeroStruct.md**               | **zerod** structure and options by use case           | Datadir, `-dbcache`, flags per workload, `ConnectBlock`, wallet chain ops; **section 11** client integration contract; **INT-NN** concerns (**11.7**); brief zeronode cache | Ecosystem compare (**ZKNodes.md**); Blockbook port (**4**); zeronode setup (**ZeroNodes**); clone diffs (**Comparison.md**) |
-| **ZeroNodes.md**                | Run a **zeronode** (operator)                         | Collateral, conf, RPC, sporks, coinbase summary, P2P, economics pointers                                                                    | ZND table (**ZeroNodeDev** section **9**); TNT order (**3.5**); insight flags (**ZeroStruct**)         |
+| **Runtime.md**               | **zerod** structure and options by use case           | Datadir, `-dbcache`, flags per workload, `ConnectBlock`, wallet chain ops; **section 11** client integration contract; **INT-NN** concerns (**11.7**); brief zeronode cache | Ecosystem compare (**ZKNodes.md**); Blockbook port (**4**); zeronode setup (**ZeroNodes**); clone diffs (**Comparison.md**) |
+| **ZeroNodes.md**                | Run a **zeronode** (operator)                         | Collateral, conf, RPC, sporks, coinbase summary, P2P, economics pointers                                                                    | ZND table (**ZeroNodeDev** section **9**); TNT order (**3.5**); insight flags (**Runtime**)         |
 | **ZeroNodeDev.md**              | **Zeronode source** (wallet boundary, TENT, tests)    | `CZeronodeWalletInterface`; library split; **ZND anchors** (section **9**); test phases                                                     | Operator workflow (**ZeroNodes**); TNT order (**3.5**)                                                 |
-| **~/Work/ZK/ZKs/ZKNodes.md**    | Ecosystem **compare/contrast** (validators, indexers) | Cross-fork indexing strategies, Blockbook-by-coin, Insight vs external DB, lightwalletd backends                                            | **Comparison**, **ZeroStruct**, **UpdateZero**, **ZKRepos**, **Repos.md** duplication                  |
+| **~/Work/ZK/ZKs/ZKNodes.md**    | Ecosystem **compare/contrast** (validators, indexers) | Cross-fork indexing strategies, Blockbook-by-coin, Insight vs external DB, lightwalletd backends                                            | **Comparison**, **Runtime**, **UpdateZero**, **ZKRepos**, **Repos.md** duplication                  |
 | **~/Work/ZK/ZKs/ZKRepos.md**    | **Local clone paths** under `ZKs/`                    | Path index, `git pull` loop, Zero400 working copies                                                                                         | Ecosystem compare, org audit, zerod flags                                                                |
 | **~/Work/ZK/ZKs/Repos.md**      | **zerocurrencycoin** org GitHub audit                 | All org repos, mobile/light stack inventory, archive tiers, **`Repos.csv`**                                                                 | Local paths (**ZKRepos**); cross-fork indexer compare (**ZKNodes**)                                    |
 | **~/Work/ZK/ZKs/Comparison.md** | Clone **source** diffs                                | PoW, wallet, P2P, toolchain                                                                                                                 | Node ecosystem compare (**ZKNodes.md**)                                                                |
-| **ZebraZero.md**                | zebrad / YEC / CipherScan reference                   | Sidecar validation, Orchard lessons, YEC fork notes                                                                                         | zerod how-to (**ZeroStruct**)                                                                          |
+| **ZebraZero.md**                | zebrad / YEC / CipherScan reference                   | Sidecar validation, Orchard lessons, YEC fork notes                                                                                         | zerod how-to (**Runtime**)                                                                          |
 
 
 
@@ -87,13 +87,13 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | Maintainer -> maintainer | One-line pointer when another file **owns** the topic |
 
 
-**Redundancy:** One owner per table or procedure. TNT execution order only here (**3.5**). ZND detail only **ZeroNodeDev** section **9**. Ecosystem compare only **ZKNodes.md**. Clone paths only **ZKRepos.md**. Org repo audit only **Repos.md**. **zerod** internals and per-client requirement matrices only **ZeroStruct.md** (sections **5**, **11**). Blockbook port and Insight **execution status** only here (**section 4**); do not duplicate full `zero.conf` or RPC catalogs in **4.3** -- pointer only.
+**Redundancy:** One owner per table or procedure. TNT execution order only here (**3.5**). ZND detail only **ZeroNodeDev** section **9**. Ecosystem compare only **ZKNodes.md**. Clone paths only **ZKRepos.md**. Org repo audit only **Repos.md**. **zerod** internals and per-client requirement matrices only **Runtime.md** (sections **5**, **11**). Blockbook port and Insight **execution status** only here (**section 4**); do not duplicate full `zero.conf` or RPC catalogs in **4.3** -- pointer only.
 
 **ID namespaces (do not mix):**
 
 | Prefix | Owner | Meaning |
 |--------|-------|---------|
-| **INT-NN** | **ZeroStruct.md** section **11.7** | Client integration concern (Insight, zerowallet, paths) |
+| **INT-NN** | **Runtime.md** section **11.7** | Client integration concern (Insight, zerowallet, paths) |
 | **C-NN** | **UpdateZero.md** section **8** Completed | Maintainer audit log (fixed items); not **INT-NN** |
 | **PIR-NN** / **TNT-NN** | **UpdateZero.md** sections **3.4** / **3.5** | Cherry-pick candidate or status |
 | **TST-NN** | **TEST_ZERO.md** | Test task or gate |
@@ -107,7 +107,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | **OPS-EXPLORER** | **BUILD_ZERO.md** section **4.6.2** (Insight node flags, public explorer) |
 | **OPS-INSIGHT-CONF** | **`ZKs/insight/InsightBlock.md`** section **2.2**; samples **`insight/config/zero.conf`**, **`bitcore-node.json`** |
 | **OPS-LINUX-ABI** | **UpdateZero.md** section **3.6** (glibc / builder OS; BUILD_ZERO one-line pointer only) |
-| **INT-*** | **ZeroStruct.md** section **11.7** |
+| **INT-*** | **Runtime.md** section **11.7** |
 | **Clone wallet / P2P / shielding history** | **`ZKs/Comparison.md`** sections **3**, **4** |
 | **Indexer / explorer across coins** | **`ZKs/ZKNodes.md`** |
 | **PIR / TNT execution** | **UpdateZero.md** sections **3.4**, **3.5** (status + pointer; no duplicate specs) |
@@ -466,7 +466,7 @@ Separate issues often conflated:
 |------|-------|--------|
 | **A. zerod binary ABI** | **Node binary** | Copying **`zerod` built on Ubuntu 24** to **18.04** fails: **glibc 2.27** and **GCC 7 libstdc++** below symbols from a 24/GCC-13 build (`GLIBC_2.28+`, `GLIBCXX_3.4.26+`). **Cannot be fixed** by config flags on 18; need **18.04-built** binary or **host upgrade**. |
 | **B. Insight stack age** | **Node.js / OS** | Prod survey: **Ubuntu 18.04**, **Node 8**, nginx/systemd 237 (`InsightPort.md`, `InsightSystem.md`). EOL stack; upgrade path open -- **independent** of zerod C++ ABI. |
-| **C. RAM / `-dbcache`** | **Runtime** | 4 GiB VPS: **`dbcache=4096`** not sustainable; use **~2048** (**ZeroStruct.md** section 4). |
+| **C. RAM / `-dbcache`** | **Runtime** | 4 GiB VPS: **`dbcache=4096`** not sustainable; use **~2048** (**Runtime.md** section 4). |
 | **D. systemd / nginx** | **Ops** | 237 directive placement, no `proxy_read_timeout` override, journald defaults (`InsightBlock.md` section 4.2). |
 
 **Current maintainer work (24 -> 18 zerod):** falls under **A**. Expected outcome: **failure** until build root matches 18.04 (or prod moves to 22.04+). **`ldd ./zerod`** and **`objdump -T ./zerod | grep GLIBC`** on both hosts to confirm.
@@ -582,7 +582,7 @@ Zero **`depends/packages/rust.mk`**:
 | **5** | **Defer Guix** unless dedicated REL item; large scope | Reproducible wide binaries |
 | **6** | Document in **BUILD_ZERO.md** pointer to **this section** only (one line); avoid duplicating tables | Single owner |
 
-**Tracked elsewhere:** Insight **18 vs 24** host survey (**InsightInternal.md** B.2); **`dbcache`** on 4 GiB (**ZeroStruct.md** section 4); Linux RC (**TEST_ZERO.md** 4.0.1 handoff).
+**Tracked elsewhere:** Insight **18 vs 24** host survey (**InsightInternal.md** B.2); **`dbcache`** on 4 GiB (**Runtime.md** section 4); Linux RC (**TEST_ZERO.md** 4.0.1 handoff).
 
 ---
 
@@ -1054,7 +1054,7 @@ Kept for merge-conflict prevention: if an upstream merge re-introduces a pattern
 
 ## 4. Blockbook and explorer backends
 
-Daemon ecosystem compare: `~/Work/ZK/ZKs/ZKNodes.md`. Blockbook port detail stays in this section **4** only. **zerod** structure and use-case options: `ZeroStruct.md`.
+Daemon ecosystem compare: `~/Work/ZK/ZKs/ZKNodes.md`. Blockbook port detail stays in this section **4** only. **zerod** structure and use-case options: `Runtime.md`.
 
 ### 4.1 What Blockbook is
 
@@ -1108,7 +1108,7 @@ Upstream `configs/coins/` ships **100** coin configs including `zcash.json` / `z
 
 Stack: `insight-ui-zero`, `insight-api-zero`, `bitcore-node-zero`, `bitcore-lib-zero`. Public operator summary in **README**, **BUILD_ZERO** (Block explorer), **ZERO_COIN**. Internal runbooks: `~/Work/ZK/ZKs/insight/`.
 
-**Node requirements (`zerod`):** `-experimentalfeatures=1`, `-insightexplorer=1`, `txindex=1`, large `-dbcache` (**2048** MiB on 4 GiB VPS; **4096+** on larger hosts), ZMQ on prod. First insight enable: **`-reindex`**. Authoritative flag bundles and client matrix: **`ZeroStruct.md`** sections **5**, **11.3**. Example `zero.conf`: `~/Work/ZK/ZKs/insight/config/zero.conf`.
+**Node requirements (`zerod`):** `-experimentalfeatures=1`, `-insightexplorer=1`, `txindex=1`, large `-dbcache` (**2048** MiB on 4 GiB VPS; **4096+** on larger hosts), ZMQ on prod. First insight enable: **`-reindex`**. Authoritative flag bundles and client matrix: **`Runtime.md`** sections **5**, **11.3**. Example `zero.conf`: `~/Work/ZK/ZKs/insight/config/zero.conf`.
 
 Uses **daemon addressindex RPCs** (`getaddressbalance`, `getaddresstxids`, ...), not Blockbook's internal index. **Transparent P2PKH/P2SH only** — no chain-wide shielded (z-addr) search.
 
@@ -1134,7 +1134,7 @@ Cross-fork indexing strategies: **`ZKNodes.md`** sections **3**, **11**.
 
 ## 5. Pirate wallet features under review
 
-**Repo:** `~/Work/ZK/ZKs/pirate`. Portable wallet ops only -- not Komodo consensus, notary, or KIP coinbase (**PIR-14 reject**). Wallet vs consolidation on-chain behavior: `ZeroStruct.md` **section 8**.
+**Repo:** `~/Work/ZK/ZKs/pirate`. Portable wallet ops only -- not Komodo consensus, notary, or KIP coinbase (**PIR-14 reject**). Wallet vs consolidation on-chain behavior: `Runtime.md` **section 8**.
 
 ### 5.1 Already in Zero
 
@@ -1194,7 +1194,7 @@ Optional `--enable-proton` build of upstream `src/amqp/` (Qpid Proton). Default 
 
 ## 7. Pending public documentation (drafts for review)
 
-**Public docs do not link** to maintainer files (**UpdateZero.md**, **ZeroStruct.md**, **ZKNodes.md**, etc.). When a draft below is approved, **copy the markdown block** into the target public file without adding maintainer hrefs.
+**Public docs do not link** to maintainer files (**UpdateZero.md**, **Runtime.md**, **ZKNodes.md**, etc.). When a draft below is approved, **copy the markdown block** into the target public file without adding maintainer hrefs.
 
 ### 7.0 Draft backlog
 
@@ -1202,14 +1202,14 @@ Optional `--enable-proton` build of upstream `src/amqp/` (Qpid Proton). Default 
 | Target            | Draft                                             | Status                                                                    | Maintainer source (do not link from public) |
 | ----------------- | ------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------- |
 | **ZERO_COIN.md**  | **7.1** dev balances (insight)                    | Ready                                                                     | `contrib/stats/chain_stats.py`              |
-| **ZERO_COIN.md**  | **7.2** supply vs UTXO                            | Ready                                                                     | **ZeroStruct** use cases                    |
+| **ZERO_COIN.md**  | **7.2** supply vs UTXO                            | Ready                                                                     | **Runtime** use cases                    |
 | **ZERO_COIN.md**  | **7.7** zeronode boundary (economics vs setup)    | Ready                                                                     | **ZeroNodes** operator detail               |
-| **BUILD_ZERO.md** | **7.3** explorer node flags                       | Copied (**Block explorer** section)                                       | **ZeroStruct** Insight use case             |
-| **BUILD_ZERO.md** | **7.6** REST                                      | Ready                                                                     | **ZeroStruct** REST row                     |
+| **BUILD_ZERO.md** | **7.3** explorer node flags                       | Copied (**Block explorer** section)                                       | **Runtime** Insight use case             |
+| **BUILD_ZERO.md** | **7.6** REST                                      | Ready                                                                     | **Runtime** REST row                     |
 | **BUILD_ZERO.md** | **7.8** public testnet join                       | Ready                                                                     | DOC-02 / testnet seeds                      |
 | **BUILD_ZERO.md** | **7.9** zeronode operator (optional)              | **Deferred** -- keep in **ZeroNodes** until product approves public steps | **ZeroNodes**                               |
-| **README.md**     | **7.4** node vs wallet scope                      | Copied (Block explorer + scope)                                           | **ZeroStruct**                              |
-| **Insight.md**    | **7.5** flag bundle                               | Copied (**BUILD_ZERO** Block explorer)                                    | **ZeroStruct** Insight use case             |
+| **README.md**     | **7.4** node vs wallet scope                      | Copied (Block explorer + scope)                                           | **Runtime**                              |
+| **Insight.md**    | **7.5** flag bundle                               | Copied (**BUILD_ZERO** Block explorer)                                    | **Runtime** Insight use case             |
 | **ZERO_COIN.md**  | Port/datadir matrix excerpt from DOC-02           | **Gap**                                                                   | **UpdateZero** DOC-02 table                 |
 | **BUILD_ZERO.md** | `-blocknotify` / `ENABLE_SYSTEM_COMMAND` (PIR-01) | Ready (**4.6.1** **OPS-SHELL**)                                        | **UpdateZero** **3.4.2**                    |
 | **README.md**     | Testnet one-liner                                 | **Gap**                                                                   | seeds in `chainparams.cpp`                  |

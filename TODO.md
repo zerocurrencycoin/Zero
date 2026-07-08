@@ -13,12 +13,12 @@ Status and tracked work items for the Zero node.
 - macOS developer signing (codesign + notarization).
 - Total supply discrepancy: review arithmetic vs project target of some 20M ZER.
 - Consensus integer math: replace `double`/`COIN` mixes in subsidy and founders paths.
-- RPC coverage matrix: audit script cross-ref **`RPCs.csv`** (`zero=y`) vs harness depth + client grep; output **`RPCs_extended.csv`** columns or **`RPC_coverage.csv`** (**ZeroStruct.md** section **6.3**).
+- RPC coverage matrix: audit script cross-ref **`RPCs.csv`** (`zero=y`) vs harness depth + client grep; output **`RPCs_extended.csv`** columns or **`RPC_coverage.csv`** (**Runtime.md** section **6.3**).
 - TST-01 scenario tests -- **`getalldata`** first (wallet UI shape: balances, addresses, txs after mine/spend); then **`getsupply`**, **`zs_*`** exclusive RPCs (**`UpdateZero.md`** TST-01; extend **`src/test/rpc_zero_exclusive_tests.cpp`** or regtest).
 - TST-01 scenario tests -- **`getsaplingblocks`**, **`getsaplingwitness`**, **`getsaplingwitnessatheight`** (**`src/test/rpc_zero_experimental_tests.cpp`**; Insight uses these).
 - TST-03 -- **`zeronodestats`** + zeronode/budget subcmds with no harness hit (**`startzeronode`**, **`zeronodecurrent`**, **`getzeronodeoutputs`**, **`znbudget*`**); arg validation first, integration optional.
 - TST-09 -- shell notify **disabled** build (default): **`-blocknotify`**, **`-walletnotify`**, **`-alertnotify`** in conf must **not** run **`::system`**; side-effect files stay empty; **`debug.log`** contains skip message. **`-alertnotify`**: extend **`DeprecationTest.AlertNotify`** (already 0 lines). **`-blocknotify`** / **`-walletnotify`**: add GTest or regtest (mine/spend + marker file). Opt-in **`ENABLE_SYSTEM_COMMAND`** build: parity tests that hooks **do** run. **UpdateZero.md** TST-09; **BUILD_ZERO.md** section **4.6.1** (**OPS-SHELL**).
-- macOS datadir: zerowallet400 should use **`Application Support/zero/`** (match **`GetDefaultDataDir`**); wallet currently uses **`Zero/`** (**ZeroStruct.md** **INT-01**).
+- macOS datadir: zerowallet400 should use **`Application Support/zero/`** (match **`GetDefaultDataDir`**); wallet currently uses **`Zero/`** (**Runtime.md** **INT-01**).
 - GTest fixes done 2026-06-09: **`CachedWitnesses*`** ported (harness merkle/commitment roots; Zero decrement semantics) except **`CleanIndex`** (needs coins-view harness); **`WriteCryptedSaplingZkey*`** / **`rpc_wallet_encrypted_wallet_sapzkeys`** encrypt-hang class fixed (wallet-DB re-entry deadlock in `AddCryptedSaplingSpendingKey`) -- back in default gate
 - Equihash (192,7) test vectors
 - Fuzz harness setup

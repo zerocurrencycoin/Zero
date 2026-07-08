@@ -8,7 +8,7 @@
 
 **Exclude:** Ecosystem compare (**`ZKNodes.md`**); port/cherry-pick execution (**`UpdateZero.md`**); zeronode operator/dev detail (**`ZeroNodes.md`**, **`ZeroNodeDev.md`**); wallet Qt UI (**`zerowallet400/UpdateWallet.md`**); clone source survey (**`Comparison.md`**); local clone paths (**`ZKRepos.md`**); **zerocurrencycoin** org repo audit (**`Repos.md`**).
 
-**Set rule:** **`ZeroStruct` ⊆ zerod internals + per-client requirements from the node's perspective**. No Blockbook port plan (**UpdateZero** section **4**); no cross-fork validator tables (**ZKNodes**); no GitHub org disposition (**Repos.md**). Integration concern IDs use prefix **INT-NN** (section **11.7**); do not reuse **C-NN** from **UpdateZero** section **8** Completed.
+**Set rule:** **`Runtime` ⊆ zerod internals + per-client requirements from the node's perspective**. No Blockbook port plan (**UpdateZero** section **4**); no cross-fork validator tables (**ZKNodes**); no GitHub org disposition (**Repos.md**). Integration concern IDs use prefix **INT-NN** (section **11.7**); do not reuse **C-NN** from **UpdateZero** section **8** Completed.
 
 Developer documents in **UpdateZero.md** section **1**, **Documentation map**. Regtest harness: **`TEST_ZERO.md`**.
 
@@ -62,7 +62,7 @@ flowchart TB
     blocks["blocks/<br/>raw blk · rev"]
     index["blocks/index/<br/>LevelDB · txindex · insight"]
     chain["chainstate/<br/>LevelDB · UTXO set"]
-    wallet["wallet.dat"]
+    wallet["wallet.zero"]
     zncache["zncache.dat"]
   end
 
@@ -108,9 +108,15 @@ Default: **`~/.zero/`** (mainnet). Testnet/regtest: subdirs or `-testnet` / `-re
 | `blocks/blk*.dat`, `blocks/rev*.dat` | Raw files | Blocks and undo data |
 | `blocks/index/` | LevelDB (`CBlockTreeDB`) | Block tree; optional txindex and insight keys |
 | `chainstate/` | LevelDB (`CCoinsViewDB`) | UTXO set; Sprout/Sapling anchors; nullifiers |
-| `wallet.dat` | Berkeley DB | Keys, transactions, note metadata |
+| `wallet.zero` | Berkeley DB | Keys, transactions, note metadata |
 | `zncache.dat` | Serialized | Zeronode broadcast cache |
 | `debug.log` | Text | Log output |
+
+Zero uses `wallet.zero` by default. Upstream Zcash and Bitcoin documentation often says `wallet.dat`; treat that as lineage context, not the Zero runtime default.
+
+`peers.dat` is a custom serialized `CAddrMan` peer cache, not an authoritative network database. It is useful for fast restart and peer diversity, but can be deleted or moved aside if corrupt; the node will rebuild it from DNS seeds, fixed seeds, and peer gossip. Detailed format and recovery notes live in `~/Work/ZK/Peer.md`.
+
+Addrman RPC observability and port notes are in section 6.4. Store lifecycle and preservation classification lives in `Stores.md`; detailed peer behavior lives in `~/Work/ZK/Peer.md`.
 
 ### LevelDB key families in `blocks/index/`
 
@@ -253,7 +259,7 @@ Cross-refs: Insight **`zero.conf`** **InsightBlock.md** section **2.2**; `-dbcac
 | `txindex` | **On** by default |
 | `-insightexplorer` | Off |
 | `-experimentalfeatures` | Off |
-| Wallet | `wallet.dat`; Sapling witnesses built on `ChainTip` |
+| Wallet | `wallet.zero`; Sapling witnesses built on `ChainTip` |
 | Zeronode | Off unless configured |
 
 Desktop **zerowallet** embeds `zerod` and uses local RPC; it does **not** enable address indexes by default.
@@ -421,6 +427,56 @@ Classify hits:
 
 Test prescriptions and acceptance criteria: **`UpdateZero.md`** TST-01 (zero_exclusive scenarios), TST-03 (zeronode subcmds).
 
+### 6.4 Addrman observability RPC candidate
+
+Bitcoin Core has two useful addrman observability RPCs that Zero does not currently ship:
+
+| RPC | Bitcoin Core location | Registration | Purpose |
+|-----|-----------------------|--------------|---------|
+| `getaddrmaninfo` | `ZKs/bitcoin-src/src/rpc/net.cpp`, `getaddrmaninfo()` | `network` category | Counts `new`, `tried`, and `total` address-manager entries, broken out by network plus `all_networks` |
+| `getrawaddrman` | `ZKs/bitcoin-src/src/rpc/net.cpp`, `getrawaddrman()` | `hidden` category, experimental warning | Dumps the raw `new` and `tried` addrman table entries keyed by `bucket/position` |
+
+Supporting Bitcoin Core functions and types:
+
+| Source | Function / type | Role |
+|--------|-----------------|------|
+| `src/rpc/net.cpp` | `AddrmanEntryToJSON(const AddrInfo&, const CConnman&)` | Formats one address entry: address, port, services, time, network, source, source network, optional AS map fields |
+| `src/rpc/net.cpp` | `AddrmanTableToJSON(vector<pair<AddrInfo, AddressPosition>>, const CConnman&)` | Formats all entries in one table under `bucket/position` keys |
+| `src/addrman.h` | `AddressPosition` | Records `tried`, multiplicity, bucket, and position for each exported entry |
+| `src/addrman.h/.cpp` | `AddrMan::Size(net, in_new)` | Counts entries by network and table |
+| `src/addrman.h/.cpp` | `AddrMan::GetEntries(from_tried)` | Returns `(AddrInfo, AddressPosition)` snapshots for either `new` or `tried` |
+| `src/rpc/server_util.cpp` | `EnsureAddrman` / `EnsureAnyAddrman` | Retrieves addrman from modern `NodeContext` |
+
+ZeroPerf source is older and structurally closer to pre-modern Bitcoin Core:
+
+| Zero source | Current state |
+|-------------|---------------|
+| `src/rpc/net.cpp` | Old `UniValue func(params, fHelp)` RPC style and static `CRPCCommand commands[]`; no `RPCHelpMan`, `NodeContext`, or `EnsureAddrman` |
+| `src/net.cpp` | Global `CAddrMan addrman`; `DumpAddresses()` writes it to `peers.dat`; `CAddrDB::{Read,Write}` serializes/deserializes it |
+| `src/addrman.h` | `CAddrMan` keeps `mapInfo`, `vvNew`, `vvTried`, `nNew`, `nTried`, `vRandom`; only public count is total `size()` |
+| `src/addrman.h` | `CAddrInfo` has the needed fields, but `source`, `nLastSuccess`, `nAttempts`, `nRefCount`, and `fInTried` are private to `CAddrMan` |
+
+Practical adaptation plan:
+
+1. Add a small public snapshot API to Zero's `CAddrMan`, not direct RPC access to internals. Suggested types: `CAddrManPosition { bool tried; int multiplicity; int bucket; int position; }` and `CAddrManEntry { CAddrInfo info; CAddrManPosition position; }`.
+2. Implement `CAddrMan::Size(bool* inNewOrNull)` or simpler `GetAddrManCounts()` returning `{new, tried, total}` under `LOCK(cs)`.
+3. Implement `CAddrMan::GetEntries(bool fromTried)` by walking `vvNew` or `vvTried` under `LOCK(cs)`, copying `CAddrInfo` plus bucket/position into a vector. This mirrors Bitcoin Core's `AddrManImpl::GetEntries_()`.
+4. Add Zero-style RPC functions in `src/rpc/net.cpp`: `getaddrmaninfo(const UniValue&, bool)` and `getrawaddrman(const UniValue&, bool)`.
+5. Register `getaddrmaninfo` in the `network` category. Register `getrawaddrman` either as `hidden` if the local RPC table accepts it, or as `network` with an explicit experimental warning in help text.
+6. Start without AS-map fields. Zero does not currently have Bitcoin Core's `CConnman::GetMappedAS`, `NetGroupManager`, or modern network enum split. Emit `address`, `port`, `services`, `time`, and `source`; add `network` only if the local `CNetAddr` API can classify it cleanly.
+7. Add tests at the addrman-helper level first. RPC tests can be thin: empty addrman returns zero counts; a synthetic added address appears in `new`; a `Good()` address appears in `tried` if bucket movement succeeds.
+
+Prospects: `getaddrmaninfo` is low-risk and should be the first port. It only needs counts already maintained by `CAddrMan`. `getrawaddrman` is more useful for diagnosis and tools like addrman.observer, but it needs a careful snapshot helper so the RPC does not expose mutable internals or hold locks while formatting large JSON.
+
+Known mismatches to avoid:
+
+- Do not copy Bitcoin Core's `RPCHelpMan`, `NodeContext`, `EnsureAnyAddrman`, or `CConnman::GetMappedAS` scaffolding into Zero wholesale.
+- Do not parse `peers.dat` from RPC while the node is running; use the in-memory `addrman`.
+- Do not expose `nKey` or other bucket-secret material.
+- Do not treat `getrawaddrman` as stable public API. Bitcoin Core labels it experimental/hidden.
+
+Related local references: `~/Work/ZK/Peer.md` owns detailed peer discovery and `peers.dat` format; `Stores.md` owns the cross-store lifecycle classification; `~/Work/ZK/Zeros/ZEROV.md` owns the superseded dependency-transition note and current wallet-store caution; `UpdateZero.md` should own any actual port/cherry-pick task list if this becomes implementation work.
+
 ---
 
 ## 7. Block connect and index maintenance
@@ -548,7 +604,7 @@ macOS path mismatch: **INT-01** (section **11.7**).
 | Capability | Validator / zerowallet | Insight backend | Blockbook-style |
 |------------|------------------------|-----------------|-----------------|
 | Synced chain | Yes | Yes | Yes |
-| Wallet (`wallet.dat`) | **Yes** | Usually **no** | No |
+| Wallet (`wallet.zero`) | **Yes** | Usually **no** | No |
 | `server=1` + RPC auth | Yes | Yes | Yes |
 | `txindex=1` | Yes | Yes | Yes |
 | `-experimentalfeatures` | Sometimes | **Yes** | No |
@@ -631,8 +687,8 @@ One owner per topic; elsewhere use a one-line pointer only (**UpdateZero.md** se
 
 | Topic | Owner |
 |-------|-------|
-| zerod flags / `-dbcache` / client matrix | **ZeroStruct.md** (this file) |
-| Integration concerns **INT-NN** | **ZeroStruct.md** section **11.7** |
+| zerod flags / `-dbcache` / client matrix | **Runtime.md** (this file) |
+| Integration concerns **INT-NN** | **Runtime.md** section **11.7** |
 | Build / depends / **OPS-SHELL** / **OPS-EXPLORER** | **BUILD_ZERO.md** sections **4.6.1**, **4.6.2** |
 | Insight prod **`zero.conf`** / **`bitcore-node.json`** | **`InsightBlock.md`** section **2.2**; samples **`~/Work/ZK/ZKs/insight/config/`** |
 | Public datadir / ports / economics | **ZERO_COIN.md** |
@@ -643,7 +699,7 @@ One owner per topic; elsewhere use a one-line pointer only (**UpdateZero.md** se
 | Ecosystem compare (indexers, validators) | **`ZKs/ZKNodes.md`** |
 | RPC name matrix | **RPCs.csv** |
 | Test harness / **TST-NN** | **TEST_ZERO.md** |
-| Zero's own threading/concurrency architecture | **ZeroStruct.md** section **7.5** |
+| Zero's own threading/concurrency architecture | **Runtime.md** section **7.5** |
 | Cross-repo concurrency comparison / Bitcoin Core history | **`ZKs/Comparison.md`** section **8** |
 | Zeronode-wallet-interface thread safety (`GetCS()`) | **ZeroNodeDev.md** |
 

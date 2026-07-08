@@ -6,7 +6,7 @@
 
 **Include:** `CZeronodeWalletInterface` / stub; library split; section **9** ZND table with diff anchors; test phases A-F.
 
-**Exclude:** Operator workflow (**`ZeroNodes.md`**); TNT execution order (**`UpdateZero.md`** section **3.5**); general zerod architecture (**`ZeroStruct.md`**).
+**Exclude:** Operator workflow (**`ZeroNodes.md`**); TNT execution order (**`UpdateZero.md`** section **3.5**); general zerod architecture (**`Runtime.md`**).
 
 Developer documents in **UpdateZero.md** section **1**, **Documentation map**. **Operators:** **`ZeroNodes.md`**.
 

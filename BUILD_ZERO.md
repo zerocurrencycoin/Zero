@@ -431,7 +431,7 @@ Self-hosted Insight uses the **`insight-*-zero`** / **`bitcore-node-zero`** stac
 
 **Insight prod configuration (central):** **`~/Work/ZK/ZKs/insight/InsightBlock.md`** section **2.2** — required/suggested **`zero.conf`** keys, **`-reindex`** / **`-dbcache`** rules, and alignment with **`insight/config/zero.conf`** and **`insight/config/bitcore-node.json`**. This file does not duplicate that table.
 
-**Zero repo owns:** what flags mean (`ZeroStruct.md` section **5**), `-dbcache` math (section **4**), and public one-liner below. **`contrib/zero.conf`** is a wallet sample only.
+**Zero repo owns:** what flags mean (`Runtime.md` section **5**), `-dbcache` math (section **4**), and public one-liner below. **`contrib/zero.conf`** is a wallet sample only.
 
 Minimum insight flags:
 
