@@ -1,0 +1,18 @@
+[package]
+name = "batch-poc"
+version = "0.1.0"
+edition = "2015"
+
+# Path deps point at a sibling checkout of the pinned librustzcash monorepo,
+# fetched separately into ZeroPerf/librustzcash-pinned/ -- see README.md
+# "Setup" for the exact fetch command. Not vendored here: this is Zero's
+# existing pinned dependency (depends/packages/librustzcash.mk), not new
+# third-party source belonging to this repo.
+[dependencies]
+bellman = { path = "../librustzcash-pinned/bellman" }
+pairing = { path = "../librustzcash-pinned/pairing" }
+rand = "0.4"
+
+[[bin]]
+name = "batch_poc"
+path = "src/main.rs"

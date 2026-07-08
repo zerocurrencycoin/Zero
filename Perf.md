@@ -13,6 +13,45 @@
 
 **This decision is not made in this document — it needs a person to weigh migration cost against reuse value.** Full detail: §6.1 (what upstream ships), §6.2 (who else has adopted it), §9.4's status note (what's already built and tested for option 1).
 
+### 0.1a PENDING DECISION — Groth16 batch verification: hand-port vs. adopt `sapling-crypto`
+
+**Status: blocking.** No further Groth16 implementation work (§9.4 Phase 2 onward) should start until this is resolved by a person, not inferred from this document. Nothing below picks a winner.
+
+**Decision needed:** for Sapling Groth16 batch verification (the single largest CPU-optimization opportunity found in this investigation, §2), should Zero (a) hand-port the batching math into its existing pinned 2018-era `bellman`/`pairing` crate stack, or (b) migrate to the current `sapling-crypto`/`bellman 0.14` crate stack and adopt its shipped `BatchValidator` directly?
+
+**Option A — Hand-port into the pinned stack** (§9.4 as written)
+
+*Pro:*
+- Smallest footprint — no crate-version migration, no change to Zero's existing FFI shape (`librustzcash.h`, raw `extern "C"`), no touch to any dependency other than the one being extended.
+- De-risked in real, tested code already: §9.4 Phases 0–1 (pure-Rust prototype) are done and passing — a hand-ported random-linear-combination batch verifier built against the actual pinned `bellman 0.1.0`/`pairing 0.14.2`, validated against real Groth16 proofs from `bellman`'s own MiMC/BLS12-381 test circuit, batch accept/reject exactly matching per-proof `verify_proof` across N=1,2,8,64 and adversarial corrupted-proof cases, repeated 6 times. This isn't theoretical — the core math is proven to work on Zero's actual dependency versions.
+- Confirmed buildable: the pinned 2018-era crate pair builds clean under a modern Rust 1.90 toolchain (§9.4 Phase 0 finding) — no toolchain-pinning workaround needed.
+- Keeps Zero's build/dependency surface area unchanged, which matters for a project maintained by very few people (§0's own framing — see `MEMORY.md`: user is sole owner/maintainer of the Zero repo family).
+
+*Con:*
+- Reinvents ~4 years of upstream engineering (`BatchValidator` shipped in `zcash_proofs` 2022-07-05) rather than reusing it.
+- **Misses signature batching entirely** — `sapling-crypto`'s `BatchValidator` batches RedJubjub `spend_auth_sig`/binding signatures alongside Groth16 proofs (§6.1); the hand-port plan only ever scoped proof batching, since Zero's current `check_spend` verifies the signature eagerly, per-call, ahead of the proof check (§9.4 Phase 0 finding). A hand-ported Groth16-only batcher leaves that signature-verification cost fully unaddressed.
+- No production track record for *this specific port* — the math is proven against synthetic MiMC test-circuit proofs, not against real Sapling spend/output circuits or adversarial conditions beyond what §9.4's test plan covers. `BatchValidator` by contrast has ~4 years of live-network exposure across `zcashd` and Zebra.
+- Batch-size tuning (how many proofs per batch, what latency budget) has no precedent to draw from — Zebra's real, tuned parameters (`MAX_BATCH_SIZE=64`, `MAX_BATCH_LATENCY=100ms`, §6.2) apply to `BatchValidator`'s architecture, not directly transferable to a hand-rolled one.
+- Building consensus-critical cryptographic code in-house, however well-tested, carries more independent-review burden (§9.4 Phase 6) than adopting code multiple other implementations already run in production.
+
+**Option B — Adopt `sapling-crypto` directly**
+
+*Pro:*
+- Reuses battle-tested code: `BatchValidator` has run in `zcashd` and Zebra (both currently active, `zcashd` until its imminent end-of-life ~2026-07-18) for roughly four years, and is the architecture of the two most-current reference implementations in the ecosystem (§6.2).
+- Gets signature batching for free, a real efficiency gain the hand-port plan never scoped.
+- Real integration precedent exists for exactly Zero's situation: Pirate Chain, a same-lineage C++ zcashd fork, has already done this exact migration (its own vendored `cxx`-bridge Rust crate wrapping `BatchValidator`, §6.2) — a template closer to Zero's actual codebase than Zebra's from-scratch Rust design.
+- Real, tuned batch-size parameters already exist to start from (`MAX_BATCH_SIZE=64`/`MAX_BATCH_LATENCY=100ms`), rather than guessing.
+- Positions Zero on a currently-maintained crate lineage instead of a snapshot of a since-heavily-refactored 2018 dependency graph, which may reduce future maintenance friction (e.g. if any future Sapling/consensus fix upstream only lands against the current crate generation).
+
+*Con:*
+- Materially larger, effectively unscoped effort: crosses the `ff`/`group` trait-split ecosystem-wide API break (§6) — every type in Zero's `librustzcash`/`bellman`/`pairing`/`jubjub` call path is affected, not just the verifier.
+- Unknown whether Zero's current C-header FFI (`librustzcash.h`) can be kept as-is or needs replacing with a `cxx`-bridge like `zcashd`'s current architecture (§0.5 — genuinely unresolved, not just unscoped).
+- No prototype exists for this path at all — unlike Option A, zero hands-on validation has been done; the entire cost/risk profile is currently an estimate, not a measurement.
+- Real risk of the migration itself introducing regressions unrelated to Groth16 batching, simply by virtue of touching every consumer of the affected crates — a much larger consensus-code blast radius than Option A's narrowly-scoped change.
+- Bigger, harder-to-interrupt effort for a single-maintainer project — more exposure if only partially completed.
+
+**Recommendation (offered, not decided): lean toward Option B if the migration cost turns out to be smaller than it currently looks, otherwise Option A.** Concretely: the single highest-leverage next step is **not** more coding on either path, but **scoping Option B's actual migration cost** (§0.2 item 6) — right now it's the con with the least evidence behind it ("large, separate undertaking" is a characterization from §6, not a sized estimate), while Option A's cost and viability are already fully measured (§9.4 Phases 0–1). A short, bounded research spike into what the `ff`/`group` migration and FFI-layer question actually require (see §0.5, §0.6) would turn this from a qualitative pro/con list into a real comparison. Until that spike happens, Option A is the lower-uncertainty choice by default, purely because it's the one with a working prototype — not because it's been shown to be better.
+
 ### 0.2 Priority-ordered open items
 
 1. **[Decision, not code] Hand-port vs. adopt** — see §0.1. Blocks all further Groth16 work.
