@@ -2,6 +2,11 @@ contrib/linearize/bootstrap.dat
 contrib/linearize/hashlist.txt
 contrib/linearize/linearize.cfg
 README0.md
+
+.claude
+.codex
+.codess
+
 throw/
 *.tar.gz
 *.deb
