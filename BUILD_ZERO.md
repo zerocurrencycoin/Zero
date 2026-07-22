@@ -10,7 +10,7 @@ Build guide for the Zero full node binary `zerod`.
 
 ## 1. Introduction
 
-Build `zerod` from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). **Tested:** Ubuntu 24.04, macOS 24.5.0. **Linux minimum runtime OS and glibc/libstdc++ policy:** **UpdateZero.md** section **3.6** (build OS sets the binary floor; 24-built binaries do not run on 18.04). The tree uses Autotools with **`depends/`** for deterministic dependency builds.
+Build `zerod` from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). **Tested:** Ubuntu 24.04, macOS 24.5.0. **Runtime rule of thumb:** the **build OS** sets the binary's glibc/libstdc++ floor -- deploy on that OS class or newer. Maintainer ABI / multi-Ubuntu notes stay in internal docs until a public minimum-OS decision ships with a release. The tree uses Autotools with **`depends/`** for deterministic dependency builds.
 
 ### 1.1 System requirements
 
@@ -78,7 +78,7 @@ Optional widen: **`./contrib/run-tests.sh --suite`** (Linux ELF stages). See [TE
 
 Disk: full native + depends build needs several GB free. If **`/`** is near full, see §6.9 before building.
 
-**v4.0.1 handoff (2026-06):** macOS dev machine ran contributor gate (**`--strict`** PASS). **Linux rebuild on lazu is required** before tag/merge -- Darwin skips ELF release checks and runs a reduced **`rpcbind_test`** path. Pull **`zero-400names`**, rebuild, **`--strict`**, then optional **`--suite`**. Checklist: **TEST_ZERO.md** section **4.0.1 handoff (macOS -> Linux)**.
+**v4.0.1 handoff (2026-06):** macOS **`--strict`** PASS. **Linux rebuild on lazu strongly recommended** before tag/merge (Darwin skips ELF release checks; reduced **`rpcbind_test`**). **`--strict` is not an automatic release block** -- maintainer decides. Checklist: **TEST_ZERO.md** section **4.0.1**.
 
 ### 2.3 macOS ARM64
 
@@ -282,6 +282,7 @@ cp example-linearize.cfg linearize.cfg   # edit: rpcuser/rpcpassword, input=bloc
 
 Import: copy **`bootstrap.dat`** to datadir; **`zerod`** auto-imports on first start when the file is present (see **`src/init.cpp`**). Local cfg/hashlist/output are gitignored.
 
+
 ---
 
 ## 4. Developer Knowledge
@@ -427,13 +428,7 @@ Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine on
 
 **Public mainnet UI:** [https://insight.zeromachine.io/](https://insight.zeromachine.io/)
 
-Self-hosted Insight uses the **`insight-*-zero`** / **`bitcore-node-zero`** stack against a synced **`zerod`**.
-
-**Insight prod configuration (central):** **`~/Work/ZK/ZKs/insight/InsightBlock.md`** section **2.2** — required/suggested **`zero.conf`** keys, **`-reindex`** / **`-dbcache`** rules, and alignment with **`insight/config/zero.conf`** and **`insight/config/bitcore-node.json`**. This file does not duplicate that table.
-
-**Zero repo owns:** what flags mean (`ZeroStruct.md` section **5**), `-dbcache` math (section **4**), and public one-liner below. **`contrib/zero.conf`** is a wallet sample only.
-
-Minimum insight flags:
+Minimum **`zerod`** flags for a self-hosted explorer backend (transparent t-address index only):
 
 ```ini
 experimentalfeatures=1
@@ -441,7 +436,7 @@ insightexplorer=1
 txindex=1
 ```
 
-Transparent address index only; no chain-wide z-addr search. Optional **`-rest=1`** not used by Insight.
+Explorer host procedure and sizing: **`InsightBlock.md`**. Index/flag semantics for node maintainers: **`ZeroStruct.md`**.
 
 ### 4.7 Depends recipe troubleshooting
 

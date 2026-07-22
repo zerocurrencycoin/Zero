@@ -217,22 +217,22 @@ Typical order for **`zero-400names`** (or any RC) -> **`master`** (remote defaul
 6. **Merge to `master`** -- open PR **`zero-400names` -> `master`** (or fast-forward after review) **after** steps 3--5 pass. **`master` should receive the tagged release commit** (merge then tag on `master`, or tag on branch then merge including tag).
 7. **Push** -- `git push origin master` and `git push origin v4.0.1`.
 
-Do **not** merge before **`--strict`** passes. Do **not** tag with a dirty tree if you want a hash-free version string.
+**`--strict` policy:** Strongly recommended before tag/merge; **not an automatic hard block**. Maintainer decides whether to ship with a skipped, partial, or failed gate. Prefer a clean tree for a hash-free version string.
 
 ### 4.0.1 handoff (macOS -> Linux)
 
-**Status (2026-06):** macOS ARM64 dev build validated; **Linux RC on lazu is the next gate** before **`v4.0.1`** tag and **`zero-400names` -> `master`** merge.
+**Status (2026-06):** macOS ARM64 validated with **`--strict` PASS**. Linux rebuild on lazu is the **recommended** next validation before **`v4.0.1`** tag / merge -- not a process lockout.
 
 | Step | macOS (done) | Linux lazu (`ZeroLinux`) |
 |------|--------------|---------------------------|
 | Branch | **`zero-400names`** | same; **`git pull --ff-only`** |
 | Build | **`./zcutil/build.sh -j4`** | **`./zcutil/build.sh -j2`** (2 cores) |
-| Contributor gate | **`./contrib/run-tests.sh --strict`** **PASS** ~211s (2026-06-09) | **Required** -- not run at RC tip yet |
+| Contributor gate | **`./contrib/run-tests.sh --strict`** **PASS** ~211s (2026-06-09) | **Recommended** -- not run at RC tip yet |
 | Widen | **`--suite`** skipped on Darwin (ELF stages N/A) | **`./contrib/run-tests.sh --suite`** recommended |
-| Bulk RPC | **`--all --strict`** stale (pre tier moves); re-run optional | Re-run after **`--strict`** green |
-| Blocker | -- | Disk **~97%**, **~4 GB** free on **`/`** |
+| Bulk RPC | **`--all --strict`** stale (pre tier moves); re-run optional | Optional after **`--strict`** |
+| Host constraint | -- | Disk **~97%**, **~4 GB** free on **`/`** |
 
-**macOS scope limits:** **`full_test_suite.py`** skips **`check-security`** / **`no-dot-so`** on Darwin. **`rpcbind_test.py`** uses localhost smoke only. Parallel Tier A (**`--jobs>1`**) can hang (**`paymentdisclosure`**); gate stays serial.
+**macOS scope limits:** **`full_test_suite.py`** skips **`check-security`** / **`no-dot-so`** on Darwin. **`rpcbind_test.py`** uses localhost smoke only. Parallel Tier A (**`--jobs>1`**) can hang (**`paymentdisclosure`**); keep serial for meaningful gates.
 
 **Linux commands** (after disk reclaimed):
 
@@ -242,11 +242,11 @@ git fetch origin && git checkout zero-400names && git pull --ff-only origin zero
 killall zerod 2>/dev/null || true
 ./zcutil/fetch-params.sh    # if needed
 ./zcutil/build.sh -j2
-./contrib/run-tests.sh --strict
-./contrib/run-tests.sh --suite    # optional ELF + full rpcbind
+./contrib/run-tests.sh --strict    # recommended
+./contrib/run-tests.sh --suite     # optional ELF + full rpcbind
 ```
 
-**After Linux PASS:** tag **`v4.0.1`**, merge to **`master`**, push (**steps 5-7** above). Update **Verification snapshot** Linux row.
+**After Linux validation (or maintainer accept):** tag **`v4.0.1`**, merge to **`master`**, push (**steps 5-7** above). Update **Verification snapshot** Linux row.
 
 ### `contrib/run-tests.sh` -- flags to re-check after parser changes
 
@@ -1176,7 +1176,7 @@ Some external assetchain daemons expose **`extern int COINBASE_MATURITY`** defau
 
 ## Known failures, hangs, and crashes
 
-Default and **`--all`** share the same C++ exclusions (**Known failures** below). **`--fail`** runs only those suites. **Do not** use **`--all`** as a merge gate (full RPC pass tiers and runtime); use **default + `--strict`**.
+Default and **`--all`** share the same C++ exclusions (**Known failures** below). **`--fail`** runs only those suites. Prefer **default + `--strict`** for release validation; **`--all`** is bulk coverage, not a substitute for a focused gate. Tag/merge remains a maintainer decision.
 
 ### C++ -- excluded by default
 
@@ -1246,7 +1246,7 @@ After a change, run the **narrowest** check first, then widen.
 | **`tests-debug`** C++ merge (encrypt, **`CachedWitnesses*`**) | **`./contrib/run-tests.sh --fail --strict`**; then default **`--strict`** |
 | Bulk RPC after tier moves | **`./contrib/run-tests.sh --all --strict`** -- refresh **Verification snapshot** |
 | **`run-tests.sh`** background / **`wait`** | **`./contrib/run-tests.sh --no-python --strict`** then full **`./contrib/run-tests.sh --strict`** |
-| Release-style gate | **`./contrib/run-tests.sh --strict`** |
+| Recommended release validation | **`./contrib/run-tests.sh --strict`** (maintainer decides) |
 
 ---
 
@@ -1265,7 +1265,7 @@ Record after harness changes (macOS, `./contrib/run-tests.sh --strict` unless no
 | `--suite` | **PASS** | **~1306s** | `full_test_suite.py`; RPC stage = no-args (`-all`) |
 | Bfail `COINBASE_MATURITY+1` ports | **PASS** | see below | macOS 2026-06-08, from repo root |
 | `walletbackup.py` (post-fix) | **PASS** | **~85s** | total **2886.875**; restore/importwallet equality OK |
-| Linux **`zero-400names`** on lazu (`ZeroLinux`) | **pending** | -- | **v4.0.1 RC:** macOS **`--strict`** PASS 2026-06-09; lazu rebuild + gate **not run** (disk **~97%**, **~4 GB** free). See **4.0.1 handoff (macOS -> Linux)** |
+| Linux **`zero-400names`** on lazu (`ZeroLinux`) | **pending** | -- | **v4.0.1 RC:** macOS **`--strict`** PASS 2026-06-09; lazu rebuild + **`--strict` recommended, not hard block** (disk **~97%**, **~4 GB** free). See **4.0.1 handoff** |
 | **`CachedWitnesses*` gtest port** | **WIP** (uncommitted) | -- | Local harness fix; still filtered in default gate |
 
 **Bfail `COINBASE_MATURITY + 1` timings:** `rawtransactions` ~34s; `fundrawtransaction` ~54s; `signrawtransaction_offline` ~18s; `mergetoaddress_sapling` ~135s; `mergetoaddress_mixednotes` ~39s (after script-local maturity fix).

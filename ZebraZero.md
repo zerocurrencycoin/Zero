@@ -6,7 +6,7 @@
 
 **Include:** Port strategies A-D; Orchard/NU6.2 lessons; Sprout CVE posture; YEC/`ycash-zebra` facts; CipherScan layer table for ZEC.
 
-**Exclude:** zerod datadir and use-case flags (**`ZeroStruct.md`**); ecosystem compare (**`ZKNodes.md`**); TNT/ZND zeronode ports (**`ZeroNodeDev.md`**).
+**Exclude:** zerod datadir and use-case flags (**`ZeroStruct.md`**); ecosystem/indexer compare (**`Comparison.md`**); TNT/ZND zeronode ports (**`ZeroNodeDev.md`**).
 
 Developer documents in **UpdateZero.md** section **1**, **Documentation map**.
 

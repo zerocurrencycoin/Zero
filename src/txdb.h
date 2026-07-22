@@ -113,6 +113,11 @@ public:
     bool ReadLastBlockFile(int &nFile);
     bool WriteReindexing(bool fReindex);
     bool ReadReindexing(bool &fReindex);
+    /** Persist reindex progress (written after each blk file; not consumed yet). */
+    bool WriteReindexLastFile(int nFile);
+    bool ReadReindexLastFile(int &nFile);
+    bool WriteReindexLastBlock(int nHeight);
+    bool ReadReindexLastBlock(int &nHeight);
     bool ReadTxIndex(const uint256 &txid, CDiskTxPos &pos);
     bool WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> > &list);
 

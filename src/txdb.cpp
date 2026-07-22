@@ -33,6 +33,10 @@ static const char DB_BEST_SPROUT_ANCHOR = 'a';
 static const char DB_BEST_SAPLING_ANCHOR = 'z';
 static const char DB_FLAG = 'F';
 static const char DB_REINDEX_FLAG = 'R';
+/** Last blk#####.dat file number fully scanned during -reindex (write-only for now). */
+static const char DB_REINDEX_LASTFILE = 'L';
+/** Tip height after that file scan -- LASTBLOCK marker (write-only for now). */
+static const char DB_REINDEX_LASTBLOCK = 'H';
 static const char DB_LAST_BLOCK = 'l';
 
 // insightexplorer
@@ -216,6 +220,22 @@ bool CBlockTreeDB::WriteReindexing(bool fReindexing) {
 bool CBlockTreeDB::ReadReindexing(bool &fReindexing) {
     fReindexing = Exists(DB_REINDEX_FLAG);
     return true;
+}
+
+bool CBlockTreeDB::WriteReindexLastFile(int nFile) {
+    return Write(DB_REINDEX_LASTFILE, nFile);
+}
+
+bool CBlockTreeDB::ReadReindexLastFile(int &nFile) {
+    return Read(DB_REINDEX_LASTFILE, nFile);
+}
+
+bool CBlockTreeDB::WriteReindexLastBlock(int nHeight) {
+    return Write(DB_REINDEX_LASTBLOCK, nHeight);
+}
+
+bool CBlockTreeDB::ReadReindexLastBlock(int &nHeight) {
+    return Read(DB_REINDEX_LASTBLOCK, nHeight);
 }
 
 bool CBlockTreeDB::ReadLastBlockFile(int &nFile) {

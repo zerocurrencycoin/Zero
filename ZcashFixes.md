@@ -179,6 +179,17 @@ Zcash patch ensures Sprout proof verification cannot be skipped on the connect p
 
 **Conclusion for Zero:** CVE-2026-35679 mechanism is **not applicable**. Residual Sprout exposure is historical pool balance and PHGR checkpoint trust, not the `fChecked` bypass.
 
+**Residual inherited behavior (not the CVE):** `ProcessNewBlock` first pass uses `ProofVerifier::Disabled()`; `ConnectBlock` uses `Strict()` when `fExpensiveChecks`. Blocks that are **checkpoint ancestors** skip expensive script/proof checks during IBD (last mainnet checkpoint height **700,000**). That is normal checkpoint trust, not an `fChecked` skip of tip JoinSplits.
+
+**Inspection checklist (Zero400):**
+
+| Check | Result |
+|-------|--------|
+| `CBlock::fChecked` in tree | **Absent** |
+| `ProcessNewBlock` first pass | `ProofVerifier::Disabled()` (`main.cpp`) |
+| `ConnectBlock` second pass | `ProofVerifier::Strict()` when `fExpensiveChecks` |
+| Comment at ConnectBlock | Explicit: "Check it again to verify JoinSplit proofs" |
+
 ---
 
 ## Part 3: Planned Zero policy -- post-Sapling Sprout proof disable
@@ -225,7 +236,37 @@ Zcash ZIP 211 deprecated Sprout **defense in depth**: after Sapling activation, 
 
 ## Appendix: Fork stack and 2026 CVE posture
 
-Single reference for clone research. Algorithm comparisons live in `ZKs/Comparison.md`; clone paths in `ZKs/ZKRepos.md`.
+Single reference for clone research. Algorithm comparisons live in `ZKs/Comparison.md`; clone paths in `ZKs/ZKRepos.md`. Compact field notes merged from `~/Work/ZK/ZcashV.md` (2026-06-08).
+
+### A.0 Shielded pool status by project
+
+| Project | Sprout | Sapling | Orchard | Notes |
+|---------|--------|---------|---------|-------|
+| **Zcash (ZEC)** | Deprecated (ZIP 211); pool ~25k ZEC | Active | Active (NU6.2 fixed circuit) | Reference implementation |
+| **Zero (ZER)** | Historical chain data; monitored pool | Active | **Not implemented** | Upgrades through Blossom/Cosmos in `consensus/params.h` |
+| **TENT** | Same lineage as Zero fork era | Active | No | Masternode + treasury outputs (4th coinbase vout) |
+| **Pirate (ARRR)** | No mainnet use | **100% shielded** mainnet | Testnet only (2026) | [Not affected blog](https://piratechain.com/blog/pirate-chain-arrr-not-affected-by-critical-zcash-orchard-vulnerability/) |
+| **Hush3** | **Code removed** (v3.4+) | Enforced z2z | No | [git.hush.is](https://git.hush.is/hush/hush3) |
+| **Horizen (ZEN)** | Removed 2024 | Removed 2024 | No | [ZenIP-42207](https://github.com/HorizenOfficial/ZenIPs/blob/zenip_42207-draft/zenip_42207.md); pivot to Base L3 |
+| **Komodo (KMD)** | Consensus-disabled 2019; proof check removed 2024 | Assetchain-dependent | No | [2018 coordinated fix](https://komodoplatform.com/en/blog/komodo-eliminated-critical-vulnerability/) |
+| **Verus (VRSC)** | Via Komodo lineage | Privacy txs | No | Komodo-based |
+| **Ycash (YEC)** | **Preserved by design** (friendly fork) | Active | No | Last major release ~2022; **audit `fChecked` backport** |
+| **Firo** | N/A (Lelantus, not zcash pools) | N/A | N/A | Different stack |
+
+### A.1 Clone reactions (public chatter, Mar--Jun 2026)
+
+| Project | Sprout Mar 2026 | Orchard Jun 2026 |
+|---------|-----------------|------------------|
+| **Pirate** | No post found | **Formal blog**: not affected; Orchard testnet will include Zcash fix before mainnet |
+| **Hush** | Silence | Silence (structurally mitigated) |
+| **Horizen** | Silence | Silence (shielded removed 2024) |
+| **Komodo** | Silence | Silence (Sprout disabled at consensus) |
+| **Verus / Ycash / ZClassic** | No 2026 advisories | No 2026 advisories |
+| **Zero** | No public statement | No public statement |
+
+**Ecosystem themes:** Sprout sunset pressure and Scalar bounty; Orchard supply-audit debate and [Ironwood](https://tachyon.z.cash/blog/auditing-orchard-supply/) proposal; **disclosure gap vs 2018** (no documented fork outreach in 2026).
+
+### A.2 CVE posture summary
 
 | Project | Stack | Orchard | Sprout | 2026 Orchard CVE | 2026 Sprout CVE | Action |
 |---------|-------|---------|--------|------------------|-----------------|--------|
@@ -236,7 +277,18 @@ Single reference for clone research. Algorithm comparisons live in `ZKs/Comparis
 | **Other zcashd forks** | Varies | Usually none | Varies | Usually N/A | Audit Sprout path | Diff on security tags |
 | **Orchard assetchain (test)** | AC `-ac_orchard` | Test only | N/A | Track NU6.2-class fixes | N/A | External research only |
 
-### A.1 Orchard assetchain testnet (PIRATETST)
+### A.3 Suggested maintainer actions (Zero)
+
+| Priority | Action |
+|----------|--------|
+| **P0** | Document security posture (Sapling-only mainnet, no `fChecked`, ConnectBlock Strict path) -- this file + `ZERO_COIN.md` Security |
+| **P1** | Line-audit `ConnectBlock` / `CheckTransaction` JoinSplit loop against [db969c63](https://github.com/zcash/zcash/commit/db969c63f48f0f9fc518112ed0b7ace1af78b9d0) (confirm no other early-return skips strict verification on tip blocks) |
+| **P1** | Confirm no stale "20% founders" comments remain in coinbase checks (code uses **7.5%**; none found in `main.cpp` as of this merge) |
+| **P2** | If ever porting Orchard: follow Pirate model (testnet-only until Zcash-hardened circuit + NU-style fork) |
+| **P2** | Monitor [Zcash GitHub security advisories](https://github.com/zcash/zcash/security/advisories); forks are not on 2018-style private disclosure list |
+| **P3** | Consider Sprout deprecation alignment with ZIP-2003 direction (reduce JoinSplit attack surface) -- see Part 3 |
+
+### A.4 Orchard assetchain testnet (PIRATETST)
 
 Komodo-style assetchain flags -- not zcashd `-regtest`, not importable to Zero via `-nuparams`. Not grouped for Zero porting; Orchard study uses Zcash **`zebrad`** only.
 
@@ -257,6 +309,9 @@ Komodo-style assetchain flags -- not zcashd `-regtest`, not importable to Zero v
 | halo2_gadgets 0.5.0 | https://github.com/zcash/halo2/pull/888 |
 | Zebra halo2 docs | https://zebra.zfnd.org/internal/zebra_consensus/halo2/index.html |
 | Zero consensus (no Orchard) | `src/consensus/upgrades.cpp` |
+| Ironwood / Orchard supply audit | https://tachyon.z.cash/blog/auditing-orchard-supply/ |
+| Pirate Orchard posture | https://piratechain.com/blog/pirate-chain-arrr-not-affected-by-critical-zcash-orchard-vulnerability/ |
+| ZODL Sprout write-up | https://zodl.com/zcashd-sprout-verification-vulnerability/ |
 
 ---
 
