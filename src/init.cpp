@@ -672,6 +672,14 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
                 break; // This error is logged in OpenBlockFile
             LogPrintf("Reindexing block file blk%05u.dat...\n", (unsigned int)nFile);
             LoadExternalBlockFile(chainparams, file, &pos);
+            // Progress markers only -- startup does not yet resume from them.
+            pblocktree->WriteReindexLastFile(nFile);
+            {
+                LOCK(cs_main);
+                int nHeight = chainActive.Height();
+                pblocktree->WriteReindexLastBlock(nHeight);
+                LogPrintf("Reindex progress: lastfile=%d lastblock=%d\n", nFile, nHeight);
+            }
             nFile++;
         }
         pblocktree->WriteReindexing(false);
@@ -1307,7 +1315,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     }
     uiInterface.InitMessage(_("Initializing..."));
 
-    // Initialize Zcash circuit parameters
+    // Initialize Sapling/Sprout circuit parameters
     ZC_LoadParams(chainparams);
 
     if (mapArgs.count("-sporkkey")) // spork priv key

@@ -25,6 +25,7 @@ from test_framework.util import (
     stop_nodes,
     connect_nodes,
     wait_bitcoinds,
+    zero_regtest_subsidy,
 )
 
 from test_framework.script import (
@@ -104,37 +105,21 @@ class AddressIndexTest(BitcoinTestFramework):
         # only the oldest 5; subsequent are not yet mature
         unspent_txids = [u['txid'] for u in self.nodes[0].listunspent()]
 
-        # Currently our only unspents are coinbase transactions, choose any one
+        # Currently our only unspents are coinbase transactions, choose any one.
+        # Zero regtest: founders/fee coinbase vout is off until nFeeStartBlockHeight
+        # (5000), so below that height coinbases are single-output miner P2PKH
+        # (see ExtTests.md Finding A / §5). Do not assume Zcash's 2-vout shape.
         tx = self.nodes[0].getrawtransaction(unspent_txids[0], 1)
-
-        # It just so happens that the first output is the mining reward,
-        # which has type pay-to-public-key-hash, and the second output
-        # is the founders' reward, which has type pay-to-script-hash.
+        assert_equal(len(tx['vout']), 1)
         addr_p2pkh = tx['vout'][0]['scriptPubKey']['addresses'][0]
-        addr_p2sh = tx['vout'][1]['scriptPubKey']['addresses'][0]
 
-        # Check that balances from mining are correct (mature_tip blocks mined); in
-        # regtest, all mining rewards from a single call to generate() are sent
-        # to the same pair of addresses.
-        check_balance(1, addr_p2pkh, mature_tip * 10 * COIN)
-        check_balance(1, addr_p2sh, mature_tip * 2.5 * COIN)
-
-        # Multiple address arguments, results are the sum
-        check_balance(1, [addr_p2sh, addr_p2pkh], mature_tip * 12.5 * COIN)
-
+        # Mining balances: all miner coinbases to the same P2PKH (halving-aware)
+        check_balance(1, addr_p2pkh, int(zero_regtest_subsidy(mature_tip) * COIN))
         assert_equal(len(self.nodes[1].getaddresstxids(addr_p2pkh)), mature_tip)
-        assert_equal(len(self.nodes[1].getaddresstxids(addr_p2sh)), mature_tip)
 
         # only the oldest 5 transactions are in the unspent list,
         # dup addresses are ignored
         height_txids = getaddresstxids(1, [addr_p2pkh, addr_p2pkh], 1, 5)
-        assert_equal(sorted(height_txids), sorted(unspent_txids))
-
-        height_txids = getaddresstxids(1, [addr_p2sh], 1, 5)
-        assert_equal(sorted(height_txids), sorted(unspent_txids))
-
-        # each txid should appear only once
-        height_txids = getaddresstxids(1, [addr_p2pkh, addr_p2sh], 1, 5)
         assert_equal(sorted(height_txids), sorted(unspent_txids))
 
         # do some transfers, make sure balances are good
@@ -274,12 +259,11 @@ class AddressIndexTest(BitcoinTestFramework):
         height_txids = getaddresstxids(1, [addr1], 1, mature_tip + 3)
         assert_equal(height_txids, txids_a1[0:3])
 
-        # Further check specifying multiple addresses
+        # Further check specifying multiple addresses (miner P2PKH + transfer addr)
         txids_all = list(txids_a1)
         txids_all += self.nodes[1].getaddresstxids(addr_p2pkh)
-        txids_all += self.nodes[1].getaddresstxids(addr_p2sh)
         multitxids = self.nodes[1].getaddresstxids({
-            'addresses': [addr1, addr_p2sh, addr_p2pkh]
+            'addresses': [addr1, addr_p2pkh]
         })
         # No dups in return list from getaddresstxids
         assert_equal(len(multitxids), len(set(multitxids)))

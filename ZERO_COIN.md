@@ -186,7 +186,7 @@ Mainnet donation address (zerowallet repo): `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP
 
 ## Operational reference
 
-- **Default RPC port:** **23801** (see [README -- Running Zero](README.md#-running-zero), `contrib/zero.conf`).
+- **Default RPC port:** **23811** (P2P is **23801**; see [README -- Running Zero](README.md#-running-zero), `src/chainparamsbase.cpp`).
 - **Datadir / wallet:** see table below; wallet file **`wallet.zero`** -- **back up** before upgrades.
 - **Proving params:** `zcutil/fetch-params.sh`; see [BUILD_ZERO -- .zero directory](BUILD_ZERO.md#3-zero-directory).
 
