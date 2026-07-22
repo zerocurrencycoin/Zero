@@ -708,8 +708,10 @@ Two audiences (do not conflate):
 
 ### 13.1 Flags (including operational `-reindex`)
 
+**Doc split:** `DB_FLAG` keys, mismatch rules, and reindex-resume marker semantics live **only here**. Insight specialty docs (`InsightBlock.md`) cover host conf, CLI one-shots, and “do / don’t” -- not LevelDB key layout.
+
 ```text
-experimentalfeatures=1   # RPC gate for insight address RPCs
+experimentalfeatures=1   # RPC gate for insight address RPCs (NOT a DB_FLAG)
 insightexplorer=1        # address+spent+timestamp indexes in blocks/index/
 txindex=1                # txid -> file position (Zero default ON -- keep stable)
 # reindex -- OPERATIONAL, CLI only:  zerod -reindex
@@ -718,34 +720,102 @@ txindex=1                # txid -> file position (Zero default ON -- keep stable
 
 | Flag | Role | Toggle cost |
 |------|------|-------------|
-| `experimentalfeatures` | Unlock experimental RPCs | Restart only |
-| `insightexplorer` | Build insight LevelDB keys | **Reindex** on first enable/disable |
-| `txindex` | Full tx lookup | **Reindex** if conf ≠ `DB_FLAG` |
-| **`-reindex` / `reindex=`** | **Wipe + rebuild** block tree + chainstate from `blk*` | Operational procedure |
+| `experimentalfeatures` | Unlock experimental RPCs | Restart only (not persisted in `DB_FLAG`) |
+| `insightexplorer` | Build insight LevelDB keys | **Reindex** if conf ≠ stored `DB_FLAG` |
+| `txindex` | Full tx lookup | **Reindex** if conf ≠ stored `DB_FLAG` |
+| **`-reindex` (CLI)** | One-shot wipe + rebuild | This process only |
+| **`reindex=1` (conf)** | Same wipe every startup while present | **Footgun** -- see below |
 
-**Flag mismatch:** persisted `DB_FLAG` in `blocks/index/` vs conf. On mismatch Zero writes the new flag and sets `fReindex` (log `set … will reindex`). Leave insight/txindex stable after first good build.
+#### Why CLI `-reindex`, not `reindex=1` in conf
+
+Both set the same `GetBoolArg("-reindex")` / `fReindex` path. Prefer **CLI**:
+
+| | `zerod -reindex` | `reindex=1` in `zero.conf` |
+|--|------------------|----------------------------|
+| Lifetime | One process | Sticky until edited out |
+| After `Reindexing finished` | Next start is normal | **Wipes again** on every restart |
+| Intent | Explicit operator action | Easy to forget after first enable |
+| Automation | systemd `ExecStart` one-shot or manual | Conf drift across hosts |
+
+There is **no** good reason to prefer conf for a finished insight host. Conf is only accidentally useful as a “stuck on” hammer -- and that is exactly the leftover-wipe bug **OPS-REINDEX-CONF** should block (warn / refuse unless `-reindexforce`, or one-shot then ignore).
+
+#### `DB_FLAG` (persisted index mode)
+
+Stored in `blocks/index/` as LevelDB key `('F', name)` → `'1'` / `'0'` (`CBlockTreeDB::WriteFlag` / `ReadFlag` in `txdb.cpp`). Compared at startup in `init.cpp` **only when `fReindex` is not already set**.
+
+| `name` | Runtime source | Typical insight host |
+|--------|----------------|----------------------|
+| `txindex` | `fTxIndex` (Zero default **true**) | true |
+| `insightexplorer` | `-insightexplorer` / conf | true |
+| `zindex` | `-zindex` | false unless set |
+| `prunedblockfiles` | prune mode | false |
+| `archiverule` | archive setting | match runtime |
+
+**Not a `DB_FLAG`:** `experimentalfeatures` -- RPC gate only.
+
+#### `DB_FLAG` mismatch handling (today vs target)
+
+**Today (`init.cpp`):**
+
+1. `desired =` runtime (conf / hardcoded defaults).  
+2. `stored = ReadFlag(name)` (missing read → treat carefully; code path compares after read).  
+3. If `stored != desired`: **`WriteFlag(name, desired)` immediately**, log `set <name>, will reindex`, set `fReindex = true`.  
+4. Later open block-tree + chainstate with wipe → destroy indexes/UTXO set, set `'R'`, replay all `blk*.dat`.
+
+So mismatch always **updates the flag to match conf first**, then rebuilds so on-disk indexes match the new mode. Commenting `insightexplorer` off → desired false, stored true → wipe to a **non-insight** index. Turning it back on → another wipe to rebuild insight keys.
+
+**Target (OPS-REINDEX-CONF):** before step 3–4, **surface the diff** (name, stored, desired) and **do not wipe** unless `-reindexforce` (or equivalent confirm). Leftover conf `reindex=` with healthy tip and no `'R'` → refuse the same way. Insight ops docs stay: “leave flags stable; use CLI `-reindex` when you mean wipe.”
 
 **`txindex` default (history):** Bitcoin/Zcash-era default was **off** (`fTxIndex = false`). On **2020-11-19**, Cryptoforge **`require txindex on all full nodes`** (`f66a8a485` Zero; same-day `e17eeceb4` Pirate) forced **`fTxIndex = true`**, hid `-txindex` from help. **No extended commit rationale.** Zcash remains opt-in. **OPS-TXINDEX-DEFAULT (postponed):** whether reverting to ecosystem opt-in is safe/warranted after ~6 years of Zero+Pirate default-on; needs disk/ops evidence and client impact review -- not a drive-by flip.
 
 **`txindex` impact:** extra LevelDB keys on connect; enables arbitrary `getrawtransaction`. Keep **on** unless a documented disk-constrained validator policy says otherwise.
 
-### 13.2 `-reindex` procedure (ops; host detail in InsightBlock)
+### 13.2 `-reindex` procedure (ops; host checklists in InsightBlock)
 
 ```bash
-# Conf: insight flags set, NO reindex=
+# Conf: insight flags set and stable, NO reindex=
 zerod -reindex -daemon
+# Optional: -disablewallet on explorer / fat-wallet hosts
 # Wait for "Reindexing finished"; never add reindex= to conf
 ```
 
 | Event | Indexes/chainstate | Wallet |
 |-------|--------------------|--------|
-| `reindex=1` in conf + restart | **Wiped**, `blk00000` | Kept |
-| Interrupt mid-reindex | Markers **written** (`LASTFILE`/`LASTBLOCK`); **not consumed** yet -- restart still costly | Kept |
-| Clean finish | Markers left as last completed file/tip; normal tip sync for new blocks | Kept |
+| CLI `-reindex` (one start) | **Wiped**, rebuild from `blk*` | Kept |
+| `reindex=1` left in conf | Wipe **every** restart | Kept |
+| `DB_FLAG` mismatch (today) | Same wipe as `-reindex` | Kept |
+| Interrupt mid-reindex | `'R'` set; `L`/`H` progress markers written; **resume not consumed yet** | Kept |
+| Clean finish | `'R'` erased; `L`/`H` left as last completed file/tip | Kept |
 
-**OPS-REINDEX-CONF (todo, postponed):** warn or one-shot conf `reindex=`.
+**OPS-REINDEX-CONF (todo):** warn/refuse sticky conf `reindex=` and unforced `DB_FLAG` mismatch; require `-reindexforce` for intentional wipe.
 
-**Markers (write shipped, consume postponed):** After each `blk#####.dat` in `ThreadImport`, Zero writes **`DB_REINDEX_LASTFILE`** (file number) and **`DB_REINDEX_LASTBLOCK`** (tip height) into `blocks/index/`. Startup does **not** skip files from them yet. Do **not** clear at "Reindexing finished" -- a finished marker means "caught up to blocks present then," not forever. **OPS-REINDEX-RESUME** = design consume path (prefer height/hash semantics; Bitcoin [#35071](https://github.com/bitcoin/bitcoin/pull/35071)). Round-trip tests: `src/test/reindex_tests.cpp`.
+#### Progress markers and resume (OPS-REINDEX-RESUME)
+
+**Write path (shipped):** after each `blk#####.dat` in `ThreadImport`:
+
+| Key | Char | Value |
+|-----|------|--------|
+| `DB_REINDEX_FLAG` | `'R'` | Present while reindex in progress; erased at `Reindexing finished` |
+| `DB_REINDEX_LASTFILE` | `'L'` | Last **completed** blk file number |
+| `DB_REINDEX_LASTBLOCK` | `'H'` | `chainActive.Height()` after that file |
+
+Log: `Reindex progress: lastfile=… lastblock=…`. Tests: `src/test/reindex_tests.cpp`. Do **not** clear `L`/`H` at finish -- they mean “caught up to blocks present then,” not a permanent tip claim.
+
+**Consume path (todo):** on startup, if `'R'` is set, **continue** without wiping; skip files already covered. Prefer height/`H` semantics where safer (Bitcoin [#35071](https://github.com/bitcoin/bitcoin/pull/35071)-style).
+
+**`L` / `H` absent or out of range (resume must define):**
+
+| Condition | Safe response |
+|-----------|----------------|
+| `'R'` set, **`L` missing** | Treat as no file progress: resume from file **0** (or fail closed with clear error -- pick one policy and test). Do not invent a file number. |
+| `'R'` set, **`H` missing** | File-based resume from `L` only; do not assume height. |
+| **`L` < 0** or **`L` ≥** number of `blk*.dat` on disk | **Invalid:** log error; fall back to full replay from 0 **or** refuse start until operator clears `'R'` / runs `-reindexforce`. Never skip past EOF. |
+| **`H` < 0** or **`H` >** best header/block available after partial load | **Invalid:** ignore `H` for skip decisions; use `L` only, or full replay. |
+| **`H` vs `L` disagree** (height not reachable from last file) | Prefer **file cursor `L`** as authoritative for “which blk file next”; use `H` only as a sanity/log check. |
+| **`'R'` clear** but `L`/`H` present | Normal post-finish state -- **do not** resume; markers are historical. |
+| **No `'R'`**, operator passes `-reindex` | Intentional full wipe; rewrite markers as rebuild proceeds. |
+
+Until consume ships, any restart with `'R'` still restarts the import loop from the beginning (markers ignored) -- costly but consistent.
 
 #### 13.2.1 Skip wallet vs skip chain (postponed)
 
