@@ -33,9 +33,9 @@ static const char DB_BEST_SPROUT_ANCHOR = 'a';
 static const char DB_BEST_SAPLING_ANCHOR = 'z';
 static const char DB_FLAG = 'F';
 static const char DB_REINDEX_FLAG = 'R';
-/** Last blk#####.dat file number fully scanned during -reindex (write-only for now). */
+/** Last blk#####.dat file number fully scanned during -reindex. */
 static const char DB_REINDEX_LASTFILE = 'L';
-/** Tip height after that file scan -- LASTBLOCK marker (write-only for now). */
+/** Tip height after that file scan (sanity / telemetry; resume prefers LASTFILE). */
 static const char DB_REINDEX_LASTBLOCK = 'H';
 static const char DB_LAST_BLOCK = 'l';
 
@@ -236,6 +236,31 @@ bool CBlockTreeDB::WriteReindexLastBlock(int nHeight) {
 
 bool CBlockTreeDB::ReadReindexLastBlock(int &nHeight) {
     return Read(DB_REINDEX_LASTBLOCK, nHeight);
+}
+
+int ReindexResumeStartFile(int nLastCompleted, int nBlkFileCount, std::string* pReason)
+{
+    if (nBlkFileCount <= 0) {
+        if (pReason) *pReason = "no blk files on disk";
+        return 0;
+    }
+    if (nLastCompleted < 0) {
+        if (pReason) *pReason = "LASTFILE absent; starting at file 0";
+        return 0;
+    }
+    // Valid completed indices are 0 .. nBlkFileCount-1
+    if (nLastCompleted >= nBlkFileCount) {
+        if (pReason) *pReason = "LASTFILE out of range; starting at file 0";
+        return 0;
+    }
+    const int nStart = nLastCompleted + 1;
+    if (pReason) {
+        if (nStart >= nBlkFileCount)
+            *pReason = "LASTFILE was last blk file; nothing left to import";
+        else
+            *pReason = "resume after last completed file";
+    }
+    return nStart;
 }
 
 bool CBlockTreeDB::ReadLastBlockFile(int &nFile) {

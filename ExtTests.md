@@ -18,8 +18,10 @@ gate on.
 
 *(Relates to `UpdateZero.md` TST-04, TST-08, §2 Witness path, §3.3 CachedWitnesses, PIR-03. Investigation 2026-07-01.)*
 
+**Task hub (postponed):** **WitnessReindex.md** -- proposed **`reindex_shielded.py`** (B1), CleanIndex gtest (B2), witness hardening (C). Tracking: **TST-WITNESS-REINDEX**.
+
 Extends TST-04 with precise root cause and two concrete, separable proposals
-(B: harness/coverage; C: hardening). This is the authoritative record; TST-04's
+(B: harness/coverage; C: hardening). This section remains the RCA record; TST-04's
 one-line "seed `CCoinsViewCache`" summary is superseded here.
 
 ### Finding 1 -- not a regression, not a tier issue
@@ -59,7 +61,7 @@ coverage.
 
 ### Proposed solution B -- close the reindex coverage gap
 Two routes; the RPC route is preferred.
-- **B1 (preferred) -- shielded RPC reindex test.** Extend `qa/rpc-tests/reindex.py` (or add `reindex_shielded.py`) to: `z_sendmany` into a zaddr, mine to maturity, restart with `-reindex`, then assert the shielded balance is spendable and a subsequent `z_sendmany` succeeds (witnesses rebuilt with correct anchors). This exercises the **real** `BuildWitnessCache` + `pcoinsTip` + `ReadBlockFromDisk` path end-to-end with no harness faking. Lower effort, higher fidelity than B2. Slot into Tier B.
+- **B1 (preferred) -- shielded RPC reindex test (`reindex_shielded.py`).** Design and acceptance sketch: **WitnessReindex.md** §2. Extend `qa/rpc-tests/reindex.py` or add `reindex_shielded.py`: `z_sendmany` into a zaddr, mine to maturity, restart with `-reindex`, then assert the shielded balance is spendable and a subsequent `z_sendmany` succeeds (witnesses rebuilt with correct anchors). This exercises the **real** `BuildWitnessCache` + `pcoinsTip` + `ReadBlockFromDisk` path end-to-end with no harness faking. Lower effort, higher fidelity than B2. Slot into Tier B. **Not implemented yet; postponed under TST-WITNESS-REINDEX.**
 - **B2 (heavier) -- port the gtest.** Give the gtest harness (a) a `CCoinsViewCache`-backed `pcoinsTip` seeded with each block's Sprout/Sapling `(root -> tree)` anchors (extend the existing `SetBlockCommitmentTrees` helper), and (b) a disk-resolvable `ReadBlockFromDisk` -- either write blocks to a temp block store, or refactor `BuildWitnessCache` to accept an injectable block source. Medium-high effort; risk of cross-test global state leakage (must tear down `pcoinsTip` alongside the existing `mapBlockIndex` cleanup). Only pursue if in-process coverage is specifically wanted; otherwise B1 subsumes it. If completed, un-quarantine by removing the name from `GTEST_PASS_EXCLUDE`/`GTEST_FAIL_ONLY` in `qa/zcash/test_filters.sh`.
 
 ### Proposed solution C -- harden `GetSproutNoteWitnesses` / `GetSaplingNoteWitnesses` (crash-on-corrupt-cache)
@@ -176,9 +178,9 @@ Zero/Zcash-specific and integration-critical: the `z_*` shielded family,
 ### Finding A -- explorer/REST interfaces are quarantined AND were broken (highest-leverage gap)
 The tests that exercise what explorers and Insight-based wallets consume --
 `rest.py`, `addressindex.py`, `spentindex.py`, `timestampindex.py`,
-`getrawtransaction_insight.py` -- all sit in **`testScriptsTierBFailDebug`**
-(`qa/pull-tester/rpc-tests.sh`); none is in a pass tier, so `--all`
-(A + B-pass + E-pass) never gates on them. **Empirically verified 2026-07-02 --
+`getrawtransaction_insight.py` -- were in **`testScriptsTierBFailDebug`**
+(`qa/pull-tester/rpc-tests.sh`); none was in a pass tier, so `--all`
+(A + B-pass + E-pass) never gated on them. **Empirically verified 2026-07-02 --
 ran all five individually via `rpc-tests.sh <name>`; result: 0/5 pass.** This
 *corrects* an earlier assumption that the block was cache-only: the scripts
 self-provision insight
@@ -203,8 +205,8 @@ Edited the five scripts:
 
 #### Verification runs 2026-07-02 (after the fixes): 3/5 now pass, up from 0/5
 **PASS:** `timestampindex.py`, `getrawtransaction_insight.py`, `rest.py` (the last after the additional `rest.py` Py3 fixes documented below).
-**Still FAIL (as of 2026-07-02 analysis; fixed test-side 2026-07-21):**
-- **`spentindex.py` / `addressindex.py` -- Zero single-output regtest coinbase.** Scripts assumed Zcash 2-vout coinbase. **Decision: adapt tests to Zero settings** (maturity **720**, fee-start **5000** → founders off → **1-vout**; halving-aware miner balances). Edits applied and **verified PASS** 2026-07-21. Founders-index coverage stays under **EXT-INSIGHT-SUPERSET** (ExtTests §5). Next: promote from FailDebug tier.
+**Promoted 2026-07-22 (EXT-INSIGHT-FIXTURES):**
+- **`spentindex.py` / `addressindex.py` -- Zero single-output regtest coinbase.** Scripts assumed Zcash 2-vout coinbase. **Decision: adapt tests to Zero settings** (maturity **720**, fee-start **5000** → founders off → **1-vout**; halving-aware miner balances). Edits applied and **verified PASS** 2026-07-21; **re-PASS + moved to Tier B pass** 2026-07-22. Founders-index coverage stays under **EXT-INSIGHT-SUPERSET** (ExtTests §5).
 - **`rest.py` -- RESOLVED as two more Python-3 idiom bugs; the REST API is correct.** Investigated 2026-07-02. The `.bin` decode fix exposed later Py2 relics, fixed in turn:
   - **`rest.py:161` (getutxos bin hash).** Was `hex(deser_uint256(output))[2:].zfill(65).rstrip("L")`. `deser_uint256` returns the right integer, but a uint256 is **64** hex chars and `.zfill(65)` padded to **65**, so it could never equal the 64-char `getbestblockhash()`; `.rstrip("L")` is a Py2 long-suffix relic. Verified by simulation: `zfill(65)` never matches, `zfill(64)` matches exactly. Fixed to `.zfill(64)` (dropped `rstrip`). **Not** a byte-order or REST-payload issue.
   - **`rest.py:256,264` (block/header hex compare).** `response_str.encode("hex")` -- Py3 removed the `"hex"` codec from `str/bytes.encode`. `response_str`/`response_header_str` are raw block **bytes** (`.bin` endpoint); the `.hex` endpoint returns ASCII-hex bytes. Fixed with `binascii.hexlify(...)` (returns bytes, matches the hex endpoint). `binascii` already imported.
@@ -217,7 +219,7 @@ Not a cache/tier reshuffle alone.
 3. Resolve the `vin.valueSat` question -- confirmed a stale test expectation; asserted `valueZat` instead. **[done, no code change]**
 4. `rest.py` deeper failures -- resolved (two more Py3 idioms; see above). **[done]** `rest.py` passes.
 5. `spentindex`/`addressindex` -- adapt to Zero 1-vout regtest settings. **[done 2026-07-21; both PASS]**
-6. Promote greens from `testScriptsTierBFailDebug` to a pass group; acceptance under `./contrib/run-tests.sh --all --strict`.
+6. Promote greens from `testScriptsTierBFailDebug` to a pass group; acceptance under `./contrib/run-tests.sh --all --strict`. **[done 2026-07-22 for the five insight scripts -> Tier B pass]** Process lesson (verify ≠ promote): **TEST_ZERO.md** section **Process -> Tier engagement**.
 
 ### Finding B -- shielded (`z_*`) coverage is good; a few high-value holes remain
 `z_sendmany`, `z_shieldcoinbase`, `z_mergetoaddress`, `z_listunspent`,

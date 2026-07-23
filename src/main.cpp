@@ -5050,6 +5050,9 @@ bool static LoadBlockIndexDB()
     // Check whether we need to continue reindexing
     bool fReindexing = false;
     pblocktree->ReadReindexing(fReindexing);
+    if (fReindexing) {
+        LogPrintf("Reindex source: resume (DB_REINDEX_FLAG present)\n");
+    }
     fReindex |= fReindexing;
 
     // Check whether we have a transaction index

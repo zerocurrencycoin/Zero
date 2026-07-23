@@ -755,16 +755,25 @@ Stored in `blocks/index/` as LevelDB key `('F', name)` → `'1'` / `'0'` (`CBloc
 
 #### `DB_FLAG` mismatch handling (today vs target)
 
-**Today (`init.cpp`):**
+**Today (`init.cpp`) -- coupled steps:**
 
 1. `desired =` runtime (conf / hardcoded defaults).  
-2. `stored = ReadFlag(name)` (missing read → treat carefully; code path compares after read).  
-3. If `stored != desired`: **`WriteFlag(name, desired)` immediately**, log `set <name>, will reindex`, set `fReindex = true`.  
-4. Later open block-tree + chainstate with wipe → destroy indexes/UTXO set, set `'R'`, replay all `blk*.dat`.
+2. `stored = ReadFlag(name)`.  
+3. If `stored != desired`: **`WriteFlag(name, desired)` immediately**, log `Reindex source: DB_FLAG mismatch (...)`, set `fReindex = true`.  
+4. Open block-tree + chainstate **with wipe** → destroy indexes/UTXO set, set `'R'`, replay `blk*.dat` (resume uses `L`/`H` if an interrupted rebuild left `'R'` without wiping again).
 
 So mismatch always **updates the flag to match conf first**, then rebuilds so on-disk indexes match the new mode. Commenting `insightexplorer` off → desired false, stored true → wipe to a **non-insight** index. Turning it back on → another wipe to rebuild insight keys.
 
-**Target (OPS-REINDEX-CONF):** before step 3–4, **surface the diff** (name, stored, desired) and **do not wipe** unless `-reindexforce` (or equivalent confirm). Leftover conf `reindex=` with healthy tip and no `'R'` → refuse the same way. Insight ops docs stay: “leave flags stable; use CLI `-reindex` when you mean wipe.”
+**How to decouple (future OPS-REINDEX-CONF -- not in this change):** treat the steps as independent gates:
+
+| Step | Coupled today | Decoupled target |
+|------|---------------|------------------|
+| **Detect** | Same `if` as write+wipe | Compare only; log stored vs desired |
+| **Decide** | Always wipe | Require operator intent (`-reindexforce` or confirm); else **abort start** or keep old flags |
+| **Persist flag** | Write before wipe | Write only when wipe is accepted (or write-after-rebuild) |
+| **Wipe + rebuild** | Automatic | Only after decide=yes |
+
+Until decoupled, **leave insight/`txindex` flags stable** after a good build. Telemetry already names the mismatch source so logs show why a wipe started.
 
 **`txindex` default (history):** Bitcoin/Zcash-era default was **off** (`fTxIndex = false`). On **2020-11-19**, Cryptoforge **`require txindex on all full nodes`** (`f66a8a485` Zero; same-day `e17eeceb4` Pirate) forced **`fTxIndex = true`**, hid `-txindex` from help. **No extended commit rationale.** Zcash remains opt-in. **OPS-TXINDEX-DEFAULT (postponed):** whether reverting to ecosystem opt-in is safe/warranted after ~6 years of Zero+Pirate default-on; needs disk/ops evidence and client impact review -- not a drive-by flip.
 
@@ -787,11 +796,11 @@ zerod -reindex -daemon
 | Interrupt mid-reindex | `'R'` set; `L`/`H` progress markers written; **resume not consumed yet** | Kept |
 | Clean finish | `'R'` erased; `L`/`H` left as last completed file/tip | Kept |
 
-**OPS-REINDEX-CONF (todo):** warn/refuse sticky conf `reindex=` and unforced `DB_FLAG` mismatch; require `-reindexforce` for intentional wipe.
+**OPS-REINDEX-CONF:** sticky conf `reindex=` logs a **loud** `InitWarning` + `LogPrintf` (**shipped**); prefer one-shot CLI `-reindex` (typically `-disablewallet`). **Refuse** / `-reindexforce` for sticky conf and unforced `DB_FLAG` mismatch **postponed** (warn only for now).
 
 #### Progress markers and resume (OPS-REINDEX-RESUME)
 
-**Write path (shipped):** after each `blk#####.dat` in `ThreadImport`:
+**Write path:** after each `blk#####.dat` in `ThreadImport`:
 
 | Key | Char | Value |
 |-----|------|--------|
@@ -799,23 +808,22 @@ zerod -reindex -daemon
 | `DB_REINDEX_LASTFILE` | `'L'` | Last **completed** blk file number |
 | `DB_REINDEX_LASTBLOCK` | `'H'` | `chainActive.Height()` after that file |
 
-Log: `Reindex progress: lastfile=… lastblock=…`. Tests: `src/test/reindex_tests.cpp`. Do **not** clear `L`/`H` at finish -- they mean “caught up to blocks present then,” not a permanent tip claim.
+Log: `Reindex progress: lastfile=… lastblock=…`. Tests: `src/test/reindex_tests.cpp` (markers, `'R'`, `ReindexResumeStartFile`, DB_FLAG insight/txindex). Do **not** clear `L`/`H` at finish -- they mean “caught up to blocks present then,” not a permanent tip claim.
 
-**Consume path (todo):** on startup, if `'R'` is set, **continue** without wiping; skip files already covered. Prefer height/`H` semantics where safer (Bitcoin [#35071](https://github.com/bitcoin/bitcoin/pull/35071)-style).
+**Consume path (shipped):** on startup, if `'R'` is set (DBs not wiped), `ThreadImport` starts at `ReindexResumeStartFile(L, blk_count)` (= `L+1` when valid). Fresh `-reindex` / `DB_FLAG` wipe clears `blocks/index/`, so `L` is absent and import starts at file 0.
 
-**`L` / `H` absent or out of range (resume must define):**
+**Telemetry (shipped):** `Reindex source:` lines for `-reindex argument`, `DB_FLAG mismatch (...)`, `resume (DB_REINDEX_FLAG present)`, `legacy blk hardlink upgrade`. Conf `reindex=` logs a **Warning** preferring one-shot CLI `-reindex` (and typically `-disablewallet`); does not refuse yet (no `-reindexforce`).
 
-| Condition | Safe response |
-|-----------|----------------|
-| `'R'` set, **`L` missing** | Treat as no file progress: resume from file **0** (or fail closed with clear error -- pick one policy and test). Do not invent a file number. |
-| `'R'` set, **`H` missing** | File-based resume from `L` only; do not assume height. |
-| **`L` < 0** or **`L` ≥** number of `blk*.dat` on disk | **Invalid:** log error; fall back to full replay from 0 **or** refuse start until operator clears `'R'` / runs `-reindexforce`. Never skip past EOF. |
-| **`H` < 0** or **`H` >** best header/block available after partial load | **Invalid:** ignore `H` for skip decisions; use `L` only, or full replay. |
-| **`H` vs `L` disagree** (height not reachable from last file) | Prefer **file cursor `L`** as authoritative for “which blk file next”; use `H` only as a sanity/log check. |
-| **`'R'` clear** but `L`/`H` present | Normal post-finish state -- **do not** resume; markers are historical. |
-| **No `'R'`**, operator passes `-reindex` | Intentional full wipe; rewrite markers as rebuild proceeds. |
+**`L` / `H` absent or out of range:**
 
-Until consume ships, any restart with `'R'` still restarts the import loop from the beginning (markers ignored) -- costly but consistent.
+| Condition | Response |
+|-----------|----------|
+| `'R'` set, **`L` missing** | Start at file **0** |
+| `'R'` set, **`H` missing** | File-based resume from `L`; log tip when `H` present |
+| **`L` ≥** blk file count or **`L` < 0** | Start at **0** (out of range) |
+| **`H` vs tip disagree** | Log; continue from file cursor (`L`) |
+| **`'R'` clear** but `L`/`H` present | Historical only -- do not resume |
+| **No `'R'`**, operator passes `-reindex` | Wipe + full rebuild; markers rewritten as rebuild proceeds |
 
 #### 13.2.1 Skip wallet vs skip chain (postponed)
 
@@ -1053,6 +1061,8 @@ rsync -aH --delete "$SRC/chainstate/" "$DST/chainstate/"
 Start destination **without** `-reindex`. Verify `getblockchaininfo` / `gettxoutsetinfo` against source tip. No unsigned public snapshots for end users.
 
 **OPS-BOOTSTRAP-DOC (done):** this section + `contrib/linearize` README.
+
+**Height bounds / stop-at-height:** Zero has no `-stopatheight`. Lab short-snap, linearize `max_height`, ecosystem comparison, and postponed track **OPS-AT-HEIGHT** -- see **AtHeight.md**.
 ### 13.8 Founders designs A / B / Z
 
 **Status today (mainnet):** Coinbase founders output is **7.5%** of `GetBlockSubsidy` from **fee-start** through last founders height. Payee is selected by height from **`vFoundersRewardAddress`** (10 slots). Script path **`GetFoundersRewardScriptAtHeight`** requires a **P2SH** destination (`CScriptID`); mainnet entries are **2-of-3 multisig** P2SH (`t3...`). Rotation interval is roughly `lastFRHeight / N` blocks per slot (`GetFoundersRewardAddressAtHeight`). RPC surface: **`getblockchaininfo.developmentfee`**. Ops UTXO inventory: Insight scalars / **`getaddressutxos`** (see **OPS-DEV-UTXO** in **TODO.md**); do not load fat DevFee wallets into explorer nodes.

@@ -155,12 +155,14 @@ Regenerate human-review CSV:
 | Tier | Count | Notes |
 |------|-------|-------|
 | A | 10 | Contributor gate (**`-A`**, **`PYTHON_PASSING`**) |
-| B pass | 22 | 21 unique scripts; **`txn_doublespend`** runs twice |
+| B pass | 27 | 26 unique; **`txn_doublespend`** x2; includes five Insight scripts (2026-07-22) |
 | E pass | 2 | **`invalidateblock`**, **`maxblocksinflight`** |
-| **`-all`** | **34** | A + B + E pass invocations |
-| Bfail Debug | 31 | **`-Bfail`** first group |
+| **`-all`** | **39** | A + B + E pass invocations |
+| Bfail Debug | 26 | **`-Bfail`** first group (after Insight promote) |
 | Bfail Retired | 6 | Sprout / legacy |
 | Efail | 8 | Comptool / long-chain diagnostics |
+
+Counts follow **`rpc-tests.sh`** arrays; regenerate CSV after tier moves. See **Process -> Tier engagement** when a script is green but still listed under Fail*.
 
 **Validation runs:** see **Verification snapshot** at end of this file (updated after each harness change).
 
@@ -204,6 +206,29 @@ Failures in the Zero-specific cases usually mean **`chainparams.cpp`** / **`pow.
 ---
 
 ## Process
+
+### Tier engagement: verify is not promote (critique)
+
+**Symptom (2026-07):** Five Insight RPC scripts (`addressindex`, `spentindex`, `timestampindex`, `rest`, `getrawtransaction_insight`) were adapted and documented **PASS** in **ExtTests.md**, yet remained in **`testScriptsTierBFailDebug`**. Default **`--strict`** / **`--all`** never ran them, so the gate looked healthy while explorer-critical coverage stayed optional. Re-run 2026-07-22 confirmed exit **0**; they were then moved to **Tier B pass** (**EXT-INSIGHT-FIXTURES**).
+
+**Root cause (process, not harness bug):**
+
+| Design | Effect |
+|--------|--------|
+| Pass tiers only in **`--strict`** / **`--all`** | Bfail / Efail / filtered GTest are invisible to the contributor gate by intent |
+| **Bfail Debug** = "needs engineering" bin | Easy to leave a script there after it turns green |
+| Docs / TODO say "PASS; next: promote" | Verification and array edits are separate steps; the second often slips |
+
+This is not a different test runner and not "tests that cannot run." Individual `rpc-tests.sh <basename>` always works. The failure mode is **documented green + still FailDebug**.
+
+**Rules going forward:**
+
+1. **Same session as a verified PASS:** edit `qa/pull-tester/rpc-tests.sh` (remove from Fail* array, add to the matching pass array). Update tier-count comments and this file's inventory notes. Regenerating **`-list-csv`** is optional but useful.
+2. **If not promoting yet:** write an explicit hold reason in the FailDebug list comment or ExtTests/TODO (e.g. "green but founders coverage incomplete -- SUPERSET"). "Next: promote" without a blocker is insufficient.
+3. **Periodic check:** run FailDebug scripts that are suspected fixed; or scan for exit **0** while still listed under Bfail. Suggested one-liner inventory: `./qa/pull-tester/rpc-tests.sh -list-csv` then sample basenames under `Bfail,debug`.
+4. **GTest quarantine** (`test_filters.sh`) is the same class: a ported/passing case must leave **`GTEST_PASS_EXCLUDE`** in the same change set, or stay documented under a postponed hub (e.g. **WitnessReindex.md** / **TST-WITNESS-REINDEX** for CleanIndex).
+
+**Do not** treat Bfail as a parking lot for finished work. Diagnostic tiers exist so known-broken tests do not fake a green **`-B`**; they are not a substitute for engagement once fixed.
 
 ### Release candidate: validation and merge to `master`
 
