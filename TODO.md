@@ -8,13 +8,13 @@ Status and tracked work items for the Zero node.
 
 1. **OPS-DEV-UTXO** -- Dev/founders transparent UTXO inventory without fat wallet load. **Balances done** via public Insight scalars (`~/Work/ZK/0/E/DevFeeWallets/data/founders_utxo_summary.json`, ~379682 ZER across slots 1–3). **Full UTXO lists blocked:** public `/addrs/{addr}/utxo` returns **413** on active slots; local Mac `zerod` was down. Finish with `getaddressutxos` on an insight-enabled node (`-insightexplorer`, prefer `-disablewallet`).
 2. **WAL-WTXORDERED** (+ Assure-4) -- incremental `wtxOrdered`; primary wallet CPU fix. Orthogonal to **`txindex`** / insight (different store; see **ZeroStruct** §13.4.2). Measure via microbench / ZeroPerf retarget, not full insight reindex. Alternate only: **WAL-PIRATE-TIMESMART**.
-3. **EXT-INSIGHT-FIXTURES** -- promote adapted addressindex/spentindex scripts out of FailDebug.
-4. **OPS-REINDEX-CONF** -- refuse sticky `reindex=` and unforced `DB_FLAG` mismatch unless `-reindexforce`; prefer CLI `-reindex`. Detail **ZeroStruct** §13.1.
-5. **OPS-REINDEX-RESUME** -- consume `L`/`H` with absent/out-of-range rules (**ZeroStruct** §13.2); then **OPS-REINDEX-SKIP** wallet.
+3. **EXT-INSIGHT-FIXTURES** -- **promoted 2026-07-22** (`addressindex` / `spentindex` / `timestampindex` / `rest` / `getrawtransaction_insight` -> Tier B pass after re-PASS). Founders coverage remains **EXT-INSIGHT-SUPERSET**.
+4. **OPS-REINDEX-CONF** -- sticky conf `reindex=` **loud warn shipped** (`InitWarning` + log; prefer CLI `-reindex` / `-disablewallet`); **refuse / `-reindexforce` postponed** (warn only for now). Detail **ZeroStruct** §13.1.
+5. **OPS-REINDEX-RESUME** -- **shipped** (consume `L`/`H`, telemetry). **OPS-REINDEX-SKIP** wallet still postponed.
 6. **OPS-PIRATE-DB** -- evaluate `max_open_files` 64→256 after FD evidence (**ZeroStruct** §13.3).
 7. Consensus integer math -- replace `double`/`COIN` mixes in subsidy and founders paths.
 8. **TST-01** / **TST-09** / **TST-03** -- RPC and shell-notify harness gaps (as listed under Active).
-9. **WAL-LOCKEDPOOL** / **OPS-CACHE-METRICS** / **OPS-TXINDEX-DEFAULT** -- postponed perf/ops polish.
+9. **WAL-LOCKEDPOOL** / **OPS-CACHE-METRICS** / **OPS-TXINDEX-DEFAULT** / **OPS-AT-HEIGHT** / **TST-WITNESS-REINDEX** -- postponed (height: **AtHeight.md**; shielded reindex: **WitnessReindex.md**).
 10. **FR-ROTATE / FR-TADDR / FR-Z** -- product/consensus; explain **ZeroStruct** §13.8. Not scheduled.
 11. **WAL-RPC-ACCOUNTS** -- business decision + code-risk analysis; independent of WAL-WTXORDERED and of founders type.
 12. Release / docs track -- README merge, signing, macOS notarization, Linux RC, supply review, etc. (Active list).
@@ -37,25 +37,28 @@ Status and tracked work items for the Zero node.
 - WAL-RPC-ACCOUNTS -- postponed; business decision whether to drop obsolete account RPCs **plus separate code-risk analysis** (BDB acentry, callers, help) -- **ZeroStruct** §13.4.2. Independent of WAL-WTXORDERED.
 - WAL-PIRATE-TIMESMART -- postponed track; Pirate skips `OrderedTxItems` on insert by setting both times to blocktime (**ZeroStruct** §13.4.2).
 - WAL-LOCKEDPOOL -- postponed; port LockedPool + optional `getmemoryinfo`; Zero has only `GetLockedPageCount()` (**ZeroStruct** §4.3.2a).
-- OPS-REINDEX-MARKERS -- **write shipped** (`LASTFILE` + `LASTBLOCK` after each blk file); consume postponed (**OPS-REINDEX-RESUME**).
+- OPS-REINDEX-MARKERS -- **write shipped** (`LASTFILE` + `LASTBLOCK` after each blk file); **consume shipped** (**OPS-REINDEX-RESUME**).
+- OPS-REINDEX-RESUME -- **done** (start at `L+1` when valid; absent/OOR → file 0; telemetry). See **ZeroStruct** §13.2.
 - OPS-DEV-UTXO -- balances via Insight scalars written; full UTXO dump needs local `getaddressutxos` (public Insight 413 on slots 1–3). See Ordered next #1.
 - ~~OPS-CACHE~~ -- **done** (Linux VPS status + measured split: **ZeroStruct** §4.3.1–4.3.2). Tunable 75% / hit-miss = **OPS-CACHE-METRICS** (postponed).
 - ~~OPS-BOOTSTRAP-DOC~~ -- **done** (**ZeroStruct** §13.7).
 - macOS datadir: zerowallet400 should use **`Application Support/zero/`** (match **`GetDefaultDataDir`**); wallet currently uses **`Zero/`** (**ZeroStruct.md** **INT-01**).
-- GTest fixes done 2026-06-09: **`CachedWitnesses*`** ported (harness merkle/commitment roots; Zero decrement semantics) except **`CleanIndex`** (needs coins-view harness); **`WriteCryptedSaplingZkey*`** / **`rpc_wallet_encrypted_wallet_sapzkeys`** encrypt-hang class fixed (wallet-DB re-entry deadlock in `AddCryptedSaplingSpendingKey`) -- back in default gate
+- GTest fixes done 2026-06-09: **`CachedWitnesses*`** ported (harness merkle/commitment roots; Zero decrement semantics) except **`CleanIndex`** -- postponed under **TST-WITNESS-REINDEX** / **WitnessReindex.md** (prefer `reindex_shielded.py`); **`WriteCryptedSaplingZkey*`** / **`rpc_wallet_encrypted_wallet_sapzkeys`** encrypt-hang class fixed -- back in default gate
 - Equihash (192,7) test vectors
 - Fuzz harness setup
 
 ## Pending
 
-- OPS-REINDEX-CONF -- postponed; refuse sticky conf `reindex=` and unforced `DB_FLAG` mismatch unless `-reindexforce`; prefer CLI `-reindex` (**ZeroStruct** §13.1).
-- OPS-REINDEX-RESUME -- postponed; consume `L`/`H` with absent/out-of-range rules (write path shipped) (**ZeroStruct** §13.2).
+- OPS-REINDEX-CONF -- **loud warn shipped** (`InitWarning`); refuse / `-reindexforce` **postponed** (no incompatible refuse yet) (**ZeroStruct** §13.1).
+- ~~OPS-REINDEX-RESUME~~ -- **done**; consume `L`/`H` with absent/out-of-range rules (**ZeroStruct** §13.2).
 - OPS-REINDEX-SKIP -- postponed; skip-wallet below H only (not skip-chain).
+- TST-WITNESS-REINDEX -- postponed; hub **WitnessReindex.md** (proposed `reindex_shielded.py`, CleanIndex gtest B2, witness assert hardening C). RCA: **ExtTests.md** §1.
 - OPS-PIRATE-DB -- postponed; evaluate LevelDB knobs; consider raising hardcoded `max_open_files` **64 → 256** (not necessarily Pirate's 1000) after FD/`lsof` evidence -- thrashing ≠ leak (**ZeroStruct** §13.3).
 - OPS-CACHE-METRICS -- postponed; tunable 75% insight split + optional hit/miss.
 - OPS-TXINDEX-DEFAULT -- postponed; see Active note / ZeroStruct §13.1.
-- EXT-INSIGHT-FIXTURES -- scripts adapted to Zero settings (1-vout, maturity 720, halving-aware balances); verify/promote remaining. FR / fee-start=1000 = **EXT-INSIGHT-SUPERSET**.
-- EXT-INSIGHT-SUPERSET -- postponed; ExtTests §5.
+- OPS-AT-HEIGHT -- postponed; height-bounded reindex/bootstrap findings in **AtHeight.md** (no `-stopatheight` in Zero; short snap + linearize `max_height`; ecosystem note). Implementation (daemon stop-at-height or further tooling) not scheduled.
+- ~~EXT-INSIGHT-FIXTURES~~ -- **done 2026-07-22**; five insight RPC scripts in Tier B pass (`rpc-tests.sh`).
+- EXT-INSIGHT-SUPERSET -- postponed; ExtTests §5 (founders / fee-start index coverage).
 - FR-ROTATE / FR-TADDR / FR-Z -- postponed; detail **ZeroStruct** §13.8.
 - **v4.0.1 Linux RC (lazu / `ZeroLinux`):** macOS **`--strict`** PASS 2026-06-09. Linux rebuild + validation **strongly recommended** before tag/merge; **`--strict` is not an automatic release block** -- maintainer decides. See **TEST_ZERO.md** section **4.0.1 handoff** and **BUILD_ZERO.md** section **2.2a**.
   1. Reclaim disk on lazu (**~4 GB** free on **`/`** is tight; need several GB for depends + objects).

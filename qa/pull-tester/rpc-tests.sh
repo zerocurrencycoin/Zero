@@ -128,9 +128,10 @@ testScriptsTierA=(
     'p2p_nu_peer_management.py'
 )
 
-# Tier counts (pass tiers): A=10, B pass=22 (21 unique; txn_doublespend x2), E pass=2; -all runs 34.
-# Bfail: Debug=32, Retired=6; -rpcfail runs Bfail+Efail diagnostic tiers.
+# Tier counts (pass tiers): A=10, B pass=27 (26 unique; txn_doublespend x2), E pass=2; -all runs 39.
+# Bfail: Debug=26, Retired=6; -rpcfail runs Bfail+Efail diagnostic tiers.
 # Tier B pass: in testScripts but not Tier A.
+# 2026-07-22: promoted insight suite (addressindex/spentindex/timestampindex/rest/getrawtransaction_insight) from Bfail Debug after PASS.
 testScriptsTierBPass=(
     'wallet_anchorfork.py'
     'wallet_changeindicator.py'
@@ -154,10 +155,15 @@ testScriptsTierBPass=(
     'p2p_txexpiry_dos.py'
     'p2p_txexpiringsoon.py'
     'p2p_node_bloom.py'
+    'getrawtransaction_insight.py'
+    'rest.py'
+    'addressindex.py'
+    'spentindex.py'
+    'timestampindex.py'
 )
 
 # Tier B fail: known broken; diagnostic only (-Bfail). Subgroups for triage (still one -Bfail run).
-#   BfailDebug: porting / maturity / insight / comptool / Py3 -- needs engineering
+#   BfailDebug: porting / maturity / comptool / Py3 -- needs engineering
 #   BfailRetired: Sprout-era, manual testnet, merge-to-address sprout -- low priority
 testScriptsTierBFailDebug=(
     'shorter_block_times.py'
@@ -173,8 +179,6 @@ testScriptsTierBFailDebug=(
     'mergetoaddress_sapling.py'
     'mergetoaddress_mixednotes.py'
     'rawtransactions.py'
-    'getrawtransaction_insight.py'
-    'rest.py'
     'mempool_limit.py'
     'mempool_reorg.py'
     'mempool_nu_activation.py'
@@ -184,9 +188,6 @@ testScriptsTierBFailDebug=(
     'signrawtransaction_offline.py'
     'walletbackup.py'
     'key_import_export.py'
-    'addressindex.py'
-    'spentindex.py'
-    'timestampindex.py'
     'bip65-cltv-p2p.py'
     'bipdersig-p2p.py'
     'regtest_signrawtransaction.py'
@@ -224,7 +225,7 @@ testScriptsExtFail=(
 )
 
 # Invocation tiers (documented in TEST_ZERO.md; inventory: -list-csv):
-#   Pass: A=10, B=22, E=2 (-all = 34). Bfail: Debug=31, Retired=6. Efail=8.
+#   Pass: A=10, B=27, E=2 (-all = 39). Bfail: Debug=26, Retired=6. Efail=8.
 #   -A | --tier-a       Tier A gate
 #   -B | --tier-b       Tier B pass only
 #   -Bfail              Tier B fail only (Debug then Retired; diagnostic)
