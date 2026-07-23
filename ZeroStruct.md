@@ -215,7 +215,21 @@ With insight on **800 MiB**, most cache serves the block tree but chainstate and
 
 **Runtime justification:** trust the startup `Cache configuration:` lines and tip `cache=N MiB(Mtx)` more than aspirational tables. If in-memory UTXO `cache=` stays well below the allocated UTXO slice while RSS is high, the bottleneck is elsewhere (wallet, mmap, OS page cache) -- raising `dbcache` further will not help.
 
-**75% split:** inherited Bitpay/zcashd when address indexes share `blocks/index/`. Not tunable without a code change. Changing `-dbcache` alone does **not** require reindex. Hit/miss counters are not implemented (Bitcoin-era lineage reports usage only); optional metrics remain deferred under **OPS-CACHE-METRICS**.
+**75% split (code reference):** inherited Bitpay/zcashd when address indexes share `blocks/index/`. Allocation in `src/init.cpp`:
+
+```
+nBlockTreeDBCache = nTotalCache / 8;                 // default
+if (GetBoolArg("-insightexplorer", false))
+    nBlockTreeDBCache = nTotalCache * 3 / 4;         // 75%
+```
+
+(~1584–1594). Not tunable without a code change. Changing `-dbcache` alone does **not** require reindex. Hit/miss counters are not implemented; optional metrics / tunable split remain deferred under **OPS-CACHE-METRICS**.
+
+**Operator approach (no code change yet):**
+
+1. Raise **`-dbcache`** when insight is on so the remaining 25% (chainstate + UTXO) stays usable (see table above: e.g. **2048** on 8 GiB insight host).
+2. Prefer **dual-phase** sync on constrained hosts: IBD / reindex with insight **off** (or `-disablewallet`), then enable insight + **`-reindex`** (or index rebuild) with a large `dbcache`.
+3. Do **not** treat the 75% constant as a bug by itself -- it matches Pirate/Bitcore intent; measure tip `cache=` and address-RPC latency before changing the ratio.
 
 **`-reindex`:** operational only -- **section 13** and Insight ops docs. Not a build setting.
 
@@ -538,7 +552,7 @@ No Zcash mainnet equivalent; ported from TENT masternode layer. Operator workflo
 
 ## 10. Regtest and tests
 
-Harness tiers, **`contrib/run-tests.sh --all`** matrix (**34** invocations), insight script flags, regtest maturity **720**, and REST Bfail status: **`TEST_ZERO.md`**.
+Harness tiers, **`contrib/run-tests.sh --all`** / `rpc-tests.sh -all` (**40** pass-tier invocations), insight script flags (five Insight + `rest` / `walletbackup` = **B pass**; pure `txindex.py` = **Bfail Debug**), regtest maturity **720**: **`TEST_ZERO.md`**. Resume/short-snap ops: **AtHeight.md** §4.1.
 
 ---
 
@@ -812,6 +826,8 @@ Log: `Reindex progress: lastfile=… lastblock=…`. Tests: `src/test/reindex_te
 
 **Consume path (shipped):** on startup, if `'R'` is set (DBs not wiped), `ThreadImport` starts at `ReindexResumeStartFile(L, blk_count)` (= `L+1` when valid). Fresh `-reindex` / `DB_FLAG` wipe clears `blocks/index/`, so `L` is absent and import starts at file 0.
 
+**Ops recipe (short/tiny snaps + resume interrupt):** step-by-step in **AtHeight.md** §4.1.
+
 **Telemetry (shipped):** `Reindex source:` lines for `-reindex argument`, `DB_FLAG mismatch (...)`, `resume (DB_REINDEX_FLAG present)`, `legacy blk hardlink upgrade`. Conf `reindex=` logs a **Warning** preferring one-shot CLI `-reindex` (and typically `-disablewallet`); does not refuse yet (no `-reindexforce`).
 
 **`L` / `H` absent or out of range:**
@@ -843,7 +859,7 @@ Compare **Pirate-specific** knobs here; ecosystem-wide index/txindex tables live
 | Index enable | Separate `-addressindex` / `-spentindex` / `-timestampindex` | Bundled `-insightexplorer` (+ experimental gate) | Flag surface differs; both fill `blocks/index/` keys |
 | Cache bump | **75%** of `-dbcache` if address **or** spent on | **75%** if insight on | Same Bitpay-style idea |
 | `-txindex` | Forced on (Cryptoforge 2020) | Forced on (same-day Zero) | See **OPS-TXINDEX-DEFAULT** |
-| **DB-knobs** | `-dbmaxopenfiles` (default **1000**), `-dbcompression` (default **true**) | Hardcoded in [`src/dbwrapper.cpp`](src/dbwrapper.cpp): `max_open_files = 64`, `compression = kNoCompression` | Applied on Pirate to **`CBlockTreeDB` only** (not chainstate); see below |
+| **DB-knobs** | `-dbmaxopenfiles` (default **1000**), `-dbcompression` (default **true**) | Hardcoded in [`src/dbwrapper.cpp`](src/dbwrapper.cpp): `max_open_files = 256` (was 64), `compression = kNoCompression` | Pirate knobs apply to **`CBlockTreeDB` only**; Zero bump is all `CDBWrapper` DBs |
 | Wallet `nTimeSmart` | Pirate: `= blocktime` ([`5f0cab6ba`](https://github.com/PirateNetwork/pirate/commit/5f0cab6bad6e61bcc751c4c44dd98c1f3a286709), Cryptoforge, 2021-11-17) | Full `OrderedTxItems` rebuild | Wallet CPU; not a DB option -- **13.4.1** |
 
 #### What the DB-knobs regulate
@@ -852,7 +868,7 @@ Both map to LevelDB `Options` on the **block-tree** DB (`blocks/index/`), wired 
 
 | Knob | LevelDB field | Effect |
 |------|---------------|--------|
-| `-dbmaxopenfiles` | `options.max_open_files` | Cap on SST / table files kept open (FDs). Higher reduces open/close churn on a **large** `blocks/index/` (insight/addressindex). Too high pressures `ulimit -n`. Bitcoin-era default in wrappers is often **64**; Pirate default **1000**. |
+| `-dbmaxopenfiles` | `options.max_open_files` | Cap on SST / table files kept open (FDs). Higher reduces open/close churn on a **large** `blocks/index/` (insight/addressindex). Too high pressures `ulimit -n`. Bitcoin-era wrapper default was **64**; Zero now **256** (all `CDBWrapper` DBs, 2026-07); Pirate default **1000** on block-tree only. |
 | `-dbcompression` | `options.compression` | **true** → Snappy (`kSnappyCompression`); **false** → `kNoCompression`. Compresses on-disk blocks: less disk / more CPU on read-write. |
 
 They do **not** change which indexes exist, the 75% `dbcache` split, or in-memory UTXO size.
@@ -870,10 +886,24 @@ They do **not** change which indexes exist, the 75% `dbcache` split, or in-memor
 | Lens | Reading |
 |------|---------|
 | **Complementary to insight** | Yes in intent: Bitcore-era large address indexes stress LevelDB FD count and disk; knobs tune that store. Same problem class as Zero `blocks/index/` under `-insightexplorer`. |
-| **Useful for Zero today** | **Unproven.** Zero hardcodes 64 / no compression. A multi-GB insight index **may** benefit from higher `max_open_files`; compression is a CPU/disk tradeoff. Need measure: FD use (`lsof`/`ls /proc/$pid/fd`), `iostat`, address-RPC latency, before/after on an explorer host. |
-| **64 → 256 (modest bump)** | Reasonable experiment if insight hosts show many `open`/`close` on SST files. Pirate's **1000** is not required to start. Still needs adequate `ulimit -n`. |
+| **Useful for Zero today** | **Partial.** `max_open_files=256` shipped; compression still off. Re-measure FD use (`lsof` / lab `fd_count`), `iostat`, address-RPC latency on insight hosts before raising further. |
+| **64 → 256 (modest bump)** | **Shipped 2026-07** in [`dbwrapper.cpp`](src/dbwrapper.cpp) (all LevelDB wrappers). Pirate's **1000** and `-dbcompression` still optional follow-ups. Needs adequate `ulimit -n`. |
 | **Leak?** | LevelDB **reuses** FDs within `max_open_files`; a low cap causes **thrashing** (open/close cost), not an FD leak. True leaks (unclosed sockets, ZMQ, peers) are a different class -- diagnose with `lsof` growth over time while idle. |
-| **Decision** | **OPS-PIRATE-DB remains postponed** -- research recorded; no port until measurements say the hardcoded 64/no-compress path is the bottleneck. |
+| **Decision** | **OPS-PIRATE-DB done:** `max_open_files` **256 shipped**; compression / per-DB Pirate knobs / 1000 still **optional** after measure. |
+
+### 13.3a Performance lab tree (decided)
+
+**Decision (2026-07-22):** Keep **ZeroPerf** (`~/Work/ZK/ZeroPerf`, branch `perf-401`, hub `Perf.md`) as a **separate** experiment tree from canonical **Zero400**.
+
+| Keep in ZeroPerf | Land in Zero400 only after |
+|------------------|----------------------------|
+| Groth16 batch experiments (hand-port vs `sapling-crypto` BatchValidator -- still open) | Linux + Windows A/B shows a real tip throughput win |
+| FD-cache / root-latch probes (correct; no measured macOS SSD win) | Same evidence bar |
+| Blake2/NEON and other coding candidates | Measure on Zero400 tip, not only mid-chain lab |
+
+**Ops reuse (not a merge):** reindex resume, short snaps, rich monitors developed under Zero400 labs may be copied into the perf lab when needed; they are not a reason to flatten the trees.
+
+Canonical node work, consensus, and release gates stay in **Zero400**.
 
 ### 13.4 `mapWallet` vs address index
 
@@ -1005,11 +1035,13 @@ Prefer **`-disablewallet`** on explorer hosts; dedicated datadir (desktop wallet
 
 ### 13.6 UTXO discovery
 
-1. Explorer node RPCs / SSH.
-2. Public Insight HTTPS (CF → nginx → Node) -- expected public API; **not** public **zerod RPC**.
+1. Explorer node RPCs / SSH (`getaddressutxos` with `-insightexplorer`; prefer `-disablewallet`).
+2. Public Insight HTTPS (CF -> nginx -> Node) -- expected public API; **not** public **zerod RPC**. Large `/addrs/.../utxo` may **413**; use local RPC for full dumps.
 3. Slim wallet + `importprivkey … false`.
 4. Height walk + `gettxout`.
 5. REST `/rest/getutxos`.
+
+Founders slots 1–3 full lists extracted 2026-07-22 via (1); see **TODO** Completed **OPS-DEV-UTXO**.
 
 ### 13.7 Bootstrap and state snapshots -- generate / install
 
@@ -1065,7 +1097,7 @@ Start destination **without** `-reindex`. Verify `getblockchaininfo` / `gettxout
 **Height bounds / stop-at-height:** Zero has no `-stopatheight`. Lab short-snap, linearize `max_height`, ecosystem comparison, and postponed track **OPS-AT-HEIGHT** -- see **AtHeight.md**.
 ### 13.8 Founders designs A / B / Z
 
-**Status today (mainnet):** Coinbase founders output is **7.5%** of `GetBlockSubsidy` from **fee-start** through last founders height. Payee is selected by height from **`vFoundersRewardAddress`** (10 slots). Script path **`GetFoundersRewardScriptAtHeight`** requires a **P2SH** destination (`CScriptID`); mainnet entries are **2-of-3 multisig** P2SH (`t3...`). Rotation interval is roughly `lastFRHeight / N` blocks per slot (`GetFoundersRewardAddressAtHeight`). RPC surface: **`getblockchaininfo.developmentfee`**. Ops UTXO inventory: Insight scalars / **`getaddressutxos`** (see **OPS-DEV-UTXO** in **TODO.md**); do not load fat DevFee wallets into explorer nodes.
+**Status today (mainnet):** Coinbase founders output is **7.5%** of `GetBlockSubsidy` from **fee-start** through last founders height. Payee is selected by height from **`vFoundersRewardAddress`** (10 slots). Script path **`GetFoundersRewardScriptAtHeight`** requires a **P2SH** destination (`CScriptID`); mainnet entries are **2-of-3 multisig** P2SH (`t3...`). Rotation interval is roughly `lastFRHeight / N` blocks per slot (`GetFoundersRewardAddressAtHeight`). RPC surface today: **`zeronodestats.chainStats.developmentfee`**; mining RPCs use **founders** / **foundersreward** (see **DOC-FR-NAMING**). Ops UTXO inventory (**OPS-DEV-UTXO done**): local `getaddressutxos` TSVs under `~/Work/ZK/0/E/DevFeeWallets/data/founders_utxo_0{1,2,3}.tsv`; do not load fat DevFee wallets into explorer nodes.
 
 Changing **updates** (how often / which slot receives) vs **type** (what script/key scheme is paid) are separate consensus decisions:
 

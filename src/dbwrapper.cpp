@@ -21,7 +21,11 @@ static leveldb::Options GetOptions(size_t nCacheSize)
     options.write_buffer_size = nCacheSize / 4; // up to two write buffers may be held in memory simultaneously
     options.filter_policy = leveldb::NewBloomFilterPolicy(10);
     options.compression = leveldb::kNoCompression;
-    options.max_open_files = 64;
+    // Modest bump from Bitcoin-era 64 (OPS-PIRATE-DB). Large insight/txindex
+    // blocks/index SST sets thrash open/close at 64; Pirate defaults 1000 on
+    // the block-tree DB only. 256 is a conservative shared default for all
+    // CDBWrapper DBs; still requires adequate process ulimit -n.
+    options.max_open_files = 256;
     if (leveldb::kMajorVersion > 1 || (leveldb::kMajorVersion == 1 && leveldb::kMinorVersion >= 16)) {
         // LevelDB versions before 1.16 consider short writes to be corruption. Only trigger error
         // on corruption in later versions.

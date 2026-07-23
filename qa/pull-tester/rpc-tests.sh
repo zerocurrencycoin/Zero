@@ -65,6 +65,7 @@ testScripts=(
     'addressindex.py'
     'spentindex.py'
     'timestampindex.py'
+    'txindex.py'
     'decodescript.py'
     'keypool.py'
     'blockchain.py'
@@ -128,10 +129,12 @@ testScriptsTierA=(
     'p2p_nu_peer_management.py'
 )
 
-# Tier counts (pass tiers): A=10, B pass=27 (26 unique; txn_doublespend x2), E pass=2; -all runs 39.
+# Tier counts (pass tiers): A=10, B pass=28 (27 unique; txn_doublespend x2), E pass=2; -all runs 40.
 # Bfail: Debug=26, Retired=6; -rpcfail runs Bfail+Efail diagnostic tiers.
 # Tier B pass: in testScripts but not Tier A.
 # 2026-07-22: promoted insight suite (addressindex/spentindex/timestampindex/rest/getrawtransaction_insight) from Bfail Debug after PASS.
+# 2026-07-22: promoted walletbackup.py from Bfail Debug after re-PASS (~80s; TST-07 wallet half).
+# 2026-07-22: txindex.py added to inventory + Bfail Debug (orphan; fails Py3 Decimal + BTC 50-subsidy asserts).
 testScriptsTierBPass=(
     'wallet_anchorfork.py'
     'wallet_changeindicator.py'
@@ -160,6 +163,7 @@ testScriptsTierBPass=(
     'addressindex.py'
     'spentindex.py'
     'timestampindex.py'
+    'walletbackup.py'
 )
 
 # Tier B fail: known broken; diagnostic only (-Bfail). Subgroups for triage (still one -Bfail run).
@@ -186,12 +190,12 @@ testScriptsTierBFailDebug=(
     'merkle_blocks.py'
     'fundrawtransaction.py'
     'signrawtransaction_offline.py'
-    'walletbackup.py'
     'key_import_export.py'
     'bip65-cltv-p2p.py'
     'bipdersig-p2p.py'
     'regtest_signrawtransaction.py'
     'finalsaplingroot.py'
+    'txindex.py'
 )
 
 testScriptsTierBFailRetired=(
@@ -225,7 +229,7 @@ testScriptsExtFail=(
 )
 
 # Invocation tiers (documented in TEST_ZERO.md; inventory: -list-csv):
-#   Pass: A=10, B=27, E=2 (-all = 39). Bfail: Debug=26, Retired=6. Efail=8.
+#   Pass: A=10, B=28 (27 unique; txn_doublespend x2), E=2 (-all = 40). Bfail: Debug=26, Retired=6. Efail=8.
 #   -A | --tier-a       Tier A gate
 #   -B | --tier-b       Tier B pass only
 #   -Bfail              Tier B fail only (Debug then Retired; diagnostic)

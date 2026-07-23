@@ -19,7 +19,7 @@ Validation runbook: commands, modes, harness behavior, known failures.
 | **One Tier A RPC script** | `./qa/pull-tester/rpc-tests.sh <basename>` |
 | **Multi-stage driver** (Tier B RPC, fail-fast; not default, not `--all`) | `./contrib/run-tests.sh --suite` |
 | **Known hang / crash / fail C++ only** | `./contrib/run-tests.sh --fail` (diagnostic; not a merge gate) |
-| **Bulk RPC pass (A + B + E)** | `./contrib/run-tests.sh --all` or `rpc-tests.sh -all` (33 invocations; re-validate after tier moves -- **Open work**) |
+| **Bulk RPC pass (A + B + E)** | `./contrib/run-tests.sh --all` or `rpc-tests.sh -all` (**40** invocations: A10+B28+E2; re-validate wall time after tier moves -- **Open work**) |
 | **RPC known-fail diagnostic** | `./contrib/run-tests.sh --rpcfail` or `rpc-tests.sh -rpcfail` |
 
 **Environment:** Python **3.10+**; **`PYTHON`** and **`BUILDDIR`** for manual **`rpc-tests.sh`**--see **Process -> Troubleshooting**.
@@ -78,7 +78,7 @@ Outstanding harness and porting tasks after the 2026-06-08 tier moves (tip-**200
 
 ### Tip-**200** Bfail scripts (port to clean chain)
 
-Six Bfail Debug scripts still use default **`setup_chain`** (warm cache tip **725**) while asserting or assuming tip **200**. They were moved off Tier B pass so **`-B`** no longer reports a false pass; they still need engineering fixes before promotion back to pass tiers.
+Five Bfail Debug scripts still use default **`setup_chain`** (warm cache tip **725**) while asserting or assuming tip **200**. They were moved off Tier B pass so **`-B`** no longer reports a false pass; they still need engineering fixes before promotion back to pass tiers.
 
 | Script | Failure mode | Fix direction |
 |--------|--------------|---------------|
@@ -99,6 +99,10 @@ Six Bfail Debug scripts still use default **`setup_chain`** (warm cache tip **72
 | `wallet_changeaddresses.py` | **`initialize_chain_clean`** only; no mining phase | **`mine_until_node_has_mature_coinbase`** or **`generate(COINBASE_MATURITY + 1)`** after clean start |
 
 Skip/`return` masks on **`shorter_block_times`** and **`wallet.py`** are removed; failures are visible under **`-Bfail`**.
+
+### `txindex.py` (Bfail Debug; inventoried 2026-07-22)
+
+Pure **`-txindex`** (no insight). Complements the Insight B-pass suite. Failures and suggested fixes: **`txindex.py` debug** below. Run: `./qa/pull-tester/rpc-tests.sh txindex`. Promote to B pass only after green.
 
 ### Post-merge validation (**`tests-debug`** integrated)
 
@@ -155,10 +159,10 @@ Regenerate human-review CSV:
 | Tier | Count | Notes |
 |------|-------|-------|
 | A | 10 | Contributor gate (**`-A`**, **`PYTHON_PASSING`**) |
-| B pass | 27 | 26 unique; **`txn_doublespend`** x2; includes five Insight scripts (2026-07-22) |
+| B pass | 28 | 27 unique; **`txn_doublespend`** x2; includes five Insight scripts + **`walletbackup`** (2026-07-22) |
 | E pass | 2 | **`invalidateblock`**, **`maxblocksinflight`** |
-| **`-all`** | **39** | A + B + E pass invocations |
-| Bfail Debug | 26 | **`-Bfail`** first group (after Insight promote) |
+| **`-all`** | **40** | A + B + E pass invocations |
+| Bfail Debug | 26 | **`-Bfail`** first group; includes **`txindex.py`** (inventoried 2026-07-22) |
 | Bfail Retired | 6 | Sprout / legacy |
 | Efail | 8 | Comptool / long-chain diagnostics |
 
@@ -273,6 +277,38 @@ killall zerod 2>/dev/null || true
 
 **After Linux validation (or maintainer accept):** tag **`v4.0.1`**, merge to **`master`**, push (**steps 5-7** above). Update **Verification snapshot** Linux row.
 
+### Platform validation beyond `--all`
+
+**`--all`** only widens **pass-tier RPC** (A+B+E). It does **not** cover ELF release checks, Windows, packaging, or Bfail. Expected matrix:
+
+| Layer | Linux (lazu / Ubuntu) | Windows (MXE cross from Linux; run on Win or wine where noted) |
+|-------|------------------------|------------------------------------------------------------------|
+| Build | `./zcutil/build.sh -j2` | `./zcutil/build-win.sh` (or `HOST=x86_64-w64-mingw32`) -> `zerod.exe` |
+| Contributor gate | `./contrib/run-tests.sh --strict` | Prefer native Win or WSL2 Linux tree: same `--strict`. Cross-built `.exe` is compile smoke unless you have a Win runner. |
+| ELF / hardening | `./contrib/run-tests.sh --suite` (**`check-security`**, **`no-dot-so`**, full **`rpcbind`**) -- **Darwin skips these** | N/A for PE; optional `checksec` on Linux host against ELF only |
+| Extra security | `./contrib/run-tests.sh --build-checks --quick` or `make -C src check-security` | Document Authenticode later (**REL**); not automated |
+| Bulk RPC | Optional `--all --strict` after tier moves | Same if harness runs |
+| Packaging | `./zcutil/release-linux.sh` -> tarball + `.deb`; smoke `zerod --version` | Stage `.exe` + deps; no signed installer yet |
+| Params | `./zcutil/fetch-params.sh` | Same paths under `%AppData%\ZcashParams` |
+| Datadir smoke | `zerod -daemon`; `zero-cli getblockchaininfo` | `%AppData%\Roaming\zero` |
+| Insight / reindex | Ops host only; not in `--all` | Same |
+
+**RC bar (v4.0.1-style):** macOS `--strict` done; **Linux `--strict` + `--suite` strongly recommended**; Windows = **successful MXE build** at minimum, full `--strict` when a Windows/WSL runner exists. Maintainer may ship without hard-blocking on any layer.
+
+### `nFeeStartBlockHeight` references (22)
+
+Keep the name. All hits are the founders/dev carve height gate or the 10 -> 10.8 subsidy step -- not tx fees:
+
+| Role | Files (count) |
+|------|----------------|
+| Declared | `consensus/params.h` (1) |
+| Per-network constants | `chainparams.cpp` main **412300** / testnet **1** / regtest **5000** (3) |
+| Address/script bounds | `chainparams.cpp` `GetFoundersReward*` (4) |
+| Subsidy base 10.8 | `main.cpp` `GetBlockSubsidy` (1); tests `main_tests.cpp` (3) |
+| Require founders out | `main.cpp` connect (1); `payments.cpp` / `budget.cpp` (2); `rpc/mining.cpp` `getblocksubsidy` (1); `metrics.cpp` (1) |
+| Supply math | `rpczerowallet.cpp` `getsupply` (3) |
+| Address fixture at fee-start | `gtest/test_foundersreward.cpp` (2) |
+
 ### `contrib/run-tests.sh` -- flags to re-check after parser changes
 
 | Flag / input | Expected | Quick check |
@@ -381,7 +417,7 @@ Harness inventory and commands: see **Harness landscape** and **Quick start** ab
 | Default | **`./src/zero-gtest --gtest_filter=DeprecationTest.AlertNotify`** | Notify temp file **0** lines (hook skipped) |
 | Opt-in shell | Reconfigure with **`CXXFLAGS="-DENABLE_SYSTEM_COMMAND"`**, rebuild, same filter | Temp file **1** line (sanitized deprecation text) |
 
-**TST-09 (planned):** GTest and/or regtest for **`-blocknotify`** and **`-walletnotify`** on **default** builds: command string in conf must be ignored (no side effects); optional assert **`debug.log`** substring **`notification skipped`**. Separate opt-in-build cases confirm hooks **do** run when **`ENABLE_SYSTEM_COMMAND`** is set. Contributor-ready spec: **UpdateZero.md** TST-09.
+**TST-09:** **`-alertnotify` closed** -- **`DeprecationTest.AlertNotify`** (default: 0 side-effect lines). Remaining: **`-blocknotify`** / **`-walletnotify`** marker tests on default builds. Full alert subsystem strip = **OPS-ALERT-STRIP** (postponed). Spec: **UpdateZero.md** TST-09.
 
 Manual check (either mode): regtest **`zerod`** with **`-blocknotify='echo %s >> /tmp/zero-block.log'`**, generate one block -- log appended **only** on opt-in build; default logs **"Block notification skipped"** in **`debug.log`**. See **BUILD_ZERO.md** section **4.6.1** (**OPS-SHELL**).
 
@@ -666,8 +702,8 @@ Bfail and Efail lists are in **`testScriptsTierBFailDebug`**, **`testScriptsTier
 | `mempool_tx_expiry` | default | Comment assumes tip **199**; no assert -- cache skews expiry height math; failure mode unclear |
 | `bip65-cltv-p2p`, `bipdersig-p2p` | default (comptool) | Comptool injects blocks atop existing chain -- **725** deep chain may affect sync; primary failures are PoW/consensus |
 | `regtest_signrawtransaction` | default | No tip assert; pre-funded nodes from cache may help or skew balance checks |
-| `addressindex`, `spentindex`, `timestampindex`, `getrawtransaction_insight` | **clean** | Not on cache |
-| `wallet_persistence`, `rest`, `mempool_limit`, `mempool_nu_activation`, `rawtransactions`, `fundrawtransaction`, `signrawtransaction_offline`, `merkle_blocks`, `walletbackup`, `key_import_export`, `finalsaplingroot`, `mergetoaddress_*` | **clean** | Not on cache; failures are maturity porting, wallet RPC, or runtime |
+| `wallet_persistence`, `mempool_limit`, `mempool_nu_activation`, `rawtransactions`, `fundrawtransaction`, `signrawtransaction_offline`, `merkle_blocks`, `key_import_export`, `finalsaplingroot`, `mergetoaddress_*`, `txindex` | **clean** | Not on cache; failures are maturity/porting/wallet/RPC (see per-script debug). **`txindex`**: Py3 Decimal + subsidy asserts |
+| *(promoted out of Bfail)* `addressindex`, `spentindex`, `timestampindex`, `getrawtransaction_insight`, `rest`, `walletbackup` | **clean** | Now **Tier B pass** (2026-07-22); still clean-chain only |
 
 #### Efail -- cache exposure
 
@@ -877,7 +913,7 @@ Prefer **`COINBASE_MATURITY`**, **`coinbase_mature_tip(n)`**, or **`mine_until_n
 | `wallet_shieldcoinbase.py` | B pass | `generate(720)` (800-UTXO phase) | `COINBASE_MATURITY`; keep **`generate(100)`** at L170 (UTXO count, not maturity) |
 | `listtransactions.py` | B pass | `generate(720)` | `COINBASE_MATURITY` |
 | `p2p_txexpiry_dos.py` | B pass | `generate(720)` | `COINBASE_MATURITY` or formula in file comments |
-| `walletbackup.py` | Bfail Debug | `generate(720)` / `generate(721)` | **`COINBASE_MATURITY`** / **`COINBASE_MATURITY + 1`**; see **walletbackup debug** below |
+| `walletbackup.py` | **B pass** (promoted 2026-07-22) | was `generate(720)` / `721` | Ported to **`COINBASE_MATURITY`**; see **walletbackup** below |
 
 **Already ported (reference):** `receivedby.py`, `mempool_limit.py`, `mempool_nu_activation.py`, `rest.py`, insight scripts (`coinbase_mature_tip(5)`), Tier A maturity paths (`ensure_mature_coinbase_or_skip`, `mine_until_*`, `txn_doublespend` height plan).
 
@@ -980,7 +1016,7 @@ Several Zcash-era RPC tests treat chain height **200** as the standard harness s
 | Failure today | **`get_coinbase_address`** raises if no mature generated UTXO on the clean chain |
 | Fix direction | Mine to **`COINBASE_MATURITY + 1`** (or use **`mine_until_node_has_mature_coinbase`**) after **`initialize_chain_clean`**; keep Sapling-at-**1** **`NU_TEST_ARGS`** |
 
-### `walletbackup.py` debug (Bfail Debug)
+### `walletbackup.py` (Tier B pass; was Bfail Debug)
 
 | Item | Detail |
 |------|--------|
@@ -988,7 +1024,21 @@ Several Zcash-era RPC tests treat chain height **200** as the standard harness s
 | Root cause | Upstream assumed maturity **100** and **114 x 10** subsidy math; comment in script said 1140 but assert was **7340**. Zero **720** maturity and regtest subsidy change the aggregate total |
 | Real gate | Backup/restore via `wallet.zero` and `importwallet` preserves per-node balances (`balance0`..`balance2`) |
 | Fix | `generate(720)` -> **`COINBASE_MATURITY`**; `generate(721)` -> **`COINBASE_MATURITY + 1`**; total check -> **`assert_greater_than(total, 1000)`** + log |
-| Runtime | Slow: miner node mines **~720** blocks twice (bootstrap + fee maturity); expect **15-25+ min** on macOS regtest |
+| Promote | **2026-07-22** re-PASS (~80s); moved from `testScriptsTierBFailDebug` to `testScriptsTierBPass` (**TST-07** wallet half) |
+| Runtime | ~**80s** on macOS after cache warm (historical note of 15-25 min was overstated for current script) |
+
+### `txindex.py` debug (Bfail Debug)
+
+Orphan Bitcoin-era script: was on disk but **not** in `rpc-tests.sh` until 2026-07-22. Pure **`-txindex`** (no insight). Complements insight suite; not a substitute for `getrawtransaction_insight.py`.
+
+| Item | Detail |
+|------|--------|
+| Tier | **Bfail Debug** (inventoried); run: `./qa/pull-tester/rpc-tests.sh txindex` or `-Bfail` |
+| Setup | `initialize_chain_clean`; node0 no txindex; nodes 1–3 `-txindex`; mines via `coinbase_mature_tip(5)` (**OK** for Zero maturity) |
+| Failure (2026-07-22) | After mining: `required argument is not an integer` in `CTxOut.serialize` -- `amount = unspent[0]["amount"] * 100000000` is a **Decimal** under Py3 |
+| Second bug (would hit next) | Asserts Bitcoin coinbase **`valueZat == 5000000000`** / **`value == 50`**; Zero regtest base subsidy is **10** ZER (`1000000000` zat) before halvings |
+| Suggested fixes | (1) `amount = int(unspent[0]["amount"] * COIN)` or `int(round(...))`. (2) Assert against actual `unspent[0]` value / `regtest_subsidy_at_height`. (3) Prefer `ToMaxMoney`-safe ints; drop hardcoded 50. (4) Optional: assert node0 without `-txindex` cannot `getrawtransaction` while node3 can |
+| Promote when | Green under `./qa/pull-tester/rpc-tests.sh txindex` then move to **Tier B pass** (next to insight scripts) |
 
 ### `rpcbind_test.py` (Efail)
 
@@ -1086,7 +1136,7 @@ Few scripts target live testnet. **`turnstile.py`** (retired from driver) docume
 
 ### Insight tests and **720**
 
-**`addressindex.py`**, **`spentindex.py`**, **`timestampindex.py`**, **`getrawtransaction_insight.py`** are in **Bfail Debug**. They use **`initialize_chain_clean`** (not the shared cache) -- see **`initialize_chain` cache -> Insight tests and the cache**.
+**`addressindex.py`**, **`spentindex.py`**, **`timestampindex.py`**, **`getrawtransaction_insight.py`**, **`rest.py`** are **Tier B pass** (2026-07-22). They use **`initialize_chain_clean`** (not the shared cache) -- see **`initialize_chain` cache -> Insight tests and the cache**. Pure **`txindex.py`** is **Bfail Debug** (see **`txindex.py` debug**).
 
 **`-insightexplorer`:** pass on every node via `start_nodes` `extra_args` (already in each script's `setup_network`). Required bundle:
 
@@ -1129,11 +1179,13 @@ All use **`initialize_chain_clean`**, **3 nodes**, maturity **`coinbase_mature_t
 
 Also: **`src/test/rpc_tests.cpp`** `rpc_insightexplorer` (disabled/enabled parameter checks).
 
-Tier: **Bfail Debug** in `rpc-tests.sh`. Run alone:
+Tier: **B pass** in `rpc-tests.sh` (promoted 2026-07-22). Run alone:
 
 ```bash
 ./qa/pull-tester/rpc-tests.sh addressindex
 ```
+
+Pure **`-txindex`** (no insight) is separate: **`txindex.py`** in **Bfail Debug** -- see **`txindex.py` debug**.
 
 ### Experimental wallet RPC scripts
 
@@ -1225,14 +1277,14 @@ Authoritative arrays: **`testScriptsTierBFailDebug`**, **`testScriptsTierBFailRe
 | **Wallet / list** | `wallet`, `wallet_changeaddresses`, `wallet_listreceived`, `wallet_persistence`, `wallet_sapling`, `wallet_listnotes` | Balance / maturity / Sapling API drift | **`wallet.py`**: node0 block-5 maturity; **`wallet_changeaddresses`**: empty-chain vacuous pass fixed -- see debug sections |
 | **NU / Blossom** | `shorter_block_times` | Maturity **720** vs Blossom at **106** | Reschedule NU or mine plan; see **`shorter_block_times.py` debug** |
 | **Wallet / merge** | `mergetoaddress_sapling`, `mergetoaddress_mixednotes` | `z_mergetoaddress` async, maturity, note selection | `mine_until_*`; Sapling-only; check `mergetoaddress_helper.py` |
-| **Insight** | `addressindex`, `spentindex`, `timestampindex`, `getrawtransaction_insight` | **`COINBASE_MATURITY` [720]** + `-insightexplorer` | **`initialize_chain_clean`** only (not shared cache); `coinbase_mature_tip(5)` |
+| **Insight** | *(promoted 2026-07-22)* `addressindex`, `spentindex`, `timestampindex`, `getrawtransaction_insight`, `rest` | -- | Now **Tier B pass**; see ExtTests |
+| **txindex only** | `txindex` | Py3 Decimal `CTxOut` + Bitcoin **50**-ZER asserts | See **`txindex.py` debug**; promote to B pass after fix |
 | **Experimental wallet** | `wallet_mergetoaddress`, `mergetoaddress_sapling`, `mergetoaddress_mixednotes`, `wallet_changeaddresses`, `rescan_import`, `wallet_sapling` | `-experimentalfeatures` + `-zmergetoaddress` where merge tests apply | See **Experimental and insight feature tests** below |
-| **REST** | `rest` | `-rest` on all nodes | `initialize_chain_clean`; not Insight |
 | **Cache / tip 200** | `wallet_addresses`, `rescan_import`, `reorg_limit`, `wallet_listnotes`, `wallet_sapling` | Default **`setup_chain`** + tip **200** assert | Bfail Debug; **`initialize_chain_clean`** + **`generate(200)`** or baseline-relative reorg -- see **height 200/201** and per-script debug sections |
 | **Mempool** | `mempool_limit`, `mempool_reorg`, `mempool_nu_activation`, `mempool_tx_expiry` | Maturity / NU heights | `COINBASE_MATURITY` mining; align `-nuparams`. **`mempool_spendcoinbase` -> B pass** (2026-06-09) |
-| **Raw / REST** | `rawtransactions`, `rest`, `fundrawtransaction`, `signrawtransaction_offline` | Maturity bootstrap | `rawtransactions`, `fundrawtransaction`, `signrawtransaction_offline`: **`generate(COINBASE_MATURITY + 1)`** (2026-06-08); `rest` ported earlier |
+| **Raw** | `rawtransactions`, `fundrawtransaction`, `signrawtransaction_offline` | Maturity bootstrap | **`generate(COINBASE_MATURITY + 1)`** (2026-06-08) |
 | **Comptool P2P** | `bip65-cltv-p2p`, `bipdersig-p2p` | Python **(48,5)** vs node rules | `equihash.py` / comptool; or retire |
-| **Other** | `merkle_blocks`, `walletbackup`, `key_import_export`, `regtest_signrawtransaction`, `finalsaplingroot` | Maturity / constants | **`walletbackup`**: wrong upstream total **7340** removed; uses **`COINBASE_MATURITY`**; restore equality is the gate |
+| **Other** | `merkle_blocks`, `key_import_export`, `regtest_signrawtransaction`, `finalsaplingroot` | Maturity / constants | **`walletbackup`** promoted B pass 2026-07-22; **`finalsaplingroot`** = **TST-SAPLING-ROOT** |
 
 **Wallet / merge detail:** `mergetoaddress_*.py` exercise shielded merge RPCs with multi-note inputs; failures are often immature coinbase, wrong note type (Sprout vs Sapling), or async `z_getoperationresult` timing. `mergetoaddress_sprout.py` is in **Retired**.
 
@@ -1286,10 +1338,11 @@ Record after harness changes (macOS, `./contrib/run-tests.sh --strict` unless no
 | `mempool_spendcoinbase.py` | **PASS** | **~3s** | macOS 2026-06-09; warm cache; ported to 720 |
 | Default `(none) --strict` | **PASS** | **~212s** | macOS 2026-06-08; GTest+Boost parallel with Tier A |
 | `--quick --strict` | **PASS** | **~142s** | util/secp/univalue + Tier A RPC |
-| `--all --strict` | **PASS** (stale) | **~1275s** | macOS 2026-06-08; **before** tip-**200** / vacuous-pass tier moves; **`-all`** now **33** invocations -- **re-run required** (**Open work**) |
+| `--all --strict` | **PASS** (stale) | **~1275s** | macOS 2026-06-08; predates tip-**200** moves + Insight/`walletbackup` promote; **`-all`** now **40** invocations -- **re-run required** (**Open work**) |
+| `txindex.py` | **FAIL** / Bfail Debug | **~22s** (2026-07-22) | Inventoried; Decimal `nValue` + Bitcoin 50-ZER asserts -- see **`txindex.py` debug** |
 | `--suite` | **PASS** | **~1306s** | `full_test_suite.py`; RPC stage = no-args (`-all`) |
 | Bfail `COINBASE_MATURITY+1` ports | **PASS** | see below | macOS 2026-06-08, from repo root |
-| `walletbackup.py` (post-fix) | **PASS** | **~85s** | total **2886.875**; restore/importwallet equality OK |
+| `walletbackup.py` (post-fix) | **PASS** / **B pass** | **~80s** (2026-07-22) | total **2886.875**; restore/importwallet equality OK; promoted from Bfail Debug |
 | Linux **`zero-400names`** on lazu (`ZeroLinux`) | **pending** | -- | **v4.0.1 RC:** macOS **`--strict`** PASS 2026-06-09; lazu rebuild + **`--strict` recommended, not hard block** (disk **~97%**, **~4 GB** free). See **4.0.1 handoff** |
 | **`CachedWitnesses*` gtest port** | **WIP** (uncommitted) | -- | Local harness fix; still filtered in default gate |
 

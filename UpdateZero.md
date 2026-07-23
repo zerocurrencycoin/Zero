@@ -212,7 +212,7 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 
 **Consensus validation** (`src/main.cpp`): requires founders output when `nFeeStartBlockHeight <= height <= GetLastFoundersRewardBlockHeight`.
 
-**Addresses in code:** `src/chainparams.cpp` -- `vFoundersRewardAddress` (mainnet/testnet/regtest); RPC `developmentfee` (`src/rpc/zeronode.cpp`). `ZeronodeDummyAddress` -- collateral validation only.
+**Addresses in code:** `src/chainparams.cpp` -- `vFoundersRewardAddress` (mainnet/testnet/regtest); RPC `developmentfee` on **`zeronodestats`** (`src/rpc/zeronode.cpp`). `ZeronodeDummyAddress` -- collateral validation only. Naming track: **DOC-FR-NAMING**.
 
 ---
 
@@ -874,7 +874,7 @@ Recommendation: retire the wiki page (or add a deprecation banner). Replace with
 
 **Backlog status (OPS-*, WAL-*, FR-*, EXT-*, Ordered next):** **TODO.md** only. Do not keep parallel todo paragraphs here.
 
-**Technical homes (pointers):** reindex / markers / skip-wallet -- **ZeroStruct** §13.2; Pirate DB-knobs -- §13.3; `wtxOrdered` / Pirate timesmart / relation to **`txindex`** -- §13.4 (esp. §13.4.2); LockedPool -- §4.3.2a; bootstrap -- §13.7; founders designs -- §13.8; Insight qa promote -- **ExtTests.md** + TODO **EXT-INSIGHT-***. Operator reindex footgun: **`InsightBlock.md`**.
+**Technical homes (pointers):** reindex / markers / skip-wallet -- **ZeroStruct** §13.2; short-snap resume ops -- **AtHeight.md** §4.1; Pirate DB-knobs -- §13.3; `wtxOrdered` / Pirate timesmart / relation to **`txindex`** -- §13.4 (esp. §13.4.2); LockedPool -- §4.3.2a; bootstrap -- §13.7; founders designs -- §13.8; Insight qa promote -- **ExtTests.md** + TODO **EXT-INSIGHT-*** (five scripts **B pass** 2026-07-22); pure **`txindex.py`** still **Bfail Debug** (**TEST_ZERO**). Operator reindex footgun: **`InsightBlock.md`**.
 
 **Desktop wallet UI tests (out of zerod scope):** Zerowallet (`~/Work/ZK/zerowalletmac`) documents **no automated tests** (`UpdateWallet.md` Gaps). Bitcoin Core has `src/qt/test/`; sampled PirateOcean / safewallet-style Qt trees generally lack an equivalent harness. Track UI automation under the wallet repo, not Zero400.
 
@@ -882,7 +882,32 @@ Recommendation: retire the wiki page (or add a deprecation banner). Replace with
 
 **CON-01 -- Total supply discrepancy.** Project target: some **20M ZER**. Current `GetBlockSubsidy` piecewise sum computes ~25.6M long-run. Action: review arithmetic vs spec, determine whether 10.8 post-fee base or halving params need adjustment, compare upstream. `MAX_MONEY` caps per-output only. User-facing docs say "some 20M" until resolved.
 
-**CON-02 -- Consensus integer math.** Replace `double`/`COIN` mixes in `GetBlockSubsidy`, founders `* 0.075`, validation paths with `CAmount` integer policy. At halving 7, `8437500 * 0.075 = 632812.5` causes miner/validator disagreement -- deterministic consensus failure ~21 years out. Fix: `blockValue * 75 / 1000`.
+**CON-02 -- Consensus integer math.** **Accepted approach (2026-07-22):** Follow **TENT** naming at call sites (**`CAmount vFoundersReward`**) with integer trunc toward 0; product/RPC naming reconcile later (**DOC-FR-NAMING**). Replace `double`/`COIN` mixes:
+
+```cpp
+// main.h (beside GetBlockSubsidy)
+CAmount GetFoundersRewardAmount(CAmount subsidy) { return subsidy * 75 / 1000; }
+
+// call sites (miner, validate, GBT, metrics, zeronodestats)
+CAmount vFoundersReward = GetFoundersRewardAmount(blockValue);
+```
+
+Keep **`nFeeStartBlockHeight`** (height gate name only). Product string **developmentfee** stays on RPC until **DOC-FR-NAMING**. Optional later: dual-key alias `foundersreward` beside `developmentfee` (same value) -- not required for this fix.
+
+Exact float sites (keep miner + validator + GBT + metrics in lockstep):
+
+| File | Line (approx) | Expression | Integer form |
+|------|---------------|------------|--------------|
+| `src/main.cpp` | **2113** | `nSubsidy = 10.8 * COIN` | `nSubsidy = 108 * COIN / 10` |
+| `src/main.cpp` | **4508** | `* 0.075` | `GetFoundersRewardAmount(...)` |
+| `src/zeronode/payments.cpp` | **305** | `* 7.5 / 100` | same helper |
+| `src/zeronode/budget.cpp` | **537** | `* 7.5 / 100` | same helper |
+| `src/rpc/mining.cpp` | **946** | `* 0.075` | same helper |
+| `src/rpc/zeronode.cpp` | **1090** | `* 7.5 / 100` | same helper |
+| `src/metrics.cpp` | **346** | `* 0.075` | same helper |
+| `src/test/main_tests.cpp` | **28–29** | expects `10.8 * COIN` | match new sats |
+
+Float trunc and `* 75 / 1000` agree for current halvings; shared helper removes dual spellings (`0.075` vs `7.5/100`).
 
 **CON-03 -- Branch id posture.** Sapling and Cosmos share `0x7361707a`. No planned fork to split. Optional: CI guard for duplicate `nBranchId`.
 
@@ -931,9 +956,9 @@ Both pass `HOST`/`BUILD`/`NO_PROTON` to `make -C depends`. `release-linux.sh` on
 
 Items marked **"contributor-ready"** are self-contained enough to be written up as GitHub issues with `good first issue` or `help wanted` labels. They have clear scope, acceptance criteria, and don't require signing keys, maintainer authority, or consensus decisions. See also: DEF-06 (SwiftTX strip), CON-03 (branch id CI guard), REL-05 (Debian packaging), REL-07 (Windows hardening), issue #70 (getrawtransaction size/fees) -- all delegable with varying scope.
 
-**TST-01 -- zero_exclusive param validation.** High importance. **Contributor-ready.**
+**TST-01 -- zero_exclusive / experimental scenario coverage.** High importance. **Contributor-ready.**
 
-Zero's own RPCs and experimental RPCs have 0% scenario coverage beyond the skeleton param-validation tests already in `src/test/rpc_zero_exclusive_tests.cpp` and `src/test/rpc_zero_experimental_tests.cpp`. Those files currently test that bad argument counts throw `runtime_error` and that basic calls return the expected JSON type, but they do not exercise any wallet state, chain state, or error paths.
+**Recheck 2026-07-22:** skeleton param-validation suites **PASS** (`./src/test/test_bitcoin --run_test=rpc_zero_exclusive_tests` and `rpc_zero_experimental_tests`). Remaining gap is scenario coverage: wallet/chain state, boundaries, and real error paths -- not the empty-suite problem the original write-up assumed.
 
 *Scope:* Extend the existing Boost.Test files with scenario coverage for each RPC. Each test case should use the `TestingSetup` fixture (wallet + regtest chain) and cover: (a) valid calls with expected return structure, (b) boundary values (empty wallet, zero height, nonexistent address), (c) error paths (invalid address format, out-of-range parameters). RPCs to cover:
 
@@ -962,49 +987,54 @@ Zero's own RPCs and experimental RPCs have 0% scenario coverage beyond the skele
 
 **TST-03 -- Zeronode / budget subcmd validation.** P1 priority. Write Boost.Test or GTest cases for `zeronodecurrent`, `getzeronodeoutputs`, `startzeronode`, and `znbudget` subcommands. Focus on argument validation and error returns; full integration requires zeronode collateral setup.
 
-**TST-09 -- Shell notify disabled (default build, PIR-01).** **Contributor-ready.**
+**TST-09 -- Shell notify disabled (default build, PIR-01).**
 
-Default release binaries must **accept** **`-blocknotify`**, **`-walletnotify`**, and **`-alertnotify`** in conf/CLI but **never** invoke the shell unless rebuilt with **`ENABLE_SYSTEM_COMMAND`**.
+**`-alertnotify` half: PASS / closed** (2026-07-22). Keep **`DeprecationTest.AlertNotify`**: default build accepts the flag and produces **0** side-effect lines (PIR-01 skip; may log `Alert notification skipped:`). No new alertnotify cases. Do **not** require shell-fires parity with Zcash (Zero deliberately gates `::system`). Full **`alert.cpp`** removal = **OPS-ALERT-STRIP** (postponed in **TODO**). P2P `alert_tests.cpp` stays out of **`BITCOIN_TESTS`**.
 
-*Scope:*
+**Still open:** **`-blocknotify`** and **`-walletnotify`** only -- marker file empty + optional skip log on default build.
 
-| Hook | Current coverage | Add |
-|------|------------------|-----|
-| **`-alertnotify`** | GTest **`DeprecationTest.AlertNotify`** -- temp file **0** lines on default build | Optional: assert log contains **`Alert notification skipped`** |
-| **`-blocknotify`** | Manual regtest only | GTest and/or **`qa/rpc-tests/`**: set notify cmd that would append to a unique temp file; mine/generate one block; assert file **missing or empty**; assert **`debug.log`** (or captured log) contains **`Block notification skipped`** |
-| **`-walletnotify`** | None | Regtest with wallet enabled: **`extra_args`** include **`-walletnotify='echo %s >> /path'`**; receive coinbase/spend; assert marker file **unchanged**; log skip message |
+*Opt-in parity (manual only):* `ENABLE_SYSTEM_COMMAND` build may assert hooks fire; not a `--strict` gate.
 
-*Opt-in parity (second compile only):* Same cases on **`CXXFLAGS="-DENABLE_SYSTEM_COMMAND"`** build -- marker files **must** update (one line per event).
-
-*Acceptance criteria:* Tests pass under **`./contrib/run-tests.sh --strict`** on **default** build (no **`ENABLE_SYSTEM_COMMAND`**). No new dependencies. Opt-in cases may live behind a documented manual matrix (**TEST_ZERO.md**) if dual-build in CI is too heavy.
-
-*References:* **`src/init.cpp`** **`BlockNotifyCallback`**, **`src/wallet/wallet.cpp`** wallet notify, **`src/alert.cpp`** **`CAlert::Notify`**, **`src/gtest/test_deprecation.cpp`**, **BUILD_ZERO.md** section **4.6.1** (**OPS-SHELL**).
+*References:* **`src/init.cpp`**, **`src/wallet/wallet.cpp`**, **`src/alert.cpp`**, **`src/gtest/test_deprecation.cpp`**, **BUILD_ZERO.md** §4.6.1.
 
 **TST-04 -- Zeronode and CDB GTest fixes.** P2 priority. Fix `WalletTests.CachedWitnesses`* (seed `CCoinsViewCache` in harness), fix `CDB::Rewrite` hang (close wallet handle before rewrite or test-only persistence path), unblock `WriteCryptedSaplingZkey*` and `rpc_wallet_encrypted_wallet_sapzkeys`. See §3.3 Debug notes for root cause analysis.
 
-**TST-05 -- Equihash (192,7) test vectors.** **Contributor-ready.**
+**TST-05 -- Equihash KATs for Zero params only.** **Contributor-ready.**
 
-The existing Equihash tests in `src/test/equihash_tests.cpp` and `src/gtest/test_equihash.cpp` contain solver and validator vectors only for the (96,5) and (48,5) parameter sets inherited from upstream Zcash. Zero uses **(192,7)** (`src/crypto/equihash.h:203`, `Eh192_7`). Both test files detect the mismatch at runtime and skip:
+**(96,5) out of scope** -- leave skip-guarded legacy cases or delete later; do not regenerate `miner_tests` `blockinfo[]`.
 
+**Already PASS:** genesis header checks -- mainnet **(192,7)** valid + corrupt `nSolution`; regtest **(48,5)** valid (`equihash_tests.cpp`).
+
+**Still to add:** solver/validator **index-array** KATs in the same format as existing `TestEquihashSolvers` / `TestEquihashValidator`:
+
+| Params | Network | `n/(k+1)` | Indices per solution | Case names |
+|--------|---------|-----------|----------------------|------------|
+| **(192,7)** | mainnet PoW | 24 | **128** `uint32_t` | `solver_testvectors_192_7`, `validator_testvectors_192_7` |
+| **(48,5)** | regtest PoW | 8 | **32** `uint32_t` | `solver_testvectors_48_5`, `validator_testvectors_48_5` |
+
+*Format (match existing helpers):*
+
+```cpp
+// Input I = string; V = nonce (arith_uint256 / hex)
+// Soln = ordered index vector length 2^k
+TestEquihashSolvers(192, 7, "block header", 0, {
+  { /* 128 indices */ },
+  // ...
+});
+TestEquihashValidator(48, 5, "…", 1, { /* 32 indices */ }, true);
 ```
-// Zero uses (192,7); test vectors are for (96,5). Skip when params mismatch.
-if (Params().GetConsensus().nEquihashN != 96) { return; }
+
+**Mainnet genesis (192,7) committed:** repo-root **`1927EQ.txt`** (128 indices + `nNonce` / `nSolution_hex`; `roundtrip_ok: true`). Regenerate:
+
+```bash
+DUMP_1927EQ=./1927EQ.txt ./src/test/test_bitcoin --run_test=equihash_tests/dump_mainnet_genesis_192_7_indices
 ```
 
-This means Zero's actual PoW algorithm has **zero known-answer test coverage**.
+Note: these indices are for **header** `CEquihashInput||nNonce` state (`pow.cpp`), not the string-`I` form used by legacy `TestEquihashSolvers`. Prefer `CheckEquihashSolution` / header-based validator cases when wiring this file.
 
-*Task:* Generate known-answer test vectors for `Equihash<192,7>` and add them to both the Boost and GTest suites.
+Generate additional vectors via `Equihash<N,K>::BasicSolve` (`ENABLE_MINING`) or more mainnet headers. Solver cases `#ifdef ENABLE_MINING`; validator always on.
 
-*Steps:*
-
-1. **Generate vectors.** Use the existing solver (`Equihash<192,7>::BasicSolve` in `src/crypto/equihash.cpp:823`, requires `ENABLE_MINING`). Write a small standalone program or extend a test to: pick a few input strings and nonces, call `BasicSolve`, collect the solution index arrays. Alternatively, extract vectors from known Zero mainnet block headers (parse block, extract `nNonce` and `nSolution`, verify with `Equihash<192,7>::IsValidSolution`).
-2. **Add Boost vectors.** In `src/test/equihash_tests.cpp`, add a new `BOOST_AUTO_TEST_CASE(solver_testvectors_192_7)` that calls `TestEquihashSolvers(192, 7, ...)` with the generated vectors. Follow the pattern of the existing `solver_testvectors` case (line 108). Guard with `#ifdef ENABLE_MINING` since solving requires the mining code path.
-3. **Add GTest vectors.** In `src/gtest/test_equihash.cpp`, add a `TEST(equihash_tests, check_basic_solver_192_7)` that initializes `Equihash<192,7>`, hashes an input, and verifies the solver produces expected solutions. Follow the pattern of `check_basic_solver_cancelled` (line 84) but assert specific solution contents instead of cancellation behavior.
-4. **Add validator vectors.** Add `BOOST_AUTO_TEST_CASE(validator_testvectors_192_7)` that calls `EhIsValidSolution(192, 7, state, minimal_soln, isValid)` with known-good and known-bad solutions. This does not require `ENABLE_MINING`.
-
-*Key files:* `src/crypto/equihash.h` (template declarations, `Eh192_7` instance), `src/crypto/equihash.cpp:820-830` (explicit instantiations for 192,7), `src/test/equihash_tests.cpp` (Boost tests), `src/gtest/test_equihash.cpp` (GTest tests), `src/chainparams.cpp` (`nEquihashN=192`, `nEquihashK=7`).
-
-*Acceptance criteria:* At least 3 solver vectors (different inputs/nonces) and 3 validator vectors (2 valid, 1 invalid). Tests run and pass under `./contrib/run-tests.sh --strict`. Solution arrays are committed as literal data (same style as existing 96,5 vectors). No changes to the Equihash algorithm code.
+*Acceptance:* genesis vector wired + >=1 more (192,7) and (48,5) coverage as needed. `--strict` green. No algorithm changes.
 
 **TST-06 -- Fuzz harness.** **Contributor-ready.**
 
@@ -1049,7 +1079,14 @@ Zero has no structured fuzzing infrastructure. The only fuzz-related code is `CN
 
 *Acceptance criteria:* At least 2 fuzz targets (deserialization + one other) that compile and run for 60 seconds without crashing on a clean regtest corpus. Documented build instructions in a `src/fuzz/README.md` or in TEST_ZERO. No changes to production code required.
 
-**TST-07 -- Partition and wallet tests.** P3 priority. Partition P2P test (`split=True` edge topology), wallet backup/restore scenario. Requires `CHAIN_BOOTSTRAP` and maturity mining. See §3.3 test prescriptions for regtest setup.
+**TST-07 -- Partition and wallet tests.** **Closed (carved).**
+
+| Piece | Script | Status |
+|-------|--------|--------|
+| Partition | `getchaintips.py` | **Tier A** |
+| Wallet backup | `walletbackup.py` | **Tier B pass** (2026-07-22) |
+
+Sapling header root script moved to **TST-SAPLING-ROOT** (`finalsaplingroot.py`, still Bfail) -- see **TODO** Pending.
 
 **TST-08 -- PIR-03 witness lockout (`RPC_BUILDING_WITNESS_CACHE = -33`).** P1 priority. **Blocks PIR-03 merge without this or an equivalent regtest check.**
 
