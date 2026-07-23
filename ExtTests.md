@@ -7,8 +7,10 @@ to `UpdateZero.md` TST-NN / §-numbers are kept so this file can be folded back 
 desired.
 
 **Baseline (2026-07-01):** `./contrib/run-tests.sh --all` (no `--strict`) passes
-clean -- C++ suites, quick checks, and all 34 RPC scripts, 0 failures. The
-failures discussed below appear only when a test is run *outside* the harness
+clean -- C++ suites, quick checks, and the then-current pass-tier RPC set
+(**34** invocations at that date), 0 failures. As of **2026-07-22**, pass-tier
+**`-all`** is **40** (Insight five + `walletbackup` promoted; see **TEST_ZERO.md**).
+Failures discussed below appear only when a test is run *outside* the harness
 filter (raw `zero-gtest` binary) or is in a known-fail tier that `--all` does not
 gate on.
 
@@ -124,24 +126,28 @@ declared `n,k` to Zero's **(192,7)** (`src/chainparams.cpp:94`, `Eh192_7` in
 the solver at (192,7) produces entirely different index sets and a different
 solution width (`cBitLen = n/(k+1) = 24` vs `16`). There is no adjustment short of
 **regenerating** the vectors by actually running `Equihash<192,7>::BasicSolve`.
-That is exactly the work TST-05 scopes. So the current
+That is exactly the remaining work TST-05 scopes. The current
 `if (nEquihashN != 96) return;` skip (`equihash_tests.cpp:111`) is correct
-behavior -- it prevents a guaranteed false failure -- but it silently means
-**Zero's real PoW parameters have zero known-answer coverage**.
+behavior -- it prevents a guaranteed false failure for the frozen (96,5) arrays.
+
+**Update 2026-07-22:** Zero is **not** at zero KAT coverage anymore. Boost
+`equihash_tests` also has mainnet genesis **(192,7)** valid + corrupt-solution
+cases and regtest genesis **(48,5)**; suite **PASS** on recheck. **TST-05**
+scope: add index-array KATs for **(192,7)** (128 indices) and **(48,5)**
+(32 indices) only; **drop (96,5)** / do not refresh `miner_tests` `blockinfo[]`.
 
 ### Confirmed build/run facts
 `ENABLE_MINING = 1` in this build (`src/config/bitcoin-config.h:30`), so the
-solver-vector cases compile and execute -- they early-return via the guard, they
-are not `#ifdef`-ed out. The non-solver cases (`expand_and_contract_arrays`,
+(96,5) solver-vector cases compile and early-return via the guard. The
+parameter-agnostic cases (`expand_and_contract_arrays`,
 `minimal_solution_representation`, `is_probably_duplicate`,
-`check_basic_solver_cancelled`, `check_optimised_solver_cancelled`) are
-**parameter-agnostic** and do run/pass; they cover encoding and cancellation, not
-Zero's KAT.
+`check_basic_solver_cancelled`, `check_optimised_solver_cancelled`) plus the
+Zero genesis header cases run/pass.
 
 ### Mining-test gaps found
 - **`src/gtest/test_miner.cpp`** tests only `Miner.GetScriptForMinerAddress` (miner-address plumbing). It does **not** assemble a block template, run the solver, or validate a solved header -- no end-to-end mine path in gtest.
 - **`src/test/miner_tests.cpp`** (`CreateNewBlock_validity`) carries a hardcoded `blockinfo[]` table of upstream **(96,5)** nonces/solutions and is already quarantined in the Boost known-fail bucket (`BOOST_FAIL_ONLY='miner_tests'`, `qa/zcash/test_filters.sh:8`). Same root cause as the Equihash vectors: the frozen solutions are for the wrong parameter set. It is excluded from default/`--all`, exercised only under `run-tests.sh --fail`.
-- Net: **no passing test** anywhere validates that Zero can build + solve + accept a block at (192,7). The closest live coverage is indirect -- RPC `generate` in regtest uses `-equihashsolver` at the regtest params (**(48,5)**, `src/chainparams.cpp:424`), not mainnet (192,7).
+- Net: genesis-header KATs cover **CheckEquihashSolution** at (192,7)/(48,5); **no** passing test yet validates build + solve + accept a **fresh** (192,7) block. RPC `generate` in regtest uses (**(48,5)**).
 
 ### Proposed fixes (priority order)
 1. **Regenerate (192,7) solver + validator vectors (= TST-05).** Standalone generator using `Equihash<192,7>::BasicSolve` (needs `ENABLE_MINING`) or extract `(nNonce, nSolution)` from known Zero mainnet headers and re-derive index arrays via `GetIndicesFromMinimal`. Add `solver_testvectors_192_7` (Boost, `#ifdef ENABLE_MINING`) and `validator_testvectors_192_7` (Boost, no mining needed -- validator runs without the solver). Mirror in the gtest file. Keep the (96,5) cases behind their existing guard for cross-check on non-Zero params.
@@ -220,6 +226,9 @@ Not a cache/tier reshuffle alone.
 4. `rest.py` deeper failures -- resolved (two more Py3 idioms; see above). **[done]** `rest.py` passes.
 5. `spentindex`/`addressindex` -- adapt to Zero 1-vout regtest settings. **[done 2026-07-21; both PASS]**
 6. Promote greens from `testScriptsTierBFailDebug` to a pass group; acceptance under `./contrib/run-tests.sh --all --strict`. **[done 2026-07-22 for the five insight scripts -> Tier B pass]** Process lesson (verify ≠ promote): **TEST_ZERO.md** section **Process -> Tier engagement**.
+
+#### Related: pure `-txindex` (`txindex.py`) -- Bfail Debug 2026-07-22
+Orphan Bitcoin-era script (was not in `rpc-tests.sh`). Complements insight suite; does **not** replace it. Inventoried under **`testScriptsTierBFailDebug`**. Failures / suggested fixes: **TEST_ZERO.md** `txindex.py` debug (Py3 `Decimal` into `CTxOut.nValue`; Bitcoin **50**-ZER asserts vs Zero regtest **10** ZER). Run: `./qa/pull-tester/rpc-tests.sh txindex`. Promote to B pass only after green.
 
 ### Finding B -- shielded (`z_*`) coverage is good; a few high-value holes remain
 `z_sendmany`, `z_shieldcoinbase`, `z_mergetoaddress`, `z_listunspent`,

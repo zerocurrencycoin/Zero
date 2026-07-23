@@ -82,6 +82,89 @@ Do **not** use sticky `reindex=` in conf. Prefer one-shot CLI `-reindex` and typ
 
 ---
 
+## 4.1 Short snaps and resume -- step-by-step
+
+**Goal:** cheap mainnet ConnectBlock / reindex / resume labs without the full tip. Semantics: **ZeroStruct** §13.2 (`L`/`H`/`R`).
+
+### A. Unpack a short/tiny snap (once per lab dir)
+
+```bash
+# Canonical archives (macOS host example)
+ZERO_HOME="$HOME/Library/Application Support/zero"
+LAB="$HOME/Work/ZK/0/E/zero-lab-tiny-run"   # or zero-lab-short-run
+mkdir -p "$LAB"
+# wipe lab only -- never the golden datadir
+rm -rf "$LAB"/*
+tar -xzf "$ZERO_HOME/chainblocks-tiny.tgz" -C "$LAB"   # or chainblocks-short.tgz
+# Expect: blocks/blk*.dat (+ rev*), blocks/index/ or empty index, chainstate/, zero.conf, README.txt
+```
+
+Use a **dedicated** `zero.conf` in `$LAB` (snap may ship one). Required ideas:
+
+- Same `txindex` / `insightexplorer` / `experimentalfeatures` as the archive was built with (mismatch forces wipe + full file replay).
+- **No** `reindex=1` in conf.
+- Lab: `listen=0`, `maxconnections=0`, prefer `disablewallet=1`.
+
+### B. Fresh reindex of the snap (timed baseline)
+
+```bash
+cd /path/to/Zero400
+./src/zerod -datadir="$LAB" -disablewallet -reindex -daemon
+# Watch: grep -E 'Reindex source:|Reindex progress:|UpdateTip:|Reindexing finished' "$LAB/debug.log"
+./src/zero-cli -datadir="$LAB" getblockcount   # tiny ~187417; short ~245992
+./src/zero-cli -datadir="$LAB" stop
+```
+
+Expect log `Reindex source: -reindex argument` (or `DB_FLAG mismatch` if flags disagree). Progress lines after each completed `blk#####.dat`. Finish: `Reindexing finished`; `'R'` cleared; `L`/`H` kept as history.
+
+### C. Resume after interrupt (the resume lab)
+
+Interrupt only after at least one **completed** `blk#####.dat` so `L` advances (tiny: finish `blk00000` then stop in `blk00001`; short: same with three files). Stopping only mid-first-file leaves `L` unset/0 -- restart still looks like a short redo of file 0.
+
+```bash
+# 1) Start a fresh reindex
+./src/zerod -datadir="$LAB" -disablewallet -reindex -daemon
+
+# 2) Wait until progress shows a completed file, then stop while the next file is in flight
+#    Example: lastfile=0 appeared, then UpdateTip still climbing in blk00001
+grep -E 'Reindex progress:|UpdateTip:' "$LAB/debug.log" | tail -20
+./src/zero-cli -datadir="$LAB" stop
+
+# 3) Restart WITHOUT -reindex and WITHOUT conf reindex=
+./src/zerod -datadir="$LAB" -disablewallet -daemon
+# First lines of the new session should show resume, not a wipe:
+grep -E 'Reindex source:|LoadBlockIndex|Reindex progress:' "$LAB/debug.log" | tail -30
+```
+
+Expect:
+
+| Check | Pass criteria |
+|-------|----------------|
+| Log | `Reindex source: resume (DB_REINDEX_FLAG present)` |
+| Start file | Continues at **`L+1`** (redo starts after last **completed** file), not file 0 |
+| Finish | Tip matches snap tip; `Reindexing finished` |
+| Wrong flags | `DB_FLAG mismatch` -> wipe -> full replay from 0 (not a resume) |
+
+If you pass `-reindex` again on restart, that is a **new wipe**, not a resume.
+
+### D. Which archive for which lab
+
+| Lab | Archive | Why |
+|-----|---------|-----|
+| Fast ConnectBlock / dbcache / FD | **tiny** (2 blk) | ~198s baseline |
+| Resume across a completed file boundary | **short** (3 blk) | Third file gives a clearer `L` step |
+| Full tip / longhaul | `chainblocks.tgz` into `zero-lab-reindex/` | Hours; optional rich monitor outside git |
+
+### E. Common mistakes
+
+1. Sticky `reindex=` in conf -- every restart wipes; loud warn only today.  
+2. Changing insight/txindex between runs -- forces wipe.  
+3. Expecting resume **at a height** -- cursor is **file** (`L`), `H` is tip after that file.  
+4. Running labs on the golden `Application Support/zero` tree -- extract to `$LAB` only.  
+5. Using short snaps for regtest logic tests -- use the RPC harness instead.
+
+---
+
 ## 5. Tests: done vs appropriate next
 
 | Layer | Status | Notes |
@@ -89,7 +172,7 @@ Do **not** use sticky `reindex=` in conf. Prefer one-shot CLI `-reindex` and typ
 | GTest `reindex_tests` | **Shipped** | Markers, `ReindexResumeStartFile` (incl. L+1 past last file), DB_FLAG insight/txindex round-trip (no live wipe) |
 | Short-snap timed reindex | **Manual once** | Tip 245992 / ~274s; not CI (archive size) |
 | Short-snap resume interrupt | **Appropriate manual** | Stop mid-`blk00001`, restart without `-reindex`, expect startfile redo; use persistent short tgz |
-| Conf `reindex=` warn | Covered by **OPS-REINDEX-CONF** | Refuse/`-reindexforce` still open; short snap is a fine host for that lab |
+| Conf `reindex=` warn | Covered by **OPS-REINDEX-CONF** | Loud warn shipped; refuse/`-reindexforce` postponed with **OPS-REINDEX** remainder |
 | Insight flip wipe | Lab-only | Destructive; short snap cheaper than full chain; do not run on golden |
 | `-stopatheight` / height-stop harness | **OPS-AT-HEIGHT** postponed | No daemon flag today |
 | Regtest logic | Prefer existing harness | Mine N blocks; do not use mainnet short snap |

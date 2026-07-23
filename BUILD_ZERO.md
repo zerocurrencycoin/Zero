@@ -78,7 +78,7 @@ Optional widen: **`./contrib/run-tests.sh --suite`** (Linux ELF stages). See [TE
 
 Disk: full native + depends build needs several GB free. If **`/`** is near full, see §6.9 before building.
 
-**v4.0.1 handoff (2026-06):** macOS **`--strict`** PASS. **Linux rebuild on lazu strongly recommended** before tag/merge (Darwin skips ELF release checks; reduced **`rpcbind_test`**). **`--strict` is not an automatic release block** -- maintainer decides. Checklist: **TEST_ZERO.md** section **4.0.1**.
+**v4.0.1 handoff (2026-06):** macOS **`--strict`** PASS. **Linux rebuild on lazu strongly recommended** before tag/merge (Darwin skips ELF release checks; reduced **`rpcbind_test`**). **`--strict` is not an automatic release block** -- maintainer decides. Checklist: **TEST_ZERO.md** section **4.0.1**. Platform matrix beyond **`--all`**: **TEST_ZERO.md** **Platform validation beyond `--all`** (Linux `--suite` ELF; Windows MXE build + optional native/`WSL2` `--strict`).
 
 ### 2.3 macOS ARM64
 
@@ -422,7 +422,7 @@ Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine on
 | Wallet activity | Poll **`listtransactions`** / **`zs_listtransactions`** from a sidecar, or ZMQ raw tx |
 | Explorer backend | **`txindex`**, **`-insightexplorer`**, REST — see [Block explorer](#462-block-explorer) |
 
-**Testing:** GTest **`DeprecationTest.AlertNotify`** covers **`-alertnotify`** on default vs opt-in builds only. **`-blocknotify`** and **`-walletnotify`** have **no automated gate** today (manual regtest only). Planned: **TST-09** -- assert default builds accept the flags but do not create side effects and log **"… notification skipped"**; see **TEST_ZERO.md**, **UpdateZero.md** **TST-09**.
+**Testing:** GTest **`DeprecationTest.AlertNotify`** covers **`-alertnotify`** (default: no side effects; TST-09 alert half **PASS**). **`-blocknotify`** / **`-walletnotify`** still need TST-09 marker tests. Full **`alert.cpp`** strip postponed (**OPS-ALERT-STRIP**). See **TEST_ZERO.md**, **UpdateZero.md** **TST-09**.
 
 #### 4.6.2 Block explorer (OPS-EXPLORER)
 

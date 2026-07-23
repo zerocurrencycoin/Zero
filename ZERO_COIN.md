@@ -117,7 +117,7 @@ At mainnet fee-start: base subsidy steps **10 -> 10.8 ZER**; founders output bec
 
 - **When:** `height >= fee-start` and `height <=` last founders height (**7,999,999** under pre-Blossom formula).
 - **Amount:** **7.5%** of **`GetBlockSubsidy`** for that height.
-- **Where:** Rotates among **`vFoundersRewardAddress`** (mainnet addresses in **Founder and system addresses** below). **`getblockchaininfo`** exposes this as **`developmentfee`**.
+- **Where:** Rotates among **`vFoundersRewardAddress`** (mainnet addresses in **Founder and system addresses** below). RPC today: **`zeronodestats`** -> `chainStats.developmentfee` / `developmentfeezats`; GBT / `getblocksubsidy` use **founders** / **foundersreward**. Naming reconcile = **DOC-FR-NAMING** (postponed).
 
 ---
 
@@ -306,7 +306,9 @@ Tools: see command table in **Emission totals** above.
 
 | RPC | Use |
 |-----|-----|
-| `getblockchaininfo` | Tip, `valuePools` (sprout/sapling/transparent), `developmentfee` |
+| `getblockchaininfo` | Tip, `valuePools` (sprout/sapling/transparent) |
+| `zeronodestats` | Includes `chainStats.developmentfee` (founders carve) |
+| `getblocksubsidy` | `miner` / `founders` amounts |
 | `getblock <hash> 2` | Coinbase vout decode |
 | `gettxoutsetinfo` | UTXO set size (requires no pruning) |
 | `getmininginfo` | Network hash, difficulty |
