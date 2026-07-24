@@ -5,7 +5,7 @@
 #   --all: same C++ filters as default + rpc-tests.sh -all (-A -B -E pass tiers).
 #   --rpcfail: rpc-tests.sh -rpcfail (-Bfail -Efail diagnostic; no C++, no util).
 #
-# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|-all|--rpcfail|--suite]
+# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|-all|--rpcfail|--suite] [rpc_test]
 # --strict: after all selected steps, exit 1 if any failed (default: exit 0 with WARNING if any failed).
 # Env: ZERO_MINE_COINBASE=1 to mine 1000 blocks for get_coinbase_address tests (slow).
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
@@ -13,6 +13,8 @@
 # --build-checks: run make check-security (requires python on PATH; see TEST_ZERO.md)
 # --jobs=N: Tier A RPC only, default pass-only mode. Serial (N=1) is the supported path (CI / contributor gate).
 # --suite: run qa/zcash/full_test_suite.py only (ordered stages; not --all, not default).
+# rpc_test: basename of one qa/rpc-tests script (e.g. proxy_test or proxy_test.py).
+#   Runs ONLY that script via rpc-tests.sh (skips C++/util/gtest). Preferred single-test entry.
 
 set -e
 if [ -z "${BASH_VERSION:-}" ]; then
@@ -60,6 +62,7 @@ BUILD_CHECKS=0
 PYTHON_JOBS=1
 STRICT=0
 OVERALL_FAIL=0
+RPC_SINGLE=""
 for arg in "$@"; do
     case "$arg" in
         --quick) QUICK=1 ;;
@@ -71,13 +74,28 @@ for arg in "$@"; do
         --rpcfail) MODE=rpcfail ;;
         --suite) FULL_SUITE=1 ;;
         --jobs=*) PYTHON_JOBS="${arg#--jobs=}" ;;
-        *)
+        -*)
             echo "Unknown option: $arg" >&2
-            echo "Usage: $0 [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|-all|--rpcfail|--suite]" >&2
+            echo "Usage: $0 [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|-all|--rpcfail|--suite] [rpc_test.py]" >&2
             exit 2
+            ;;
+        *)
+            # Single RPC script: proxy_test / proxy_test.py / path/to/proxy_test.py
+            base="$(basename "$arg")"
+            base="${base%.py}"
+            if [ -n "$RPC_SINGLE" ]; then
+                echo "Only one rpc_test name allowed (got '$RPC_SINGLE' and '$base')" >&2
+                exit 2
+            fi
+            if [ ! -f "$REPO_ROOT/qa/rpc-tests/${base}.py" ]; then
+                echo "Unknown rpc_test: $arg (expected qa/rpc-tests/${base}.py)" >&2
+                exit 2
+            fi
+            RPC_SINGLE="$base"
             ;;
     esac
 done
+
 
 bump_fail() {
     OVERALL_FAIL=1
@@ -145,6 +163,39 @@ if [ "$FULL_SUITE" -eq 1 ]; then
         exit 1
     fi
     echo "--- Done. Logs in $LOG_DIR ---"
+    exit 0
+fi
+
+# Single RPC script by name: only that test (no util / C++ / Tier A).
+if [ -n "$RPC_SINGLE" ]; then
+    echo "--- Single RPC: qa/rpc-tests/${RPC_SINGLE}.py ---"
+    PY3=$(find_python3)
+    if [ -z "$PY3" ]; then
+        echo "FAIL: Python 3.10+ required for RPC tests"
+        exit 1
+    fi
+    export PYTHON="$PY3"
+    if [ "$(uname -s)" = "Darwin" ]; then
+        orphaned=$(pgrep -f "zerod -datadir=/var/folders" 2>/dev/null | wc -l)
+        if [ "$orphaned" -gt 0 ]; then
+            echo "--- Killing $orphaned orphaned zerod ---"
+            pkill -f "zerod -datadir=/var/folders" 2>/dev/null || true
+        fi
+    fi
+    if ! run_cmd "rpc-$RPC_SINGLE" \
+        env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" "$RPC_SINGLE"; then
+        bump_fail
+    fi
+    echo ""
+    echo "--- Done. Logs in $LOG_DIR ---"
+    if [ "$OVERALL_FAIL" -eq 1 ]; then
+        if [ "$STRICT" -eq 1 ]; then
+            echo "FAIL: $RPC_SINGLE failed with --strict" >&2
+            exit 1
+        fi
+        echo "WARNING: $RPC_SINGLE failed. Re-run with --strict to exit 1 on failure."
+        exit 0
+    fi
     exit 0
 fi
 
