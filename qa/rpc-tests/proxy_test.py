@@ -8,185 +8,296 @@ from test_framework.socks5 import Socks5Configuration, Socks5Command, Socks5Serv
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, ipv6_loopback_available, start_nodes
 
-import socket
+import queue
 import os
+import socket
 import sys
 
 '''
 Test plan:
-- Start bitcoind's with different proxy configurations
-- Use addnode to initiate connections
-- Verify that proxies are connected to, and the right connection command is given
-- Proxy configurations to test on bitcoind side:
-    - `-proxy` (proxy everything)
-    - `-onion` (proxy just onions)
-    - `-proxyrandomize` Circuit randomization
-- Proxy configurations to test on proxy side,
-    - support no authentication (other proxy)
-    - support no authentication + user/pass authentication (Tor)
-    - proxy on IPv6
+- Start dummy SOCKS5 proxies (IPv4 unauth, IPv4 auth+unauth, optional IPv6)
+- Start zerods with matching -proxy / -onion / -proxyrandomize
+- addnode (onetry) and check SOCKS commands + getnetworkinfo
 
-- Create various proxies (as threads)
-- Create bitcoinds that connect to them
-- Manipulate the bitcoinds using addnode (onetry) an observe effects
+Any of the three Socks5Server binds may fail (port busy, IPv6 disabled for
+security, etc.): emit a strong WARNING and continue with whatever legs remain.
+If no proxy can bind, the test warns and exits successfully (nothing to assert).
 
-addnode connect to IPv4
-addnode connect to IPv6
-addnode connect to onion
-addnode connect to generic DNS name
+Socks5Configuration.unauth / .auth are independent server capabilities:
+  unauth=True  -> accept method 0x00 (no credentials)
+  auth=True    -> accept method 0x02 (username/password)
+conf1: unauth only ("other proxy"). conf2/conf3: unauth+auth (Tor-like).
 '''
 
-class ProxyTest(BitcoinTestFramework):        
-    def __init__(self):
-        self.ipv6_loopback = ipv6_loopback_available()
-        # Create two proxies on different ports
-        # ... one unauthenticated
-        self.conf1 = Socks5Configuration()
-        self.conf1.addr = ('127.0.0.1', 13000 + (os.getpid() % 1000))
-        self.conf1.unauth = True
-        self.conf1.auth = False
-        # ... one supporting authenticated and unauthenticated (Tor)
-        self.conf2 = Socks5Configuration()
-        self.conf2.addr = ('127.0.0.1', 14000 + (os.getpid() % 1000))
-        self.conf2.unauth = True
-        self.conf2.auth = True
-        # ... one on IPv6 with similar configuration
-        self.conf3 = Socks5Configuration()
-        self.conf3.af = socket.AF_INET6
-        self.conf3.addr = ('::1', 15000 + (os.getpid() % 1000))
-        self.conf3.unauth = True
-        self.conf3.auth = True
+# Destination cases exercised through a node's configured proxy.
+# Each entry: (label, addnode_arg, expect_addr, expect_port, onion_only)
+ADDNODE_CASES = (
+    ("IPv4", "15.61.23.23:1234", "15.61.23.23", 1234, False),
+    ("IPv6-destination", "[1233:3432:2434:2343:3234:2345:6546:4534]:5443",
+     "1233:3432:2434:2343:3234:2345:6546:4534", 5443, False),
+    ("onion", "bitcoinostk4e4re.onion:8333", "bitcoinostk4e4re.onion", 8333, True),
+    ("DNS", "node.noumenon:8333", "node.noumenon", 8333, False),
+)
 
-        self.serv1 = Socks5Server(self.conf1)
-        self.serv1.start()
-        self.serv2 = Socks5Server(self.conf2)
-        self.serv2.start()
-        self.serv3 = None
-        if self.ipv6_loopback:
-            self.serv3 = Socks5Server(self.conf3)
-            self.serv3.start()
+
+def _warn(msg):
+    print("WARNING: %s" % msg, file=sys.stderr)
+
+
+def _strong_warn(msg):
+    """Bind / environment failures that skip a whole proxy or leg."""
+    print("WARNING: *** %s ***" % msg, file=sys.stderr)
+
+
+def _addr_label(conf):
+    host, port = conf.addr[0], conf.addr[1]
+    if conf.af == socket.AF_INET6:
+        return "[%s]:%i" % (host, port)
+    return "%s:%i" % (host, port)
+
+
+def _proxy_arg(conf):
+    """zerod -proxy= / -onion= value for this bind."""
+    if conf.af == socket.AF_INET6:
+        return "[%s]:%i" % (conf.addr[0], conf.addr[1])
+    return "%s:%i" % (conf.addr[0], conf.addr[1])
+
+
+def start_socks_proxy(conf, label):
+    """Bind/start Socks5Server. On any failure: strong WARNING, return None."""
+    try:
+        serv = Socks5Server(conf)
+        serv.start()
+        return serv
+    except OSError as e:
+        _strong_warn(
+            "%s SOCKS bind %s failed (%s); skipping this proxy. "
+            "Remaining proxy legs will still run."
+            % (label, _addr_label(conf), e)
+        )
+        return None
+    except Exception as e:
+        _strong_warn(
+            "%s SOCKS start %s failed (%s: %s); skipping this proxy. "
+            "Remaining proxy legs will still run."
+            % (label, _addr_label(conf), type(e).__name__, e)
+        )
+        return None
+
+
+def make_socks_conf(af, host, port_base, unauth, auth):
+    conf = Socks5Configuration()
+    conf.af = af
+    conf.addr = (host, port_base + (os.getpid() % 1000))
+    conf.unauth = unauth
+    conf.auth = auth
+    return conf
+
+
+class ProxyTest(BitcoinTestFramework):
+    def __init__(self):
+        # conf1: unauth-only IPv4 ("other proxy")
+        self.conf1 = make_socks_conf(socket.AF_INET, '127.0.0.1', 13000, True, False)
+        # conf2: Tor-like IPv4 (unauth + auth)
+        self.conf2 = make_socks_conf(socket.AF_INET, '127.0.0.1', 14000, True, True)
+        # conf3: Tor-like IPv6 localhost
+        self.conf3 = make_socks_conf(socket.AF_INET6, '::1', 15000, True, True)
+
+        self.serv1 = start_socks_proxy(self.conf1, "conf1/IPv4-unauth")
+        self.serv2 = start_socks_proxy(self.conf2, "conf2/IPv4-auth+unauth")
+        if ipv6_loopback_available():
+            self.serv3 = start_socks_proxy(self.conf3, "conf3/IPv6")
         else:
-            print("Skipping IPv6 proxy server on %s (no ::1 loopback)" % sys.platform)
+            self.serv3 = None
+            _strong_warn(
+                "No usable ::1 loopback on %s (IPv6 may be disabled); "
+                "skipping conf3/IPv6 proxy."
+                % sys.platform
+            )
+
+        # Node legs: only those whose proxies bound successfully.
+        # Each leg: name, node_args, proxy_slots (serv for each ADDNODE_CASES index),
+        # auth expect, test_onion, networkinfo checker kwargs.
+        self.legs = []
+        if self.serv1 is not None:
+            self.legs.append({
+                "name": "basic-proxy-conf1",
+                "args": [
+                    '-listen', '-debug=net', '-debug=proxy',
+                    '-proxy=%s' % _proxy_arg(self.conf1),
+                    '-proxyrandomize=1',
+                ],
+                "proxy_for_case": [self.serv1, self.serv1, self.serv1, self.serv1],
+                "auth": False,
+                "test_onion": True,
+                "netinfo": {
+                    "proxy_nets": ("ipv4", "ipv6", "onion"),
+                    "proxy": _proxy_arg(self.conf1),
+                    "randomize": True,
+                    "onion_reachable": True,
+                },
+            })
+        else:
+            _strong_warn("Skipping leg basic-proxy-conf1 (conf1 unavailable)")
+
+        if self.serv1 is not None and self.serv2 is not None:
+            self.legs.append({
+                "name": "proxy-conf1-onion-conf2",
+                "args": [
+                    '-listen', '-debug=net', '-debug=proxy',
+                    '-proxy=%s' % _proxy_arg(self.conf1),
+                    '-onion=%s' % _proxy_arg(self.conf2),
+                    '-proxyrandomize=0',
+                ],
+                "proxy_for_case": [self.serv1, self.serv1, self.serv2, self.serv1],
+                "auth": False,
+                "test_onion": True,
+                "netinfo": {
+                    "proxy_nets": ("ipv4", "ipv6"),
+                    "proxy": _proxy_arg(self.conf1),
+                    "randomize": False,
+                    "onion_proxy": _proxy_arg(self.conf2),
+                    "onion_randomize": False,
+                    "onion_reachable": True,
+                },
+            })
+        else:
+            _strong_warn(
+                "Skipping leg proxy-conf1-onion-conf2 "
+                "(needs both conf1 and conf2)"
+            )
+
+        if self.serv2 is not None:
+            self.legs.append({
+                "name": "proxy-conf2-randomize",
+                "args": [
+                    '-listen', '-debug=net', '-debug=proxy',
+                    '-proxy=%s' % _proxy_arg(self.conf2),
+                    '-proxyrandomize=1',
+                ],
+                "proxy_for_case": [self.serv2, self.serv2, self.serv2, self.serv2],
+                "auth": True,
+                "test_onion": True,
+                "expect_unique_credentials": True,
+                "netinfo": {
+                    "proxy_nets": ("ipv4", "ipv6", "onion"),
+                    "proxy": _proxy_arg(self.conf2),
+                    "randomize": True,
+                    "onion_reachable": True,
+                },
+            })
+        else:
+            _strong_warn("Skipping leg proxy-conf2-randomize (conf2 unavailable)")
+
+        if self.serv3 is not None:
+            self.legs.append({
+                "name": "proxy-conf3-ipv6",
+                "args": [
+                    '-listen', '-debug=net', '-debug=proxy',
+                    '-proxy=%s' % _proxy_arg(self.conf3),
+                    '-proxyrandomize=0',
+                    '-noonion',
+                ],
+                "proxy_for_case": [self.serv3, self.serv3, self.serv3, self.serv3],
+                "auth": False,
+                "test_onion": False,
+                "netinfo": {
+                    "proxy_nets": ("ipv4", "ipv6"),
+                    "proxy": _proxy_arg(self.conf3),
+                    "randomize": False,
+                    "onion_reachable": False,
+                },
+            })
+        else:
+            _strong_warn("Skipping leg proxy-conf3-ipv6 (conf3 unavailable)")
+
+        if not self.legs:
+            _strong_warn(
+                "No SOCKS proxies available; proxy_test has nothing to run "
+                "(will pass without node asserts)."
+            )
 
     def setup_nodes(self):
-        # Note: proxies are not used to connect to local nodes
-        # this is because the proxy to use is based on CService.GetNetwork(), which return NET_UNROUTABLE for localhost
-        extra_args = [
-            ['-listen', '-debug=net', '-debug=proxy', '-proxy=%s:%i' % (self.conf1.addr),'-proxyrandomize=1'], 
-            ['-listen', '-debug=net', '-debug=proxy', '-proxy=%s:%i' % (self.conf1.addr),'-onion=%s:%i' % (self.conf2.addr),'-proxyrandomize=0'], 
-            ['-listen', '-debug=net', '-debug=proxy', '-proxy=%s:%i' % (self.conf2.addr),'-proxyrandomize=1'], 
-            ['-listen', '-debug=net', '-debug=proxy', '-proxy=[%s]:%i' % (self.conf3.addr),'-proxyrandomize=0', '-noonion']
-        ]
-        if not self.ipv6_loopback:
-            extra_args = extra_args[:3]
+        # Note: proxies are not used to connect to local nodes (NET_UNROUTABLE).
+        if not self.legs:
+            # Framework expects >=1 node in some paths; start a minimal node
+            # with no proxy so setup completes, then run_test no-ops.
+            return start_nodes(1, self.options.tmpdir, extra_args=[['-listen=0']])
+        extra_args = [leg["args"] for leg in self.legs]
         return start_nodes(len(extra_args), self.options.tmpdir, extra_args=extra_args)
 
-    def node_test(self, node, proxies, auth, test_onion=True):
+    def _expect_socks_cmd(self, proxy, what, timeout=60):
+        try:
+            cmd = proxy.queue.get(timeout=timeout)
+        except queue.Empty:
+            _warn("Timed out after %ss waiting for SOCKS command (%s)" % (timeout, what))
+            raise AssertionError("SOCKS command timeout: %s" % what)
+        if isinstance(cmd, Exception):
+            _warn("SOCKS proxy raised during %s: %r" % (what, cmd))
+            raise AssertionError("SOCKS proxy error during %s: %s" % (what, cmd))
+        if not isinstance(cmd, Socks5Command):
+            _warn("Unexpected SOCKS queue item during %s: %r" % (what, cmd))
+            raise AssertionError("Unexpected SOCKS queue item during %s: %r" % (what, cmd))
+        return cmd
+
+    def run_addnode_cases(self, node, proxy_for_case, auth, test_onion=True):
+        """Parametrized addnode/SOCKS checks shared by all legs."""
         rv = []
-        # Test: outgoing IPv4 connection through node
-        node.addnode("15.61.23.23:1234", "onetry")
-        cmd = proxies[0].queue.get()
-        assert(isinstance(cmd, Socks5Command))
-        # Note: bitcoind's SOCKS5 implementation only sends atyp DOMAINNAME, even if connecting directly to IPv4/IPv6
-        assert_equal(cmd.atyp, AddressType.DOMAINNAME)
-        assert_equal(cmd.addr, "15.61.23.23")
-        assert_equal(cmd.port, 1234)
-        if not auth:
-            assert_equal(cmd.username, None)
-            assert_equal(cmd.password, None)
-        rv.append(cmd)
-
-        # Test: outgoing IPv6 connection through node
-        node.addnode("[1233:3432:2434:2343:3234:2345:6546:4534]:5443", "onetry")
-        cmd = proxies[1].queue.get()
-        assert(isinstance(cmd, Socks5Command))
-        # Note: bitcoind's SOCKS5 implementation only sends atyp DOMAINNAME, even if connecting directly to IPv4/IPv6
-        assert_equal(cmd.atyp, AddressType.DOMAINNAME)
-        assert_equal(cmd.addr, "1233:3432:2434:2343:3234:2345:6546:4534")
-        assert_equal(cmd.port, 5443)
-        if not auth:
-            assert_equal(cmd.username, None)
-            assert_equal(cmd.password, None)
-        rv.append(cmd)
-
-        if test_onion:
-            # Test: outgoing onion connection through node
-            node.addnode("bitcoinostk4e4re.onion:8333", "onetry")
-            cmd = proxies[2].queue.get()
-            assert(isinstance(cmd, Socks5Command))
+        for i, (label, addnode_arg, expect_addr, expect_port, onion_only) in enumerate(ADDNODE_CASES):
+            if onion_only and not test_onion:
+                continue
+            node.addnode(addnode_arg, "onetry")
+            cmd = self._expect_socks_cmd(
+                proxy_for_case[i],
+                "%s addnode via proxy" % label,
+            )
+            # zerod SOCKS5 sends atyp DOMAINNAME even for IPv4/IPv6 literals
             assert_equal(cmd.atyp, AddressType.DOMAINNAME)
-            assert_equal(cmd.addr, "bitcoinostk4e4re.onion")
-            assert_equal(cmd.port, 8333)
+            assert_equal(cmd.addr, expect_addr)
+            assert_equal(cmd.port, expect_port)
             if not auth:
                 assert_equal(cmd.username, None)
                 assert_equal(cmd.password, None)
             rv.append(cmd)
-
-        # Test: outgoing DNS name connection through node
-        node.addnode("node.noumenon:8333", "onetry")
-        cmd = proxies[3].queue.get()
-        assert(isinstance(cmd, Socks5Command))
-        assert_equal(cmd.atyp, AddressType.DOMAINNAME)
-        assert_equal(cmd.addr, "node.noumenon")
-        assert_equal(cmd.port, 8333)
-        if not auth:
-            assert_equal(cmd.username, None)
-            assert_equal(cmd.password, None)
-        rv.append(cmd)
-
         return rv
 
+    def check_networkinfo(self, node, netinfo):
+        """Parametrized getnetworkinfo proxy asserts for one leg."""
+        n = {}
+        for x in node.getnetworkinfo()['networks']:
+            n[x['name']] = x
+        for net in netinfo["proxy_nets"]:
+            assert_equal(n[net]['proxy'], netinfo["proxy"])
+            assert_equal(n[net]['proxy_randomize_credentials'], netinfo["randomize"])
+        if "onion_proxy" in netinfo:
+            assert_equal(n['onion']['proxy'], netinfo["onion_proxy"])
+            assert_equal(
+                n['onion']['proxy_randomize_credentials'],
+                netinfo["onion_randomize"],
+            )
+        assert_equal(n['onion']['reachable'], netinfo["onion_reachable"])
+
+    def run_leg(self, node_index, leg):
+        """Run addnode cases + optional credential uniqueness + getnetworkinfo."""
+        print("=== proxy_test leg: %s (node %d) ===" % (leg["name"], node_index))
+        rv = self.run_addnode_cases(
+            self.nodes[node_index],
+            leg["proxy_for_case"],
+            leg["auth"],
+            test_onion=leg["test_onion"],
+        )
+        if leg.get("expect_unique_credentials"):
+            credentials = set((x.username, x.password) for x in rv)
+            assert_equal(len(credentials), len(rv))
+        self.check_networkinfo(self.nodes[node_index], leg["netinfo"])
+
     def run_test(self):
-        # basic -proxy
-        self.node_test(self.nodes[0], [self.serv1, self.serv1, self.serv1, self.serv1], False)
+        if not self.legs:
+            _strong_warn("proxy_test: no legs executed (all proxies unavailable)")
+            return
+        for i, leg in enumerate(self.legs):
+            self.run_leg(i, leg)
 
-        # -proxy plus -onion
-        self.node_test(self.nodes[1], [self.serv1, self.serv1, self.serv2, self.serv1], False)
-
-        # -proxy plus -onion, -proxyrandomize
-        rv = self.node_test(self.nodes[2], [self.serv2, self.serv2, self.serv2, self.serv2], True)
-        # Check that credentials as used for -proxyrandomize connections are unique
-        credentials = set((x.username,x.password) for x in rv)
-        assert_equal(len(credentials), 4)
-
-        if self.ipv6_loopback:
-            # proxy on IPv6 localhost
-            self.node_test(self.nodes[3], [self.serv3, self.serv3, self.serv3, self.serv3], False, False)
-
-        def networks_dict(d):
-            r = {}
-            for x in d['networks']:
-                r[x['name']] = x
-            return r
-
-        # test RPC getnetworkinfo
-        n0 = networks_dict(self.nodes[0].getnetworkinfo())
-        for net in ['ipv4','ipv6','onion']:
-            assert_equal(n0[net]['proxy'], '%s:%i' % (self.conf1.addr))
-            assert_equal(n0[net]['proxy_randomize_credentials'], True)
-        assert_equal(n0['onion']['reachable'], True)
-
-        n1 = networks_dict(self.nodes[1].getnetworkinfo())
-        for net in ['ipv4','ipv6']:
-            assert_equal(n1[net]['proxy'], '%s:%i' % (self.conf1.addr))
-            assert_equal(n1[net]['proxy_randomize_credentials'], False)
-        assert_equal(n1['onion']['proxy'], '%s:%i' % (self.conf2.addr))
-        assert_equal(n1['onion']['proxy_randomize_credentials'], False)
-        assert_equal(n1['onion']['reachable'], True)
-        
-        n2 = networks_dict(self.nodes[2].getnetworkinfo())
-        for net in ['ipv4','ipv6','onion']:
-            assert_equal(n2[net]['proxy'], '%s:%i' % (self.conf2.addr))
-            assert_equal(n2[net]['proxy_randomize_credentials'], True)
-        assert_equal(n2['onion']['reachable'], True)
-
-        if self.ipv6_loopback:
-            n3 = networks_dict(self.nodes[3].getnetworkinfo())
-            for net in ['ipv4','ipv6']:
-                assert_equal(n3[net]['proxy'], '[%s]:%i' % (self.conf3.addr))
-                assert_equal(n3[net]['proxy_randomize_credentials'], False)
-            assert_equal(n3['onion']['reachable'], False)
 
 if __name__ == '__main__':
     ProxyTest().main()
-

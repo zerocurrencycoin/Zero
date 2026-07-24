@@ -135,7 +135,13 @@ def _rpc_cache_write_tip_marker(cache_root, tip):
         f.write('%d\n' % tip)
 
 def ipv6_loopback_available():
-    """True if binding to ::1 is expected to work (IPv6 loopback enabled)."""
+    """True if binding to ::1 succeeds.
+
+    False when IPv6 is absent or disabled (common hardening: ipv6.disable=1,
+    no lo inet6, etc.). Callers must still treat Socks5Server(::1) bind failures
+    as skippable -- this probe is best-effort and must not imply the suite
+    requires IPv6.
+    """
     try:
         s = socket.socket(socket.AF_INET6)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
