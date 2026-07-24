@@ -1742,14 +1742,20 @@ bool GetTimestampIndex(unsigned int high, unsigned int low, bool fActiveOnly,
 bool GetSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value)
 {
     AssertLockHeld(cs_main);
-    if (!fSpentIndex)
-        return error("Spent index not enabled");
+    // Match Zcash: LogPrint("rpc", ...) instead of error() so default debug.log
+    // is not flooded when insight spentindex misses under load.
+    if (!fSpentIndex) {
+        LogPrint("rpc", "Spent index not enabled");
+        return false;
+    }
 
     if (mempool.getSpentIndex(key, value))
         return true;
 
-    if (!pblocktree->ReadSpentIndex(key, value))
-        return error("Unable to get spent index information");
+    if (!pblocktree->ReadSpentIndex(key, value)) {
+        LogPrint("rpc", "Unable to get spent index information");
+        return false;
+    }
 
     return true;
 }
