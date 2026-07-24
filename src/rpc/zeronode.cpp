@@ -1125,9 +1125,7 @@ UniValue zeronodestats(const UniValue& params, bool fHelp)
           ret.push_back(Pair("chainStats", chain));
           ret.push_back(Pair("nodeCount", ct));
           ret.push_back(Pair("nodeList", listzeronodes(newParams, false)));
-
-          int iq = ct["inqueue"].get_int();
-          LogPrintf("Node Count %i\n", iq);
+          // inqueue is already in nodeCount JSON; do not LogPrintf on every poll.
 
           return ret;
 
