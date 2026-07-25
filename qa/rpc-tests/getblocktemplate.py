@@ -53,8 +53,7 @@ class GetBlockTemplateTest(BitcoinTestFramework):
         assert_equal(16, len(tmpl['noncerange']))
 
         # Test 6: coinbasetxn checks (required flag only).
-        # Zero mainnet uses 7.5% development fee in eligible heights; regtest defers
-        # fee-start to height 5000 so short tests never see foundersreward in GBT.
+        # Stays below REGTEST_FOUNDERS_START; window coverage in founders_window.py.
         assert(tmpl['coinbasetxn']['required'])
 
         # Test 7: hashFinalSaplingRoot matches chain tip (not upstream constant)

@@ -21,7 +21,7 @@ from test_framework.util import (
     assert_equal,
     assert_greater_than,
     initialize_chain_clean,
-    mine_until_node_has_mature_coinbase,
+    mine_until_mature,
     start_node,
 )
 
@@ -41,7 +41,7 @@ class GetAllDataScenarioTest(BitcoinTestFramework):
 
     def run_test(self):
         node = self.nodes[0]
-        mine_until_node_has_mature_coinbase(node, self.nodes)
+        mine_until_mature(node, self.nodes)
 
         # Build >5 wallet txs involving T addresses so nCount can bind.
         addrs = [node.getnewaddress() for _ in range(8)]

@@ -73,7 +73,8 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 - **WAL-GETALLDATA-ARG2-DEFAULT** -- postponed; justified default **2** (7d) -- see Full descriptions
 - **WAL-UI-TX-WINDOW** -- postponed; Zerowallet History day control
 - **WAL-QT-UI-TEST** -- postponed; no QTest/CI UI suite; manual soft-path checks only
-- **WAL-GETALLDATA-HELPERS** -- proposed shared helpers (bounded scope below)
+- **WAL-GETALLDATA-HELPERS** -- C++ getalldata helpers still pending; Python **`assert_raises_message`** shipped in `util.py` (2026-07-24)
+- **WAL-GETALLDATA-ADDRKEY** -- **Zerowallet / out of Zero400 scope**; finding kept in ZeroStruct §6.2 (no node prototype here)
 - **WAL-GETALLDATA-LEGACY-SCOPE** -- which 2018--2020 surface can shrink (see Full descriptions)
 - **WAL-RPC-ACCOUNTS** -- **postponed** (see Full descriptions); line-by-line Zcash `wtxOrdered` type match stays with this item
 - OPS-TXINDEX-DEFAULT / OPS-AT-HEIGHT -- postponed
@@ -86,6 +87,12 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 - Params archival / Windows hardening / branch-id CI / OpenSSL 3 / SwiftTX strip / release branch cleanup / Debian packaging / GitHub org cleanup
 
 ## Completed (selected)
+
+### Founders window / wallet.py (2026-07-24)
+
+- Regtest **`REGTEST_FOUNDERS_START`/`STOP`** = 1000/1500; **`founders_window.py`** Tier B (subsidy, shape, GBT, Insight founders balance).
+- Short helpers: `block_subsidy`, `founders_share`, `miner_share`, `subsidy_range`, `miner_range`, `mature_height`, `mine_until_mature`, `mature_or_skip`, `assert_raises_message`.
+- **`wallet.py`** Sapling port + fee-aware miner balances -> **Tier B pass**.
 
 - ZERO_COIN.md consolidation; harness exit-code / getchaintips / zeronode null guards; shell-notify compile gate; OPS-DEV-UTXO; LevelDB `max_open_files` 256; OPS-CACHE measured; OPS-REINDEX markers/resume; OPS-BOOTSTRAP-DOC; WAL-WTXORDERED + Assure-4; S7 const wallet-tx walks (getalldata / listsinceblock / listtransactions iterate); TST-07 walletbackup; EXT five insight scripts B pass; getalldata S4--S8 + W2/W3 exclusive; `getalldata_scenario` Ext; longpoll funded-node pin; S8 once-per-episode WARNING; soft **-34** client path on Zerowallet
 - v4.0.1 macOS `--strict` PASS (2026-06-09)
@@ -167,6 +174,12 @@ Tip+dirty in-process cache. Stashed on Zero400. Prefer after W5. Orthogonal to `
 
 Implement the **Helpers design** table above (`WAL-GETALLDATA-HELPERS` status: Pending).
 
+### WAL-GETALLDATA-ADDRKEY (Zerowallet; out of Zero400 scope)
+
+**Finding (2026-07-24):** fat-wallet `getalldata` samples hot in `EncodeBase58Check` because the balance walk keys `addressBalances` by freshly encoded address strings per UTXO. Structure, preferred fix, and rejected 8-byte hash keys: **ZeroStruct.md** §6.2.
+
+**Outcome (2026-07-24):** no prototype in this tree (AGENTS: Zerowallet out of scope). Implement in Zerowallet / `rpczerowallet` when scheduled; Zero400 keeps the finding only.
+
 ### WAL-GETALLDATA-LEGACY-SCOPE (2018--2020 surface)
 
 | Era | Keep / shrink |
@@ -193,7 +206,7 @@ Port LockedPool + optional `getmemoryinfo`; Zero has `GetLockedPageCount()` only
 
 - **OPS-REINDEX / ALERT-STRIP / CACHE-METRICS / TXINDEX-DEFAULT / AT-HEIGHT:** see Pending.
 - **FR-ROTATE / TADDR / Z:** product options; postponed.
-- **EXT-INSIGHT-SUPERSET:** founders/fee-start index coverage; explorer-host PRs out of scope for this checklist.
+- **EXT-INSIGHT-SUPERSET:** founders-index at START/STOP **done** (`founders_window.py` + Insight). Explorer-host PRs remain out of scope.
 
 ### WAL-UI-TX-WINDOW / WAL-QT-UI-TEST
 

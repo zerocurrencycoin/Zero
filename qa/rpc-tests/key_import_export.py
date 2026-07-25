@@ -7,7 +7,7 @@
 from decimal import Decimal
 from functools import reduce
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, assert_greater_than, start_nodes, initialize_chain_clean, connect_nodes_bi, mine_until_node_has_mature_coinbase
+from test_framework.util import assert_equal, assert_greater_than, start_nodes, initialize_chain_clean, connect_nodes_bi, mine_until_mature
 
 import logging
 
@@ -54,7 +54,7 @@ class KeyImportExportTest (BitcoinTestFramework):
         # Seed Alice with some funds
         alice.generate(10)
         self.sync_all()
-        mine_until_node_has_mature_coinbase(miner, self.nodes)
+        mine_until_mature(miner, self.nodes)
         self.sync_all()
 
         # Now get a pristine address for receiving transfers:

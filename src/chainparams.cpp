@@ -415,7 +415,8 @@ public:
         strCurrencyUnits = "REG";
         bip44CoinType = 1;
         consensus.fCoinbaseMustBeProtected = false;
-        consensus.nFeeStartBlockHeight = 5000;
+        // Founders/dev-fee on for [1000, 1500); stay below maturity (720) for 1-vout tests.
+        consensus.nFeeStartBlockHeight = Consensus::REGTEST_FOUNDERS_START;
         consensus.nPreBlossomSubsidyHalvingInterval = Consensus::PRE_BLOSSOM_REGTEST_HALVING_INTERVAL;
         consensus.nPostBlossomSubsidyHalvingInterval = Consensus::POST_BLOSSOM_REGTEST_HALVING_INTERVAL;
         consensus.nMajorityEnforceBlockUpgrade = 750;
@@ -529,6 +530,9 @@ public:
         // Founders reward script expects a vector of 2-of-3 multisig addresses
         vFoundersRewardAddress = { "t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg" };
         assert(vFoundersRewardAddress.size() <= consensus.GetLastFoundersRewardBlockHeight(0));
+        // Keep named OFF height locked to consensus last-FR+1 (Blossom inactive on regtest).
+        assert(consensus.GetLastFoundersRewardBlockHeight(0) + 1 == Consensus::REGTEST_FOUNDERS_STOP);
+        assert(consensus.nFeeStartBlockHeight < Consensus::REGTEST_FOUNDERS_STOP);
     }
 
     void UpdateNetworkUpgradeParameters(Consensus::UpgradeIndex idx, int nActivationHeight)

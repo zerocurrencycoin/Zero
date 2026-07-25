@@ -9,7 +9,7 @@ from functools import reduce
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, assert_greater_than, start_nodes,\
     initialize_chain_clean, connect_nodes_bi, wait_and_assert_operationid_status, \
-    mine_until_node_has_mature_coinbase
+    mine_until_mature
 
 import logging
 
@@ -80,7 +80,7 @@ class ZkeyImportExportTest (BitcoinTestFramework):
         # Seed Alice with some funds (720 maturity before shielding coinbase).
         alice.generate(10)
         self.sync_all()
-        mine_until_node_has_mature_coinbase(miner, self.nodes)
+        mine_until_mature(miner, self.nodes)
         # Shield Alice's coinbase funds to her zaddr
         alice_zaddr = alice.z_getnewaddress('sprout')
         res = alice.z_shieldcoinbase("*", alice_zaddr)

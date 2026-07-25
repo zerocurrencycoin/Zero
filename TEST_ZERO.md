@@ -279,7 +279,7 @@ Keep the name. All hits are the founders/dev carve height gate or the 10 -> 10.8
 | Role | Files (count) |
 |------|----------------|
 | Declared | `consensus/params.h` (1) |
-| Per-network constants | `chainparams.cpp` main **412300** / testnet **1** / regtest **5000** (3) |
+| Per-network constants | `chainparams.cpp` main **412300** / testnet **1** / regtest **`REGTEST_FOUNDERS_START`=1000 / `STOP`=1500** (3) |
 | Address/script bounds | `chainparams.cpp` `GetFoundersReward*` (4) |
 | Subsidy base 10.8 | `main.cpp` `GetBlockSubsidy` (1); tests `main_tests.cpp` (3) |
 | Require founders out | `main.cpp` connect (1); `payments.cpp` / `budget.cpp` (2); `rpc/mining.cpp` `getblocksubsidy` (1); `metrics.cpp` (1) |
@@ -503,17 +503,17 @@ Authoritative: **`src/consensus/consensus.h`** `COINBASE_MATURITY = 720`; Python
 | Helper | Role |
 |--------|------|
 | **`COINBASE_MATURITY`** | Constant [720] |
-| **`coinbase_mature_tip(n)`** | `COINBASE_MATURITY + n` (replaces upstream `105` = 100+5) |
+| **`mature_height(n)`** | `COINBASE_MATURITY + n` (replaces upstream `105` = 100+5) |
 | **`mine_to_height`** | Exact tip for NU / doublespend |
-| **`mine_until_node_has_mature_coinbase`** | One mature UTXO |
-| **`ensure_mature_coinbase_or_skip`** | Tier B optional skip path |
+| **`mine_until_mature`** | One mature UTXO |
+| **`mature_or_skip`** | Tier B optional skip path |
 
 ### 720+ block acceleration options
 
 | Approach | Status | Tradeoff |
 |----------|--------|----------|
 | **`initialize_chain` cache to `COINBASE_MATURITY+5`** | **Implemented** (2026-06-08) | One-time slow cache build; reuse across documented users and implicit default-**`setup_chain`** scripts -- see **`initialize_chain` cache** |
-| **`mine_until_*` at test start** | Implemented | Per-test cost; correct |
+| **`mine_until_mature` at test start** | Implemented | Per-test cost; correct |
 | **`initialize_chain_clean` + incremental** | Tier A default | No stale cache |
 | **Pre-mined datadir tarball / DB archive** | Not in tree | Fast CI restore; version NU/cache carefully |
 | **Port `prioritisetransaction` to ZIP-317 style** | Retired | Zcash upstream replaced 1121-block legacy test |
@@ -522,7 +522,7 @@ Authoritative: **`src/consensus/consensus.h`** `COINBASE_MATURITY = 720`; Python
 | **`ZERO_MINE_COINBASE=1` (1000 blocks)** | Env opt-in | Slow hammer; not gate |
 | **Regtest PoW (48,5)** | Consensus | Cannot shrink per-block Equihash solve without fork |
 
-**Policy:** prefer helpers over hardcoded `generate(720)`; replace upstream `generate(100/105)` with `COINBASE_MATURITY` / `coinbase_mature_tip()` in ported scripts. Cache-specific inventory (users, tip-**200** debt, Bfail/Efail exposure): **`initialize_chain` cache** below. Other porting debt: **Obsolete upstream assumptions and porting debt** under **RPC harness details**. Active engineering queue: **§5**.
+**Policy:** prefer helpers over hardcoded `generate(720)`; replace upstream `generate(100/105)` with `COINBASE_MATURITY` / `mature_height()` in ported scripts. Cache-specific inventory (users, tip-**200** debt, Bfail/Efail exposure): **`initialize_chain` cache** below. Other porting debt: **Obsolete upstream assumptions and porting debt** under **RPC harness details**. Active engineering queue: **§5**.
 
 ---
 
@@ -575,7 +575,7 @@ First build is slow (200-block distribution + ~525 extra blocks for maturity). L
 | Which coinbases are mature | Stale cache after **`COINBASE_MATURITY`** change in C++ |
 | Wallet UTXO layout from the 200-block distribution | Tests assuming empty wallets or exact low tips must use **`initialize_chain_clean`** |
 
-**History:** **`734491cc6`** (2026-06-08) extended the cache to **`COINBASE_MATURITY + 5`**; **`blockchain.py`** still asserted tip **200** until aligned with **`CACHE_CHAIN_TIP`** and **`regtest_supply_at_height()`**.
+**History:** **`734491cc6`** (2026-06-08) extended the cache to **`COINBASE_MATURITY + 5`**; **`blockchain.py`** still asserted tip **200** until aligned with **`CACHE_CHAIN_TIP`** and **`subsidy_range()`**.
 
 **Default NU on `start_nodes`:** **`NU_TEST_ARGS`** (Overwinter + Sapling at height 1), same as cache build. Per-test **`extra_args`** can override (e.g. `wallet_overwintertx`, `p2p_nu_peer_management`).
 
@@ -608,7 +608,7 @@ Scripts that today call **`initialize_chain_clean`** then **`generate(720)`** (o
 
 | Script | Tier | Today | Benefit |
 |--------|------|-------|---------|
-| `wallet.py` | Bfail Debug | clean + `generate(720)` x2 | Block-5 maturity bug; see **`wallet.py` debug** before cache adoption |
+| `wallet.py` | **Tier B pass** | clean + maturity mining | Sapling path; fee-aware miner balances (2026-07-24) |
 | `listtransactions.py` | B pass | clean + `generate(720)` | Same |
 | `p2p_txexpiry_dos.py` | B pass | clean + `generate(720)` | Same |
 
@@ -616,7 +616,7 @@ Scripts that today call **`initialize_chain_clean`** then **`generate(720)`** (o
 
 ### When not to use cache
 
-Prefer **`initialize_chain_clean`** + **`mine_until_*`** / **`COINBASE_MATURITY`** helpers when a test needs:
+Prefer **`initialize_chain_clean`** + **`mine_until_mature`** / **`COINBASE_MATURITY`** helpers when a test needs:
 
 - A specific NU height plan (not default **`-nuparams` at 1**)
 - Empty wallets or a low explicit bootstrap (e.g. **`getchaintips`**: **`CHAIN_BOOTSTRAP = 30`**)
@@ -633,7 +633,7 @@ Avoid **`ZERO_MINE_COINBASE=1`** bulk **1000** in the gate.
 -debug -txindex -experimentalfeatures -insightexplorer
 ```
 
-They mine to **`coinbase_mature_tip(5)`** (= **725**, same numeric tip as the cache) on a **fresh** chain, then create and index their own transactions.
+They mine to **`mature_height(5)`** (= **725**, same numeric tip as the cache) on a **fresh** chain, then create and index their own transactions.
 
 **They should not share today's frozen cache:**
 
@@ -651,9 +651,9 @@ A **separate** insight-enabled cache (built with the flag bundle above) is possi
 
 | Script | Tier | Pattern | Status |
 |--------|------|---------|--------|
-| `blockchain.py` | A | was **`gettxoutsetinfo`** at **200** / **1745 ZER** | **Fixed:** **`CACHE_CHAIN_TIP`** + **`regtest_supply_at_height()`** |
+| `blockchain.py` | A | was **`gettxoutsetinfo`** at **200** / **1745 ZER** | **Fixed:** **`CACHE_CHAIN_TIP`** + **`subsidy_range()`** |
 | `reorg_limit.py` | Bfail Debug | default cache + **`assert(getblockcount() == 200)`** | **Open:** clean chain + **`generate(200)`** or baseline-relative reorg -- **§5** |
-| `rescan_import.py` | Bfail Debug | default cache + **`assert_equal(getblockcount(), 200)`** | **Open:** same; **`ensure_mature_coinbase_or_skip`** removed |
+| `rescan_import.py` | Bfail Debug | default cache + **`assert_equal(getblockcount(), 200)`** | **Open:** same; **`mature_or_skip`** removed |
 | `wallet_addresses.py` | Bfail Debug | default cache + tip **200** | **Open:** see **height 200/201** and **§5** |
 | `wallet_listnotes.py` | Bfail Debug | default cache + **`assert_equal(200, getblockcount())`** | **Open:** clean chain + **`generate(200)`** |
 | `wallet_sapling.py` | Bfail Debug | default cache + tip **200** | **Open:** same |
@@ -772,7 +772,7 @@ Scripts that depend on warm cache should assert the tip they need (clear failure
 
 | Script | Guard |
 |--------|-------|
-| **`blockchain.py`** | **`CACHE_CHAIN_TIP`** + **`regtest_supply_at_height()`** |
+| **`blockchain.py`** | **`CACHE_CHAIN_TIP`** + **`subsidy_range()`** |
 | **`mempool_spendcoinbase.py`** | **`chain_height > COINBASE_MATURITY`** |
 
 Scripts still asserting tip **200** on default **`setup_chain`** stay in **Bfail Debug** until ported to **`initialize_chain_clean`** + **`generate(200)`** or relative baselines.
@@ -818,11 +818,11 @@ Authoritative C++ value: **`src/consensus/consensus.h`** (`static const int COIN
 | Helper | Use |
 |--------|-----|
 | **`mine_to_height(node, nodes, target)`** | Exact tip before NU assertions; multi-step plans (e.g. **`4 * 25 + COINBASE_MATURITY`** in **`txn_doublespend`**) |
-| **`mine_until_node_has_mature_coinbase`** | One mature coinbase on one node; no strict tip budget |
-| **`ensure_mature_coinbase_or_skip`** | Same as **`mine_until_*`**, then bulk env path, else skip (not for Tier A gate) |
+| **`mine_until_mature`** | One mature coinbase on one node; no strict tip budget |
+| **`mature_or_skip`** | Same as **`mine_until_mature`**, then bulk env path, else skip (not for Tier A gate) |
 | **`has_coinbase_utxos`** | Diagnostics only |
 
-Do not use **`mine_until_*`** when the script checks **`chaintip`** / **`nextblock`** after mining (batch steps can overshoot **`-nuparams`** heights). Use **`mine_to_height`** or explicit **`generate(need)`**.
+Do not use **`mine_until_mature`** when the script checks **`chaintip`** / **`nextblock`** after mining (batch steps can overshoot **`-nuparams`** heights). Use **`mine_to_height`** or explicit **`generate(need)`**.
 
 ### Script-specific notes
 
@@ -865,7 +865,7 @@ Some scripts use later heights (e.g. **`p2p_nu_peer_management`**: Overwinter 10
 
 ### **723-block** maturity (example)
 
-**`COINBASE_MATURITY = 720`**. To spend coinbases at heights **1, 2, 3**, tip must be **>= 723** (coinbase at height *h* matures at *h + 720*). Formula: **`MATURITY_BLOCKS + SPENDABLE_COINBASES`** (e.g. **`p2p_txexpiringsoon.py`**). Prefer **`mine_until_node_has_mature_coinbase`** (50-block batches) over hardcoded **`generate(720)`** when only one mature coinbase is needed.
+**`COINBASE_MATURITY = 720`**. To spend coinbases at heights **1, 2, 3**, tip must be **>= 723** (coinbase at height *h* matures at *h + 720*). Formula: **`MATURITY_BLOCKS + SPENDABLE_COINBASES`** (e.g. **`p2p_txexpiringsoon.py`**). Prefer **`mine_until_mature`** (50-block batches) over hardcoded **`generate(720)`** when only one mature coinbase is needed.
 
 ### What **`generate(N)`** produces
 
@@ -884,18 +884,18 @@ Upstream Zcash/Bitcoin RPC tests assumed **coinbase maturity 100**, **200-block 
 
 #### Hardcoded **`generate(720)`** (maturity depth)
 
-Prefer **`COINBASE_MATURITY`**, **`coinbase_mature_tip(n)`**, or **`mine_until_node_has_mature_coinbase`**. Mechanical unless the test asserts an exact NU height (then **`mine_to_height`**).
+Prefer **`COINBASE_MATURITY`**, **`mature_height(n)`**, or **`mine_until_mature`**. Mechanical unless the test asserts an exact NU height (then **`mine_to_height`**).
 
 | Script | Tier | Current | Target |
 |--------|------|---------|--------|
-| `wallet.py` | Bfail Debug | `generate(720)` x2 | Fix node0 block-5 maturity first; then `COINBASE_MATURITY` helpers |
-| `wallet_overwintertx.py` | Bfail Retired | `generate(720)` + `ensure_mature_*` | Retired from B pass; see **Appendix: Retired tests** |
+| `wallet.py` | **Tier B pass** | maturity + Sapling | Promoted 2026-07-24 |
+| `wallet_overwintertx.py` | Bfail Retired | `generate(720)` + `mature_or_skip` | Retired from B pass; see **Appendix: Retired tests** |
 | `wallet_shieldcoinbase.py` | B pass | `generate(720)` (800-UTXO phase) | `COINBASE_MATURITY`; keep **`generate(100)`** at L170 (UTXO count, not maturity) |
 | `listtransactions.py` | B pass | `generate(720)` | `COINBASE_MATURITY` |
 | `p2p_txexpiry_dos.py` | B pass | `generate(720)` | `COINBASE_MATURITY` or formula in file comments |
 | `walletbackup.py` | **B pass** (promoted 2026-07-22) | was `generate(720)` / `721` | Ported to **`COINBASE_MATURITY`**; see **walletbackup** below |
 
-**Already ported (reference):** `receivedby.py`, `mempool_limit.py`, `mempool_nu_activation.py`, `rest.py`, insight scripts (`coinbase_mature_tip(5)`), Tier A maturity paths (`ensure_mature_coinbase_or_skip`, `mine_until_*`, `txn_doublespend` height plan).
+**Already ported (reference):** `receivedby.py`, `mempool_limit.py`, `mempool_nu_activation.py`, `rest.py`, insight scripts (`mature_height(5)`), Tier A maturity paths (`mature_or_skip`, `mine_until_mature`, `txn_doublespend` height plan).
 
 #### Upstream **`generate(101)`** bootstrap (maturity **100** era)
 
@@ -933,17 +933,12 @@ Upstream assumed coinbase maturity **100**, so **`generate(101)`** matured the f
 | Purpose | Regtest **Blossom** block spacing: Overwinter/Sapling at height **0**, Blossom at **106**; checks pre/post-Blossom rewards, `expiryheight`, and `z_sendmany` after activation |
 | Why not Tier A | At **`generate(101)`** no coinbase is mature (**`COINBASE_MATURITY = 720`**). Former **`ensure_coinbase_utxos`** skip exited **0** without running assertions -- vacuous pass |
 | Failure today | **`assert ensure_coinbase_utxos(...)`** without skip: needs mature coinbase at height **101**, impossible without breaking the Blossom height plan or **`ZERO_MINE_COINBASE=1`** bulk mine |
-| Fix direction | Reschedule Blossom (e.g. **`2bb40e60:820`**), mine to **`coinbase_mature_tip(1)`** on clean chain, then run spacing assertions; or fund from cached mature UTXOs without mining past NU heights |
+| Fix direction | Reschedule Blossom (e.g. **`2bb40e60:820`**), mine to **`mature_height(1)`** on clean chain, then run spacing assertions; or fund from cached mature UTXOs without mining past NU heights |
 
-### `wallet.py` debug (Bfail Debug)
+### `wallet.py` (Tier B pass; was Bfail Debug)
 
-| Item | Detail |
-|------|--------|
-| Purpose | Core wallet RPC: balances, `listunspent` **`generated`**, send/receive, fee limits, `listtransactions`, multi-node sync |
-| Failure (observed) | After node1 mines **720** blocks, node0 balance **19.01953125** ZER instead of **29** (50 - 21 sent) |
-| Root cause | Node0's block **5** coinbase should be mature at tip **725** but balance math suggests it is not fully counted -- likely immature-coinbase / halving subsidy interaction on Zero regtest (block 5 subsidy still **10 ZER**; missing **~10 ZER** matches one coinbase) |
-| Former behavior | Early **`return`** on mismatch skipped **~90%** of the script while reporting pass |
-| Fix direction | Use **`mine_to_height`** / explicit tip after node0's fifth coinbase (**`4 + COINBASE_MATURITY + 1`**); assert with **`zero_regtest_subsidy_range`** not hardcoded **50**; verify **`listunspent(1)`** includes block-5 generated UTXO before send phase |
+**Outcome 2026-07-24:** fee-aware **`miner_share`/`miner_range`**; Sprout size-limit + joinsplit stanzas replaced with Sapling taddr/zaddr flows; **`assert_raises_message`** for amount parse errors. Promoted to Tier B pass.
+
 
 ### Height **200** / **201** story (upstream cache bootstrap)
 
@@ -975,7 +970,7 @@ Several Zcash-era RPC tests treat chain height **200** as the standard harness s
 |------|--------|
 | Purpose | **`z_importkey`** with **`rescan=yes`** on a peer updates Sapling balance after shield + mine |
 | Failure | Tip **725** vs assert **200** on default cache |
-| Mask removed | **`ensure_mature_coinbase_or_skip`** early **`return`** (could exit **0** after a failed tip check if execution reached it on a variant chain) |
+| Mask removed | **`mature_or_skip`** early **`return`** (could exit **0** after a failed tip check if execution reached it on a variant chain) |
 | Fix direction | **`initialize_chain_clean`** + **`generate(200)`** (or **`initialize_chain`** only after dropping tip-**200** assert); **`get_coinbase_address`** now fails hard if no mature generated UTXO |
 
 ### `reorg_limit.py` debug (Bfail Debug)
@@ -992,9 +987,9 @@ Several Zcash-era RPC tests treat chain height **200** as the standard harness s
 | Item | Detail |
 |------|--------|
 | Purpose | Sapling **`z_sendmany`** change-address behavior: **`z_listreceivedbyaddress`**, **`z_listunspent`**, **`z_mergetoaddress`** |
-| Why not Tier B pass | **`initialize_chain_clean`** only; without mining, **`ensure_mature_coinbase_or_skip`** returned early and the script exited **0** (no shield/spend assertions ran) |
+| Why not Tier B pass | **`initialize_chain_clean`** only; without mining, **`mature_or_skip`** returned early and the script exited **0** (no shield/spend assertions ran) |
 | Failure today | **`get_coinbase_address`** raises if no mature generated UTXO on the clean chain |
-| Fix direction | Mine to **`COINBASE_MATURITY + 1`** (or use **`mine_until_node_has_mature_coinbase`**) after **`initialize_chain_clean`**; keep Sapling-at-**1** **`NU_TEST_ARGS`** |
+| Fix direction | Mine to **`COINBASE_MATURITY + 1`** (or use **`mine_until_mature`**) after **`initialize_chain_clean`**; keep Sapling-at-**1** **`NU_TEST_ARGS`** |
 
 ### `walletbackup.py` (Tier B pass; was Bfail Debug)
 
@@ -1014,7 +1009,7 @@ Orphan Bitcoin-era script: was on disk but **not** in `rpc-tests.sh` until 2026-
 | Item | Detail |
 |------|--------|
 | Tier | **Bfail Debug** (inventoried); run: `./qa/pull-tester/rpc-tests.sh txindex` or `-Bfail` |
-| Setup | `initialize_chain_clean`; node0 no txindex; nodes 1–3 `-txindex`; mines via `coinbase_mature_tip(5)` (**OK** for Zero maturity) |
+| Setup | `initialize_chain_clean`; node0 no txindex; nodes 1–3 `-txindex`; mines via `mature_height(5)` (**OK** for Zero maturity) |
 | Failure (2026-07-22) | After mining: `required argument is not an integer` in `CTxOut.serialize` -- `amount = unspent[0]["amount"] * 100000000` is a **Decimal** under Py3 |
 | Second bug (would hit next) | Asserts Bitcoin coinbase **`valueZat == 5000000000`** / **`value == 50`**; Zero regtest base subsidy is **10** ZER (`1000000000` zat) before halvings |
 | Suggested fixes | (1) `amount = int(unspent[0]["amount"] * COIN)` or `int(round(...))`. (2) Assert against actual `unspent[0]` value / `regtest_subsidy_at_height`. (3) Prefer `ToMaxMoney`-safe ints; drop hardcoded 50. (4) Optional: assert node0 without `-txindex` cannot `getrawtransaction` while node3 can |
@@ -1046,12 +1041,13 @@ PYTHONPATH=qa/rpc-tests python3 qa/rpc-tests/rpcbind_test.py --srcdir src
 
 **Keep datadir for debugging:** add `--nocleanup` (standalone only). Driver always cleans temp dirs.
 
-### Founders reward / GBT / height **5000**
+### Founders window / GBT
 
-- **Zcash** used **20%** founders; **Zero** (post-Classic lineage) uses **7.5%** as **development fee** on mainnet in eligible heights (**`ZERO_COIN.md`**).
-- **Regtest** sets **`nFeeStartBlockHeight = 5000`** so short RPC tests never hit fee-split coinbase logic.
-- **`getblocktemplate.py`** checks **`coinbasetxn.required`** and tip **`finalsaplingroothash`** only -- not **`foundersreward`** (would require mining to 5000+).
-- **`coinbasevalue`**: legacy GBT capability (total allowed coinbase value in zats). Zero **`getblocktemplate`** documents it but **does not expose** **`coinbasevalue`** ( **`coinbasetxn`** path only; see **`mining.cpp`** TODO).
+- **Zero** development fee is **7.5%** in eligible heights (**`ZERO_COIN.md`**).
+- Regtest: **`REGTEST_FOUNDERS_START`/`STOP`** = **1000**/**1500** (`nFeeStartBlockHeight` = START). Maturity **720**.
+- Coverage: **`founders_window.py`** (boundaries + Insight founders balance/txids). Cache tip (~725) stays single-vout.
+- **`getblocktemplate.py`**: below START; **`coinbasetxn.required`** + **`finalsaplingroothash`** only.
+- **`coinbasevalue`**: documented but not exposed (**`coinbasetxn`** path; **`mining.cpp`** TODO).
 
 ### **`miner_tests`** and Equihash **(96,5)** vs **(192,7)** vs **(48,5)**
 
@@ -1126,7 +1122,7 @@ Few scripts target live testnet. **`turnstile.py`** (retired from driver) docume
 
 Example from `addressindex.py` `setup_network`: `args = ('-debug', '-txindex', '-experimentalfeatures', '-insightexplorer')` then `start_nodes(3, tmpdir, [args] * 3)`. `-insightexplorer` turns on address/spent/timestamp index RPCs; `-txindex` and `-experimentalfeatures` are prerequisites in this tree.
 
-Maturity: upstream `generate(105)` assumed maturity **100**. Zero scripts use **`coinbase_mature_tip(5)`** (= **725**, same tip as cache build policy) on a fresh chain. Insight indexing does not require 720; **funding transactions** do.
+Maturity: upstream `generate(105)` assumed maturity **100**. Zero scripts use **`mature_height(5)`** (= **725**, same tip as cache build policy) on a fresh chain. Insight indexing does not require 720; **funding transactions** do.
 
 ---
 
@@ -1148,7 +1144,7 @@ Insight RPCs require **both** `-experimentalfeatures` and `-insightexplorer` (`f
 
 ### Insight RPC scripts (regtest)
 
-All use **`initialize_chain_clean`**, **3 nodes**, maturity **`coinbase_mature_tip(5)`** (= 725). **Not** compatible with shared **`initialize_chain` cache** (indexes built at startup; cache has foreign wallet UTXOs).
+All use **`initialize_chain_clean`**, **3 nodes**, maturity **`mature_height(5)`** (= 725). **Not** compatible with shared **`initialize_chain` cache** (indexes built at startup; cache has foreign wallet UTXOs).
 
 | Script | RPCs / behavior exercised |
 |--------|---------------------------|
@@ -1221,8 +1217,8 @@ Some external assetchain daemons expose **`extern int COINBASE_MATURITY`** defau
 | Script | Maturity | NU / notes |
 |--------|----------|------------|
 | **`wallet_changeaddresses`** | Bfail Debug: **`get_coinbase_address`** | Sapling at **1**; **`initialize_chain_clean`** -- needs **`generate(COINBASE_MATURITY+1)`** or equivalent mine plan |
-| **`wallet_changeindicator`** | **`mine_until_node_has_mature_coinbase`** | |
-| **`txn_doublespend`** | **`generate(need)`** to height **820** (all four 25-block coinbases mature) | **`mine_until`** stops too early; default path submits doublespend to node2 **before** txid1/txid2 (Zero **`AcceptToMemoryPool`** rejects mempool conflicts, empty RPC error if reversed) |
+| **`wallet_changeindicator`** | **`mine_until_mature`** | |
+| **`txn_doublespend`** | **`generate(need)`** to height **820** (all four 25-block coinbases mature) | **`mine_until_mature`** stops too early; default path submits doublespend to node2 **before** txid1/txid2 (Zero **`AcceptToMemoryPool`** rejects mempool conflicts, empty RPC error if reversed) |
 | **`p2p_nu_peer_management`** | minimal chain | NU at 10 / 15 |
 | **`shorter_block_times`** | Blossom spacing (Bfail Debug) | NU at 0 / 0 / 106; needs maturity plan -- see debug section |
 | **`rewind_index`** | fake NU heights | branch ID regression |
@@ -1254,9 +1250,9 @@ Authoritative arrays: **`testScriptsTierBFailDebug`**, **`testScriptsTierBFailRe
 
 | Subgroup | Scripts | Typical failure | Fix direction |
 |----------|---------|-----------------|---------------|
-| **Wallet / list** | `wallet`, `wallet_changeaddresses`, `wallet_listreceived`, `wallet_persistence`, `wallet_sapling`, `wallet_listnotes` | Balance / maturity / Sapling API drift | **`wallet.py`**: node0 block-5 maturity; **`wallet_changeaddresses`**: empty-chain vacuous pass fixed -- see debug sections |
+| **Wallet / list** | `wallet_changeaddresses`, `wallet_listreceived`, `wallet_persistence`, `wallet_sapling`, `wallet_listnotes` | Balance / maturity / Sapling API drift | **`wallet.py`** promoted; others still Bfail -- see debug sections |
 | **NU / Blossom** | `shorter_block_times` | Maturity **720** vs Blossom at **106** | Reschedule NU or mine plan; see **`shorter_block_times.py` debug** |
-| **Wallet / merge** | `mergetoaddress_sapling`, `mergetoaddress_mixednotes` | `z_mergetoaddress` async, maturity, note selection | `mine_until_*`; Sapling-only; check `mergetoaddress_helper.py` |
+| **Wallet / merge** | `mergetoaddress_sapling`, `mergetoaddress_mixednotes` | `z_mergetoaddress` async, maturity, note selection | `mine_until_mature`; Sapling-only; check `mergetoaddress_helper.py` |
 | **Insight** | *(promoted 2026-07-22)* `addressindex`, `spentindex`, `timestampindex`, `getrawtransaction_insight`, `rest` | -- | Now **Tier B pass**; see ExtTests |
 | **txindex only** | `txindex` | Py3 Decimal `CTxOut` + Bitcoin **50**-ZER asserts | See **`txindex.py` debug**; promote to B pass after fix |
 | **Experimental wallet** | `wallet_mergetoaddress`, `mergetoaddress_sapling`, `mergetoaddress_mixednotes`, `wallet_changeaddresses`, `rescan_import`, `wallet_sapling` | `-experimentalfeatures` + `-zmergetoaddress` where merge tests apply | See **Experimental and insight feature tests** below |

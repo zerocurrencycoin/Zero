@@ -29,17 +29,51 @@ def p2p_port(n):
 def rpc_port(n):
     return 12000 + n + os.getpid()%999
 
-# Zero regtest: 10 ZER base, halving every 150 blocks (Consensus::Halving = h/150)
-def zero_regtest_subsidy(n_blocks):
-    """Sum of block subsidies for blocks 1..n_blocks. Returns Decimal."""
-    return zero_regtest_subsidy_range(1, n_blocks)
+# Regtest founders/dev-fee window (must match Consensus::REGTEST_FOUNDERS_* in params.h).
+# Maturity stays COINBASE_MATURITY (720). Active for [START, STOP); STOP exclusive.
+REGTEST_FOUNDERS_START = 1000
+REGTEST_FOUNDERS_STOP = 1500
+REGTEST_HALVING = 150
 
-def zero_regtest_subsidy_range(height_start, height_end):
-    """Sum of block subsidies for chain heights height_start..height_end (inclusive). Returns Decimal."""
+def block_subsidy(height):
+    """Full block subsidy at height (miner + founders), Decimal ZER. Matches GetBlockSubsidy."""
+    base = Decimal('10.8') if height >= REGTEST_FOUNDERS_START else Decimal(10)
+    halvings = height // REGTEST_HALVING
+    if halvings >= 64:
+        return Decimal(0)
+    # Integer zat path: 108*COIN/10 then >> halvings
+    coin = 100000000
+    base_zat = (108 * coin // 10) if height >= REGTEST_FOUNDERS_START else (10 * coin)
+    return Decimal(base_zat >> halvings) / Decimal(coin)
+
+def founders_share(height):
+    """Founders carve at height (0 outside window). Decimal ZER. Matches GetFoundersRewardAmount."""
+    if height < REGTEST_FOUNDERS_START or height >= REGTEST_FOUNDERS_STOP:
+        return Decimal(0)
+    subsidy_zat = int(block_subsidy(height) * 100000000)
+    return Decimal(subsidy_zat * 75 // 1000) / Decimal(100000000)
+
+def miner_share(height):
+    """Miner coinbase amount at height (full subsidy minus founders)."""
+    return block_subsidy(height) - founders_share(height)
+
+# Zero regtest: 10 / 10.8 ZER base, halving every 150 blocks (Consensus::Halving = h/150)
+def subsidy_total(n_blocks):
+    """Sum of full block subsidies for blocks 1..n_blocks. Returns Decimal."""
+    return subsidy_range(1, n_blocks)
+
+def subsidy_range(height_start, height_end):
+    """Sum of full block subsidies for heights height_start..height_end (inclusive)."""
     total = Decimal(0)
     for h in range(height_start, height_end + 1):
-        halvings = h // 150
-        total += Decimal(10) / (2 ** halvings)
+        total += block_subsidy(h)
+    return total
+
+def miner_range(height_start, height_end):
+    """Sum of miner coinbase amounts for heights height_start..height_end (inclusive)."""
+    total = Decimal(0)
+    for h in range(height_start, height_end + 1):
+        total += miner_share(h)
     return total
 
 def check_json_precision():
@@ -512,6 +546,19 @@ def assert_raises(exc, fun, *args, **kwds):
     else:
         raise AssertionError("No exception raised")
 
+def assert_raises_message(exc, message, fun, *args, **kwds):
+    """Like assert_raises, but require message substring in the exception (or RPC error)."""
+    try:
+        fun(*args, **kwds)
+    except exc as e:
+        text = e.error['message'] if hasattr(e, 'error') and isinstance(e.error, dict) and 'message' in e.error else str(e)
+        if message not in text:
+            raise AssertionError("Expected substring %r in %r" % (message, text))
+    except Exception as e:
+        raise AssertionError("Unexpected exception raised: "+type(e).__name__)
+    else:
+        raise AssertionError("No exception raised")
+
 def fail(message=""):
     raise AssertionError(message)
 
@@ -557,14 +604,14 @@ def wait_and_assert_operationid_status(node, myopid, in_status='success', in_err
 # Keep in sync with src/consensus/consensus.h (static const int COINBASE_MATURITY).
 COINBASE_MATURITY = 720
 
-def coinbase_mature_tip(spendable_coinbases=1):
+def mature_height(spendable_coinbases=1):
     """Minimum chain tip so coinbase at height spendable_coinbases is mature."""
     return COINBASE_MATURITY + spendable_coinbases
 
 def mine_to_height(node, nodes, target_height):
     """Mine on node until chain tip reaches target_height (inclusive).
 
-    Use when the test asserts NU heights or needs an exact tip (batch mine_until_* can overshoot).
+    Use when the test asserts NU heights or needs an exact tip (mine_until_mature can overshoot).
     Returns the tip height after mining."""
     need = target_height - node.getblockcount()
     if need > 0:
@@ -598,8 +645,13 @@ def ensure_coinbase_utxos(node, nodes=None, blocks=1000):
         return has_coinbase_utxos(node)
     return False
 
-def mine_until_node_has_mature_coinbase(node, nodes=None, batch=50, max_blocks=2000):
-    """Mine regtest blocks until node has at least one mature coinbase UTXO (COINBASE_MATURITY confs)."""
+def mine_until_mature(node, nodes=None, batch=50, max_blocks=2000):
+    """Mine until node has a spendable coinbase UTXO (listunspent generated).
+
+    Not the same as mine_to_height(COINBASE_MATURITY): this is a predicate loop in
+    batch steps and may overshoot the tip. Use mine_to_height when the tip must
+    be exact.
+    """
     if has_coinbase_utxos(node):
         return True
     total = 0
@@ -611,9 +663,9 @@ def mine_until_node_has_mature_coinbase(node, nodes=None, batch=50, max_blocks=2
     return has_coinbase_utxos(node)
 
 
-def ensure_mature_coinbase_or_skip(node, nodes, label):
+def mature_or_skip(node, nodes, label):
     """Incremental mining, then ZERO_MINE_COINBASE bulk path; print skip and return False if still no mature coinbase."""
-    if mine_until_node_has_mature_coinbase(node, nodes):
+    if mine_until_mature(node, nodes):
         return True
     if ensure_coinbase_utxos(node, nodes, 1000):
         return True
