@@ -97,6 +97,14 @@ class AuthServiceProxy(object):
             self.__conn = httplib.HTTPConnection(self.__url.hostname, port,
                                                  timeout=timeout)
 
+    def close(self):
+        """Close the persistent HTTP connection (idempotent)."""
+        try:
+            if self.__conn is not None:
+                self.__conn.close()
+        except Exception:
+            pass
+
     def __getattr__(self, name):
         if name.startswith('__') and name.endswith('__'):
             # Python internal stuff

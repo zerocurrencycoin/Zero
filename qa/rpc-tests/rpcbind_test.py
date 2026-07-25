@@ -160,7 +160,7 @@ def main():
     if not options.nocleanup:
         print("Cleaning up")
         wait_bitcoinds()
-        shutil.rmtree(options.tmpdir)
+        shutil.rmtree(options.tmpdir, ignore_errors=True)
 
     if success:
         print("Tests successful")

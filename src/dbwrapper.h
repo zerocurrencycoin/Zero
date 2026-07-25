@@ -166,6 +166,12 @@ private:
     //! the database itself
     leveldb::DB* pdb;
 
+    //! LevelDB block-cache capacity (bytes); half of nCacheSize passed to ctor
+    size_t nBlockCacheCapacity;
+
+    //! LevelDB write-buffer budget (bytes); quarter of nCacheSize (up to two may exist)
+    size_t nWriteBufferBudget;
+
 public:
     /**
      * @param[in] path        Location in the filesystem where leveldb data will be stored.
@@ -175,6 +181,14 @@ public:
      */
     CDBWrapper(const boost::filesystem::path& path, size_t nCacheSize, bool fMemory = false, bool fWipe = false);
     ~CDBWrapper();
+
+    /** leveldb.stats / sstables / num-files-at-level* (this LevelDB has no block-cache-usage property). */
+    bool GetProperty(const std::string& property, std::string& value) const;
+
+    size_t GetBlockCacheCapacity() const { return nBlockCacheCapacity; }
+    /** Current LevelDB block LRU charge (bytes). Requires Cache::TotalCharge (Zero patch). */
+    size_t GetBlockCacheUsage() const;
+    size_t GetWriteBufferBudget() const { return nWriteBufferBudget; }
 
     template <typename K, typename V>
     bool Read(const K& key, V& value) const

@@ -96,6 +96,11 @@ public:
                     CNullifiersMap &mapSproutNullifiers,
                     CNullifiersMap &mapSaplingNullifiers);
     bool GetStats(CCoinsStats &stats) const;
+
+    bool GetLevelDBProperty(const std::string& property, std::string& value) const;
+    size_t GetLevelDBBlockCacheCapacity() const { return db.GetBlockCacheCapacity(); }
+    size_t GetLevelDBBlockCacheUsage() const { return db.GetBlockCacheUsage(); }
+    size_t GetLevelDBWriteBufferBudget() const { return db.GetWriteBufferBudget(); }
 };
 
 /** Access to the block database (blocks/index/) */

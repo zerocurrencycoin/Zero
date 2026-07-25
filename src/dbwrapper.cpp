@@ -37,6 +37,8 @@ static leveldb::Options GetOptions(size_t nCacheSize)
 CDBWrapper::CDBWrapper(const boost::filesystem::path& path, size_t nCacheSize, bool fMemory, bool fWipe)
 {
     penv = NULL;
+    nBlockCacheCapacity = nCacheSize / 2;
+    nWriteBufferBudget = nCacheSize / 4;
     readoptions.verify_checksums = true;
     iteroptions.verify_checksums = true;
     iteroptions.fill_cache = false;
@@ -84,6 +86,20 @@ bool CDBWrapper::IsEmpty()
     boost::scoped_ptr<CDBIterator> it(NewIterator());
     it->SeekToFirst();
     return !(it->Valid());
+}
+
+bool CDBWrapper::GetProperty(const std::string& property, std::string& value) const
+{
+    if (!pdb)
+        return false;
+    return pdb->GetProperty(leveldb::Slice(property), &value);
+}
+
+size_t CDBWrapper::GetBlockCacheUsage() const
+{
+    if (!options.block_cache)
+        return 0;
+    return options.block_cache->TotalCharge();
 }
 
 CDBIterator::~CDBIterator() { delete piter; }

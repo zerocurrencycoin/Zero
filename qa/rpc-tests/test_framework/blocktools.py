@@ -66,7 +66,7 @@ def create_coinbase(heightAdjust = 0):
         coinbaseoutput.nValue = 0
     else:
         coinbaseoutput.nValue = base >> halvings
-    coinbaseoutput.scriptPubKey = ""
+    coinbaseoutput.scriptPubKey = b""
     coinbase.vout = [ coinbaseoutput ]
     if (REGTEST_FOUNDERS_START <= height < REGTEST_FOUNDERS_STOP) and halvings < 64:
         froutput = CTxOut()
@@ -86,6 +86,6 @@ def create_transaction(prevtx, n, sig, value):
     tx = CTransaction()
     assert(n < len(prevtx.vout))
     tx.vin.append(CTxIn(COutPoint(prevtx.sha256, n), sig, 0xffffffff))
-    tx.vout.append(CTxOut(value, ""))
+    tx.vout.append(CTxOut(value, b""))
     tx.calc_sha256()
     return tx

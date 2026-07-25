@@ -106,11 +106,8 @@ def hash_xi(digest, xi):
     return digest # For chaining
 
 def count_zeroes(h):
-    # Convert to binary string
-    if type(h) == bytearray:
-        h = ''.join('{0:08b}'.format(x, 'b') for x in h)
-    else:
-        h = ''.join('{0:08b}'.format(ord(x), 'b') for x in h)
+    # Convert to binary string (bytearray/bytes yield ints; Py2 str needed ord)
+    h = ''.join('{0:08b}'.format(x if isinstance(x, int) else ord(x), 'b') for x in h)
     # Count leading zeroes
     return (h+'1').index('1')
 
@@ -282,10 +279,7 @@ def zcash_person(n, k):
     return b'ZcashPoW' + struct.pack('<II', n, k)
 
 def print_hash(h):
-    if type(h) == bytearray:
-        return ''.join('{0:02x}'.format(x, 'x') for x in h)
-    else:
-        return ''.join('{0:02x}'.format(ord(x), 'x') for x in h)
+    return ''.join('{0:02x}'.format(x if isinstance(x, int) else ord(x), 'x') for x in h)
 
 def validate_params(n, k):
     if (k >= n):
