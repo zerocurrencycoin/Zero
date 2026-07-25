@@ -43,10 +43,13 @@ def serialize_script_num(value):
     return r
 
 counter=1
-# Zero regtest: 10 ZER base, halving every 150 blocks, 7.5% founder from block 5000
+# Zero regtest: match Consensus::REGTEST_FOUNDERS_* (util.py mirrors params.h)
+from test_framework.util import (
+    REGTEST_FOUNDERS_START,
+    REGTEST_FOUNDERS_STOP,
+    REGTEST_HALVING,
+)
 COIN = 100000000
-ZERO_REGTEST_FEE_START = 5000
-ZERO_REGTEST_HALVING = 150
 
 # Create an anyone-can-spend coinbase transaction, assuming no miner fees
 def create_coinbase(heightAdjust = 0):
@@ -57,12 +60,15 @@ def create_coinbase(heightAdjust = 0):
                 CScript([height, OP_0]), 0xffffffff))
     counter += 1
     coinbaseoutput = CTxOut()
-    nSubsidy = int(10 * COIN)  # Zero: 10 ZER pre-fee
-    halvings = int(height / ZERO_REGTEST_HALVING)
-    coinbaseoutput.nValue = nSubsidy >> halvings
+    base = (108 * COIN // 10) if height >= REGTEST_FOUNDERS_START else (10 * COIN)
+    halvings = int(height / REGTEST_HALVING)
+    if halvings >= 64:
+        coinbaseoutput.nValue = 0
+    else:
+        coinbaseoutput.nValue = base >> halvings
     coinbaseoutput.scriptPubKey = ""
     coinbase.vout = [ coinbaseoutput ]
-    if height >= ZERO_REGTEST_FEE_START and halvings < 64:
+    if (REGTEST_FOUNDERS_START <= height < REGTEST_FOUNDERS_STOP) and halvings < 64:
         froutput = CTxOut()
         froutput.nValue = coinbaseoutput.nValue * 75 // 1000  # 7.5% founder, integer
         fraddr = bytearray([0x67, 0x08, 0xe6, 0x67, 0x0d, 0xb0, 0xb9, 0x50,

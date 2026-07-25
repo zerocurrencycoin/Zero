@@ -9,7 +9,7 @@ from test_framework.util import (
     assert_equal,
     assert_greater_than,
     connect_nodes_bi,
-    ensure_mature_coinbase_or_skip,
+    mature_or_skip,
     get_coinbase_address,
     initialize_chain_clean,
     start_nodes,
@@ -50,7 +50,7 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         self.nodes[1].generate(95)
         self.sync_all()
 
-        if not ensure_mature_coinbase_or_skip(self.nodes[0], self.nodes, "wallet_overwintertx"):
+        if not mature_or_skip(self.nodes[0], self.nodes, "wallet_overwintertx"):
             return
         taddr0 = get_coinbase_address(self.nodes[0])
         taddr1 = self.nodes[1].getnewaddress()

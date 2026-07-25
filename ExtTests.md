@@ -206,13 +206,13 @@ Edited the five scripts:
 - **Py3 ports:** `list(filter(...))` at every `filter(...)[i]` site (`spentindex`, `getrawtransaction_insight`, `addressindex`); `list(range(...))` in `timestampindex` `assert_equal`; `rest.py` reads the `/rest/getutxos.bin` response via `response_object=True` + `.read()` (raw bytes, no utf-8 decode).
 
 **Script lineage (clarified):** these are **Zcash-origin** Insight qa scripts (bundled `-insightexplorer` args). Failures against Zero are **Zero consensus/fixture mismatches** (maturity **720**, regtest founders vout gated until fee-start height), not “Pirate tests.” Pirate’s own suite uses **separate** `-addressindex` / `-spentindex` / `-timestampindex` flags.
-- **Maturity/height:** replaced hardcoded upstream-100 heights (102/106/107/108/109/110/111) with `COINBASE_MATURITY`-relative expressions (`mature_tip + N`, and `COINBASE_MATURITY + 2` in `rest.py`), keyed off the `coinbase_mature_tip(5)` helper the scripts already call.
+- **Maturity/height:** replaced hardcoded upstream-100 heights (102/106/107/108/109/110/111) with `COINBASE_MATURITY`-relative expressions (`mature_tip + N`, and `COINBASE_MATURITY + 2` in `rest.py`), keyed off the `mature_height(5)` helper the scripts already call.
 - **valueSat -> valueZat** on all vin assertions (item 3).
 
 #### Verification runs 2026-07-02 (after the fixes): 3/5 now pass, up from 0/5
 **PASS:** `timestampindex.py`, `getrawtransaction_insight.py`, `rest.py` (the last after the additional `rest.py` Py3 fixes documented below).
 **Promoted 2026-07-22 (EXT-INSIGHT-FIXTURES):**
-- **`spentindex.py` / `addressindex.py` -- Zero single-output regtest coinbase.** Scripts assumed Zcash 2-vout coinbase. **Decision: adapt tests to Zero settings** (maturity **720**, fee-start **5000** → founders off → **1-vout**; halving-aware miner balances). Edits applied and **verified PASS** 2026-07-21; **re-PASS + moved to Tier B pass** 2026-07-22. Founders-index coverage stays under **EXT-INSIGHT-SUPERSET** (ExtTests §5).
+- **`spentindex.py` / `addressindex.py` -- Zero single-output regtest coinbase.** Scripts assumed Zcash 2-vout coinbase. **Decision: adapt tests to Zero settings** (maturity **720**, tip ~725 **below** fee-start **1000** → **1-vout**; halving-aware miner balances). Edits applied and **verified PASS** 2026-07-21; **re-PASS + moved to Tier B pass** 2026-07-22. Founders transition coverage: **`founders_window.py`** (ExtTests §4).
 - **`rest.py` -- RESOLVED as two more Python-3 idiom bugs; the REST API is correct.** Investigated 2026-07-02. The `.bin` decode fix exposed later Py2 relics, fixed in turn:
   - **`rest.py:161` (getutxos bin hash).** Was `hex(deser_uint256(output))[2:].zfill(65).rstrip("L")`. `deser_uint256` returns the right integer, but a uint256 is **64** hex chars and `.zfill(65)` padded to **65**, so it could never equal the 64-char `getbestblockhash()`; `.rstrip("L")` is a Py2 long-suffix relic. Verified by simulation: `zfill(65)` never matches, `zfill(64)` matches exactly. Fixed to `.zfill(64)` (dropped `rstrip`). **Not** a byte-order or REST-payload issue.
   - **`rest.py:256,264` (block/header hex compare).** `response_str.encode("hex")` -- Py3 removed the `"hex"` codec from `str/bytes.encode`. `response_str`/`response_header_str` are raw block **bytes** (`.bin` endpoint); the `.hex` endpoint returns ASCII-hex bytes. Fixed with `binascii.hexlify(...)` (returns bytes, matches the hex endpoint). `binascii` already imported.
@@ -221,7 +221,7 @@ Edited the five scripts:
 #### Fix A (revised) -- ordered plan
 Not a cache/tier reshuffle alone.
 1. Port the five scripts to Python 3 (`list(filter(...))`, `list(range(...))`, keep `.bin` responses as bytes). **[done]**
-2. Re-base height/maturity math on `COINBASE_MATURITY=720` (reuse the `coinbase_mature_tip` / `ensure_mature_coinbase_or_skip` helpers already used elsewhere). **[done]**
+2. Re-base height/maturity math on `COINBASE_MATURITY=720` (reuse the `mature_height` / `mature_or_skip` helpers already used elsewhere). **[done]**
 3. Resolve the `vin.valueSat` question -- confirmed a stale test expectation; asserted `valueZat` instead. **[done, no code change]**
 4. `rest.py` deeper failures -- resolved (two more Py3 idioms; see above). **[done]** `rest.py` passes.
 5. `spentindex`/`addressindex` -- adapt to Zero 1-vout regtest settings. **[done 2026-07-21; both PASS]**
@@ -272,106 +272,20 @@ analysis).
 
 ---
 
-## 4. Impact analysis: lowering regtest `nFeeStartBlockHeight` (5000 -> ~800-1000)
+## 4. Founders window (regtest)
 
-*(Requested 2026-07-02 as a possible fix for the `spentindex`/`addressindex`
-single-output-coinbase failures. Conclusion: **not recommended** -- it does not
-achieve the goal without further changes and it breaks currently-passing tests.)*
+Constants (C++ and Python): **`REGTEST_FOUNDERS_START`/`STOP`** = **1000**/**1500**.
+Active **`[START, STOP)`**: base **10.8**, founders **7.5%**, two coinbase vouts.
+Outside: one miner vout (base **10** below START; **10.8** at/after STOP).
+Maturity stays **720**.
 
-### What `nFeeStartBlockHeight` actually controls
-It is a **consensus parameter** (`src/consensus/params.h:117`) coupling two things
-at its height boundary:
-1. **Block subsidy step:** `GetBlockSubsidy` returns `10 ZER` below it and `10.8 ZER` at/above it (`src/main.cpp:2112`).
-2. **Founders-reward coinbase output:** a 2nd coinbase output (7.5% of block value, `vFoundersReward = blockValue * 7.5/100`) is added only when `nFeeStartBlockHeight <= nHeight <= GetLastFoundersRewardBlockHeight` (`src/zeronode/payments.cpp:305,313`).
-
-Other consumers keyed off it: `src/main.cpp:4503` (block validation of founders
-output), `src/rpc/mining.cpp:945`, `src/metrics.cpp:345`,
-`src/wallet/rpczerowallet.cpp:2502` (supply calc), `src/zeronode/budget.cpp:535`,
-and `src/test/main_tests.cpp` (subsidy boundary -- but that test uses **MAIN**
-params, not regtest, so it is unaffected).
-
-### The regtest founders window is `[nFeeStart .. 1499]` -- and 5000 disables it on purpose
-`GetLastFoundersRewardBlockHeight` in regtest = `(nPreBlossomRegtestHalvingInterval * 10) - 1 = (150 * 10) - 1 = **1499**`
-(regtest Blossom is `NO_ACTIVATION_HEIGHT`, so the pre-Blossom branch applies;
-`src/consensus/params.cpp:35`, `src/consensus/params.h:83`).
-- **At 5000 (current):** `5000 > 1499`, so the window `[5000..1499]` is **empty** -- founders reward is **permanently OFF in regtest**. The value 5000 appears deliberately chosen to disable founders in regtest and keep coinbases single-output with clean 10-ZER math.
-- **At 800:** founders turns **ON for heights [800..1499]** (a 700-block window). The 720-block mining flows still run, but any block at height >= 800 changes shape and subsidy.
-
-The address-vector assert `assert(vFoundersRewardAddress.size() <= GetLastFoundersRewardBlockHeight(0))` (`src/chainparams.cpp:531`) is `1 <= 1499` -> **safe** either way (it does not depend on `nFeeStartBlockHeight`).
-
-### Why it breaks currently-passing tests
-The test-framework helper `zero_regtest_subsidy_range` (`qa/rpc-tests/test_framework/util.py:37`)
-hardcodes **base 10, halving every 150, and is NOT founders/fee-aware** (no
-`10.8`, no 7.5% skim). So any passing test that mines to heights >= 800 and asserts
-exact balances would compute wrong expectations:
-- `wallet.py` mines to ~height 1441-1446 and asserts balances via this helper -> would break.
-- Any `mature_tip`-relative exact-balance assertion crossing 800.
-Magnitude per block at h>=800: block value `10.8`, founders skim `0.81`, miner
-keeps `9.99` (vs helper's `10.0`) **plus** a founders P2SH output the wallet does
-not own. Small per block, but exact-match assertions fail. (Regtest also halves
-subsidy every 150 blocks, so by h~800 the per-block value is already ~0.31 ZER;
-the founders split lands on tiny values but still breaks equality checks.)
-
-### It does not even fix the target tests as-is
-`spentindex.py` / `addressindex.py` mine only to ~height 725 (`COINBASE_MATURITY + 5`),
-which is **below 800**. So lowering the threshold to 800 leaves their coinbase
-**still single-output** -- no change to the failing assertions -- unless the tests
-are *also* rewritten to mine past the threshold, at which point their `10 ZER` /
-per-height balance math breaks too.
-
-### Recommendation
-**Do not lower the consensus parameter** as the default path. It is a global
-regtest behavior change (subsidy + founders + a non-fee-aware helper) with a
-wide, subtle blast radius, and it does not achieve the goal without additional
-test rewrites. Prefer the local, low-risk path: **adapt `spentindex.py` /
-`addressindex.py` to Zero's single-output regtest coinbase** (assert one
-coinbase output; drop the `vout[1]` / `len == 2` / `2.5*COIN` founders
-expectations). Track founders-reward coverage separately -- e.g. a dedicated
-test that intentionally mines into a founders window with a founders-aware
-expected-balance helper, on an opt-in params override rather than the default
-regtest value.
-
-*Key files:* `src/chainparams.cpp:418` (regtest `nFeeStartBlockHeight`),
-`src/main.cpp:2112` (subsidy step), `src/zeronode/payments.cpp:305,313` (founders
-output), `src/consensus/params.cpp:35` (`GetLastFoundersRewardBlockHeight`),
-`qa/rpc-tests/test_framework/util.py:37` (`zero_regtest_subsidy_range`, not
-fee-aware), `qa/rpc-tests/wallet.py` (exact-balance assertions past 800).
-
----
-
-## 5. Fee-start 1000, maturity 720, and ExtTests "superset" (evaluate)
-
-**Maturity stays 720** (`COINBASE_MATURITY`). That is independent of fee-start.
-
-### Option: regtest `nFeeStartBlockHeight = 1000` (currently 5000)
-
-| Height band | Coinbase shape if fee-start=1000 |
-|-------------|----------------------------------|
-| **1 .. 999** | Single-vout (founders **off**) -- same as today for tests that stop ~725 |
-| **1000 .. 1499** | Two-vout + subsidy step to 10.8 -- founders **on** until last-FR height |
-| **>= 1500** | Post-FR window (regtest last FR = 1499) |
-
-So "founders off below 1000" is accurate; they are **not** off forever (unlike
-5000, which empties the window). Address/spent scripts that only need mature
-coinbases can stay in **720–999** (1-vout). FR-path coverage mines **1000+**.
-
-**Cost of changing the default param:** every test that mines past 1000 and
-asserts exact balances via `zero_regtest_subsidy_range` (not fee-aware) breaks
--- same class as the 800 analysis above, just a higher threshold. `wallet.py`
-(~1441) would need helper updates.
-
-### ExtTests "superset" (task **EXT-INSIGHT-SUPERSET**)
-
-| Piece | What | Usefulness |
-|-------|------|------------|
-| **(a) in gate** | Adapt address/spent to 1-vout at mature heights | **High** -- unblocks Insight RPC gate; matches current 5000 or a 1000 fee-start below the FR band |
-| **Separate FR script** | Mine into FR window (needs fee-start <= 1499, e.g. 1000, or test-only override); fee-aware balances | **Medium** -- real founders/index coverage; keep out of default fast gate if slow |
-| **Default fee-start 1000** | Makes FR reachable without mining to 5000 | **Mixed** -- helpful for the FR script; **hurts** unrelated tests past 1000 unless helpers are fixed first |
-| **Single script asserting both shapes** | One file covering 720–999 and 1000+ | **Low** -- couples harness length and subsidy math; prefer two scripts |
-
-**Evaluate usefulness:** **(a) shipped in scripts** (match current Zero settings). Treat
-fee-start=1000 + FR script as follow-on only if founders-index coverage is
-worth updating the subsidy helper and `wallet.py`.
+**RPC / Insight:** **`founders_window.py`** (Tier B) mines START/STOP boundaries,
+asserts subsidy + coinbase shape + GBT, and with `-insightexplorer` checks
+`getaddressbalance` / `getaddresstxids` on regtest payee
+`t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg`. Helpers: **`block_subsidy`**,
+**`founders_share`**, **`miner_share`**, **`subsidy_range`**, **`miner_range`**.
+Insight scripts at tip ~725 stay below START (1-vout). **EXT-INSIGHT-SUPERSET**
+founders-index slice: **done** in this script (2026-07-24).
 
 ---
 

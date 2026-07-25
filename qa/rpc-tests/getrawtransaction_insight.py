@@ -10,7 +10,7 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 
-from test_framework.util import assert_equal, coinbase_mature_tip
+from test_framework.util import assert_equal, mature_height
 from test_framework.util import initialize_chain_clean
 from test_framework.util import start_nodes, stop_nodes, connect_nodes
 from test_framework.util import wait_bitcoinds
@@ -36,7 +36,7 @@ class GetrawtransactionTest(BitcoinTestFramework):
         self.sync_all()
 
     def run_test(self):
-        mature_tip = coinbase_mature_tip(5)
+        mature_tip = mature_height(5)
         self.nodes[0].generate(mature_tip)
         self.sync_all()
 

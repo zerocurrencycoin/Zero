@@ -40,7 +40,7 @@ class TxIndexTest(BitcoinTestFramework):
 
     def run_test(self):
         print("Mining blocks...")
-        mature_tip = coinbase_mature_tip(5)
+        mature_tip = mature_height(5)
         self.nodes[0].generate(mature_tip)
         self.sync_all()
 

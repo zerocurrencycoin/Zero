@@ -90,10 +90,13 @@ static int GetLastFoundersRewardHeight(const Consensus::Params& params) {
     return params.GetLastFoundersRewardBlockHeight(blossom ? blossomActivationHeight : 0);
 }
 
-// Utility method to check the number of unique addresses from height 1 to maxHeight
+// Unique addresses over the founders-active height span only (skip pre-fee "0" fallback).
 void checkNumberOfUniqueAddresses(int nUnique) {
+    const Consensus::Params& consensus = Params().GetConsensus();
     std::set<std::string> addresses;
-    for (int i = 1; i <= GetLastFoundersRewardHeight(Params().GetConsensus()); i++) {
+    const int start = consensus.nFeeStartBlockHeight;
+    const int end = GetLastFoundersRewardHeight(consensus);
+    for (int i = start; i <= end; i++) {
         addresses.insert(Params().GetFoundersRewardAddressAtHeight(i));
     }
     EXPECT_EQ(addresses.size(), nUnique);
@@ -148,7 +151,7 @@ TEST(founders_reward_test, mainnet_get_last_block) {
     EXPECT_EQ(10, params.Halving(lastFRHeight + 1));
 }
 
-#define NUM_MAINNET_FOUNDER_ADDRESSES 11
+#define NUM_MAINNET_FOUNDER_ADDRESSES 10
 
 TEST(founders_reward_test, mainnet) {
     SelectParams(CBaseChainParams::MAIN);

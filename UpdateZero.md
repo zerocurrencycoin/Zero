@@ -1480,7 +1480,7 @@ Outline for closing gaps from zeronode gap analysis and mainnet coinbase verific
 | Phase | Test                          | Harness                                                        | Pass criteria                                                              |
 | ----- | ----------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | **A** | RPC argument validation       | Existing `rpc_zeronode_tests`, `rpc_zeronode_budget_tests`     | Expand budget subcmds per TST-03                                           |
-| **B** | Regtest single-node coinbase  | New `qa/rpc-tests/coinbase_rewards.py` or gtest                | After height 5000: founders vout 7.5%, zeronode vout when spork on         |
+| **B** | Founders window               | `qa/rpc-tests/founders_window.py` (Tier B)                     | START/STOP shape + Insight founders balance; zeronode when spork on                  | `qa/rpc-tests/founders_window.py` (Tier B) or gtest           | At fee-start **1000** / off **1500**: founders vout 7.5%; zeronode when spork on |
 | **C** | Regtest 2-node zeronode       | Manual -> scripted                                             | Collateral UTXO, `startalias`, payment in coinbase within N blocks         |
 | **D** | Reorg / `GetZeronodeInputAge` | Regtest `invalidateblock`                                      | Steps in DOC-02 subsection (already written); automate when harness allows |
 | **E** | Mock wallet                   | Inject `CZeronodeWalletInterface` test double                  | Ping/payment paths without full wallet                                     |
@@ -1505,7 +1505,7 @@ Outline for closing gaps from zeronode gap analysis and mainnet coinbase verific
 | ----------- | ----- | ----- | -------- | ------------ | --------------------------------- |
 | **mainnet** | 23801 | 23811 | 192,7    | block 412300 | Manual ops only; **no CI**        |
 | **testnet** | 23802 | 23812 | 192,7    | block 1      | **Not used** by qa harness        |
-| **regtest** | 23803 | 23813 | 48,5     | block 5000   | **All** automated RPC/Boost tests |
+| **regtest** | 23803 | 23813 | 48,5     | block 1000 (off 1500) | **All** automated RPC/Boost tests |
 
 
 **Regtest notes:**
@@ -1656,7 +1656,7 @@ Public testnet seeds: **`src/chainparams.cpp`** DNS entries `testnet1.zerocurren
 
 ### Regtest (developers)
 
-See **TEST_ZERO.md** Quick start; ports **23803/23813**; Equihash **(48,5)**; fee-start **5000**.
+See **TEST_ZERO.md** Quick start; ports **23803/23813**; Equihash **(48,5)**; **`REGTEST_FOUNDERS_START`/`STOP`** = **1000**/**1500**.
 
 ```
 

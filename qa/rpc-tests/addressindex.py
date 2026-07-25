@@ -19,13 +19,13 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
     COINBASE_MATURITY,
-    coinbase_mature_tip,
+    mature_height,
     initialize_chain_clean,
     start_nodes,
     stop_nodes,
     connect_nodes,
     wait_bitcoinds,
-    zero_regtest_subsidy,
+    subsidy_total,
 )
 
 from test_framework.script import (
@@ -95,7 +95,7 @@ class AddressIndexTest(BitcoinTestFramework):
 
         # begin test
 
-        mature_tip = coinbase_mature_tip(5)
+        mature_tip = mature_height(5)
         self.nodes[0].generate(mature_tip)
         self.sync_all()
         assert_equal(self.nodes[0].getbalance(), 5 * 10)
@@ -106,15 +106,15 @@ class AddressIndexTest(BitcoinTestFramework):
         unspent_txids = [u['txid'] for u in self.nodes[0].listunspent()]
 
         # Currently our only unspents are coinbase transactions, choose any one.
-        # Zero regtest: founders/fee coinbase vout is off until nFeeStartBlockHeight
-        # (5000), so below that height coinbases are single-output miner P2PKH
+        # Zero regtest: founders/dev-fee coinbase vout is off until fee-start (1000).
+        # Tip here is maturity+5 (725), so coinbases are single-output miner P2PKH.
         # (see ExtTests.md Finding A / §5). Do not assume Zcash's 2-vout shape.
         tx = self.nodes[0].getrawtransaction(unspent_txids[0], 1)
         assert_equal(len(tx['vout']), 1)
         addr_p2pkh = tx['vout'][0]['scriptPubKey']['addresses'][0]
 
         # Mining balances: all miner coinbases to the same P2PKH (halving-aware)
-        check_balance(1, addr_p2pkh, int(zero_regtest_subsidy(mature_tip) * COIN))
+        check_balance(1, addr_p2pkh, int(subsidy_total(mature_tip) * COIN))
         assert_equal(len(self.nodes[1].getaddresstxids(addr_p2pkh)), mature_tip)
 
         # only the oldest 5 transactions are in the unspent list,

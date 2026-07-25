@@ -81,6 +81,15 @@ static const unsigned int POST_BLOSSOM_POW_TARGET_SPACING = 60;
 static_assert(POST_BLOSSOM_POW_TARGET_SPACING < PRE_BLOSSOM_POW_TARGET_SPACING, "Blossom target spacing must be less than pre-Blossom target spacing.");
 static const unsigned int PRE_BLOSSOM_HALVING_INTERVAL = 800000;
 static const unsigned int PRE_BLOSSOM_REGTEST_HALVING_INTERVAL = 150;
+/**
+ * Regtest founders / development-fee window (maturity stays COINBASE_MATURITY).
+ * Active for heights in [REGTEST_FOUNDERS_START, REGTEST_FOUNDERS_STOP):
+ * 10.8 ZER base subsidy and 7.5% coinbase carve. STOP is exclusive (first height off).
+ * REGTEST_FOUNDERS_STOP must equal GetLastFoundersRewardBlockHeight(0)+1 when Blossom
+ * is inactive: PRE_BLOSSOM_REGTEST_HALVING_INTERVAL * 10 = 1500.
+ */
+static const int REGTEST_FOUNDERS_START = 1000;
+static const int REGTEST_FOUNDERS_STOP = 1500;
 static const int BLOSSOM_POW_TARGET_SPACING_RATIO = PRE_BLOSSOM_POW_TARGET_SPACING / POST_BLOSSOM_POW_TARGET_SPACING;
 static_assert(BLOSSOM_POW_TARGET_SPACING_RATIO * POST_BLOSSOM_POW_TARGET_SPACING == PRE_BLOSSOM_POW_TARGET_SPACING, "Invalid BLOSSOM_POW_TARGET_SPACING_RATIO");
 static const unsigned int POST_BLOSSOM_HALVING_INTERVAL = PRE_BLOSSOM_HALVING_INTERVAL * BLOSSOM_POW_TARGET_SPACING_RATIO;

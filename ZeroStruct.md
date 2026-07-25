@@ -483,9 +483,34 @@ Sample sets derived from **section 11** (zerowallet and Insight). "Harness" = me
 | Concern | Structure impact | Direction |
 |---------|------------------|-----------|
 | Tip poll CPU on large `mapWallet` | Full History decrypt + JSON each tick | Datatype split / cache (W5/W6); day default; helpers -- **TODO** |
+| Balance-walk Base58 cost | `addressBalances` keyed by `EncodeDestination` / `EncodePaymentAddress` strings; every credited vout re-encodes | Prefer destination-typed keys; encode once at JSON emit -- **WAL-GETALLDATA-ADDRKEY** (possibility; finding below) |
 | Omitted arg2 ~30y window | Near-unbounded filter before nCount | ARG2-DEFAULT -- **TODO** |
 | Duplicate day / count parsing | Drift between emit and early filter | Shared helpers -- **TODO** |
 | `wtxOrdered` vs getalldata | Orthogonal: insert-time order vs RPC sort map | §13.4 |
+
+**Performance finding -- address keying vs Base58 (2026-07-24)**
+
+On a DevFee-scale wallet (`txcount` ~800k) with Zerowallet attached, `sample` during tip `getalldata` showed hot stacks in `getalldata` -> `EncodeBase58Check` / `EncodeBase58` (not IBD, not script checks). Cause is **call volume**: the balance walk keys `map<string, balancestruct> addressBalances` with freshly encoded address strings per unspent output, so the same founders P2SH id is Base58-encoded hundreds of thousands of times.
+
+Transparent destinations already carry fixed-size ids:
+
+| Type | Derivation | Size |
+|------|------------|------|
+| `CKeyID` | `Hash160(serialized pubkey)` = RIPEMD160(SHA256(pubkey)); or the 20-byte push from P2PKH | 20 bytes |
+| `CScriptID` | `Hash160(redeemScript)`; or the 20-byte push from P2SH | 20 bytes |
+
+`EncodeDestination` only prefixes version + `EncodeBase58Check`. It is display formatting, not a better map key.
+
+| Possibility | Verdict |
+|-------------|---------|
+| Key balances by `CTxDestination` / payment-address bytes; `Encode*` once when building JSON | **Preferred** -- exact, drops almost all Base58 from the credit loop |
+| Per-RPC memo `destination -> string` | Acceptable interim if string keys kept |
+| Rewrite / micro-opt `EncodeBase58` / `EncodeBase58Check` | **Weak** -- constant-factor on the wrong axis while O(UTXO) encodes remain |
+| Truncate a hash to 8 bytes as the map key | **Reject** -- collision merges two addresses into one balance bucket |
+
+Shielded entries in the same map need a parallel typed key or tagged binary id (Sapling/Sprout payment-address bytes), not Base58/`zs` strings, if the balance map is unified. Orthogonal to W5/W6 (fewer/cheaper tip polls) and W1 (fewer wallet passes); do after or beside those if tip CPU remains Base58-dominated in samples.
+
+Task id: **WAL-GETALLDATA-ADDRKEY** -- **Zerowallet / out of Zero400 scope** (finding only here; 2026-07-24).
 
 **Dispatch gates (server):** warmup; witness rebuild; `initWitnessesBuilt` for `getalldata`/`z_sendmany`; HTTP work-queue full -> 503. Test commands: **TEST_ZERO**. Task IDs S4--S8 / W*: **TODO**.
 
