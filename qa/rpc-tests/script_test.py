@@ -17,6 +17,10 @@ switchover date to try to test with that flag enabled (and for tests without
 that flag, we use a block time before the switchover date).
 
 NOTE: This test is very slow and may take more than 40 minutes to run.
+
+SUITE: Commented out in qa/pull-tester/rpc-tests.sh (not in -all / Ext pass).
+Py3 ParseScript / CScriptNum.encode paths were fixed; re-enable only after a
+timed basename run on current tip.
 '''
 
 
@@ -108,7 +112,7 @@ def ParseScript(json_script):
         elif x.startswith("0x"):
             # Raw hex data, inserted NOT pushed onto stack:
             for i in range(2, len(x), 2):
-                parsed_script = CScript(bytes(parsed_script) + bytes(chr(int(x[i:i+2],16))))
+                parsed_script = CScript(bytes(parsed_script) + bytes([int(x[i:i+2], 16)]))
         elif x.startswith("'") and x.endswith("'") and len(x) >= 2:
             # Single-quoted string, pushed as data.
             parsed_script += CScript([x[1:-1]])

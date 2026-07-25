@@ -132,16 +132,25 @@ class BitcoinTestFramework(object):
             print("Unexpected exception caught during testing: "+str(e))
             traceback.print_tb(sys.exc_info()[2])
 
+        try:
+            self.shutdown_extra()
+        except Exception as e:
+            print("shutdown_extra failed: "+str(e))
+
         if not self.options.noshutdown:
             print("Stopping nodes")
-            stop_nodes(self.nodes)
+            try:
+                if getattr(self, 'nodes', None) is not None:
+                    stop_nodes(self.nodes)
+            except Exception as e:
+                print("stop_nodes failed: "+str(e))
             wait_bitcoinds()
         else:
             print("Note: bitcoinds were not stopped and may still be running")
 
         if not self.options.nocleanup and not self.options.noshutdown:
             print("Cleaning up")
-            shutil.rmtree(self.options.tmpdir)
+            shutil.rmtree(self.options.tmpdir, ignore_errors=True)
 
         if success:
             print("Tests successful")
@@ -149,6 +158,10 @@ class BitcoinTestFramework(object):
         else:
             print("Failed")
             sys.exit(1)
+
+    def shutdown_extra(self):
+        """Optional hook for non-zerod resources (Socks5, mininode, etc.)."""
+        pass
 
 
 # Test framework for doing p2p comparison testing, which sets up some bitcoind

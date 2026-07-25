@@ -179,6 +179,9 @@ extern bool fLargeWorkInvalidChainFound;
 // it is unneeded for testing
 extern bool fCoinbaseEnforcedProtectionEnabled;
 extern size_t nCoinCacheUsage;
+/** -dbcache slice budgets (bytes), set at AppInit2 cache split */
+extern size_t nBlockTreeDBCacheBytes;
+extern size_t nCoinDBCacheBytes;
 extern CFeeRate minRelayTxFee;
 extern bool fAlerts;
 extern std::map<uint256, int64_t> mapRejectedBlocks;
@@ -547,6 +550,9 @@ extern CCoinsViewCache *pcoinsTip;
 
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern CBlockTreeDB *pblocktree;
+
+/** Global variable that points to the chainstate LevelDB view (protected by cs_main) */
+extern CCoinsViewDB *pcoinsdbview;
 
 /** Global variable that points to the spork database (protected by cs_main) */
 extern CSporkDB* pSporkDB;

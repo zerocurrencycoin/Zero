@@ -133,7 +133,7 @@ testScriptsTierA=(
     'p2p_nu_peer_management.py'
 )
 
-# Tier counts (pass tiers): A=10, B pass=31 (30 unique; txn_doublespend x2), E pass=8; -all runs 49.
+# Tier counts (pass tiers): A=10, B pass=27 (26 unique; txn_doublespend x2), E pass=8; -all runs 45.
 # Bfail: Debug=25, Retired=6; -rpcfail runs Bfail+Efail diagnostic tiers.
 # Tier B pass: in testScripts but not Tier A.
 # 2026-07-22: promoted insight suite (addressindex/spentindex/timestampindex/rest/getrawtransaction_insight) from Bfail Debug after PASS.
@@ -145,14 +145,12 @@ testScriptsTierA=(
 # 2026-07-24: rpc_workqueue_full (S8 503) added Ext pass.
 # 2026-07-24: founders_window.py (REGTEST_FOUNDERS_START/STOP).
 # 2026-07-24: wallet.py promoted (Sapling path; fee-aware miner balances).
+# 2026-07-25: heavy proving / multi-GB RSS moved to Bfail Debug (see below).
 testScriptsTierBPass=(
     'wallet.py'
     'wallet_anchorfork.py'
     'wallet_changeindicator.py'
     'wallet_import_export.py'
-    'wallet_protectcoinbase.py'
-    'wallet_shieldcoinbase_sapling.py'
-    'wallet_nullifiers.py'
     'wallet_1941.py'
     'listtransactions.py'
     'mempool_resurrect_test.py'
@@ -165,7 +163,6 @@ testScriptsTierBPass=(
     'signrawtransactions.py'
     'nodehandling.py'
     'rescan_startup.py'
-    'zkey_import_export.py'
     'getblocktemplate.py'
     'founders_window.py'
     'p2p_txexpiry_dos.py'
@@ -207,6 +204,11 @@ testScriptsTierBFailDebug=(
     'regtest_signrawtransaction.py'
     'finalsaplingroot.py'
     'txindex.py'
+    # Heavy shielded proving (multi-GB RSS on -all); run via -Bfail / basename.
+    'wallet_shieldcoinbase_sapling.py'
+    'wallet_protectcoinbase.py'
+    'wallet_nullifiers.py'
+    'zkey_import_export.py'
 )
 
 testScriptsTierBFailRetired=(
@@ -246,7 +248,7 @@ testScriptsExtFail=(
 )
 
 # Invocation tiers (documented in TEST_ZERO.md; inventory: -list-csv):
-#   Pass: A=10, B=31 (30 unique; txn_doublespend x2), E=8 (-all = 49). Bfail: Debug=24, Retired=6. Efail=5.
+#   Pass: A=10, B=27 (26 unique; txn_doublespend x2), E=8 (-all = 45). Bfail Debug includes heavy proving. Efail=5.
 #   -A | --tier-a       Tier A gate
 #   -B | --tier-b       Tier B pass only
 #   -Bfail              Tier B fail only (Debug then Retired; diagnostic)

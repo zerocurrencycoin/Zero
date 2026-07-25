@@ -247,7 +247,7 @@ Tip **`cache=`** ~**77 MiB** (~218k coin entries) while process RSS was multi-GB
 
 ### 4.3.2 Status UTXO and dbcache on a running Linux VPS
 
-Zero has **no** `getmemoryinfo` RPC. Use logs + existing RPCs + OS (below). What `getmemoryinfo` is elsewhere is in **4.3.2a**.
+Zero has **no** `getmemoryinfo` RPC. Prefer the automation in **4.3.3** for reproducible numbers; ad-hoc checks below still work. What `getmemoryinfo` is elsewhere is in **4.3.2a**.
 
 ```bash
 # Allocated split (once per start)
@@ -312,6 +312,33 @@ Zero's only related API is [`GetLockedPageCount()`](src/support/pagelocker.h) --
 **Implication:** you cannot size "MiB per chain UTXO" from docs alone. Raise `-dbcache` when IBD flushes constantly or tip `cache=` rides the allocated ceiling; do not raise it when RSS is high but tip `cache=` is low (wallet/mmap bound).
 
 **OPS-CACHE (done for ops status):** section **4.3.1**–**4.3.2** + Pirate DB-knobs in **13.3**. Tunable 75% split and hit/miss metrics = **OPS-CACHE-METRICS** (postponed).
+
+### 4.3.4 Automated measurement and `getdbinfo` (OPS-CACHE-METRICS)
+
+**RPC `getdbinfo`:** returns `-dbcache` slice budgets, in-memory UTXO `DynamicMemoryUsage` / `GetCacheSize` / fill %, and per-DB LevelDB block-cache capacity/usage (`Cache::TotalCharge`, Zero patch -- upstream LevelDB 1.x has no `block-cache-usage` property), write-buffer budget, `leveldb.stats`, `num-files-at-level0`.
+
+**Script:** `contrib/measure_dbcache_utxo.py`
+
+```bash
+PATH=src:$PATH ZERO_MEASURE_MATRIX=800,2048,4096 ZERO_MEASURE_INSIGHT=both \
+  ZERO_MEASURE_BLOCKS=600 ZERO_MEASURE_SETINFO_EVERY=0 \
+  python3 contrib/measure_dbcache_utxo.py
+# Env: ZERO_MEASURE_DBCACHE | MATRIX, INSIGHT=0|1|both, BLOCKS, BATCH,
+#      SETINFO_EVERY (0 = final only / P4), DBINFO_EVERY, ADDR_EVERY
+```
+
+**Matrix `20260725_194505`** (600 blocks, P4 continuous tip, P5 `getdbinfo`):
+
+| dbcache | insight | BI / CS / UTXO MiB | UTXO fill % | BI/CS block_cache fill | generate(100) p50 | getdbinfo p50 | setinfo | getaddressbalance p50 |
+|---------|---------|--------------------|-------------|------------------------|-------------------|---------------|---------|----------------------|
+| 800 | off | 100 / 183 / 517 | 0.0012 | 0 / 0 | 835 ms | 4.3 ms | 12 ms | -- |
+| 800 | on | 600 / 58 / 142 | 0.0043 | 0 / 0 | 866 ms | 4.4 ms | 14 ms | 4.4 ms |
+| 2048 | off | 256 / 456 / 1336 | 0.0005 | 0 / 0 | 879 ms | 4.4 ms | 13 ms | -- |
+| 2048 | on | 1536 / 136 / 376 | 0.0016 | 0 / 0 | 816 ms | 4.3 ms | 15 ms | 4.3 ms |
+| 4096 | off | 512 / 904 / 2680 | 0.0002 | 0 / 0 | 854 ms | 4.5 ms | 15 ms | -- |
+| 4096 | on | 3072 / 264 / 760 | 0.0008 | 0 / 0 | 859 ms | 4.5 ms | 15 ms | 4.5 ms |
+
+**Readout:** budgets move with `-dbcache` / insight; regtest utilization does not (UTXO fill &lt;0.005%, RSS ~82-86 MiB). LevelDB `block_cache_usage=0` with `num-files-at-level*=0` -- data still in memtable; LRU fill is for SST blocks (meaningful on mainnet/IBD after flush). Insight grows `blocks/index` du (~0.26 vs ~0.05 MiB) but not generate latency at h=600. Charts: canvas `dbcache-utxo-measure`.
 
 ### 4.4 Symptoms and tuning
 

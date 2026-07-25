@@ -6,7 +6,12 @@
 
 from test_framework.socks5 import Socks5Configuration, Socks5Command, Socks5Server, AddressType
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, ipv6_loopback_available, start_nodes
+from test_framework.util import (
+    assert_equal,
+    initialize_chain_clean,
+    ipv6_loopback_available,
+    start_nodes,
+)
 
 import queue
 import os
@@ -217,6 +222,11 @@ class ProxyTest(BitcoinTestFramework):
                 "(will pass without node asserts)."
             )
 
+    def setup_chain(self):
+        # Node count follows active legs (3 when ::1/conf3 is skipped, not always 4).
+        print("Initializing test directory " + self.options.tmpdir)
+        initialize_chain_clean(self.options.tmpdir, max(len(self.legs), 1))
+
     def setup_nodes(self):
         # Note: proxies are not used to connect to local nodes (NET_UNROUTABLE).
         if not self.legs:
@@ -225,6 +235,12 @@ class ProxyTest(BitcoinTestFramework):
             return start_nodes(1, self.options.tmpdir, extra_args=[['-listen=0']])
         extra_args = [leg["args"] for leg in self.legs]
         return start_nodes(len(extra_args), self.options.tmpdir, extra_args=extra_args)
+
+    def setup_network(self, split=False):
+        # Do not use BitcoinTestFramework's fixed 4-node mesh -- leg count varies
+        # when conf3/IPv6 is unavailable. Legs are independent; no P2P links needed.
+        self.nodes = self.setup_nodes()
+        self.is_network_split = False
 
     def _expect_socks_cmd(self, proxy, what, timeout=60):
         try:
@@ -297,6 +313,19 @@ class ProxyTest(BitcoinTestFramework):
             return
         for i, leg in enumerate(self.legs):
             self.run_leg(i, leg)
+
+    def shutdown_extra(self):
+        # Socks5 accept threads are daemonized; stop them so the next suite
+        # entry does not inherit bound ports / orphan listeners.
+        for serv in (getattr(self, 'serv1', None),
+                     getattr(self, 'serv2', None),
+                     getattr(self, 'serv3', None)):
+            if serv is None:
+                continue
+            try:
+                serv.stop()
+            except Exception as e:
+                _warn("Socks5Server.stop failed: %s" % e)
 
 
 if __name__ == '__main__':

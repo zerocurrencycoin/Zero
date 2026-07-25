@@ -313,6 +313,11 @@ bool CCoinsViewDB::GetStats(CCoinsStats &stats) const {
     return true;
 }
 
+bool CCoinsViewDB::GetLevelDBProperty(const std::string& property, std::string& value) const
+{
+    return db.GetProperty(property, value);
+}
+
 bool CBlockTreeDB::WriteBatchSync(const std::vector<std::pair<int, const CBlockFileInfo*> >& fileInfo, int nLastFile, const std::vector<const CBlockIndex*>& blockinfo) {
     CDBBatch batch(*this);
     for (std::vector<std::pair<int, const CBlockFileInfo*> >::const_iterator it=fileInfo.begin(); it != fileInfo.end(); it++) {

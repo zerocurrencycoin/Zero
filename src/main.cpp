@@ -94,6 +94,8 @@ bool fCheckBlockIndex = false;
 bool fCheckpointsEnabled = true;
 bool fCoinbaseEnforcedProtectionEnabled = true;
 size_t nCoinCacheUsage = 5000 * 300;
+size_t nBlockTreeDBCacheBytes = 0;
+size_t nCoinDBCacheBytes = 0;
 uint64_t nPruneTarget = 0;
 bool fAlerts = DEFAULT_ALERTS;
 /* If the tip is older than this (in seconds), the node is considered to be in initial block download.
@@ -603,6 +605,7 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 
 CCoinsViewCache *pcoinsTip = NULL;
 CBlockTreeDB *pblocktree = NULL;
+CCoinsViewDB *pcoinsdbview = NULL;
 CSporkDB* pSporkDB = NULL;
 
 //////////////////////////////////////////////////////////////////////////////

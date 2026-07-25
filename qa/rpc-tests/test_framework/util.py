@@ -133,6 +133,26 @@ NU_TEST_ARGS = [
     '-nuparams=7361707a:1',  # Sapling (Zero branch ID)
 ]
 
+# Lean harness defaults (CLI). Intentionally not set here (operator / zero.conf):
+#   -dbcache     -- product default 800 MiB; Linux runs keep that
+#   zk params    -- ZC_LoadParams always maps Sapling+Sprout at startup (C++; no flag)
+#   node count   -- initialize_chain still freezes 4 wallets; per-test start_nodes may use 1-3
+# Tor: DEFAULT_LISTEN_ONION=false; datadir conf also sets listenonion=0. No compile-out.
+# I2P: not in this tree (PIR-08 deferred).
+# Do NOT set -rpcthreads=1: getblocktemplate longpoll holds one worker; a single
+# thread starves concurrent RPC (generate / getnewaddress) and times out.
+# Tests that need consistency checks pass -checkmempool / -checkblockindex=1.
+# -maxconnections=64 >> p2p_nu_peer_management (12 inbound mininodes).
+TEST_NODE_ARGS = [
+    '-par=1',
+    '-maxconnections=64',
+    '-checkblocks=1',
+    '-checklevel=0',
+    '-checkblockindex=0',
+    '-checkmempool=0',
+    '-dnsseed=0',
+]
+
 def rpc_cache_root():
     """
     Frozen regtest cache parent directory (contains node0..node3).
@@ -157,6 +177,11 @@ def _rpc_cache_is_current(cache_root, expected_tip):
         return False
     marker = _rpc_cache_tip_marker_path(cache_root)
     if not os.path.isfile(marker):
+        # Pre-CACHE_TIP archives (e.g. Testing/cache400*.tgz) look present but
+        # are treated as stale -- unpack and write CACHE_TIP, or rebuild.
+        print("initialize_chain: WARNING: cache at %s has no CACHE_TIP "
+              "(expected tip %d); will rebuild unless marker is added"
+              % (cache_root, expected_tip))
         return False
     try:
         with open(marker) as f:
@@ -259,6 +284,7 @@ def initialize_chain(test_dir):
         for i in range(4):
             datadir=initialize_datadir(cache_root, i)
             args = [ os.getenv("BITCOIND", "zerod"), "-keypool=1", "-datadir="+datadir, "-discover=0" ]
+            args.extend(TEST_NODE_ARGS)
             args.extend(NU_TEST_ARGS)
             if i > 0:
                 args.append("-connect=127.0.0.1:"+str(p2p_port(0)))
@@ -291,7 +317,9 @@ def initialize_chain(test_dir):
         need = mature_tip - rpcs[0].getblockcount()
         if need > 0:
             set_node_times(rpcs, block_time)
-            rpcs[0].generate(need)
+            # Mine in batches so generate()'s hash list and peer sync state
+            # do not retain a single ~620-hash RPC payload / burst.
+            _generate_batched(rpcs[0], need, batch=50)
             sync_blocks(rpcs)
 
         # Shut them down, and clean up cache directories:
@@ -347,6 +375,7 @@ def start_node(i, dirname, extra_args=None, rpchost=None, timewait=None, binary=
     if binary is None:
         binary = os.getenv("BITCOIND", "zerod")
     args = [ binary, "-datadir="+datadir, "-keypool=1", "-discover=0", "-rest" ]
+    args.extend(TEST_NODE_ARGS)
     args.extend(NU_TEST_ARGS)
     if extra_args is not None: args.extend(extra_args)
     bitcoind_processes[i] = subprocess.Popen(args)
@@ -378,28 +407,75 @@ def check_node(i):
     bitcoind_processes[i].poll()
     return bitcoind_processes[i].returncode
 
+def _close_rpc_connection(node):
+    closer = getattr(node, 'close', None)
+    if callable(closer):
+        try:
+            closer()
+        except Exception:
+            pass
+
 def stop_node(node, i):
-    node.stop()
-    bitcoind_processes[i].wait()
-    del bitcoind_processes[i]
+    try:
+        node.stop()
+    except (JSONRPCException, IOError, OSError):
+        pass
+    _close_rpc_connection(node)
+    proc = bitcoind_processes.get(i)
+    if proc is not None:
+        _wait_process(proc, timeout=60)
+        bitcoind_processes.pop(i, None)
 
 def stop_nodes(nodes):
     for node in nodes:
         try:
             node.stop()
-        except JSONRPCException:
+        except Exception:
+            # Timeout / CannotSendRequest / JSON errors after a wedged RPC thread
             pass
-    del nodes[:] # Emptying array closes connections as a side effect
+        _close_rpc_connection(node)
+    del nodes[:]  # Drop proxies so HTTP fds are not retained by the test process
 
 def set_node_times(nodes, t):
     for node in nodes:
         node.setmocktime(t)
 
-def wait_bitcoinds():
-    # Wait for all bitcoinds to cleanly exit
-    for bitcoind in bitcoind_processes.values():
-        bitcoind.wait()
+def _wait_process(proc, timeout=60):
+    """Wait for a subprocess; escalate terminate -> kill if it does not exit."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            return proc.returncode
+        time.sleep(0.1)
+    try:
+        proc.terminate()
+    except OSError:
+        pass
+    kill_deadline = time.time() + 10
+    while time.time() < kill_deadline:
+        if proc.poll() is not None:
+            return proc.returncode
+        time.sleep(0.1)
+    try:
+        proc.kill()
+    except OSError:
+        pass
+    proc.wait()
+    return proc.returncode
+
+def wait_bitcoinds(timeout=60):
+    """Wait for all tracked zerods to exit; kill stragglers so the next test is clean."""
+    for bitcoind in list(bitcoind_processes.values()):
+        _wait_process(bitcoind, timeout=timeout)
     bitcoind_processes.clear()
+
+def _generate_batched(node, nblocks, batch=50):
+    """Mine nblocks in batches; discard hash lists so RPC payloads do not accumulate."""
+    left = int(nblocks)
+    while left > 0:
+        n = batch if left > batch else left
+        node.generate(n)  # intentionally unused return (block hashes)
+        left -= n
 
 def connect_nodes(from_connection, node_num):
     ip_port = "127.0.0.1:"+str(p2p_port(node_num))
@@ -608,14 +684,14 @@ def mature_height(spendable_coinbases=1):
     """Minimum chain tip so coinbase at height spendable_coinbases is mature."""
     return COINBASE_MATURITY + spendable_coinbases
 
-def mine_to_height(node, nodes, target_height):
+def mine_to_height(node, nodes, target_height, batch=50):
     """Mine on node until chain tip reaches target_height (inclusive).
 
     Use when the test asserts NU heights or needs an exact tip (mine_until_mature can overshoot).
     Returns the tip height after mining."""
     need = target_height - node.getblockcount()
     if need > 0:
-        node.generate(need)
+        _generate_batched(node, need, batch=batch)
     if nodes is not None:
         sync_blocks(nodes)
     return node.getblockcount()
@@ -630,7 +706,7 @@ def mine_for_coinbase(node, blocks=1000):
     if not should_mine_for_coinbase():
         return False
     print(("Mining %d blocks for coinbase maturity (ZERO_MINE_COINBASE=1)..." % blocks))
-    node.generate(blocks)
+    _generate_batched(node, blocks, batch=50)
     return True
 
 def ensure_coinbase_utxos(node, nodes=None, blocks=1000):
@@ -651,12 +727,27 @@ def mine_until_mature(node, nodes=None, batch=50, max_blocks=2000):
     Not the same as mine_to_height(COINBASE_MATURITY): this is a predicate loop in
     batch steps and may overshoot the tip. Use mine_to_height when the tip must
     be exact.
+
+    Fast path: when tip is still below mature_height(1), mine straight there
+    without listunspent between batches (avoids growing RPC scans while the
+    wallet is still immature).
     """
     if has_coinbase_utxos(node):
         return True
+    tip = node.getblockcount()
+    target = mature_height(1)
+    if tip < target:
+        need = target - tip
+        if need > max_blocks:
+            need = max_blocks
+        _generate_batched(node, need, batch=batch)
+        if nodes is not None:
+            sync_blocks(nodes)
+        if has_coinbase_utxos(node):
+            return True
     total = 0
     while not has_coinbase_utxos(node) and total < max_blocks:
-        node.generate(batch)
+        _generate_batched(node, batch, batch=batch)
         total += batch
         if nodes is not None:
             sync_blocks(nodes)

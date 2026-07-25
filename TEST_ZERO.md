@@ -787,6 +787,45 @@ Scripts still asserting tip **200** on default **`setup_chain`** stay in **Bfail
 | **`rewind ... shutting down`** opening frozen cache | Manual **`zerod`** without **`NU_TEST_ARGS`** | Match harness flags; see **Inspect cache tip** above |
 | **`stop_nodes`** raises during failed-test cleanup | **`stop`** called while node still warming up | **`stop_nodes`** ignores **`JSONRPCException`** on **`stop`** |
 | Flaky port / RPC after aborted run | Stray **`zerod`** or hung **`python3 -c ... -rpcwait`** | **`killall zerod`**; **`pkill -f "python3 -c"`** if needed before re-run |
+| **`getblocktemplate_longpoll`**: concurrent RPC times out under longpoll | Longpoll holds one RPC worker; **`-rpcthreads=1`** starves **`generate`** / **`getnewaddress`** | Do **not** put **`-rpcthreads=1`** in harness defaults (see **`util.py`**). Retest: **`./qa/pull-tester/rpc-tests.sh getblocktemplate_longpoll`** |
+
+### Retest after shared harness edits
+
+After changing **`test_framework/`** (especially **`TEST_NODE_ARGS`**, start/stop, RPC proxy), run each dependent basename. Another suite does not substitute for a script you did not invoke.
+
+| Touched area | Minimum retest (repo root, built `src/zerod`) |
+|--------------|-----------------------------------------------|
+| **`TEST_NODE_ARGS`** / RPC thread or check flags | **`./qa/pull-tester/rpc-tests.sh getblocktemplate_longpoll`** (~70s); any other concurrent-RPC script touched by the flag set |
+| Peer / connection limits | **`./qa/pull-tester/rpc-tests.sh p2p_nu_peer_management`** |
+| Proxy / socks teardown | **`./qa/pull-tester/rpc-tests.sh proxy_test`** |
+| Linux-only `/proc` bind path | **`./qa/pull-tester/rpc-tests.sh rpcbind_test`** (on Linux) |
+
+Single-script form: **`./qa/pull-tester/rpc-tests.sh <basename>`** (no `.py`).
+
+### Harness notes (lean args / Py3)
+
+| Item | Intent |
+|------|--------|
+| **`TEST_NODE_ARGS`**: `-par=1`, `-maxconnections=64`, `-checkblocks=1`, `-checklevel=0`, `-checkblockindex=0`, `-checkmempool=0`, `-dnsseed=0` | Lean defaults; product **`-dbcache`** (800); no **`-rpcthreads=1`** (longpoll needs concurrent RPC workers); **64** connections for **`p2p_nu_peer_management`** (12 mininodes) |
+| Teardown: **`wait_bitcoinds`**, **`stop_nodes`**, RPC **`close()`**, mininode disconnect | Clean shutdown after failures |
+| **`proxy_test`** variable node count | IPv6/`conf3` may be skipped |
+| **`netutil.py`** Py3 | Linux **`rpcbind_test`** `/proc` path |
+| **`p2p_nu_peer_management`**: 4+4+4 peers | Handshake wait + stagger connect |
+| Heavy Sapling proving scripts in Bfail Debug (not **`-all`**) | Wall time; see **`rpc-tests.sh`** |
+| **`contrib/measure_dbcache_utxo.py`**, **`getdbinfo`** | Cache measurement; **ZeroStruct** §4.3.4 |
+
+**Postponed / set aside**
+
+| Item | Why deferred |
+|------|--------------|
+| LevelDB hit/miss counters beyond **`getdbinfo`** block-cache charge | Optional **OPS-CACHE-METRICS** follow-on |
+| **`-consolidation=1`** regtest script | No qa coverage today; needs fee-fix helper |
+| **`mergetoaddress_helper`** 50-ZER asserts | Bitcoin-era amounts; separate from harness lean args |
+| Selective zk-param load | **`ZC_LoadParams`** always maps Sapling+Sprout; C++ work |
+| I2P | Not in tree (PIR-08) |
+| Full **`--all --strict`** wall-time refresh | Still often **>15 min** with C++; re-record after next full run |
+
+**Measure automation:** `PATH=src:$PATH python3 contrib/measure_dbcache_utxo.py` (env: **`ZERO_MEASURE_DBCACHE`**, **`ZERO_MEASURE_BLOCKS`**, **`ZERO_MEASURE_BATCH`**, **`ZERO_MEASURE_SETINFO_EVERY`**). Outputs **`test-logs/*-dbcache-utxo.json|.csv`**. Sample run **`20260725_193336`**: **-dbcache=800**, no insight, **2500** blocks -- budgets **100 / 183 / 517** MiB; peak hot UTXO **0.1 MiB / 500 entries** (~**0.02%** of 517); tip **2500** **`gettxoutsetinfo`**: **txouts=3000**, **bytes_serialized=162125**. Numbers and charts: canvas **`dbcache-utxo-measure`**. Product-side split notes: **ZeroStruct.md** §4.3.4.
 
 Set **`PYTHON_DEBUG=1`** for per-node wait logging.
 
@@ -1277,7 +1316,7 @@ Authoritative arrays: **`testScriptsTierBFailDebug`**, **`testScriptsTierBFailRe
 | Script | Failure cause | Investigation |
 |--------|---------------|---------------|
 | **`smartfees.py`** | Fee estimator needs long tx history + mined blocks; upstream P2SH fee loop | Regtest subsidy/halving differs; may need hundreds of txs and mature UTXOs |
-| *(promoted)* **`getblocktemplate_longpoll.py`** | -- | Was Efail: `random_transaction` picked unfunded cache **node1**. Fixed by pinning funded node; Ext pass 2026-07-24. |
+| *(promoted)* **`getblocktemplate_longpoll.py`** | -- | Funded-node pin; harness must not use **`-rpcthreads=1`**. Retest: **`./qa/pull-tester/rpc-tests.sh getblocktemplate_longpoll`**. |
 | **`p2p-acceptblock.py`** | Comptool block time / PoW | `int(time.time())` fix in tree; verify accept after reorg |
 | **`invalidblockrequest.py`** | Comptool invalid block relay | Regtest PoW mismatch class |
 | **`getblocktemplate_proposals.py`**, **`pruning.py`** | Long chain / GBT extensions | Runtime + Zero GBT differences |
@@ -1322,6 +1361,8 @@ Record after harness changes (macOS, `./contrib/run-tests.sh --strict` unless no
 | `walletbackup.py` (post-fix) | **PASS** / **B pass** | **~80s** (2026-07-22) | total **2886.875**; restore/importwallet equality OK; promoted from Bfail Debug |
 | Linux **`zero-400names`** on lazu (`ZeroLinux`) | **pending** | -- | **v4.0.1 RC:** macOS **`--strict`** PASS 2026-06-09; lazu rebuild + **`--strict` recommended, not hard block** (disk **~97%**, **~4 GB** free). See **4.0.1 handoff** |
 | **`CachedWitnesses*` (except CleanIndex)** | **in gate** | -- | CleanIndex still excluded (`test_filters.sh`) |
+| **`getblocktemplate_longpoll.py`** | **PASS** | **~71s** | macOS; **`./qa/pull-tester/rpc-tests.sh getblocktemplate_longpoll`** |
+| **`contrib/measure_dbcache_utxo.py`** | **ran** | -- | Matrix summary under **`test-logs/`**; **ZeroStruct** §4.3.4 |
 
 **Bfail `COINBASE_MATURITY + 1` timings:** `rawtransactions` ~34s; `fundrawtransaction` ~54s; `signrawtransaction_offline` ~18s; `mergetoaddress_sapling` ~135s; `mergetoaddress_mixednotes` ~39s (after script-local maturity fix).
 
