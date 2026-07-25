@@ -64,7 +64,7 @@ def create_coinbase(heightAdjust = 0):
     coinbase.vout = [ coinbaseoutput ]
     if height >= ZERO_REGTEST_FEE_START and halvings < 64:
         froutput = CTxOut()
-        froutput.nValue = int(coinbaseoutput.nValue * 7.5 / 100)  # 7.5% founder
+        froutput.nValue = coinbaseoutput.nValue * 75 // 1000  # 7.5% founder, integer
         fraddr = bytearray([0x67, 0x08, 0xe6, 0x67, 0x0d, 0xb0, 0xb9, 0x50,
                             0xda, 0xc6, 0x80, 0x31, 0x02, 0x5c, 0xc5, 0xb6,
                             0x32, 0x13, 0xa4, 0x91])  # regtest founder t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg

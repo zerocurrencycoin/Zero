@@ -1025,6 +1025,7 @@ public:
         nTimeFirstKey = 0;
         fBroadcastTransactions = false;
         nWitnessCacheSize = 0;
+        wtxOrdered.clear();
     }
 
     /**
@@ -1252,12 +1253,22 @@ public:
     typedef std::pair<CWalletTx*, CAccountingEntry*> TxPair;
     typedef std::multimap<int64_t, TxPair > TxItems;
 
+    /** Incremental activity order (WAL-WTXORDERED). Tx side only; lacentries merged in OrderedTxItems. */
+    TxItems wtxOrdered;
+
     /**
      * Get the wallet's activity log
      * @return multimap of ordered transactions and accounting entries
      * @warning Returned pointers are *only* valid within the scope of passed acentries
      */
     TxItems OrderedTxItems(std::list<CAccountingEntry>& acentries, std::string strAccount = "");
+
+    /** Rebuild wtxOrdered from mapWallet (after reorder / load fixups). */
+    void RebuildWtxOrdered();
+    /** Remove one tx from wtxOrdered by pointer (before mapWallet.erase). */
+    void RemoveFromWtxOrdered(const CWalletTx* pwtx);
+    /** Assure-4: wtxOrdered tx set matches mapWallet. Requires cs_wallet. */
+    bool WtxOrderedConsistent() const;
 
     void MarkDirty();
     bool UpdateNullifierNoteMap();

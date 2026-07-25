@@ -78,6 +78,7 @@ enum RPCErrorCode
 
     RPC_ZERONODES_NOT_SYNCED        = -32, //! ZeroNodes are syncing or have fallen out of sync
     RPC_BUILDING_WITNESS_CACHE      = -33, //! RPC disabled while witness cache is rebuilding
+    RPC_DATA_CONTINUE             = -34, //! Soft: keep last result (getalldata coalesce / in-flight)
 };
 
 std::string JSONRPCRequest(const std::string& strMethod, const UniValue& params, const UniValue& id);

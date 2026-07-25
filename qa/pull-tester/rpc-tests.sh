@@ -98,6 +98,9 @@ testScriptsExt=(
     'maxblocksinflight.py'
     'invalidblockrequest.py'
     'p2p-acceptblock.py'
+    'rpc_coverage_probe.py'
+    'rpc_workqueue_full.py'
+    'getalldata_scenario.py'
 );
 
 if [ "x$ENABLE_ZMQ" = "x1" ]; then
@@ -129,12 +132,16 @@ testScriptsTierA=(
     'p2p_nu_peer_management.py'
 )
 
-# Tier counts (pass tiers): A=10, B pass=28 (27 unique; txn_doublespend x2), E pass=2; -all runs 40.
-# Bfail: Debug=26, Retired=6; -rpcfail runs Bfail+Efail diagnostic tiers.
+# Tier counts (pass tiers): A=10, B pass=29 (28 unique; txn_doublespend x2), E pass=8; -all runs 47.
+# Bfail: Debug=25, Retired=6; -rpcfail runs Bfail+Efail diagnostic tiers.
 # Tier B pass: in testScripts but not Tier A.
 # 2026-07-22: promoted insight suite (addressindex/spentindex/timestampindex/rest/getrawtransaction_insight) from Bfail Debug after PASS.
 # 2026-07-22: promoted walletbackup.py from Bfail Debug after re-PASS (~80s; TST-07 wallet half).
 # 2026-07-22: txindex.py added to inventory + Bfail Debug (orphan; fails Py3 Decimal + BTC 50-subsidy asserts).
+# 2026-07-24: promoted receivedby, rpcbind_test from Efail after PASS under -E.
+# 2026-07-24: promoted mempool_limit from Bfail Debug after PASS.
+# 2026-07-24: getblocktemplate_longpoll fixed (pin funded node) + promoted Ext pass.
+# 2026-07-24: rpc_workqueue_full (S8 503) added Ext pass.
 testScriptsTierBPass=(
     'wallet_anchorfork.py'
     'wallet_changeindicator.py'
@@ -146,6 +153,7 @@ testScriptsTierBPass=(
     'listtransactions.py'
     'mempool_resurrect_test.py'
     'mempool_spendcoinbase.py'
+    'mempool_limit.py'
     'txn_doublespend.py'
     'txn_doublespend.py --mineblock'
     'zapwallettxes.py'
@@ -183,7 +191,6 @@ testScriptsTierBFailDebug=(
     'mergetoaddress_sapling.py'
     'mergetoaddress_mixednotes.py'
     'rawtransactions.py'
-    'mempool_limit.py'
     'mempool_reorg.py'
     'mempool_nu_activation.py'
     'mempool_tx_expiry.py'
@@ -212,31 +219,38 @@ testScriptsTierBFail+=("${testScriptsTierBFailDebug[@]}")
 testScriptsTierBFail+=("${testScriptsTierBFailRetired[@]}")
 
 # Ext pass / fail (testScriptsExt subsets).
+# 2026-07-24: promoted receivedby, rpcbind_test from Efail after PASS under -E.
+# 2026-07-24: getblocktemplate_longpoll -- root cause random from_node on unfunded cache node1;
+#             pinned funded node; 3x alone + after Ext-pass prefix PASS -> Ext pass.
 testScriptsExtPass=(
     'invalidateblock.py'
     'maxblocksinflight.py'
+    'rpc_coverage_probe.py'
+    'receivedby.py'
+    'rpcbind_test.py'
+    'getblocktemplate_longpoll.py'
+    'rpc_workqueue_full.py'
+    'getalldata_scenario.py'
 )
 
 testScriptsExtFail=(
-    'getblocktemplate_longpoll.py'
     'getblocktemplate_proposals.py'
     'pruning.py'
-    'receivedby.py'
-    'rpcbind_test.py'
     'smartfees.py'
     'invalidblockrequest.py'
     'p2p-acceptblock.py'
 )
 
 # Invocation tiers (documented in TEST_ZERO.md; inventory: -list-csv):
-#   Pass: A=10, B=28 (27 unique; txn_doublespend x2), E=2 (-all = 40). Bfail: Debug=26, Retired=6. Efail=8.
+#   Pass: A=10, B=29 (28 unique; txn_doublespend x2), E=8 (-all = 47). Bfail: Debug=25, Retired=6. Efail=5.
 #   -A | --tier-a       Tier A gate
 #   -B | --tier-b       Tier B pass only
 #   -Bfail              Tier B fail only (Debug then Retired; diagnostic)
 #   -list-csv [path]    Tier/group/script CSV to stdout or path; no tests run
 #   -E | --tier-e       Ext pass only
 #   -Efail              Ext fail only (diagnostic)
-#   -all                -A then -B then -E (pass tiers)
+#   -all                -A then -B then -E (pass tiers). Same meaning as contrib/run-tests.sh --all|-all
+#                       (contrib accepts both spellings; this script only accepts -all).
 #   -rpcfail            -Bfail then -Efail (diagnostic)
 #   (no args)           same as -all (qa/zcash/full_test_suite.py rpc stage)
 #   <name>              one script by basename

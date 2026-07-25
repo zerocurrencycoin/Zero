@@ -8,7 +8,7 @@ Maintainer **execution hub**. Developer documents in **UpdateZero.md** section *
 
 **Purpose (this file):** Maintainer **execution hub** -- fork rules, cherry-pick **decisions and order**, port plans, audits, public-doc drafts pending copy.
 
-**Include:** CON-* rules; PIR/TNT execution (**3.4**, **3.5**); Linux binary compatibility (**3.6**); Blockbook (**4**); Pirate review (**5**); Proton (**6**); drafts (**7**); CSV (**8**); DOC-* audits; RPC test prescriptions. Pointers only to backlog IDs owned elsewhere.
+**Include:** CON-* rules; Pirate/TENT postponed hub + catalogs (**3.3a**, **3.4**, **3.5**, **5**); Linux binary compatibility (**3.6**); Blockbook (**4**); Proton (**6**); drafts (**7**); CSV (**8**); DOC-* audits; RPC test prescriptions. Pointers only to backlog IDs owned elsewhere.
 
 **Exclude:** **checklist / ordered backlog status** (**TODO.md** owns Active / Pending / Ordered next); zerod structure and deep task semantics (**ZeroStruct**); zeronode operator/dev detail (**ZeroNodes**, **ZeroNodeDev**); clone/ecosystem compare (**Comparison.md**); clone paths (**ZKRepos.md**); full org repo audit (**`~/Work/ZK/Repos/ZeroC.md`**); Zebra research (**ZebraZero**).
 
@@ -37,7 +37,9 @@ Public set (working): **README**, **BUILD_ZERO**, **TEST_ZERO**, **ZERO_COIN**, 
 | **Internal / project** | Maintainers | UpdateZero, ZeroStruct, ZeroNodes*, **`ZKs/Comparison.md`**, **`ZKs/ZKRepos.md`**, ... |
 | **Specialty ops** | At most a few people worldwide (besides the project lead) | **`~/Work/ZK/insight/`** |
 
-**Insight** is specialty. Public docs: short explorer pointer only. Full host conf / bitcore / nginx stay in **`~/Work/ZK/insight/`**.
+**Insight** is specialty. Public docs: short explorer pointer only. Full host conf / bitcore / nginx stay in **`~/Work/ZK/insight/`**. **Skip** Insight/bitcore PR / merge work on the Zero400 track.
+
+**Dev fee addresses (project-internal):** founders / DevFee payee addresses and address-ops scripts -- see [`/Users/walter/Work/ZK/0/E/DevFeeWallets/README.md`](/Users/walter/Work/ZK/0/E/DevFeeWallets/README.md). That tree is **addresses and ops only**. Do **not** put DevWallet handling or scripting in ZeroStruct, TEST_ZERO, TODO, or other public docs.
 
 ### Public project documents
 
@@ -63,7 +65,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 
 | File                            | Purpose                                               | Include                                                                                                                                     | Exclude                                                                                                |
 | ------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **UpdateZero.md**               | Decisions and execution order                         | This map; **3.4** PIR; **3.5** TNT; **3.6** Linux compatibility; **4**--**8**                                                                                            | Content owned by other rows                                                                            |
+| **UpdateZero.md**               | Decisions and execution order                         | This map; **3.3a** Pirate/TENT hub; **3.4** PIR; **3.5** TNT; **3.6** Linux compatibility; **4**--**8**                                                                 | Content owned by other rows                                                                            |
 | **ZeroStruct.md**               | **zerod** structure and options by use case           | Datadir, `-dbcache`, flags per workload, `ConnectBlock`, wallet chain ops; **section 11** client integration contract; **INT-NN** concerns (**11.7**); brief zeronode cache | Ecosystem/indexer compare (**Comparison.md**); Blockbook port (**4**); zeronode setup (**ZeroNodes**) |
 | **ZeroNodes.md**                | Run a **zeronode** (operator)                         | Collateral, conf, RPC, sporks, coinbase summary, P2P, economics pointers                                                                    | ZND table (**ZeroNodeDev** section **9**); TNT order (**3.5**); insight flags (**ZeroStruct**)         |
 | **ZeroNodeDev.md**              | **Zeronode source** (wallet boundary, TENT, tests)    | `CZeronodeWalletInterface`; library split; **ZND anchors** (section **9**); test phases                                                     | Operator workflow (**ZeroNodes**); TNT order (**3.5**)                                                 |
@@ -91,8 +93,8 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 
 | Prefix  | Section               | Meaning                                                    | Cited in                            |
 | ------- | --------------------- | ---------------------------------------------------------- | ----------------------------------- |
-| **PIR** | **3.4**               | **P**irate upstream cherry-pick candidate                  | **UpdateZero** execution table      |
-| **TNT** | **3.5**               | **T**ENT upstream cherry-pick candidate                    | **UpdateZero** execution table only |
+| **PIR** | **3.3a**, **3.4**, **5** | **P**irate upstream cherry-pick / review candidate      | **UpdateZero** postponed hub + tables |
+| **TNT** | **3.3a**, **3.5**     | **T**ENT upstream cherry-pick candidate                    | **UpdateZero** postponed hub + table |
 | **ZND** | **ZeroNodeDev** **9** | **Z**ero**N**ode **D**ev anchor (port/reject + file paths) | **ZeroNode** files only             |
 | **CON** | **2**                 | Zero **consensus** / engineering invariant                 | **UpdateZero** fork rules           |
 
@@ -106,7 +108,8 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 
 | Direction                | Rule                                                  |
 | ------------------------ | ----------------------------------------------------- |
-| Public -> maintainer     | None                                                  |
+| Public -> maintainer     | None (no hrefs to UpdateZero / ZeroStruct / ZeroNodes* / DevWallet trees) |
+| Public -> DevWallet      | None (no Dev fee scripting or address-ops docs)       |
 | Maintainer -> public     | Allowed                                               |
 | Maintainer -> maintainer | One-line pointer when another file **owns** the topic |
 
@@ -119,7 +122,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 |--------|-------|---------|
 | **INT-NN** | **ZeroStruct.md** section **11.7** | Client integration concern (Insight, zerowallet, paths) |
 | **C-NN** | **UpdateZero.md** section **8** Completed | Maintainer audit log (fixed items); not **INT-NN** |
-| **PIR-NN** / **TNT-NN** | **UpdateZero.md** sections **3.4** / **3.5** | Cherry-pick candidate or status |
+| **PIR-NN** / **TNT-NN** | **UpdateZero.md** sections **3.3a**, **3.4**, **3.5**, **5** | Cherry-pick candidate or status (not in public TODO) |
 | **TST-NN** | **TEST_ZERO.md** | Test task or gate |
 | **CON-NN** | **UpdateZero.md** section **2** | Consensus / engineering invariant |
 
@@ -131,12 +134,12 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | **OPS-EXPLORER** | **BUILD_ZERO.md** section **4.6.2** -- public short pointer only (UI + minimum flags) |
 | **OPS-INSIGHT-CONF** | Specialty: **`~/Work/ZK/insight/InsightBlock.md`** section **2.2** + **`config/`** (not a general Zero audience) |
 | **OPS-LINUX-ABI** | **UpdateZero.md** section **3.6** (internal; Ubuntu 18 / multi-OS until timeline vs 4.0.1 decided) |
-| **OPS-*** / **WAL-*** / **FR-*** / **EXT-*** (status) | **TODO.md** (Ordered next / Active / Pending) |
-| **OPS-*** / **WAL-*** / **FR-*** (semantics) | **ZeroStruct.md** (esp. §4.3, §13) -- one hop from TODO |
+| **OPS-*** / **WAL-*** / **FR-*** / **EXT-*** (status + full task text) | **TODO.md** |
+| **OPS-*** / **WAL-*** / **FR-*** (architecture: structures, indexes, algorithms) | **ZeroStruct.md** (esp. §4.3, §6.2, §13) -- problem/pro-con only, not task runbooks |
 | **INT-*** | **ZeroStruct.md** section **11.7** |
 | **Clone wallet / P2P / shielding history** | **`ZKs/Comparison.md`** sections **3**, **4** |
 | **Indexer / explorer across coins** | **`ZKs/Comparison.md`** section **12** |
-| **PIR / TNT execution** | **UpdateZero.md** sections **3.4**, **3.5** (status + pointer; no duplicate specs) |
+| **PIR / TNT execution** | **UpdateZero.md** sections **3.3a**, **3.4**, **3.5** (postponed hub + tables). Not tracked in public **TODO.md**. |
 
 ---
 
@@ -174,45 +177,11 @@ Zero uses `VerifyAndSetInitialWitness` and `BuildWitnessCache` with optional `pb
 
 ### Subsidy implementation
 
-Code excerpts for consensus subsidy paths. File:line numbers may drift -- verify against `src/`. User-facing narrative: ZERO_COIN.md.
+**Subsidy / founders / zeronode economics (public):** **ZERO_COIN.md** (Emission timeline, Stable arithmetic, Emission totals).
 
-> **Coverage requirement:** `GetBlockSubsidy`, `Params::Halving`, founders reward, and zeronode payment paths are consensus-critical. Any change must match in both validator and miner code. Far-future halving tests are required. See CON-01 and CON-02.
+**Implementation touch list (`double` sites):** **BUILD_ZERO.md** §4.8. Integer helper status: **TODO.md**.
 
-**GetBlockSubsidy** (`src/main.cpp`):
-
-```cpp
-CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
-{
-  CAmount nSubsidy = 10 * COIN;
-  if (nHeight>=consensusParams.nFeeStartBlockHeight) {
-    nSubsidy = 10.8 * COIN;
-  }
-
-    int halvings = consensusParams.Halving(nHeight);
-    if (halvings >= 64)
-        return 0;
-
-    if (consensusParams.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_BLOSSOM)) {
-        return (nSubsidy / Consensus::BLOSSOM_POW_TARGET_SPACING_RATIO) >> halvings;
-    } else {
-        return nSubsidy >> halvings;
-    }
-}
-```
-
-**Params::Halving** (`src/consensus/params.cpp`): pre-Blossom `halvings = nHeight / nPreBlossomSubsidyHalvingInterval` (800000). No slow start.
-
-**GetLastFoundersRewardBlockHeight:** pre-Blossom `800000*10 - 1 = 7,999,999`.
-
-**Founders:** `src/zeronode/payments.cpp`, `budget.cpp` -- `blockValue * 7.5 / 100`.
-
-**GetZeronodePayment** (`src/main.cpp`): default 20% of `blockValue`; tier steps at 800k multiples with SPORK_6/7.
-
-**FillBlockPayee** (`src/zeronode/payments.cpp`): superblock path vs default; order: blockValue, founders, zeronode, miner + fees.
-
-**Consensus validation** (`src/main.cpp`): requires founders output when `nFeeStartBlockHeight <= height <= GetLastFoundersRewardBlockHeight`.
-
-**Addresses in code:** `src/chainparams.cpp` -- `vFoundersRewardAddress` (mainnet/testnet/regtest); RPC `developmentfee` on **`zeronodestats`** (`src/rpc/zeronode.cpp`). `ZeronodeDummyAddress` -- collateral validation only. Naming track: **DOC-FR-NAMING**.
+**Coverage rule:** miner, `ConnectBlock`, GBT, and metrics must stay in lockstep on any subsidy or founders change; add far-future halving tests when editing.
 
 ---
 
@@ -226,10 +195,11 @@ Release lifecycle and compiler flags: BUILD_ZERO §2.6-2.7. Source-tree fix log,
 
 Log of fixes on the integration line. Kept so future merges do not revert them. Grouped by area.
 
-**Equihash / mining guard.**
+**Equihash / `ENABLE_MINING` (open for future consideration).**
 
-- `src/equihash.cpp`: template instantiations for `(192,7)` and `(48,5)` wrapped in `#ifdef ENABLE_MINING`. Without this, `--disable-mining` builds fail to link. Ref: `Makefile.am` `ENABLE_MINING` conditional.
-- `src/Makefile.gtest.include`: `test_miner.cpp` in `zero_gtest_SOURCES` only when `ENABLE_MINING`. Otherwise GTest binary pulls missing symbols.
+Default builds enable mining. `./configure --disable-mining` omits miner code; Equihash **solver** template instantiations in `src/equihash.cpp` for `(192,7)` and `(48,5)` are wrapped in `#ifdef ENABLE_MINING` so the link succeeds without mining objects. Validator paths stay available. `test_miner.cpp` is listed in `zero_gtest_SOURCES` only when `ENABLE_MINING` (`src/Makefile.gtest.include`).
+
+**Why keep the guard:** release or policy builds may ship without a local miner while still validating PoW; without the ifdef, `--disable-mining` fails at link. **Open:** whether to further split solver KATs / gtest from `ENABLE_MINING`, or document a supported `--disable-mining` CI matrix -- not scheduled; do not expand into public BUILD_ZERO beyond "mining on/off is a configure choice."
 
 **Compiler / platform portability.**
 
@@ -250,63 +220,44 @@ Log of fixes on the integration line. Kept so future merges do not revert them. 
 
 
 
-### 3.2 Dependency versions (peer comparison, Apr 2026)
+### 3.2 Dependency versions
 
-Where Zero sits relative to peers. Authoritative version table (no peer columns): BUILD_ZERO §4.1. Peer repos in `~/Work/ZK/ZKs/`; wallet and clone comparison `ZKs/Comparison.md` (section **3** wallet, **4** P2P); Pirate/TENT cherry-picks **§3.4** / **§3.5**; 2026 shielded CVEs `ZcashFixes.md` Appendix; clone index `ZKs/ZKRepos.md`.
+**Current Zero actuals (versions to build against):** **BUILD_ZERO.md** §4.1 / `depends/packages/*.mk`.
 
-
-| Library   | Zero          | Zcash   | Pirate      | Horizen | Bitcoin | Zero source                     |
-| --------- | ------------- | ------- | ----------- | ------- | ------- | ------------------------------- |
-| BDB       | 6.2.32        | 6.2.23  | 6.2.32      | 6.2.23  | removed | `depends/packages/bdb.mk`       |
-| libsodium | 1.0.21        | 1.0.20  | 1.0.18      | 1.0.18  | --      | `depends/packages/libsodium.mk` |
-| Boost     | 1.88.0        | 1.83.0  | 1.83.0      | 1.82.0  | 1.88.0  | `depends/packages/boost.mk`     |
-| Rust      | system (1.90) | 1.81.0  | (cxxbridge) | 1.70.0  | --      | `depends/packages/rust.mk`      |
-| OpenSSL   | 1.1.1w        | removed | removed     | 1.1.1w  | removed | `depends/packages/openssl.mk`   |
+**Ecosystem peer comparisons:** **`~/Work/ZK/ZKs/Comparison.md`** (and related ZKs docs). Zero-specific decisions that are not "what we ship today" stay in this file (e.g. OpenSSL stay-on-1.1.1w until audited, Rust system-default). Do not maintain a parallel peer matrix here.
 
 
 Verified from `depends/packages/*.mk` in each repo.
 
 ### 3.3 Test prescriptions
 
-Cheat sheet for maintainers porting or fixing RPC tests. Originated from pitfalls found during the `getchaintips`, `wallet_changeaddresses`, `wallet_changeindicator`, and other test ports where upstream assumptions silently broke. Run tests per TEST_ZERO. Harness details (helpers, script-specific notes) are in TEST_ZERO §RPC harness details.
+**Moved to public TEST_ZERO** (commands, maturity **720**, harness changelog, per-script debug, tier inventory). Do not keep a parallel body here.
 
-**Coinbase maturity 720.** Zero regtest uses `COINBASE_MATURITY = 720` (`src/consensus/consensus.h`), not the upstream 100. Every ported test that spends coinbase must mine to maturity first.
-
-**P2P / regtest.** `nVersion >= 170007`; `mininode.py` default 170009. Regtest magic must match `chainparams.cpp`.
-
-**Regtest NU.** `-nuparams=6f76727a:1` (Overwinter), `-nuparams=7361707a:1` (Sapling). Blossom: set above tip after maturity mining.
-
-**Python 3.** `serialize_script_num`: `bytearray.append(int)`, not `chr(...)`. Import `initialize_chain_clean` when used.
-
-**Partition tests.** `split=True`: only edges 0-1 and 2-3; `CHAIN_BOOTSTRAP` + guard before re-mine.
-
-New prescription: add here and add a TEST_ZERO harness changelog entry if user-visible.
-
-**Coverage gaps.**
+**Maintainer-only remainder:** when a new port pitfall is *not* yet written into TEST_ZERO, park a one-line note here until copied, then delete. Coverage and open TST-* status: public **TODO.md**.
 
 
-| Area                | Coverage     | Key gaps                                                                 |
-| ------------------- | ------------ | ------------------------------------------------------------------------ |
-| zero_exclusive RPCs | 0%           | `zs_listtransactions`, `zs_gettransaction`, `getalldata`, `getsupply`    |
-| zero_experimental   | 0%           | `getsaplingwitness`, `getsaplingwitnessatheight`, `getsaplingblocks`     |
-| Zeronode logic      | 0%           | Payment calc, budget validation, collateral                              |
-| SwiftTX / Spork     | 0%           | Lock conflict, activation, quorum vote (DEF-06: removal planned)         |
-| Zeronode RPC        | ~25%         | `zeronodecurrent`, `getzeronodeoutputs`, `startzeronode`, budget subcmds |
-| Mining/PoW          | 75%          | `miner_tests` excluded (192,7 vs 96,5)                                   |
-| Wallet              | 80%          | CDB::Rewrite blocks 3 tests                                              |
-| RPC Python (Tier A) | 10 pass-only | exit 0 != full scenario coverage; see `TEST_ZERO.md` tier counts         |
-| Fuzz                | 0%           | No infra                                                                 |
 
+### 3.3a Pirate + TENT postponed hub (UPSTREAM-PIR-TENT)
 
-**Debug notes.**
+**Decision (2026-07-24):** Group **all** open Pirate (**PIR-*** , section **3.4**, section **5**) and TENT (**TNT-*** , section **3.5**) cherry-pick / PR / review work into this single postponed hub. Do not schedule individual open PIR/TNT ports into public Ordered next until this hub is reopened.
 
-- **CachedWitnesses (GTest).** `WalletTests.CachedWitnesses`* fails because `BuildWitnessCache` is a no-op when `pcoinsTip` is null in the GTest harness. `EXPECT_DEATH` in `DecrementNoteWitnesses` does not match the actual abort path. Partial fix: seed `CCoinsViewCache` manually; still fails on witnesses added before cache population. Ref: `src/wallet/gtest/test_wallet.cpp`, TST-03 P2.
-- **CDB::Rewrite (GTest + Boost).** `EncryptWallet` calls `CDB::Rewrite` which busy-waits on `mapFileUseCount` while the wallet DB is still open by the test harness. Indefinite hang. Affects `WriteCryptedSaplingZkey`* (GTest) and `rpc_wallet_encrypted_wallet_sapzkeys` (Boost). Fix: close wallet handle before rewrite, or test-only persistence path. Ref: `src/wallet/db.cpp`, `src/wallet/gtest/test_wallet_zkeys.cpp`, TST-03 P2.
-- **wallet.py balance (RPC).** Node0 reports ~19 ZER mature vs expected 29. Cause: `COINBASE_MATURITY = 720` means fewer coinbase outputs are spendable than upstream scripts expect. Not a code bug; test expectation needs adjusting.
+**Skip:** Insight / bitcore / explorer-host PR work (specialty ops tree only; not a Zero400 merge track).
 
+**Still allowed outside this hub:** Zcash/Bitcoin candidates; Zero-local wallet/RPC work that is not a Pirate/TENT cherry-pick (e.g. getalldata S/W items, `wtxOrdered` Zcash align).
 
+**Related postponed alternate (Pirate-derived, not a PIR-NN row):**
+
+| ID | Area | Pirate ref | Zero status | Recommendation |
+|----|------|------------|-------------|----------------|
+| **WAL-PIRATE-TIMESMART** | Wallet insert CPU | [`5f0cab6ba`](https://github.com/PirateNetwork/pirate/commit/5f0cab6bad6e61bcc751c4c44dd98c1f3a286709) (2021-11-17): `nTimeSmart = nTimeReceived = blocktime`, skip ordered walk | Zero has incremental `wtxOrdered` (keep accounts/`TxPair`) | **Emergency alternate only** -- O(1) insert, loses arrival-time semantics. Prefer `wtxOrdered`; do not schedule while hub postponed. Structure: ZeroStruct §13.4. |
+
+**Shipped from these tables (historical, not reopened by the postpone):** PIR-01 (`ENABLE_SYSTEM_COMMAND`); OPS-PIRATE-DB modest `max_open_files` bump (ZeroStruct §13.3).
+
+Tables below remain the catalog; this hub owns **execution status**.
 
 ### 3.4 Pirate upstream cherry-pick candidates (2022--2026)
+
+**Status:** Covered by **section 3.3a** (postponed hub). Do not schedule individual open PIR-* ports until 3.3a reopens. Shipped rows (e.g. PIR-01) stay historical. Insight/bitcore PRs: **skip** (specialty only).
 
 **Repo:** `~/Work/ZK/ZKs/pirate` (`PirateNetwork/pirate`), Komodo assetchain C++ on zcashd lineage -- not a zeronode fork. Releases sampled: v5.5.0 (2022-06), v5.7.0 (2023-06), v5.8.x (2024-03), v5.9.x (2024-09). Recent tip work is mostly build/CI/Komodo merges; portable fixes are scattered single commits.
 
@@ -370,6 +321,8 @@ Files: `src/alert.cpp`, `src/init.cpp`, `src/util.cpp`, `src/util.h`, `src/walle
 
 ### 3.5 TENT upstream cherry-pick candidates (2018--2021)
 
+**Status:** Covered by **section 3.3a** (postponed hub). Do not schedule individual open TNT-* ports until 3.3a reopens. Zeronode architecture detail remains in **ZeroNodeDev**; this section is execution catalog only while postponed.
+
 **Repo:** `~/Work/ZK/ZKs/TENT` ([TENTOfficial/TENT](https://github.com/TENTOfficial/TENT)), Snowgem lineage zcashd + masternode layer. Tip frozen **2021-11** (~333 commits). Zero `src/zeronode/`* is a port of TENT `src/masternode/*` (wire `mn*` -> `zn*`, treasury removed, `CZeronodeWalletInterface`). TENT is the **direct upstream** for zeronode behavior, not a distant peer like Pirate.
 
 **Where other TENT research lives:** P2P masternode wire inventory -> `ZKs/Comparison.md` section **4** (TENT subsection). File-level port map and wallet boundary -> `ZeroNodeDev.md` sections **2**--**9**. Operator workflow -> `ZeroNodes.md`.
@@ -402,7 +355,7 @@ Port/reject **detail** and source **anchors**: `ZeroNodeDev.md` section **9**. T
 
 **Suggested execution order (zeronode / chain ops):**
 
-1. **TNT-01** -- one-line logging fix; unblocks `-debug=net` triage (**TODO.md**).
+1. **TNT-01** -- one-line logging fix; unblocks `-debug=net` triage (catalog only while **3.3a** postponed).
 2. **TNT-02** + **TNT-03** -- single PR: reorg policy aligned with `COINBASE_MATURITY` 720 and zeronode survival on deep reorg (follow TENT `6f64bb7` intent, not literal re-enable of 719-block shutdown).
 3. **TNT-04** -- payment validation only if mainnet coinbase rejects valid winner payouts today.
 4. **TNT-12** -- regtest coinbase + two-node script (DOC-02 phase B/C) before more TENT code ports.
@@ -878,40 +831,13 @@ Recommendation: retire the wiki page (or add a deprecation banner). Replace with
 
 **Desktop wallet UI tests (out of zerod scope):** Zerowallet (`~/Work/ZK/zerowalletmac`) documents **no automated tests** (`UpdateWallet.md` Gaps). Bitcoin Core has `src/qt/test/`; sampled PirateOcean / safewallet-style Qt trees generally lack an equivalent harness. Track UI automation under the wallet repo, not Zero400.
 
-### Consensus and code
+### Consensus and code (execution notes)
 
-**CON-01 -- Total supply discrepancy.** Project target: some **20M ZER**. Current `GetBlockSubsidy` piecewise sum computes ~25.6M long-run. Action: review arithmetic vs spec, determine whether 10.8 post-fee base or halving params need adjustment, compare upstream. `MAX_MONEY` caps per-output only. User-facing docs say "some 20M" until resolved.
+**Supply target vs model:** Product target **some 20M ZER**; piecewise mint can model higher long-run. User-facing schedule and issued totals: **ZERO_COIN.md**. Open review stays on **TODO** (supply discrepancy).
 
-**CON-02 -- Consensus integer math.** **Accepted approach (2026-07-22):** Follow **TENT** naming at call sites (**`CAmount vFoundersReward`**) with integer trunc toward 0; product/RPC naming reconcile later (**DOC-FR-NAMING**). Replace `double`/`COIN` mixes:
+**Stable subsidy arithmetic (accepted):** Integer zats only on consensus paths; founders **`subsidy * 75 / 1000`** trunc toward 0 via one helper; integerize **10.8 ZER** base. Reasoning: **ZERO_COIN.md** (Stable arithmetic). Touch list + current `double` sites: **BUILD_ZERO.md** §4.8. Status: **TODO.md**. Naming (`developmentfee` vs founders): **DOC-FR-NAMING** postponed.
 
-```cpp
-// main.h (beside GetBlockSubsidy)
-CAmount GetFoundersRewardAmount(CAmount subsidy) { return subsidy * 75 / 1000; }
-
-// call sites (miner, validate, GBT, metrics, zeronodestats)
-CAmount vFoundersReward = GetFoundersRewardAmount(blockValue);
-```
-
-Keep **`nFeeStartBlockHeight`** (height gate name only). Product string **developmentfee** stays on RPC until **DOC-FR-NAMING**. Optional later: dual-key alias `foundersreward` beside `developmentfee` (same value) -- not required for this fix.
-
-Exact float sites (keep miner + validator + GBT + metrics in lockstep):
-
-| File | Line (approx) | Expression | Integer form |
-|------|---------------|------------|--------------|
-| `src/main.cpp` | **2113** | `nSubsidy = 10.8 * COIN` | `nSubsidy = 108 * COIN / 10` |
-| `src/main.cpp` | **4508** | `* 0.075` | `GetFoundersRewardAmount(...)` |
-| `src/zeronode/payments.cpp` | **305** | `* 7.5 / 100` | same helper |
-| `src/zeronode/budget.cpp` | **537** | `* 7.5 / 100` | same helper |
-| `src/rpc/mining.cpp` | **946** | `* 0.075` | same helper |
-| `src/rpc/zeronode.cpp` | **1090** | `* 7.5 / 100` | same helper |
-| `src/metrics.cpp` | **346** | `* 0.075` | same helper |
-| `src/test/main_tests.cpp` | **28–29** | expects `10.8 * COIN` | match new sats |
-
-Float trunc and `* 75 / 1000` agree for current halvings; shared helper removes dual spellings (`0.075` vs `7.5/100`).
-
-**CON-03 -- Branch id posture.** Sapling and Cosmos share `0x7361707a`. No planned fork to split. Optional: CI guard for duplicate `nBranchId`.
-
-~~CON-05~~ closed -> C-16.
+**Branch id posture:** Sapling and Cosmos share `0x7361707a`. No planned fork to split. Optional: CI guard for duplicate `nBranchId`.
 
 ### Release and infrastructure
 
@@ -958,7 +884,7 @@ Items marked **"contributor-ready"** are self-contained enough to be written up 
 
 **TST-01 -- zero_exclusive / experimental scenario coverage.** High importance. **Contributor-ready.**
 
-**Recheck 2026-07-22:** skeleton param-validation suites **PASS** (`./src/test/test_bitcoin --run_test=rpc_zero_exclusive_tests` and `rpc_zero_experimental_tests`). Remaining gap is scenario coverage: wallet/chain state, boundaries, and real error paths -- not the empty-suite problem the original write-up assumed.
+**Recheck 2026-07-24:** exclusive suite **PASS** including S4 nCount/datatype/watchonly, S5 (`execute` + warmup finish), S6 time+in-flight, S7 shape (`./src/test/test_bitcoin --run_test=rpc_zero_exclusive_tests`). Remaining gap is **mined-tx scenario** depth (Tier B) for History/balances vs `listtransactions`.
 
 *Scope:* Extend the existing Boost.Test files with scenario coverage for each RPC. Each test case should use the `TestingSetup` fixture (wallet + regtest chain) and cover: (a) valid calls with expected return structure, (b) boundary values (empty wallet, zero height, nonexistent address), (c) error paths (invalid address format, out-of-range parameters). RPCs to cover:
 
@@ -970,7 +896,7 @@ Items marked **"contributor-ready"** are self-contained enough to be written up 
 | `zs_listspentbyaddress`     | same                              | Param count only           |
 | `zs_listreceivedbyaddress`  | same                              | Param count only           |
 | `zs_listsentbyaddress`      | same                              | Param count only           |
-| `getalldata`                | same                              | Param count + basic return |
+| `getalldata`                | same                              | **Done (exclusive):** S4 nCount/datatype/watchonly, S5 `execute` gate, S6 time+in-flight, S7 shape, W2/W3. **Open:** mined History length / balances scenario (Tier B) |
 | `getsupply`                 | same                              | Param count + field check  |
 | `getsaplingwitness`         | `rpc_zero_experimental_tests.cpp` | Param count only           |
 | `getsaplingwitnessatheight` | same                              | Param count only           |
@@ -1222,37 +1148,25 @@ Upstream `configs/coins/` ships **100** coin configs including `zcash.json` / `z
 
 
 
-### 4.3 Insight / Bitcore (Zero status)
+### 4.3 Insight / Bitcore
 
-**Public mainnet explorer:** [insight.zeromachine.io](https://insight.zeromachine.io/)
+**Ops and host runbooks:** **`~/Work/ZK/insight/`** only (README, InsightBlock, config/).
 
-Stack: `insight-ui-zero`, `insight-api-zero`, `bitcore-node-zero`, `bitcore-lib-zero`. Public operator summary in **README**, **BUILD_ZERO** (Block explorer), **ZERO_COIN**. Internal runbooks: `~/Work/ZK/insight/`.
+**zerod flags (public, current):** **BUILD_ZERO.md** §4.6.2. Do not duplicate Insight install/nginx/bitcore procedure here.
 
-**Node requirements (`zerod`):** `-experimentalfeatures=1`, `-insightexplorer=1`, `txindex=1`, large `-dbcache` (**2048** MiB on 4 GiB VPS; **4096+** on larger hosts), ZMQ on prod. First insight enable: **`-reindex`**. Authoritative flag bundles and client matrix: **`ZeroStruct.md`** sections **5**, **11.3**. Example `zero.conf`: `~/Work/ZK/insight/config/zero.conf`.
+**Zero decision:** keep Insight operational for mainnet UI; Blockbook remains a separate postponed infra track (**4.1**). Explorer-host PRs are out of the Zero400 merge track (**3.3a**).
 
-Uses **daemon addressindex RPCs** (`getaddressbalance`, `getaddresstxids`, ...), not Blockbook's internal index. **Transparent P2PKH/P2SH only** — no chain-wide shielded (z-addr) search.
+### 4.4 Indexer approach pointer
 
-Pirate `insight-api-pirate` (2024 tx format) is a **JS diff anchor** only — not a `zerod` cherry-pick.
-
-**Blockbook** remains a separate optional backend (`section 4.1`); it does not require `-insightexplorer` on the node.
-
-### 4.4 Operator comparison (Zero deployment)
-
-Cross-fork indexing strategies: **`Comparison.md`** section **12**.
-
-| Approach                     | Node load                          | Index location                  | Best for                |
-| ---------------------------- | ---------------------------------- | ------------------------------- | ----------------------- |
-| `-insightexplorer` + Bitcore | High; 75% `-dbcache` to block tree | `blocks/index/`                 | Mainnet Insight UI ([insight.zeromachine.io](https://insight.zeromachine.io/)) |
-| Blockbook + plain `txindex`  | RPC-heavy sync                     | Blockbook LevelDB               | Trezor-style API        |
-| `gettxoutsetinfo` only       | Periodic scan                      | None per-address                | Supply audit            |
-| `contrib/stats/*`            | RPC optional                       | None (model or coinbase decode) | Zero emission reporting |
-
+Cross-fork indexing strategies: **`~/Work/ZK/ZKs/Comparison.md`** section **12**. Zero emission tooling: `contrib/stats/*` (see **ZERO_COIN.md**).
 
 ---
 
 
 
 ## 5. Pirate wallet features under review
+
+**Status:** Covered by **section 3.3a** (postponed hub) together with PIR-* / TNT-*. Review rows below are catalog only until 3.3a reopens.
 
 **Repo:** `~/Work/ZK/ZKs/pirate`. Portable wallet ops only -- not Komodo consensus, notary, or KIP coinbase (**PIR-14 reject**). Wallet vs consolidation on-chain behavior: `ZeroStruct.md` **section 8**.
 
@@ -1324,12 +1238,12 @@ Optional `--enable-proton` build of upstream `src/amqp/` (Qpid Proton). Default 
 | **ZERO_COIN.md**  | **7.1** dev balances (insight)                    | Ready                                                                     | `contrib/stats/chain_stats.py`              |
 | **ZERO_COIN.md**  | **7.2** supply vs UTXO                            | Ready                                                                     | **ZeroStruct** use cases                    |
 | **ZERO_COIN.md**  | **7.7** zeronode boundary (economics vs setup)    | Ready                                                                     | **ZeroNodes** operator detail               |
-| **BUILD_ZERO.md** | **7.3** explorer node flags                       | Copied (**Block explorer** section)                                       | **ZeroStruct** Insight use case             |
+| **BUILD_ZERO.md** | **7.3** explorer node flags                       | **Transitioned** -- BUILD_ZERO §4.6.2 + `~/Work/ZK/insight/` (draft body removed) | Insight specialty |
 | **BUILD_ZERO.md** | **7.6** REST                                      | Ready                                                                     | **ZeroStruct** REST row                     |
 | **BUILD_ZERO.md** | **7.8** public testnet join                       | Ready                                                                     | DOC-02 / testnet seeds                      |
 | **BUILD_ZERO.md** | **7.9** zeronode operator (optional)              | **Deferred** -- keep in **ZeroNodes** until product approves public steps | **ZeroNodes**                               |
-| **README.md**     | **7.4** node vs wallet scope                      | Copied (Block explorer + scope)                                           | **ZeroStruct**                              |
-| **Insight.md**    | **7.5** flag bundle                               | Copied (**BUILD_ZERO** Block explorer)                                    | **ZeroStruct** Insight use case             |
+| **README.md**     | **7.4** node vs wallet scope                      | Copied / verify in README                                                 | --                                          |
+| **Insight ops**   | **7.5** flag bundle                               | **Transitioned** -- insight README + BUILD_ZERO §4.6.2 (draft body removed) | `~/Work/ZK/insight/` |
 | **ZERO_COIN.md**  | Port/datadir matrix excerpt from DOC-02           | **Gap**                                                                   | **UpdateZero** DOC-02 table                 |
 | **BUILD_ZERO.md** | `-blocknotify` / `ENABLE_SYSTEM_COMMAND` (PIR-01) | Ready (**4.6.1** **OPS-SHELL**)                                        | **UpdateZero** **3.4.2**                    |
 | **README.md**     | Testnet one-liner                                 | **Gap**                                                                   | seeds in `chainparams.cpp`                  |
@@ -1359,44 +1273,15 @@ For aggregate transparent total at tip use `gettxoutsetinfo` (slow). Per-address
 
 
 
-### 7.3 BUILD_ZERO.md -- explorer node flags
+### 7.3 / 7.5 Explorer drafts -- removed
 
-```markdown
-Dedicated explorer / indexer node (not recommended for desktop wallet):
-
-experimentalfeatures=1
-insightexplorer=1
-txindex=1
-dbcache=4096
-
-First enable requires one run with `-reindex`. Insight uses ~75% of `-dbcache` for `blocks/index/`.
-Mainnet RPC 23811.
-```
-
-
+Content transitioned: **BUILD_ZERO.md** §4.6.2 (`zerod` flags, dbcache, reindex, RPC 23811); host procedure and addressindex RPC list in **`~/Work/ZK/insight/`**. No parallel draft body here.
 
 ### 7.4 README.md -- node vs wallet scope
 
 ```markdown
 This repository builds the full node (zerod, zero-cli, zero-tx). The Qt wallet (zerowallet) is a separate application and does not enable blockchain address indexes by default.
 ```
-
-
-
-### 7.5 Insight operator flag bundle (public draft)
-
-```markdown
-Required zerod configuration:
-
-experimentalfeatures=1
-insightexplorer=1
-txindex=1
-
-Addressindex RPCs: getaddressbalance, getaddresstxids, getaddressdeltas, getaddressutxos, getaddressmempool, getspentinfo, getblockdeltas, getblockhashes.
-Transparent P2PKH/P2SH only. Regtest tests: TEST_ZERO.md experimental section.
-```
-
-
 
 ### 7.6 BUILD_ZERO.md -- REST
 

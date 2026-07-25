@@ -1087,7 +1087,7 @@ UniValue zeronodestats(const UniValue& params, bool fHelp)
             nHeight = chainActive.Height();
             blockValue = GetBlockSubsidy(nHeight, Params().GetConsensus());
             zeronodePayment = GetZeronodePayment(nHeight, blockValue);
-            vFoundersReward = blockValue * 7.5 / 100;
+            vFoundersReward = GetFoundersRewardAmount(blockValue);
             supplyzats = supply["supplyzats"].get_int64();
             transaparentpoolzats = supplyzats;
             CBlockIndex* tip = chainActive.Tip();

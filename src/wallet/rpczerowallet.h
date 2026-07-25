@@ -177,7 +177,7 @@ void getAllSproutRKs(vector<uint256> &rks);
 void getAllSaplingOVKs(vector<uint256> &ovks, bool fIncludeWatchonly = false);
 void getAllSaplingIVKs(vector<uint256> &ivks, bool fIncludeWatchonly = false);
 
-void getRpcArcTx(CWalletTx &tx, RpcArcTransaction &arcTx, vector<uint256> &ivks, vector<uint256> &ovks, bool fIncludeWatchonly = false);
+void getRpcArcTx(const CWalletTx &tx, RpcArcTransaction &arcTx, vector<uint256> &ivks, vector<uint256> &ovks, bool fIncludeWatchonly = false);
 void getRpcArcTx(uint256 &txid, RpcArcTransaction &arcTx, vector<uint256> &ivks, vector<uint256> &ovks, bool fIncludeWatchonly = false);
 
 void getRpcArcTxJSONHeader(RpcArcTransaction &arcTx, UniValue& ArcTxJSON);
@@ -187,12 +187,12 @@ void getRpcArcTxJSONReceives(RpcArcTransaction &arcTx, UniValue& ArcTxJSON, bool
 
 UniValue getsupply(const UniValue& params, bool fHelp);
 
+// W2 / W3 test hooks (getalldata)
+uint64_t GetGetAllDataSortKeyCollisionCount();
+void ResetGetAllDataSortKeyCollisionCount();
+bool IsGetAllDataTxTooOld(int64_t blockTime, int64_t now, int dayDays);
 
-
-
-
-
-
+class CRPCTable;
 class CRPCTable;
 
 void RegisterZeroExclusiveRPCCommands(CRPCTable &tableRPC);

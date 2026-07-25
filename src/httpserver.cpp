@@ -184,6 +184,8 @@ struct evhttp* eventHTTP = 0;
 static std::vector<CSubNet> rpc_allow_subnets;
 //! Work queue for handling longer requests off the event loop thread
 static WorkQueue<HTTPClosure>* workQueue = 0;
+/** S8: edge-trigger WARNING once per work-queue-full episode */
+static bool fHttpWorkQueueFullWarned = false;
 //! Handlers for (sub)paths
 std::vector<HTTPPathHandler> pathHandlers;
 //! Bound listening sockets
@@ -288,10 +290,18 @@ static void http_request_cb(struct evhttp_request* req, void* arg)
     if (i != iend) {
         std::unique_ptr<HTTPWorkItem> item(new HTTPWorkItem(hreq.release(), path, i->handler));
         assert(workQueue);
-        if (workQueue->Enqueue(item.get()))
+        if (workQueue->Enqueue(item.get())) {
             item.release(); /* if true, queue took ownership */
-        else
-            item->req->WriteReply(HTTP_INTERNAL, "Work queue depth exceeded");
+            // S8: allow one WARNING the next time the queue fills again
+            fHttpWorkQueueFullWarned = false;
+        } else {
+            // Soft reject -- HTTP 503. Log once per full episode (not every reject).
+            if (!fHttpWorkQueueFullWarned) {
+                LogPrintf("WARNING: request rejected - work queue full, increase with -rpcworkqueue=\n");
+                fHttpWorkQueueFullWarned = true;
+            }
+            item->req->WriteReply(HTTP_SERVICE_UNAVAILABLE, "Work queue depth exceeded");
+        }
     } else {
         hreq->WriteReply(HTTP_NOTFOUND);
     }
