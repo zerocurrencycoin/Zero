@@ -2256,3 +2256,49 @@ TEST(WalletTests, SaplingNoteLocking) {
     EXPECT_FALSE(wallet.IsLockedNote(sop1));
     EXPECT_FALSE(wallet.IsLockedNote(sop2));
 }
+
+// WAL-WTXORDERED Assure-4: after erase, wtxOrdered ≡ mapWallet
+TEST(WalletTests, WtxOrderedConsistentAfterErase) {
+    TestWallet wallet;
+    LOCK(wallet.cs_wallet);
+
+    CWalletTx wtx1;
+    CMutableTransaction mtx1;
+    mtx1.nVersion = CTransaction::SPROUT_MIN_CURRENT_VERSION;
+    mtx1.vin.resize(1);
+    mtx1.vin[0].prevout.SetNull();
+    mtx1.vin[0].scriptSig = CScript() << OP_1;
+    mtx1.vout.resize(1);
+    mtx1.vout[0].nValue = 1 * COIN;
+    mtx1.vout[0].scriptPubKey = CScript() << OP_TRUE;
+    wtx1 = CWalletTx(&wallet, CTransaction(mtx1));
+    wtx1.nOrderPos = 0;
+    wtx1.nTimeReceived = 1;
+    wallet.AddToWallet(wtx1, true, NULL);
+
+    CWalletTx wtx2;
+    CMutableTransaction mtx2 = mtx1;
+    mtx2.vin[0].scriptSig = CScript() << OP_2;
+    wtx2 = CWalletTx(&wallet, CTransaction(mtx2));
+    wtx2.nOrderPos = 1;
+    wtx2.nTimeReceived = 2;
+    wallet.AddToWallet(wtx2, true, NULL);
+
+    EXPECT_EQ(wallet.mapWallet.size(), 2u);
+    EXPECT_TRUE(wallet.WtxOrderedConsistent());
+
+    uint256 hash1 = wtx1.GetHash();
+    wallet.EraseFromWallet(hash1);
+
+    // EraseFromWallet no-ops without fFileBacked; remove manually like DeleteTransactions
+    {
+        auto it = wallet.mapWallet.find(hash1);
+        if (it != wallet.mapWallet.end()) {
+            wallet.RemoveFromWtxOrdered(&it->second);
+            wallet.mapWallet.erase(it);
+        }
+    }
+
+    EXPECT_EQ(wallet.mapWallet.size(), 1u);
+    EXPECT_TRUE(wallet.WtxOrderedConsistent());
+}

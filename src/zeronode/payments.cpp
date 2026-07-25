@@ -301,8 +301,8 @@ void CZeronodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFees
     CAmount zeronodePayment = GetZeronodePayment(nHeight, blockValue);
     CAmount minerValue = blockValue;
 
-    // Founders reward
-    CAmount vFoundersReward = blockValue * 7.5 / 100;
+    // Founders reward (7.5%, integer)
+    CAmount vFoundersReward = GetFoundersRewardAmount(blockValue);
 
     if(hasPayment){
         minerValue -= zeronodePayment;

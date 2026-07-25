@@ -52,7 +52,7 @@ ERA_RANGES = [
 
 
 def subsidy_zat(height):
-    base = int(10.8 * COIN) if height >= FEE_START else 10 * COIN
+    base = 108 * COIN // 10 if height >= FEE_START else 10 * COIN
     halvings = height // HALVING_INTERVAL
     if halvings >= 64:
         return 0
@@ -62,7 +62,7 @@ def subsidy_zat(height):
 def dev_zat(height):
     if height < FEE_START or height > DEV_END:
         return 0
-    return int(subsidy_zat(height) * 0.075)
+    return subsidy_zat(height) * 75 // 1000
 
 
 def nodes_pct(height):

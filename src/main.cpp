@@ -2114,10 +2114,11 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus
 
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
-  CAmount nSubsidy = 10 * COIN;
-  if (nHeight>=consensusParams.nFeeStartBlockHeight) {
-    nSubsidy = 10.8 * COIN;
-  }
+    // Integer zats only: 10 ZER pre fee-start; 10.8 ZER (108/10) at and after fee-start.
+    CAmount nSubsidy = 10 * COIN;
+    if (nHeight >= consensusParams.nFeeStartBlockHeight) {
+        nSubsidy = 108 * COIN / 10;
+    }
 
     int halvings = consensusParams.Halving(nHeight);
     // Force block reward to zero when right shift is undefined.
@@ -2130,6 +2131,11 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
         // Subsidy is cut in half every 800,000 blocks which will occur approximately every 3 years.
         return nSubsidy >> halvings;
     }
+}
+
+CAmount GetFoundersRewardAmount(CAmount subsidy)
+{
+    return subsidy * 75 / 1000;
 }
 
 int64_t GetZeronodePayment(int nHeight, int64_t blockValue, int nZeronodeCount)
@@ -4511,7 +4517,7 @@ bool ContextualCheckBlock(
 
         BOOST_FOREACH(const CTxOut& output, block.vtx[0].vout) {
             if (output.scriptPubKey == chainparams.GetFoundersRewardScriptAtHeight(nHeight)) {
-                if (output.nValue == (GetBlockSubsidy(nHeight, consensusParams) * 0.075)) {
+                if (output.nValue == GetFoundersRewardAmount(GetBlockSubsidy(nHeight, consensusParams))) {
                     found = true;
                     break;
                 }

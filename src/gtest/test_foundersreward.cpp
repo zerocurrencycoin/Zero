@@ -173,20 +173,16 @@ TEST(founders_reward_test, regtest) {
 
 
 
-// Test that 10% founders reward is fully rewarded after the first halving and slow start shift.
-// On Mainnet, this would be 2,100,000 ZEC after 850,000 blocks (840,000 + 10,000).
+// Sum of GetFoundersRewardAmount over founders-reward height span (7.5%, integer trunc).
 TEST(founders_reward_test, slow_start_subsidy) {
     SelectParams(CBaseChainParams::MAIN);
     CChainParams params = Params();
 
     CAmount totalSubsidy = 0;
     for (int nHeight = 1; nHeight <= GetLastFoundersRewardHeight(Params().GetConsensus()); nHeight++) {
-        CAmount nSubsidy = GetBlockSubsidy(nHeight, params.GetConsensus()) / 5;
-        totalSubsidy += nSubsidy;
+        totalSubsidy += GetFoundersRewardAmount(GetBlockSubsidy(nHeight, params.GetConsensus()));
     }
-    //std::cout << "Total Founders Fee " << totalSubsidy << "\n";
-    // Updated to match actual calculated total subsidy
-    ASSERT_TRUE(totalSubsidy == 338665500000000);
+    ASSERT_TRUE(totalSubsidy == 126999561800000);
 
     //Max Money
     totalSubsidy = 0;
@@ -211,20 +207,20 @@ void verifyNumberOfRewards() {
         if (ms.count(addr) == 0) {
             ms[addr] = 0;
         }
-        ms[addr] = ms[addr] + GetBlockSubsidy(nHeight, params.GetConsensus()) / 5;
+        ms[addr] = ms[addr] + GetFoundersRewardAmount(GetBlockSubsidy(nHeight, params.GetConsensus()));
     }
 
-    // Updated expectations to match actual mainnet distribution values
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(0)], 83743200000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(1)], 86400000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(2)], 43200000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(3)], 21600000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(4)], 10800000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(5)], 5400000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(6)], 2700000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(7)], 1350000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(8)], 675000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(9)], 337500000000);
+    // 7.5% integer carve per address (pre-fee heights map to invalid "0" and are not checked)
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(0)], 31403700000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(1)], 32400000000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(2)], 16200000000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(3)], 8100000000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(4)], 4050000000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(5)], 2025000000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(6)], 1012500000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(7)], 506249600000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(8)], 253124800000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(9)], 126562400000);
 }
 
 // Verify the number of rewards going to each mainnet address
@@ -243,20 +239,20 @@ void verifyNumberOfRewardsTestnet() {
         if (ms.count(addr) == 0) {
             ms[addr] = 0;
         }
-        ms[addr] = ms[addr] + GetBlockSubsidy(nHeight, params.GetConsensus()) / 5;
+        ms[addr] = ms[addr] + GetFoundersRewardAmount(GetBlockSubsidy(nHeight, params.GetConsensus()));
     }
 
-    // Updated testnet expectations to match actual distribution values
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(0)], 172799784000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(1)], 86400000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(2)], 43200000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(3)], 21600000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(4)], 10800000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(5)], 5400000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(6)], 2700000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(7)], 1350000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(8)], 675000000000);
-    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(9)], 337500000000);
+    // 7.5% integer carve per address
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(0)], 64799919000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(1)], 32400000000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(2)], 16200000000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(3)], 8100000000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(4)], 4050000000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(5)], 2025000000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(6)], 1012500000000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(7)], 506249600000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(8)], 253124800000);
+    EXPECT_EQ(ms[params.GetFoundersRewardAddressAtIndex(9)], 126562400000);
 }
 
 // Verify the number of rewards going to each testnet address

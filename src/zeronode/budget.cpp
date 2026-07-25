@@ -533,8 +533,8 @@ void CBudgetManager::FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, C
     txNew.vout[0].nValue = blockValue;
 
     if ((pindexPrev->nHeight + 1 >= Params().GetConsensus().nFeeStartBlockHeight) && (pindexPrev->nHeight + 1 <= Params().GetConsensus().GetLastFoundersRewardBlockHeight(pindexPrev->nHeight))) {
-        // Founders reward is 7.5% of the block subsidy
-        CAmount vFoundersReward = txNew.vout[0].nValue * 7.5 / 100;
+        // Founders reward is 7.5% of the block subsidy (integer)
+        CAmount vFoundersReward = GetFoundersRewardAmount(txNew.vout[0].nValue);
 
         // Take some reward away from us
         txNew.vout[0].nValue -= vFoundersReward;

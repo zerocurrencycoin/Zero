@@ -4,7 +4,7 @@ Build guide for the Zero full node binary `zerod`.
 
 **Quick Start:** §2 -- clone, install packages, build (Linux, macOS, Windows cross-compile, packaging).
 **Data directory:** §3. **Developer / depends:** §4. **Per-platform:** §5. **Troubleshooting:** §6.
-**Testing:** [TEST_ZERO.md -- Quick start](TEST_ZERO.md#quick-start-by-use-case).
+**Testing:** [TEST_ZERO.md -- Use cases](TEST_ZERO.md#2-use-cases).
 
 ---
 
@@ -390,7 +390,7 @@ Three optional flags run an **external shell command** when an event occurs. Eac
 | **`-walletnotify=<cmd>`** | Wallet sees a new or updated transaction |
 | **`-alertnotify=<cmd>`** | Deprecation or network alert text is emitted |
 
-**Default (release) builds do not execute these commands.** The hooks are gated at **compile time** by **`ENABLE_SYSTEM_COMMAND`**. If the flag is not set at build time, **`zerod`** logs that the notification was skipped and continues. This matches the Pirate Network port (**PIR-01**): secure by default, opt-in only when the operator deliberately rebuilds.
+**Default (release) builds do not execute these commands.** The hooks are gated at **compile time** by **`ENABLE_SYSTEM_COMMAND`**. If the flag is not set at build time, **`zerod`** logs that the notification was skipped and continues -- secure by default; opt-in only when the operator deliberately rebuilds.
 
 **Distributed release policy (decision).** Official artifacts -- Linux tarball/`.deb` from **`zcutil/release-linux.sh`**, tagged GitHub releases, and CI contributor binaries -- stay **without** **`ENABLE_SYSTEM_COMMAND`**. That is intentional: default binaries must not invoke **`::system()`** even if an operator leaves legacy notify lines in **`zero.conf`**. Custom rebuilds may opt in; do not add the flag to release scripts or default **`CONFIGURE_FLAGS`** without an explicit security review and release-notes callout. Production indexers (Insight) use **ZMQ**, not shell hooks.
 
@@ -422,13 +422,13 @@ Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine on
 | Wallet activity | Poll **`listtransactions`** / **`zs_listtransactions`** from a sidecar, or ZMQ raw tx |
 | Explorer backend | **`txindex`**, **`-insightexplorer`**, REST — see [Block explorer](#462-block-explorer) |
 
-**Testing:** GTest **`DeprecationTest.AlertNotify`** covers **`-alertnotify`** (default: no side effects; TST-09 alert half **PASS**). **`-blocknotify`** / **`-walletnotify`** still need TST-09 marker tests. Full **`alert.cpp`** strip postponed (**OPS-ALERT-STRIP**). See **TEST_ZERO.md**, **UpdateZero.md** **TST-09**.
+**Testing:** GTest **`DeprecationTest.AlertNotify`** covers **`-alertnotify`** (default: no side effects; TST-09 alert half **PASS**). **`-blocknotify`** / **`-walletnotify`** still need TST-09 marker tests. Full **`alert.cpp`** strip postponed (**OPS-ALERT-STRIP**). See **TEST_ZERO.md** and **TODO.md** (TST-09).
 
-#### 4.6.2 Block explorer (OPS-EXPLORER)
+#### 4.6.2 Block explorer -- `zerod` flags (current)
 
 **Public mainnet UI:** [https://insight.zeromachine.io/](https://insight.zeromachine.io/)
 
-Minimum **`zerod`** flags for a self-hosted explorer backend (transparent t-address index only):
+Minimum **`zerod`** flags for a transparent t-address index backend:
 
 ```ini
 experimentalfeatures=1
@@ -436,7 +436,9 @@ insightexplorer=1
 txindex=1
 ```
 
-Explorer host procedure and sizing: **`InsightBlock.md`**. Index/flag semantics for node maintainers: **`ZeroStruct.md`**.
+Recommended on a dedicated explorer host: `dbcache=4096` (or **2048** on a 4 GiB VPS). First enable of insight indexes requires one run with **`-reindex`**. Insight uses a large share of `-dbcache` for `blocks/index/`. Mainnet RPC port **23811**.
+
+Host install, nginx, bitcore, sizing, and recovery: **`~/Work/ZK/insight/`** (start at that tree's README / InsightBlock). This file owns only the **current zerod** flags above.
 
 ### 4.7 Depends recipe troubleshooting
 
@@ -449,21 +451,9 @@ Explorer host procedure and sizing: **`InsightBlock.md`**. Index/flag semantics 
 | **Googletest** | If you change macOS deployment targets or see link warnings about **OSX** version, **`googletest.mk`** aligns **`OSX_MIN_VERSION`** with the rest of the graph--**rebuild depends** after changing it. |
 | **libsodium, libevent, ZeroMQ, ccache** | Routine version bumps: update version + hash in **`.mk`**, then full depends rebuild and smoke test. |
 
-### 4.8 Subsidy, founders, and `COIN`: integer strategy (proposed)
+### 4.8 Subsidy arithmetic -- current code touchpoints
 
-**Problem:** Expressions like **`10.8 * COIN`**, **`GetBlockSubsidy(...) * 0.075`**, and **`blockValue * 7.5 / 100`** mix **`double`** with **`CAmount`** (`int64_t` zats). Rounding differs by path (miner vs **`ConnectBlock`** check vs RPC), and far-future halvings can make **`subsidy * 0.075`** non-integral.
-
-**Policy (target state):**
-
-1. **Consensus paths** -- compute only with **`int64_t`**: integer literals in zats (e.g. **`1080000000`** for **10.8 ZER** where that is the rule) or **`CAmount` × num / den** with **one** documented rounding rule (**floor** unless a BIP/ZIP specifies otherwise).
-2. **Fractions** -- encode percentages as rationals with integer denominator (**7.5%** -> **`blockValue * 75 / 1000`**, floor). Use the **same** helper in **`FillBlockPayee`**, **`ConnectBlock`** founders check, and any duplicate logic (**`budget.cpp`**, **`payments.cpp`**, **`main.cpp`**).
-3. **`GetBlockSubsidy`** -- avoid **`double`×`COIN`**; derive halving from integer base subsidy constants.
-4. **RPC / metrics** -- compute amounts as **`CAmount`**, then **`ValueFromAmount`** (or equivalent) for JSON; do not subtract **`subsidy * 0.075`** in **`double`** for displayed totals if that can diverge from chain rules.
-5. **Change control** -- any edit to subsidy or founders split is a **consensus** change: tests in **`main_tests`**, **`rpc_wallet_tests`** **`getblocksubsidy`**, **`test_foundersreward`**, and re-sync from a known height.
-
-**Tracking:** see TODO.md.
-
-#### 4.8.1 Current code touchpoints (`double` / mixed arithmetic)
+Schedule and rationale: **ZERO_COIN.md** (Emission timeline; Stable arithmetic). Implementation status: **TODO.md**. Below is the **current** `double` / mixed touch list to convert when landing the integer helper.
 
 | File | Lines (approx.) | Notes |
 |------|-----------------|--------|
@@ -528,7 +518,7 @@ Or run **`./zcutil/build.sh`**, which does this automatically. Do **not** use **
 
 **Mutex crash (macOS):** `rm -rf "$HOME/Library/Application Support/zero/database"` and restart.
 
-**`-bind_at_load` linker warning (macOS):** Manual **`make`** or **`make check-symbols`** without **`MACOSX_DEPLOYMENT_TARGET`** can print **`ld: warning: -bind_at_load is deprecated on macOS`**. GNU libtool adds the flag when the env var is unset (defaults to **`10.0`**). **`./zcutil/build.sh`** exports **`MACOSX_DEPLOYMENT_TARGET=15.0`**; for manual builds run **`export MACOSX_DEPLOYMENT_TARGET=15.0`** first. Build still succeeds; warning is cosmetic. Permanent Makefile/configure export: **`UpdateZero.md`** **DEF-08** (postponed).
+**`-bind_at_load` linker warning (macOS):** Manual **`make`** or **`make check-symbols`** without **`MACOSX_DEPLOYMENT_TARGET`** can print **`ld: warning: -bind_at_load is deprecated on macOS`**. GNU libtool adds the flag when the env var is unset (defaults to **`10.0`**). **`./zcutil/build.sh`** exports **`MACOSX_DEPLOYMENT_TARGET=15.0`**; for manual builds run **`export MACOSX_DEPLOYMENT_TARGET=15.0`** first. Build still succeeds; warning is cosmetic. Permanent Makefile/configure export: postponed (**TODO**).
 
 ### 6.3 Boost / GCC
 
@@ -538,15 +528,11 @@ Or run **`./zcutil/build.sh`**, which does this automatically. Do **not** use **
 
 **"virtual memory exhausted" or "killed":** Reduce jobs: `make -j1 zerod`. Or add swap.
 
-### 6.5 Mining disabled builds
-
-With **`./configure --disable-mining`**, mining code is omitted from the binary; Equihash template instantiations follow **`ENABLE_MINING`**. Impact on **test targets** (e.g. `test_miner`, GTest/Boost suites) is described in **[TEST_ZERO.md](TEST_ZERO.md)**.
-
-### 6.6 zerowallet
+### 6.5 zerowallet
 
 zerowallet (Qt GUI) is built from separate repos. This repo builds only zerod, zero-cli, zero-tx.
 
-### 6.7 Clean Rebuild
+### 6.6 Clean Rebuild
 
 ```bash
 make clean && make distclean
@@ -556,14 +542,14 @@ CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure ...
 make -j4
 ```
 
-### 6.8 Build Log
+### 6.7 Build Log
 
 ```bash
 make -j4 2>&1 | tee build.log
 grep -i error build.log
 ```
 
-### 6.9 Disk space on build hosts
+### 6.8 Disk space on build hosts
 
 Low disk causes failed links, truncated depends tarballs, and RPC cache build failures. On a tight VPS, reclaim before **`./zcutil/build.sh`** or **`./contrib/run-tests.sh`**.
 

@@ -9,7 +9,7 @@ desired.
 **Baseline (2026-07-01):** `./contrib/run-tests.sh --all` (no `--strict`) passes
 clean -- C++ suites, quick checks, and the then-current pass-tier RPC set
 (**34** invocations at that date), 0 failures. As of **2026-07-22**, pass-tier
-**`-all`** is **40** (Insight five + `walletbackup` promoted; see **TEST_ZERO.md**).
+**`-all`** is **47** (A10+B29+E8 including **`getalldata_scenario`** / **`rpc_workqueue_full`** / Insight B-pass + Ext greens; exact lists **TEST_ZERO.md** §3).
 Failures discussed below appear only when a test is run *outside* the harness
 filter (raw `zero-gtest` binary) or is in a known-fail tier that `--all` does not
 gate on.

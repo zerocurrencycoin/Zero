@@ -343,7 +343,7 @@ int printMetrics(size_t cols, bool mining)
                     int height = mapBlockIndex[hash]->nHeight;
                     CAmount subsidy = GetBlockSubsidy(height, consensusParams);
                     if ((height >= consensusParams.nFeeStartBlockHeight) && (height <= consensusParams.GetLastFoundersRewardBlockHeight(height))) {
-                        subsidy -= subsidy*0.075;
+                        subsidy -= GetFoundersRewardAmount(subsidy);
                     }
                     if (std::max(0, COINBASE_MATURITY - (tipHeight - height)) > 0) {
                         immature += subsidy;

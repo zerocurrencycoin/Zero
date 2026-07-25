@@ -466,6 +466,8 @@ DBErrors CWalletDB::ReorderTransactions(CWallet* pwallet)
     }
     WriteOrderPosNext(nOrderPosNext);
 
+    pwallet->RebuildWtxOrdered();
+
     return DB_LOAD_OK;
 }
 

@@ -446,18 +446,56 @@ Sample sets derived from **section 11** (zerowallet and Insight). "Harness" = me
 | Category | Harness | Depth |
 |----------|---------|-------|
 | **`addressindex`** (5 RPCs) | **`qa/rpc-tests/addressindex.py`** + param checks in **`src/test/rpc_tests.cpp`** | Functional index build/fetch on regtest with insight flags |
-| **`zero_exclusive`** (7 RPCs) | **`src/test/rpc_zero_exclusive_tests.cpp`** only | **Param validation** (bad arg count throws; minimal happy path). **No** wallet-state, chain-state, or UI-shaped **`getalldata`** scenarios |
-| **`getalldata`** | same C++ file, case **`rpc_getalldata_param_validation`** | **`getalldata 0`** returns object; **not** in **`qa/rpc-tests/`**; **not** in **`contrib/run-tests.sh --all`** as a dedicated script |
+| **`zero_exclusive`** (7 RPCs) | **`src/test/rpc_zero_exclusive_tests.cpp`** + scenario for getalldata | Param + soft gates; populated-wallet History via **`getalldata_scenario.py`** (Ext) |
+| **`getalldata`** | exclusive + Ext scenario | Gates on empty wallet; nCount/datatype on mined/sent txs in scenario |
 
-**`getalldata` gap:** Wallet depends on this RPC for primary UI refresh (**section 11.5**). Current coverage matches **`UpdateZero.md`** TST-01 (~0% scenario coverage beyond param skeleton). Adding a regtest or GTest that mines/spends and asserts expected **`getalldata`** fields would close the highest wallet risk.
+#### `getalldata` -- structure and algorithms
 
-Other categories (`blockchain`, `wallet`, `zeronode`, ...): see **`UpdateZero.md`** RPC coverage table and **`TEST_ZERO.md`** tier list for **`--all`** / **`--strict`** scope.
+**Role:** Kitchen-sink wallet refresh RPC used by Zerowallet tip/history. Not a consensus path.
+
+**Param shape**
+
+| Arg | Meaning | Implementation notes |
+|-----|---------|----------------------|
+| 1 datatype | 0 = balances+txs, 1 = balances, 2 = txs (+ chain fields) | Section gates on `params[0]` |
+| 2 transactiontype | 0=all, 1=1d, 2=7d, 3=30d, 4=90d, 5=365d, other=all | Day window for History; omitted today -> `365*30` days (product default undecided -- TODO ARG2) |
+| 3 transactioncount | max History rows | `params.size() >= 3`; `<= 0` -> 200 |
+| 4 watchonly | bool | only when `params.size() == 4` |
+
+**Data / indexes touched**
+
+| Structure | Use in `getalldata` |
+|-----------|---------------------|
+| `mapWallet` / ordered wallet view | Balance walk; History membership; unconfirmed |
+| `mapArcTxs` | Archived tx points merged into sort key `(height, nIndex)` |
+| `mapBlockIndex` / `chainActive` | Day cutoff, depth, tip fields |
+| Sapling IVK/OVK vectors | Decrypt for arc-tx JSON |
+| Soft coalesce state | In-flight + last-success time (`-rpcdatacontinue`) |
+
+**Algorithm outline (History path)**
+
+1. Optional soft gate (**-34**) before heavy work.
+2. Build address balances when datatype in {0,1}.
+3. When datatype in {0,2}: day cutoff -> filter archive + wallet txs **before** sort-map insert (W3); detect sort-key collisions (W2); decrypt/emit newest-first until `nCount`; reverse to oldest-first for JSON field `listtransactions`.
+
+**Problem statements / solution outline (pro-con owned in TODO)**
+
+| Concern | Structure impact | Direction |
+|---------|------------------|-----------|
+| Tip poll CPU on large `mapWallet` | Full History decrypt + JSON each tick | Datatype split / cache (W5/W6); day default; helpers -- **TODO** |
+| Omitted arg2 ~30y window | Near-unbounded filter before nCount | ARG2-DEFAULT -- **TODO** |
+| Duplicate day / count parsing | Drift between emit and early filter | Shared helpers -- **TODO** |
+| `wtxOrdered` vs getalldata | Orthogonal: insert-time order vs RPC sort map | §13.4 |
+
+**Dispatch gates (server):** warmup; witness rebuild; `initWitnessesBuilt` for `getalldata`/`z_sendmany`; HTTP work-queue full -> 503. Test commands: **TEST_ZERO**. Task IDs S4--S8 / W*: **TODO**.
+
+**Impl refs:** `src/wallet/rpczerowallet.cpp`; client convert `src/rpc/client.cpp`; shared emit helpers `getRpcArcTx*` (also `zs_*`).
 
 ### 6.3 Cross-reference RPCs vs tests vs clients
 
-**Goal:** For each **`zero=y`** row in **`RPCs.csv`**, know (a) whether a harness invokes it, (b) how deep the test goes, and (c) which shipped clients call it.
+**Goal:** For each registered CRPCCommand (and **`RPCs.csv`** `zero=y`), know (a) whether a harness invokes it, (b) how deep the test goes, and (c) which shipped clients call it.
 
-**Step 1 -- RPC name list.** Use **`RPCs.csv`** (`zero=y`, **172** rows). Cross-check renames against **`src/rpc/client.cpp`** (`vRPCConvertParams`) and CRPCCommand tables under **`src/rpc/`**, **`src/wallet/`**.
+**Step 1 -- RPC name list.** Prefer CRPCCommand tables under **`src/rpc/`**, **`src/wallet/`** (**173** names as of 2026-07-24). Cross-check **`RPCs.csv`** (`zero=y`, **172** rows -- expect drift of 1). Also **`src/rpc/client.cpp`** (`vRPCConvertParams`).
 
 **Step 2 -- Test invocation scan.** For each RPC name, search:
 
@@ -469,11 +507,17 @@ Classify hits:
 
 | Depth | Meaning | Examples |
 |-------|---------|----------|
-| **none** | No harness file mentions the string | **`zeronodestats`**, many zeronode/budget RPCs (~30 with no hit) |
+| **none** | No harness file mentions the string | ~32 names (see probe list below) |
 | **param-only** | Arg-count / type skeleton only | **`rpc_zero_exclusive_tests.cpp`**, **`rpc_zero_experimental_tests.cpp`** |
 | **functional** | Regtest or GTest builds chain/wallet state and asserts fields | **`addressindex.py`**, many **`wallet*.py`**, **`rpc_wallet_tests.cpp`** |
 
-**Caveat:** String match over-counts (comments, help text). Tier A **`--all`** pass-only scripts may **`exit 0`** without asserting the RPC under review -- see **`TEST_ZERO.md`**.
+**Caveat:** String match over-counts (comments, help text). Tier pass scripts may mention an RPC without asserting it.
+
+**Uncovered-name probe (2026-07-24):** **`qa/rpc-tests/rpc_coverage_probe.py`** (Ext pass). String-scan: **141** covered / **32** uncovered of **173** registered. Empty-arg (or `help` for destructive) invoke: **32/32 recognize, 32/32 respond, 0 crash**. Run: `./qa/pull-tester/rpc-tests.sh rpc_coverage_probe`. Optional: `ZERO_RPC_PROBE_ALL=1` probes every registered name.
+
+Uncovered set at probe authoring: `checkbudgets`, `createmultisig`, `createsporkkeys`, `estimatepriority`, `getaddednodeinfo`, `getbudgetvotes`, `getchaintxstats`, `getconnectioncount`, `getdeprecationinfo`, `getdifficulty`, `getgenerate`, `getlocalsolps`, `getmininginfo`, `getnettotals`, `getnetworkhashps`, `getunconfirmedbalance`, `getzeronodeoutputs`, `getzeronodescores`, `getzeronodewinners`, `lockunspent`, `ping`, `setgenerate`, `startzeronode`, `verifychain`, `walletpassphrasechange`, `zcbenchmark`, `zcsamplejoinsplit`, `zeronodecurrent`, `zeronodedebug`, `zeronodestats`, `znbudgetrawvote`, `znfinalbudget`.
+
+**What `--all` is not:** `./contrib/run-tests.sh --all` = pass-only C++ filters + **`rpc-tests.sh -all`** (Tier **A + B pass + E pass**). It does **not** run Bfail/Efail, does **not** fuzz args, and does **not** guarantee every RPC was called -- only that those scripts passed. The coverage probe closes the "never mentioned" gap for recognize/respond/crash only.
 
 **Step 3 -- Client usage scan** (for RPCs at **none** or **param-only**):
 
@@ -498,7 +542,7 @@ Classify hits:
 
 **Step 5 -- Track output.** Maintainer task: add **`tests`** and **`clients`** columns to **`RPCs_extended.csv`** (or a generated **`RPC_coverage.csv`**) via a small audit script under **`contrib/`** -- see **`TODO.md`**. Re-run when RPCs or clients change.
 
-Test prescriptions and acceptance criteria: **`UpdateZero.md`** TST-01 (zero_exclusive scenarios), TST-03 (zeronode subcmds).
+Test commands and scenarios: **TEST_ZERO**. Task status: **TODO** (TST-01, TST-03).
 
 ---
 
@@ -552,7 +596,7 @@ No Zcash mainnet equivalent; ported from TENT masternode layer. Operator workflo
 
 ## 10. Regtest and tests
 
-Harness tiers, **`contrib/run-tests.sh --all`** / `rpc-tests.sh -all` (**40** pass-tier invocations), insight script flags (five Insight + `rest` / `walletbackup` = **B pass**; pure `txindex.py` = **Bfail Debug**), regtest maturity **720**: **`TEST_ZERO.md`**. Resume/short-snap ops: **AtHeight.md** §4.1.
+Harness tiers, **`contrib/run-tests.sh --all`** / `rpc-tests.sh -all` (**47** pass-tier invocations: A10+B29+E8; lists in **TEST_ZERO** §3); insight scripts (**B pass**); pure `txindex.py` = **Bfail Debug**; regtest maturity **720**: **`TEST_ZERO.md`**. Resume/short-snap ops: **AtHeight.md** §4.1.
 
 ---
 
@@ -627,7 +671,7 @@ Representative zerod RPC groups: chain/blocks, **`getrawtransaction`**, address-
 
 Repo **`~/Work/ZK/zerowallet400`**; connect flow **`UpdateWallet.md`**. JSON-RPC only; no zerod REST; no local Insight.
 
-Wallet-critical RPCs include **`getalldata`** (primary UI refresh), chain info RPCs, `getsupply`, send/status RPCs, **`getaddressesbyaccount [""]`** (empty account string required on Zero), zeronode RPCs. Test gap for **`getalldata`**: **section 6.2**.
+Wallet-critical RPCs include **`getalldata`** (primary UI refresh), chain info RPCs, `getsupply`, send/status RPCs, **`getaddressesbyaccount [""]`** (empty account string required on Zero), zeronode RPCs. Structure notes: **section 6.2**. Open poll/cache tasks: **TODO** WAL-GETALLDATA-*. PirateOcean does not use this RPC (in-process wallet models).
 
 Release couples embedded **`zerod`** binary to wallet tag; exercise **`getalldata`** on release smoke.
 
@@ -945,7 +989,7 @@ So UI/RPC "transaction time" is the smart time when present; the expensive Zero 
 | **2015-10-19** | Zcash tree | Same optimisation lands early: [`31d49b09b`](https://github.com/zcash/zcash/commit/31d49b09b756e73958350ae12a976e072377347f) (wallet.h/cpp, rpcwallet, walletdb, accounting_tests) | Present long before NU5/4.x |
 | **2018-07-31** | Bitcoin | Kill accounts: remove `CAccountingEntry` / account RPCs; `TxItems` becomes `CWalletTx*` only | [bitcoin#13825](https://github.com/bitcoin/bitcoin/pull/13825) lineage (`[wallet] Kill accounts`) |
 | **2021-08 (zcashd 4.5.0)** | Zcash | Backport kill-accounts ([`8af7e138a`](https://github.com/zcash/zcash/commit/8af7e138ac2e06ebe148c4be6f0b9a2d366e3f2e), merge [`5b194067e`](https://github.com/zcash/zcash/commit/5b194067eab3f5f343d4696897fd0e4deca892f6) / [#5271](https://github.com/zcash/zcash/pull/5271)); release [v4.5.0](https://github.com/zcash/zcash/releases/tag/v4.5.0) | `wtxOrdered` **kept**; accounts removed |
-| **Zero today** | Zero | Still rebuilds via `OrderedTxItems()`; still ships account RPCs | `wtxOrdered` keeps accounts; RPC removal is separate (**WAL-RPC-ACCOUNTS**) |
+| **Zero today** | Zero | Incremental **`wtxOrdered`** with **`TxPair`** (accounts kept); `OrderedTxItems` merges lacentries | WAL-WTXORDERED done; RPC removal still **WAL-RPC-ACCOUNTS** |
 | **2021-11-17** | Pirate daemon | Skip smart-time walk: both times = **blocktime** | [`5f0cab6ba`](https://github.com/PirateNetwork/pirate/commit/5f0cab6bad6e61bcc751c4c44dd98c1f3a286709) |
 | **PirateOcean** | Qt desktop tree | Still full OrderedTxItems + delete/reorder | Not the daemon shortcut |
 
@@ -982,16 +1026,16 @@ It does **not** change which txs are in the wallet, consensus validation, LevelD
 | **2015-10-19** | Zcash [`31d49b09b`](https://github.com/zcash/zcash/commit/31d49b09b756e73958350ae12a976e072377347f) | Same optimisation early in zcashd |
 | **2018 / 2021** | Bitcoin kill-accounts; Zcash 4.5 | Accounts removed; **`wtxOrdered` kept** (pointer-only items) |
 | **2021-11-17** | Cryptoforge Pirate [`5f0cab6ba`](https://github.com/PirateNetwork/pirate/commit/5f0cab6bad6e61bcc751c4c44dd98c1f3a286709) | **Different fix:** skip walk; `nTimeSmart = nTimeReceived = blocktime` -- no `wtxOrdered` |
-| **Zero today** | Zero / TENT / PirateOcean | Still O(n) `OrderedTxItems` rebuild; accounts still present |
+| **Zero today** | Zero | Incremental `wtxOrdered` with **`TxPair`** (accounts kept); smart-time walk uses `wtxOrdered` const reverse (tx pointer / `.first`); exact Zcash pointer-only type needs accounts kill |
 
-#### Useful vs complementary (undecided only on alternate)
+#### Useful vs complementary (alternate only)
 
 | Lens | Reading |
 |------|---------|
-| **Useful for Zero today** | **Yes for fat wallets** (DevFee / founders-sized `mapWallet`). Each `AddToWallet` rebuild is O(n); mid-reindex with wallet loaded is wall-clock bound by this, not by Equihash. |
-| **Complementary to Pirate shortcut** | Same pain class (insert CPU). Pirate is O(1) assign and loses arrival-time semantics; `wtxOrdered` keeps Bitcoin/Zcash clamp and still O(1) insert update. Prefer **WAL-WTXORDERED**; **WAL-PIRATE-TIMESMART** only as emergency alternate. |
-| **Complementary to insight / txindex?** | **Orthogonal stores.** See table below -- turning indexes off does not fix wallet O(n); shipping `wtxOrdered` does not shrink `blocks/index/`. |
-| **Decision** | **WAL-WTXORDERED** is the primary port (keep `TxPair` / accounts). Sync erase/reorder; **Assure-4** in same PR (§13.4.3). Measure wallet microbench / ZeroPerf **retarget**, not full insight reindex. |
+| **Useful for large `mapWallet`** | Incremental `wtxOrdered` avoids O(n) `OrderedTxItems` rebuild on each insert; mid-reindex with wallet loaded is wall-clock bound by insert CPU, not Equihash. |
+| **Complementary to Pirate shortcut** | Same pain class. Pirate O(1) blocktime assign loses arrival-time semantics; `wtxOrdered` keeps Bitcoin/Zcash clamp. Prefer incremental map; timesmart only as emergency alternate. |
+| **Complementary to insight / txindex?** | **Orthogonal stores.** Indexes off does not fix wallet insert CPU; `wtxOrdered` does not shrink `blocks/index/`. |
+| **Remaining type gap** | Zcash `multimap<int64_t, CWalletTx*>` vs Zero `TxPair` -- business/RPC accounts decision, not another insert algorithm. |
 
 #### Relation to `txindex` (and insight)
 
@@ -1004,9 +1048,9 @@ It does **not** change which txs are in the wallet, consensus validation, LevelD
 | Cost class | Disk + ConnectBlock index writes; large explorer reindex | CPU on wallet insert/list when `mapWallet` is huge |
 | Ops lever | Conf flags + reindex; **OPS-TXINDEX-DEFAULT** / **OPS-PIRATE-DB** | Code port; no conf flag |
 | Fixes fat-wallet insert CPU? | **No** | **Yes** (incremental) or Pirate shortcut |
-| Needed for DevFee UTXO extract? | Insight `getaddressutxos` / addressindex (txindex usually co-required on Zero explorers) | **No** -- prefer `-disablewallet` on explorers |
+| Needed for transparent UTXO-by-address extract? | Insight `getaddressutxos` / addressindex (txindex usually co-required on explorers) | **No** -- prefer `-disablewallet` on explorers |
 
-**Value of default-on `txindex`:** cheap arbitrary tx lookup for Blockbook, lightwalletd, explorers, and fee-display paths that resolve inputs -- independent of whether the node holds a DevFee wallet. **Do not** conflate "reindex is slow" with "wallet OrderedTxItems is slow": both can appear on one host if the wallet is loaded during an insight/txindex rebuild; isolate by measuring with wallet empty / `-disablewallet` vs fat wallet + indexes off (ZeroPerf retarget note).
+**Value of default-on `txindex`:** cheap arbitrary tx lookup for Blockbook, lightwalletd, explorers, and fee-display paths that resolve inputs. **Do not** conflate "reindex is slow" with "wallet OrderedTxItems is slow": isolate by measuring with wallet empty / `-disablewallet` vs large wallet + indexes off.
 
 **WAL-WTXORDERED** does not change the case for keeping or reverting default `txindex`. **OPS-TXINDEX-DEFAULT** stays a separate disk/ops product decision.
 
@@ -1097,7 +1141,7 @@ Start destination **without** `-reindex`. Verify `getblockchaininfo` / `gettxout
 **Height bounds / stop-at-height:** Zero has no `-stopatheight`. Lab short-snap, linearize `max_height`, ecosystem comparison, and postponed track **OPS-AT-HEIGHT** -- see **AtHeight.md**.
 ### 13.8 Founders designs A / B / Z
 
-**Status today (mainnet):** Coinbase founders output is **7.5%** of `GetBlockSubsidy` from **fee-start** through last founders height. Payee is selected by height from **`vFoundersRewardAddress`** (10 slots). Script path **`GetFoundersRewardScriptAtHeight`** requires a **P2SH** destination (`CScriptID`); mainnet entries are **2-of-3 multisig** P2SH (`t3...`). Rotation interval is roughly `lastFRHeight / N` blocks per slot (`GetFoundersRewardAddressAtHeight`). RPC surface today: **`zeronodestats.chainStats.developmentfee`**; mining RPCs use **founders** / **foundersreward** (see **DOC-FR-NAMING**). Ops UTXO inventory (**OPS-DEV-UTXO done**): local `getaddressutxos` TSVs under `~/Work/ZK/0/E/DevFeeWallets/data/founders_utxo_0{1,2,3}.tsv`; do not load fat DevFee wallets into explorer nodes.
+**Status today (mainnet):** Coinbase founders output is **7.5%** of `GetBlockSubsidy` from **fee-start** through last founders height. Payee is selected by height from **`vFoundersRewardAddress`** (10 slots). Script path **`GetFoundersRewardScriptAtHeight`** requires a **P2SH** destination (`CScriptID`); mainnet entries are **2-of-3 multisig** P2SH (`t3...`). Rotation interval is roughly `lastFRHeight / N` blocks per slot (`GetFoundersRewardAddressAtHeight`). RPC surface today: **`zeronodestats.chainStats.developmentfee`**; mining RPCs use **founders** / **foundersreward** (see **DOC-FR-NAMING**). Explorer nodes should use `-disablewallet` when only address-index UTXO RPCs are needed.
 
 Changing **updates** (how often / which slot receives) vs **type** (what script/key scheme is paid) are separate consensus decisions:
 
@@ -1107,7 +1151,7 @@ Changing **updates** (how often / which slot receives) vs **type** (what script/
 | **FR-TADDR** (B) | Pay a **plain t-addr** (P2PKH) instead of 2-of-3 P2SH | Replace `assert(CScriptID)` + script build; new addresses; custody model | Simpler single-key spend / lower signing friction; easier wallet tooling | **Hard consensus** + key migration; loses multisig quorum; anyone with that key spends all future coinbases to that addr |
 | **FR-Z** (Z) | Coinbase founders output to a **Sapling z-addr** (shielded) | Coinbase rules, miners, Insight (transparent-only indexes), wallet, proving | Privacy for development fee; no transparent UTXO dust on explorers | **Hard consensus**; miner/template + validation; Insight addressindex does not cover z; ops extraction path changes entirely |
 
-**Not the same as wallet "accounts":** DevFee **wallet account labels** / obsolete RPC accounts (**WAL-RPC-ACCOUNTS**) are unrelated to founders **type**. Changing founders type does not require dropping account RPCs.
+**Not the same as wallet "accounts":** Obsolete RPC account labels (**WAL-RPC-ACCOUNTS**) are unrelated to founders **type**. Changing founders type does not require dropping account RPCs.
 
 **Product order if pursued:** decide custody (2-of-3 vs single t vs z) first, then rotation cadence, then implementation + activation height. Not scheduled; needs consensus review before code.
 

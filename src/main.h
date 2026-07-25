@@ -269,6 +269,8 @@ bool DisconnectBlocksAndReprocess(int blocks);
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, const CBlock* pblock = NULL);
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
+/** Founders / development carve: 7.5% of subsidy, trunc toward 0 (integer zats). */
+CAmount GetFoundersRewardAmount(CAmount subsidy);
 
 /**
  * Prune block and undo files (blk???.dat and undo???.dat) so that the disk space used is less than a user-defined target.
