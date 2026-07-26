@@ -4,6 +4,10 @@ Scripts supporting the `zerod` sync performance investigation documented in
 `Perf.md` at the repo root. Read that file first — it has the methodology
 and the reasoning these scripts implement; this README is just usage.
 
+**Not wallet:** these tools profile **chain import / ConnectBlock** (`zcash-loadblk`),
+not `AddToWallet` / `OrderedTxItems`. For wallet-order CPU, retarget as described
+in `Perf.md` (scope note + retarget paragraph) and Zero400 `ZeroStruct.md` §13.4.3.
+
 ## capture_sequence.sh
 
 Runs a long `-reindex` (or any long-running `zerod` process) under repeated

@@ -105,7 +105,11 @@
 - **Latch:** a single-slot memoization — one stored value (or empty), cleared by the operations that change underlying state, repopulated on next read. Not a cache: no key, no multiple entries, no eviction policy, because there is only ever one live value to remember.
 - **Activation height:** the mainnet block height at or after which a network upgrade's rules apply. Sapling: height 492,850 (`chainparams.cpp`).
 
-**Profiling method:** a real mainnet datadir (not synthetic/regtest — script/tx mix affects where time goes) profiled with Instruments Time Profiler (`xcrun xctrace`, headless CLI) attached to the single worker thread that does the actual reindex/import work (`zcash-loadblk`, running `ThreadImport`). Every other thread (idle script-check-queue workers, RPC/net/wallet threads) is filtered out — unfiltered, all-threads profiles are dominated by idle-thread noise (85%+ of raw samples blocked on a condvar) and say nothing about where real work goes.
+**Profiling method:** a real mainnet datadir (not synthetic/regtest — script/tx mix affects where time goes) profiled with Instruments Time Profiler (`xcrun xctrace`, headless CLI) attached to the single worker thread that does the actual reindex/import work (`zcash-loadblk`, running `ThreadImport`). Every other thread (idle script-check-queue workers, RPC/net/**wallet** threads) is filtered out — unfiltered, all-threads profiles are dominated by idle-thread noise (85%+ of raw samples blocked on a condvar) and say nothing about where real work goes.
+
+**Scope note -- not wallet:** this Perf.md line and `contrib/perf/` (`capture_sequence.sh`, `bench_matrix.sh`, `bucket_profile.py`) measure **ConnectBlock / import** throughput and CPU buckets (Groth16, Equihash, disk, trees). They intentionally **exclude** wallet/`AddToWallet`/`OrderedTxItems`. Fat-wallet reindex pain and `wtxOrdered` work are **out of scope** here; see Zero400 **ZeroStruct** §13.4.3.
+
+**Retarget for wallet CPU (if measuring `wtxOrdered`):** do **not** reuse the default filter. Attach to the thread that runs `AddToWallet` (or temporarily avoid filtering wallet frames); add buckets for `OrderedTxItems` / `AddToWallet` / `CWallet::`; use a **large wallet** datadir and a **short** height window; prefer insight/txindex off when indexes are not under test. `bench_matrix.sh` blk/s is only informative if the window is wallet-bound -- otherwise it reports ConnectBlock noise.
 
 **Reproduction procedure** (fresh scratch datadir → launch → attach profiler → export/bucket → determine the exact height window covered):
 

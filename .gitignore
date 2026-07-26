@@ -20,6 +20,8 @@ src/bitcoin
 src/test/test_bitcoin
 test_bitcoin.coverage/
 
+reindex-profile/
+
 *zcashTest.pk
 *zcashTest.vk
 .zcash
