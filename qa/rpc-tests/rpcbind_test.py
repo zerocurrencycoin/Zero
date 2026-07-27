@@ -9,7 +9,7 @@
 
 from test_framework.util import assert_equal, check_json_precision, \
     initialize_chain, start_nodes, stop_nodes, wait_bitcoinds, \
-    bitcoind_processes, rpc_port
+    bitcoind_processes, rpc_port, ipv6_loopback_available
 from test_framework.authproxy import AuthServiceProxy
 from test_framework.netutil import addr_to_hex, get_bind_addrs, all_interfaces
 
@@ -91,12 +91,18 @@ def run_test(tmpdir):
         assert(not 'This test requires at least one non-loopback IPv4 interface')
     print(("Using interface %s for testing" % non_loopback_ip))
 
+    have_ipv6 = ipv6_loopback_available()
+    if not have_ipv6:
+        print("WARNING: *** No usable ::1 loopback (IPv6 may be disabled); skipping IPv6 bind checks. ***")
+
     # check default without rpcallowip (IPv4 and IPv6 localhost)
     run_bind_test(tmpdir, None, '127.0.0.1', [],
-        [('127.0.0.1', defaultport), ('::1', defaultport)])
+        [('127.0.0.1', defaultport), ('::1', defaultport)] if have_ipv6 else
+        [('127.0.0.1', defaultport)])
     # check default with rpcallowip (IPv6 any)
-    run_bind_test(tmpdir, ['127.0.0.1'], '127.0.0.1', [],
-        [('::0', defaultport)])
+    if have_ipv6:
+        run_bind_test(tmpdir, ['127.0.0.1'], '127.0.0.1', [],
+            [('::0', defaultport)])
     # check only IPv4 localhost (explicit)
     run_bind_test(tmpdir, ['127.0.0.1'], '127.0.0.1', ['127.0.0.1'],
         [('127.0.0.1', defaultport)])
@@ -106,12 +112,13 @@ def run_test(tmpdir):
     # check only IPv4 localhost (explicit) with multiple alternative ports on same host
     run_bind_test(tmpdir, ['127.0.0.1'], '127.0.0.1:32171', ['127.0.0.1:32171', '127.0.0.1:32172'],
         [('127.0.0.1', 32171), ('127.0.0.1', 32172)])
-    # check only IPv6 localhost (explicit)
-    run_bind_test(tmpdir, ['[::1]'], '[::1]', ['[::1]'],
-        [('::1', defaultport)])
-    # check both IPv4 and IPv6 localhost (explicit)
-    run_bind_test(tmpdir, ['127.0.0.1'], '127.0.0.1', ['127.0.0.1', '[::1]'],
-        [('127.0.0.1', defaultport), ('::1', defaultport)])
+    if have_ipv6:
+        # check only IPv6 localhost (explicit)
+        run_bind_test(tmpdir, ['[::1]'], '[::1]', ['[::1]'],
+            [('::1', defaultport)])
+        # check both IPv4 and IPv6 localhost (explicit)
+        run_bind_test(tmpdir, ['127.0.0.1'], '127.0.0.1', ['127.0.0.1', '[::1]'],
+            [('127.0.0.1', defaultport), ('::1', defaultport)])
     # check only non-loopback interface
     run_bind_test(tmpdir, [non_loopback_ip], non_loopback_ip, [non_loopback_ip],
         [(non_loopback_ip, defaultport)])
