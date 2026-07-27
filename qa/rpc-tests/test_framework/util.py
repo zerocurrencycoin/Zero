@@ -347,11 +347,8 @@ def initialize_chain_clean(test_dir, num_nodes):
         initialize_datadir(test_dir, i)
 
 
-def _rpchost_to_args(rpchost):
-    '''Convert optional IP:port spec to rpcconnect/rpcport args'''
-    if rpchost is None:
-        return []
-
+def _parse_rpchost(rpchost):
+    '''Split an optional IP:port spec into (host, port); port is None if unspecified.'''
     match = re.match(r'(\[[0-9a-fA-f:]+\]|[^:]+)(?::([0-9]+))?$', rpchost)
     if not match:
         raise ValueError('Invalid RPC host spec ' + rpchost)
@@ -362,9 +359,18 @@ def _rpchost_to_args(rpchost):
     if rpcconnect.startswith('['): # remove IPv6 [...] wrapping
         rpcconnect = rpcconnect[1:-1]
 
+    return rpcconnect, (int(rpcport) if rpcport else None)
+
+def _rpchost_to_args(rpchost):
+    '''Convert optional IP:port spec to rpcconnect/rpcport args'''
+    if rpchost is None:
+        return []
+
+    rpcconnect, rpcport = _parse_rpchost(rpchost)
+
     rv = ['-rpcconnect=' + rpcconnect]
     if rpcport:
-        rv += ['-rpcport=' + rpcport]
+        rv += ['-rpcport=' + str(rpcport)]
     return rv
 
 def start_node(i, dirname, extra_args=None, rpchost=None, timewait=None, binary=None):
@@ -384,7 +390,11 @@ def start_node(i, dirname, extra_args=None, rpchost=None, timewait=None, binary=
     wait_for_daemon_rpc(datadir, bitcoind_processes[i], rpchost=rpchost)
     if os.getenv("PYTHON_DEBUG", ""):
         print("start_node: RPC ready on " + datadir)
-    url = "http://rt:rt@%s:%d" % (rpchost or '127.0.0.1', rpc_port(i))
+    if rpchost:
+        rpcconnect, rpcport = _parse_rpchost(rpchost)
+    else:
+        rpcconnect, rpcport = '127.0.0.1', None
+    url = "http://rt:rt@%s:%d" % (rpcconnect, rpcport or rpc_port(i))
     if timewait is not None:
         proxy = AuthServiceProxy(url, timeout=timewait)
     else:
