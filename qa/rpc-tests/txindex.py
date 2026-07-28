@@ -6,6 +6,9 @@
 #
 # Test txindex generation and fetching
 #
+# Harness: Bfail Debug (rpc-tests.sh). 2026-07-22 failures / fixes: TEST_ZERO.md
+# "txindex.py debug" -- Py3 Decimal nValue; Bitcoin 50-ZER asserts vs Zero 10 ZER.
+#
 
 import time
 from test_framework.test_framework import BitcoinTestFramework
@@ -37,7 +40,7 @@ class TxIndexTest(BitcoinTestFramework):
 
     def run_test(self):
         print("Mining blocks...")
-        mature_tip = coinbase_mature_tip(5)
+        mature_tip = mature_height(5)
         self.nodes[0].generate(mature_tip)
         self.sync_all()
 

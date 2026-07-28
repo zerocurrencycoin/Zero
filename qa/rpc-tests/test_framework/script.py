@@ -19,7 +19,7 @@ from test_framework.mininode import CTransaction, CTxOut, hash256
 import sys
 bchr = chr
 bord = ord
-if sys.version > '3':
+if sys.version_info[0] >= 3:
     long = int
     bchr = lambda x: bytes([x])
     bord = lambda x: x
@@ -628,14 +628,14 @@ class CScriptNum(object):
             return bytes(r)
         neg = obj.value < 0
         absvalue = -obj.value if neg else obj.value
-        while (absvalue):
-            r.append(chr(absvalue & 0xff))
+        while absvalue:
+            r.append(absvalue & 0xff)
             absvalue >>= 8
         if r[-1] & 0x80:
             r.append(0x80 if neg else 0)
         elif neg:
             r[-1] |= 0x80
-        return bytes(bchr(len(r)) + r)
+        return bchr(len(r)) + bytes(r)
 
 
 class CScript(bytes):

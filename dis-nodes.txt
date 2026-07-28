@@ -1,0 +1,196 @@
+R3D — 6/10/19, 5:41 AM
+💸EARN REWARDS💸
+Earn ZER everytime a new block is found (120 secs). Zero Nodes secure 20% of the network. 
+
+🔐SAFE & SECURE🔐
+By livening up a node, you're helping make the security of the network even stronger.
+
+🏦NON-CUSTODIAL🏦
+Become your own bank. You can host your own node, with your own hardware.
+
+🖱️ONE CLICK SETUP🖱️
+Zero has secured a partnership with ZCore, who for a small fee of $1.95 each month can host your node without any risk to your coins at all.
+
+🆘FULL SUPPORT🆘
+The community is here to help you get your node set up and running. Please feel free to join our Telegram or Discord channels if you do need assistance.
+
+🔗https://github.com/zerocurrencycoin/Zero-Wallets/wiki/Zero-Node-Setup---English
+
+
+BLOCK REWARDS
+---------------------
+Zero has implemented a fair 72.5% block reward to PoW (mining), 20% to Zero Nodes, and 7.5% to the Development Fund
+
+Mining
+72.5%
+
+Zero Node Reward
+20%
+
+Dev Fund
+7.5%
+
+
+Hardware Required
+---------------------
+SINGLE CORE CPU
+4GB RAM OR 1GB RAM WITH 4GB SWAP FILE
+25GB HARD DRIVE
+ 
+GitHub
+zerocurrencycoin/Zero-Wallets
+Current Releases of Zero Wallets. Contribute to zerocurrencycoin/Zero-Wallets development by creating an account on GitHub.
+Image
+Zero Node |
+Zero Nodes Help strengthen the network with your very own hosted Zero Node, or with our one click service partner Zero Node set up What are Zero Nodes? SAFE & SECURE By livening up a node, you are helping make the security of the network even stronger. Zero Nodes secure 20% o...
+R3D — 6/10/19, 1:15 PM
+@z_wonka  check the pinned messages
+Deleted User — 6/10/19, 2:23 PM
+rick
+R3D — 6/10/19, 2:23 PM
+👋
+OnlyONeKent — 6/11/19, 2:42 AM
+my first time joined share masternode.. still do not understand about payments and withdrawal rules if masternode is already running
+R3D — 6/11/19, 2:46 AM
+he hasn't started the masternode yet @OnlyONeKent
+OnlyONeKent — 6/11/19, 2:51 AM
+need to know the rules in advance regarding the rules if the coin has been locked in masternode. what if at any time I need to withdraw? ignorance of this rule made me hesitate to invest all the coins, even though the amount was a little haha 
+abudfv2008 — 6/11/19, 3:00 AM
+@OnlyONeKent IMHO 1ds.us is the best shared service. All coins sum up and rewards are divided proportionally (same as evonodes). Minimal withdrawal time. Imediate if there are enough coins not involved in MN. If not enough coins then @egyptianbman - equipool.1ds.us is very responsive and organises withdrawal very quick (compared to any other - that usually have 24-48H pending time). 
+OnlyONeKent — 6/11/19, 3:06 AM
+oic, thanks for your advice @abudfv2008
+R3D — 6/11/19, 3:17 AM
+cheers
+jurbo.eth — 6/11/19, 3:43 AM
+Hiya, I started the zn this morning and now im getting 0.001 zer ? Is that correct
+R3D — 6/11/19, 3:44 AM
+yes slow payments at the moment - full payments will start soon, with payment enforcement being enabled on 1st/2nd July
+@jurbo.eth
+jurbo.eth — 6/11/19, 3:44 AM
+Alright thanks
+R3D — 6/11/19, 3:45 AM
+Thank you for running a Zero Node !
+jurbo.eth — 6/11/19, 3:45 AM
+:zer:
+R3D — 6/11/19, 3:50 AM
+If your running a normal Zero Node please let me know, in this channel. So I can assign your new role/status on Discord. Thanks @everyone 
+malloc — 6/11/19, 3:52 AM
+I am @R3D
+milesmanley — 6/11/19, 3:53 AM
+👋 😉 not running yet but will have it up in couple days
+^^ When I get a break :)
+brr22 | ZER ✅ — 6/11/19, 3:53 AM
+👀
+R3D — 6/11/19, 3:54 AM
+nice @milesmanley
+http://ZER.RaptorPool.org ✅ — 6/11/19, 3:54 AM
+@R3D  Are nodes from pool also included to this ?
+R3D — 6/11/19, 3:55 AM
+yeh shared nodes also have their own role colour
+R3D
+ pinned a message to this channel. See all pinned messages. — 6/11/19, 4:00 AM
+malloc — 6/11/19, 4:17 AM
+@R3D how do i know if it worked
+oo wrong room?
+malloc — 6/11/19, 4:29 AM
+@R3D i run my own node too
+R3D — 6/11/19, 4:29 AM
+very cool! you get both roles then 😃 plus a 🌟 haha 
+R3D — 6/11/19, 5:00 AM
+@ralph
+👋
+DaDude | ZER ✅ — 6/11/19, 5:48 AM
+will i be able to run multiple nodes from the same VPS ?
+R3D — 6/11/19, 5:51 AM
+no @DaDude | ZER ✅
+most people seem to be setting normal ZN up then adding to the Shared ZN
+this way they have two Zero Nodes
+please let me know if you do this.
+DaDude | ZER ✅ — 6/11/19, 5:53 AM
+okee. Will try to set up a normal ZN tonight, than we can see about shared ZNs :up~1:
+DaDude | ZER ✅ — 6/11/19, 2:38 PM
+getting an error when restarting teh simple wallet after entering the data for ZN
+jurbo.eth — 6/11/19, 3:16 PM
+I think u need to delete the space between the 148 and the :
+Also best to delete this pic as it contains privkey i think
+DaDude | ZER ✅ — 6/11/19, 3:17 PM
+thanks
+jurbo.eth — 6/11/19, 3:19 PM
+Yw
+
+
+!crafty2 | ZER ✅ [POOL],  — 2/6/25, 3:30 PM
+@raw391 (pooly.ca)  🤟👆
+Markab [BRDG],  — 2/7/25, 12:04 AM
+here you can find details about Zero nodes, estimated earnings and how to setup :
+zerochain .info/nodes
+1 Node Costs : $1 /month
+1 Node Earnings : 188.46 ZER = $2.56 /month
+Filetop [FOSS],  — 3/8/25, 7:16 AM
+Hmmm.
+Image
+Markab [BRDG],  — 3/12/25, 1:26 AM
+i opened zero core wallet yesterday, it was working fine, check your internet connect. 
+ [BRDG], 
+Tex77 — 8/23/25, 12:38 AM
+Still this day?
+Markab [BRDG],  — 8/23/25, 1:40 AM
+based on zerochain nodes details:
+1 Node Earnings : 188.46 ZER = $3.90 /month
+Tex77 — 8/23/25, 2:14 AM
+interesting
+preparing....
+ [FOSS], 
+Dark Mode [POOL],  — 8/24/25, 9:06 AM
+Assume you got that fixed, but incase not you have to run Zerod before opening wallet - removes that error 
+fernando bender (greenfield.br) [ZEC],  — 11/28/25, 3:02 AM
+hello. anyone running zero node on linux and a docker?
+raw391 (pooly.ca) [POOL],  — 11/28/25, 10:48 AM
+I'm starting a shared node service :zer~1: 🎊
+raw391 (pooly.ca) [POOL],  — 11/28/25, 1:32 PM
+⁠pooly-zeronodes shared zeronode pool 
+fernando bender (greenfield.br) [ZEC],  — 11/30/25, 6:18 AM
+hello. there is a docker image to run a note here https://hub.docker.com/r/greenfieldbrasil/zero-node/tags. it was built according to the  instruction in https://zerochain.info/nodes
+Dark Mode [POOL],  — 12/3/25, 2:45 PM
+@Wa Ka | ZER ✅ @!crafty2 | ZER ✅ strange glitch… I can’t unlock my nodes on gui wallet 😅 zeronode.conf is empty and still shows them as locked. Any advice welcome from anyone @Markab @𝝝𝗨𝝩𝗟𝝙𝗪𝗦𝝭𝗦   🚧⚙️ @raw391 (pooly.ca)
+𝝝𝗨𝝩𝗟𝝙𝗪𝗦𝝭𝗦   🚧⚙️ [CODE],  — 12/3/25, 3:17 PM
+@Dark Mode Did you try completely closing it, esp. zerod, and restarting it?
+ [POOL], 
+!crafty2 | ZER ✅ [POOL],  — 12/3/25, 8:55 PM
+so you're trying to pull out the 10k locked zer ?
+ [POOL], 
+Markab [BRDG],  — 12/3/25, 11:53 PM
+recent earnings can't be moved before some confirmations. but the original 10k ZER are claimable anytime as i think.
+Dark Mode [POOL],  — 12/4/25, 4:47 AM
+Yes
+The 10k locked, remains locked on all nodes.
+I have since decided to remove the cache and paymets files and reindex
+My rationale being something is still stored in the wallet files saying all my nodes are present (and so locked collateral). Despite me having removed them in GUI and zeronode.conf. I will update once I have completed the above to let you all know if this fixes.
+Dark Mode [POOL],  — 12/4/25, 5:26 PM
+That seemed to fix my issue
+ [POOL], 
+𝝝𝗨𝝩𝗟𝝙𝗪𝗦𝝭𝗦   🚧⚙️ [CODE],  — 12/4/25, 6:51 PM
+Musta been a shadowed/cached copy of something somewhere that wasn't being cleared, glad you got it sorted.
+Wa Ka | ZER ✅ — 12/8/25, 2:51 PM
+Backup your wallet.zero before making any direct changes 🙏🏻
+Dark Mode [POOL],  — 12/9/25, 5:20 AM
+Of course!
+I have two addresses still stuck but out of 13 thats not bad, I will keep working on these to see if I can rectify
+Wa Ka | ZER ✅ — 12/9/25, 6:57 AM
+Key and Wallet Backup and Full Sync Instructions:
+
+Before making direct changes to the chain store, backup your keys and wallet.
+GUI Wallet -> File -> Export all private keys
+Shut down the GUI Wallet, which will also bring down 'zerod'. You can also check in Task Manager, respectively zerowallet.exe and zerod.exe (Zero node with a JSON-RPC server)
+
+On my Windows 10 machine working wallet.zero is in C:\Users\Owner\AppData\Roaming\zero
+
+Copy it to a flash drive or two, and to another name in the same directory. Also grab zero.conf and zeronode.conf.  For further investigation, copy debug.log or rename it. Those get rather large after a while, and I often ZIP them.
+
+To get a full fresh chain download, move to another directory or simply delete folders blocks and chainstate.  You'll need at least 8GB of space to download and validate current chain. Depending on the speed and the quality of your Internet, it could take 7-12 hours.
+
+You could run zerod.exe directly during sync or simply restart GUI Wallet, which starts zerod.  It takes many minutes for the entire process to start fully, before the sync gets far enough for GUI to start reporting % download.
+
+If you want to track progress directly, check debug.log file. I prefer a brand new one for an operational restart, which shows the startup-up process, then reports connections made and the blocks coming in. There are many messages logged, and some are formulated as errors, but worry not.
+Wa Ka | ZER ✅ — 3/11/26, 5:49 PM
+Run those Nodes, pump that hash! 🛠️ :ZeroT12: 👍🏻

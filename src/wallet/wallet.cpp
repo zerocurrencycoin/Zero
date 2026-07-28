@@ -1797,19 +1797,12 @@ int64_t CWallet::IncOrderPosNext(CWalletDB *pwalletdb)
 
 CWallet::TxItems CWallet::OrderedTxItems(std::list<CAccountingEntry>& acentries, std::string strAccount)
 {
-    AssertLockHeld(cs_wallet); // mapWallet
+    AssertLockHeld(cs_wallet); // mapWallet / wtxOrdered
     CWalletDB walletdb(strWalletFile);
 
-    // First: get all CWalletTx and CAccountingEntry into a sorted-by-order multimap.
-    TxItems txOrdered;
+    // WAL-WTXORDERED: start from incremental tx index; merge account entries for this query.
+    TxItems txOrdered = wtxOrdered;
 
-    // Note: maintaining indices in the database of (account,time) --> txid and (account, time) --> acentry
-    // would make this much faster for applications that do this a lot.
-    for (map<uint256, CWalletTx>::iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
-    {
-        CWalletTx* wtx = &((*it).second);
-        txOrdered.insert(make_pair(wtx->nOrderPos, TxPair(wtx, (CAccountingEntry*)0)));
-    }
     acentries.clear();
     walletdb.ListAccountCreditDebit(strAccount, acentries);
     BOOST_FOREACH(CAccountingEntry& entry, acentries)
@@ -1818,6 +1811,50 @@ CWallet::TxItems CWallet::OrderedTxItems(std::list<CAccountingEntry>& acentries,
     }
 
     return txOrdered;
+}
+
+void CWallet::RebuildWtxOrdered()
+{
+    AssertLockHeld(cs_wallet);
+    wtxOrdered.clear();
+    for (map<uint256, CWalletTx>::iterator it = mapWallet.begin(); it != mapWallet.end(); ++it) {
+        CWalletTx* wtx = &((*it).second);
+        wtxOrdered.insert(make_pair(wtx->nOrderPos, TxPair(wtx, (CAccountingEntry*)0)));
+    }
+}
+
+void CWallet::RemoveFromWtxOrdered(const CWalletTx* pwtx)
+{
+    AssertLockHeld(cs_wallet);
+    if (!pwtx)
+        return;
+    for (TxItems::iterator it = wtxOrdered.begin(); it != wtxOrdered.end(); ++it) {
+        if (it->second.first == pwtx) {
+            wtxOrdered.erase(it);
+            return;
+        }
+    }
+}
+
+bool CWallet::WtxOrderedConsistent() const
+{
+    AssertLockHeld(cs_wallet);
+    if (wtxOrdered.size() != mapWallet.size())
+        return false;
+    std::set<const CWalletTx*> seen;
+    for (TxItems::const_iterator it = wtxOrdered.begin(); it != wtxOrdered.end(); ++it) {
+        const CWalletTx* pwtx = it->second.first;
+        if (!pwtx || it->second.second != NULL)
+            return false;
+        if (pwtx->nOrderPos != it->first)
+            return false;
+        map<uint256, CWalletTx>::const_iterator mit = mapWallet.find(pwtx->GetHash());
+        if (mit == mapWallet.end() || &mit->second != pwtx)
+            return false;
+        if (!seen.insert(pwtx).second)
+            return false;
+    }
+    return seen.size() == mapWallet.size();
 }
 
 void CWallet::MarkDirty()
@@ -2016,6 +2053,10 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
         mapWallet[hash].BindWallet(this);
         UpdateNullifierNoteMapWithTx(mapWallet[hash]);
         AddToSpends(hash);
+        {
+            CWalletTx& wtx = mapWallet[hash];
+            wtxOrdered.insert(make_pair(wtx.nOrderPos, TxPair(&wtx, (CAccountingEntry*)0)));
+        }
     }
     else
     {
@@ -2030,6 +2071,7 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
         {
             wtx.nTimeReceived = GetAdjustedTime();
             wtx.nOrderPos = IncOrderPosNext(pwalletdb);
+            wtxOrdered.insert(make_pair(wtx.nOrderPos, TxPair(&wtx, (CAccountingEntry*)0)));
 
             wtx.nTimeSmart = wtx.nTimeReceived;
             if (!wtxIn.hashBlock.IsNull())
@@ -2039,25 +2081,20 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
                     int64_t latestNow = wtx.nTimeReceived;
                     int64_t latestEntry = 0;
                     {
-                        // Tolerate times up to the last timestamp in the wallet not more than 5 minutes into the future
+                        // Tolerate times up to the last timestamp in the wallet not more than 5 minutes into the future.
+                        // Walk incremental wtxOrdered (tx pointers only); do not OrderedTxItems-copy + lacentry merge.
+                        // Prefer const over Zcash line-for-line identity (operational S7 style). Exact wtxOrdered
+                        // type match remains postponed with WAL-RPC-ACCOUNTS.
                         int64_t latestTolerated = latestNow + 300;
-                        std::list<CAccountingEntry> acentries;
-                        TxItems txOrdered = OrderedTxItems(acentries);
-                        for (TxItems::reverse_iterator it = txOrdered.rbegin(); it != txOrdered.rend(); ++it)
+                        const TxItems& txOrdered = wtxOrdered;
+                        for (TxItems::const_reverse_iterator it = txOrdered.rbegin(); it != txOrdered.rend(); ++it)
                         {
-                            CWalletTx *const pwtx = (*it).second.first;
-                            if (pwtx == &wtx)
+                            const CWalletTx* pwtx = (*it).second.first;
+                            if (pwtx == &wtx || !pwtx)
                                 continue;
-                            CAccountingEntry *const pacentry = (*it).second.second;
-                            int64_t nSmartTime;
-                            if (pwtx)
-                            {
-                                nSmartTime = pwtx->nTimeSmart;
-                                if (!nSmartTime)
-                                    nSmartTime = pwtx->nTimeReceived;
-                            }
-                            else
-                                nSmartTime = pacentry->nTime;
+                            int64_t nSmartTime = pwtx->nTimeSmart;
+                            if (!nSmartTime)
+                                nSmartTime = pwtx->nTimeReceived;
                             if (nSmartTime <= latestTolerated)
                             {
                                 latestEntry = nSmartTime;
@@ -2271,8 +2308,12 @@ void CWallet::EraseFromWallet(const uint256 &hash)
         return;
     {
         LOCK(cs_wallet);
-        if (mapWallet.erase(hash))
+        map<uint256, CWalletTx>::iterator it = mapWallet.find(hash);
+        if (it != mapWallet.end()) {
+            RemoveFromWtxOrdered(&it->second);
+            mapWallet.erase(it);
             CWalletDB(strWalletFile).EraseTx(hash);
+        }
     }
     return;
 }
@@ -3338,6 +3379,7 @@ void CWallet::UpdateWalletTransactionOrder(std::map<std::pair<int,int>, CWalletT
   CWalletDB(strWalletFile).WriteOrderPosNext(nOrderPosNext);
   LogPrint("deletetx","Reorder Tx - Total Transactions Reordered %i, Next Position %i\n ", mapUpdatedTxs.size(), nOrderPosNext);
 
+  RebuildWtxOrdered();
 }
 
 /**
@@ -3349,7 +3391,10 @@ void CWallet::DeleteTransactions(std::vector<uint256> &removeTxs) {
     CWalletDB walletdb(strWalletFile, "r+", false);
 
     for (int i = 0; i< removeTxs.size(); i++) {
-        if (mapWallet.erase(removeTxs[i])) {
+        map<uint256, CWalletTx>::iterator it = mapWallet.find(removeTxs[i]);
+        if (it != mapWallet.end()) {
+            RemoveFromWtxOrdered(&it->second);
+            mapWallet.erase(it);
             walletdb.EraseTx(removeTxs[i]);
             LogPrint("deletetx","Delete Tx - Deleting tx %s, %i.\n", removeTxs[i].ToString(),i);
         } else {
@@ -5167,7 +5212,7 @@ void CWallet::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool)
         if (!HaveKey(keypool.vchPubKey.GetID()))
             throw runtime_error("ReserveKeyFromKeyPool(): unknown key in key pool");
         assert(keypool.vchPubKey.IsValid());
-        LogPrintf("keypool reserve %d\n", nIndex);
+        // LogPrintf("keypool reserve %d\n", nIndex);  // hot path; leave quiet
     }
 }
 
@@ -5189,7 +5234,7 @@ void CWallet::ReturnKey(int64_t nIndex)
         LOCK(cs_wallet);
         setKeyPool.insert(nIndex);
     }
-    LogPrintf("keypool return %d\n", nIndex);
+    // LogPrintf("keypool return %d\n", nIndex);  // hot path; leave quiet
 }
 
 bool CWallet::GetKeyFromPool(CPubKey& result)

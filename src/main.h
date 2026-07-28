@@ -180,6 +180,9 @@ extern bool fLargeWorkInvalidChainFound;
 // it is unneeded for testing
 extern bool fCoinbaseEnforcedProtectionEnabled;
 extern size_t nCoinCacheUsage;
+/** -dbcache slice budgets (bytes), set at AppInit2 cache split */
+extern size_t nBlockTreeDBCacheBytes;
+extern size_t nCoinDBCacheBytes;
 extern CFeeRate minRelayTxFee;
 extern bool fAlerts;
 extern std::map<uint256, int64_t> mapRejectedBlocks;
@@ -290,6 +293,8 @@ bool DisconnectBlocksAndReprocess(int blocks);
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState& state, const CChainParams& chainparams, const CBlock* pblock = NULL);
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
+/** Founders / development carve: 7.5% of subsidy, trunc toward 0 (integer zats). */
+CAmount GetFoundersRewardAmount(CAmount subsidy);
 
 /**
  * Prune block and undo files (blk???.dat and undo???.dat) so that the disk space used is less than a user-defined target.
@@ -566,6 +571,9 @@ extern CCoinsViewCache *pcoinsTip;
 
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern CBlockTreeDB *pblocktree;
+
+/** Global variable that points to the chainstate LevelDB view (protected by cs_main) */
+extern CCoinsViewDB *pcoinsdbview;
 
 /** Global variable that points to the spork database (protected by cs_main) */
 extern CSporkDB* pSporkDB;

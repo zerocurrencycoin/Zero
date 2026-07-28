@@ -41,7 +41,7 @@ class BitcoinRPC:
 	def build_request(idx, method, params):
 		obj = { 'version' : '1.1',
 			'method' : method,
-			'id' : idx }
+			'id' : idx }n
 		if params is None:
 			obj['params'] = []
 		else:
@@ -96,7 +96,7 @@ if __name__ == '__main__':
 	if 'host' not in settings:
 		settings['host'] = '127.0.0.1'
 	if 'port' not in settings:
-		settings['port'] = 23801
+		settings['port'] = 23811
 	if 'min_height' not in settings:
 		settings['min_height'] = 0
 	if 'max_height' not in settings:

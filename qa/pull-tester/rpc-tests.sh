@@ -65,6 +65,7 @@ testScripts=(
     'addressindex.py'
     'spentindex.py'
     'timestampindex.py'
+    'txindex.py'
     'decodescript.py'
     'keypool.py'
     'blockchain.py'
@@ -72,6 +73,7 @@ testScripts=(
     'zkey_import_export.py'
     'reorg_limit.py'
     'getblocktemplate.py'
+    'founders_window.py'
     'bip65-cltv-p2p.py'
     'bipdersig-p2p.py'
     'p2p_nu_peer_management.py'
@@ -97,6 +99,9 @@ testScriptsExt=(
     'maxblocksinflight.py'
     'invalidblockrequest.py'
     'p2p-acceptblock.py'
+    'rpc_coverage_probe.py'
+    'rpc_workqueue_full.py'
+    'getalldata_scenario.py'
 );
 
 if [ "x$ENABLE_ZMQ" = "x1" ]; then
@@ -128,20 +133,29 @@ testScriptsTierA=(
     'p2p_nu_peer_management.py'
 )
 
-# Tier counts (pass tiers): A=10, B pass=22 (21 unique; txn_doublespend x2), E pass=2; -all runs 34.
-# Bfail: Debug=32, Retired=6; -rpcfail runs Bfail+Efail diagnostic tiers.
+# Tier counts (pass tiers): A=10, B pass=27 (26 unique; txn_doublespend x2), E pass=8; -all runs 45.
+# Bfail: Debug=25, Retired=6; -rpcfail runs Bfail+Efail diagnostic tiers.
 # Tier B pass: in testScripts but not Tier A.
+# 2026-07-22: promoted insight suite (addressindex/spentindex/timestampindex/rest/getrawtransaction_insight) from Bfail Debug after PASS.
+# 2026-07-22: promoted walletbackup.py from Bfail Debug after re-PASS (~80s; TST-07 wallet half).
+# 2026-07-22: txindex.py added to inventory + Bfail Debug (orphan; fails Py3 Decimal + BTC 50-subsidy asserts).
+# 2026-07-24: promoted receivedby, rpcbind_test from Efail after PASS under -E.
+# 2026-07-24: promoted mempool_limit from Bfail Debug after PASS.
+# 2026-07-24: getblocktemplate_longpoll fixed (pin funded node) + promoted Ext pass.
+# 2026-07-24: rpc_workqueue_full (S8 503) added Ext pass.
+# 2026-07-24: founders_window.py (REGTEST_FOUNDERS_START/STOP).
+# 2026-07-24: wallet.py promoted (Sapling path; fee-aware miner balances).
+# 2026-07-25: heavy proving / multi-GB RSS moved to Bfail Debug (see below).
 testScriptsTierBPass=(
+    'wallet.py'
     'wallet_anchorfork.py'
     'wallet_changeindicator.py'
     'wallet_import_export.py'
-    'wallet_protectcoinbase.py'
-    'wallet_shieldcoinbase_sapling.py'
-    'wallet_nullifiers.py'
     'wallet_1941.py'
     'listtransactions.py'
     'mempool_resurrect_test.py'
     'mempool_spendcoinbase.py'
+    'mempool_limit.py'
     'txn_doublespend.py'
     'txn_doublespend.py --mineblock'
     'zapwallettxes.py'
@@ -149,19 +163,24 @@ testScriptsTierBPass=(
     'signrawtransactions.py'
     'nodehandling.py'
     'rescan_startup.py'
-    'zkey_import_export.py'
     'getblocktemplate.py'
+    'founders_window.py'
     'p2p_txexpiry_dos.py'
     'p2p_txexpiringsoon.py'
     'p2p_node_bloom.py'
+    'getrawtransaction_insight.py'
+    'rest.py'
+    'addressindex.py'
+    'spentindex.py'
+    'timestampindex.py'
+    'walletbackup.py'
 )
 
 # Tier B fail: known broken; diagnostic only (-Bfail). Subgroups for triage (still one -Bfail run).
-#   BfailDebug: porting / maturity / insight / comptool / Py3 -- needs engineering
+#   BfailDebug: porting / maturity / comptool / Py3 -- needs engineering
 #   BfailRetired: Sprout-era, manual testnet, merge-to-address sprout -- low priority
 testScriptsTierBFailDebug=(
     'shorter_block_times.py'
-    'wallet.py'
     'wallet_changeaddresses.py'
     'wallet_addresses.py'
     'rescan_import.py'
@@ -173,24 +192,23 @@ testScriptsTierBFailDebug=(
     'mergetoaddress_sapling.py'
     'mergetoaddress_mixednotes.py'
     'rawtransactions.py'
-    'getrawtransaction_insight.py'
-    'rest.py'
-    'mempool_limit.py'
     'mempool_reorg.py'
     'mempool_nu_activation.py'
     'mempool_tx_expiry.py'
     'merkle_blocks.py'
     'fundrawtransaction.py'
     'signrawtransaction_offline.py'
-    'walletbackup.py'
     'key_import_export.py'
-    'addressindex.py'
-    'spentindex.py'
-    'timestampindex.py'
     'bip65-cltv-p2p.py'
     'bipdersig-p2p.py'
     'regtest_signrawtransaction.py'
     'finalsaplingroot.py'
+    'txindex.py'
+    # Heavy shielded proving (multi-GB RSS on -all); run via -Bfail / basename.
+    'wallet_shieldcoinbase_sapling.py'
+    'wallet_protectcoinbase.py'
+    'wallet_nullifiers.py'
+    'zkey_import_export.py'
 )
 
 testScriptsTierBFailRetired=(
@@ -207,31 +225,38 @@ testScriptsTierBFail+=("${testScriptsTierBFailDebug[@]}")
 testScriptsTierBFail+=("${testScriptsTierBFailRetired[@]}")
 
 # Ext pass / fail (testScriptsExt subsets).
+# 2026-07-24: promoted receivedby, rpcbind_test from Efail after PASS under -E.
+# 2026-07-24: getblocktemplate_longpoll -- root cause random from_node on unfunded cache node1;
+#             pinned funded node; 3x alone + after Ext-pass prefix PASS -> Ext pass.
 testScriptsExtPass=(
     'invalidateblock.py'
     'maxblocksinflight.py'
+    'rpc_coverage_probe.py'
+    'receivedby.py'
+    'rpcbind_test.py'
+    'getblocktemplate_longpoll.py'
+    'rpc_workqueue_full.py'
+    'getalldata_scenario.py'
 )
 
 testScriptsExtFail=(
-    'getblocktemplate_longpoll.py'
     'getblocktemplate_proposals.py'
     'pruning.py'
-    'receivedby.py'
-    'rpcbind_test.py'
     'smartfees.py'
     'invalidblockrequest.py'
     'p2p-acceptblock.py'
 )
 
 # Invocation tiers (documented in TEST_ZERO.md; inventory: -list-csv):
-#   Pass: A=10, B=22, E=2 (-all = 34). Bfail: Debug=31, Retired=6. Efail=8.
+#   Pass: A=10, B=27 (26 unique; txn_doublespend x2), E=8 (-all = 45). Bfail Debug includes heavy proving. Efail=5.
 #   -A | --tier-a       Tier A gate
 #   -B | --tier-b       Tier B pass only
 #   -Bfail              Tier B fail only (Debug then Retired; diagnostic)
 #   -list-csv [path]    Tier/group/script CSV to stdout or path; no tests run
 #   -E | --tier-e       Ext pass only
 #   -Efail              Ext fail only (diagnostic)
-#   -all                -A then -B then -E (pass tiers)
+#   -all                -A then -B then -E (pass tiers). Same meaning as contrib/run-tests.sh --all|-all
+#                       (contrib accepts both spellings; this script only accepts -all).
 #   -rpcfail            -Bfail then -Efail (diagnostic)
 #   (no args)           same as -all (qa/zcash/full_test_suite.py rpc stage)
 #   <name>              one script by basename

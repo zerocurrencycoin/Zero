@@ -171,7 +171,7 @@ mkdir -p ~/.zero
 echo "server=1" > ~/.zero/zero.conf
 echo "rpcuser=YOUR_NAME" >> ~/.zero/zero.conf
 echo "rpcpassword=$(head -c 32 /dev/urandom | base64)" >> ~/.zero/zero.conf
-echo "rpcport=23801" >> ~/.zero/zero.conf
+echo "rpcport=23811" >> ~/.zero/zero.conf
 ```
 
 **macOS**:

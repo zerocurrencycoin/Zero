@@ -81,6 +81,10 @@ class Cache {
   // its cache keys.
   virtual uint64_t NewId() = 0;
 
+  // Approximate total charge of entries currently in the cache (bytes).
+  // Zero adds this for OPS-CACHE-METRICS / getdbinfo (not in upstream LevelDB 1.x API).
+  virtual size_t TotalCharge() = 0;
+
  private:
   void LRU_Remove(Handle* e);
   void LRU_Append(Handle* e);

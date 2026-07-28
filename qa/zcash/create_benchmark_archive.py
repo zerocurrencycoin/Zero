@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Utility (not in rpc-tests.sh). Py3: use //= for compress_amount, int-safe
+# decode_varint, and decode find output as utf-8 before split.
 
 import binascii
 import calendar
@@ -49,8 +51,9 @@ def encode_varint(n):
 def decode_varint(v):
     n = 0
     for ch in range(len(v)):
-        n = (n << 7) | (ord(v[ch]) & 0x7F)
-        if (ord(v[ch]) & 0x80):
+        byte = v[ch] if isinstance(v[ch], int) else ord(v[ch])
+        n = (n << 7) | (byte & 0x7F)
+        if byte & 0x80:
             n += 1
         else:
             return n
@@ -60,12 +63,12 @@ def compress_amount(n):
         return 0
     e = 0
     while (((n % 10) == 0) and e < 9):
-        n /= 10
+        n //= 10
         e += 1
     if e < 9:
         d = (n % 10)
         assert(d >= 1 and d <= 9)
-        n /= 10
+        n //= 10
         return 1 + (n*9 + d - 1)*10 + e
     else:
         return 1 + (n - 1)*10 + 9
@@ -249,7 +252,7 @@ def create_benchmark_archive(blk_hash):
 
     # Make reproducible archive
     os.remove('%s/LOG' % db_path)
-    files = subprocess.check_output(['find', 'benchmark']).strip().split('\n')
+    files = subprocess.check_output(['find', 'benchmark']).decode('utf-8').strip().split('\n')
     archive_name = 'block-%d.tar' % blk['height']
     tar = tarfile.open(archive_name, 'w')
     for name in sorted(files):

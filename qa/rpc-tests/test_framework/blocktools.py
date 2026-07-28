@@ -43,10 +43,13 @@ def serialize_script_num(value):
     return r
 
 counter=1
-# Zero regtest: 10 ZER base, halving every 150 blocks, 7.5% founder from block 5000
+# Zero regtest: match Consensus::REGTEST_FOUNDERS_* (util.py mirrors params.h)
+from test_framework.util import (
+    REGTEST_FOUNDERS_START,
+    REGTEST_FOUNDERS_STOP,
+    REGTEST_HALVING,
+)
 COIN = 100000000
-ZERO_REGTEST_FEE_START = 5000
-ZERO_REGTEST_HALVING = 150
 
 # Create an anyone-can-spend coinbase transaction, assuming no miner fees
 def create_coinbase(heightAdjust = 0):
@@ -57,14 +60,17 @@ def create_coinbase(heightAdjust = 0):
                 CScript([height, OP_0]), 0xffffffff))
     counter += 1
     coinbaseoutput = CTxOut()
-    nSubsidy = int(10 * COIN)  # Zero: 10 ZER pre-fee
-    halvings = int(height / ZERO_REGTEST_HALVING)
-    coinbaseoutput.nValue = nSubsidy >> halvings
-    coinbaseoutput.scriptPubKey = ""
+    base = (108 * COIN // 10) if height >= REGTEST_FOUNDERS_START else (10 * COIN)
+    halvings = int(height / REGTEST_HALVING)
+    if halvings >= 64:
+        coinbaseoutput.nValue = 0
+    else:
+        coinbaseoutput.nValue = base >> halvings
+    coinbaseoutput.scriptPubKey = b""
     coinbase.vout = [ coinbaseoutput ]
-    if height >= ZERO_REGTEST_FEE_START and halvings < 64:
+    if (REGTEST_FOUNDERS_START <= height < REGTEST_FOUNDERS_STOP) and halvings < 64:
         froutput = CTxOut()
-        froutput.nValue = int(coinbaseoutput.nValue * 7.5 / 100)  # 7.5% founder
+        froutput.nValue = coinbaseoutput.nValue * 75 // 1000  # 7.5% founder, integer
         fraddr = bytearray([0x67, 0x08, 0xe6, 0x67, 0x0d, 0xb0, 0xb9, 0x50,
                             0xda, 0xc6, 0x80, 0x31, 0x02, 0x5c, 0xc5, 0xb6,
                             0x32, 0x13, 0xa4, 0x91])  # regtest founder t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg
@@ -80,6 +86,6 @@ def create_transaction(prevtx, n, sig, value):
     tx = CTransaction()
     assert(n < len(prevtx.vout))
     tx.vin.append(CTxIn(COutPoint(prevtx.sha256, n), sig, 0xffffffff))
-    tx.vout.append(CTxOut(value, ""))
+    tx.vout.append(CTxOut(value, b""))
     tx.calc_sha256()
     return tx

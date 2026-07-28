@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 #
-# Use the raw transactions API to spend bitcoins received on particular addresses,
+# Use the raw transactions API to spend coins received on particular addresses,
 # and send any change back to that same address.
 #
 # Example usage:
 #  spendfrom.py  # Lists available funds
 #  spendfrom.py --from=ADDRESS --to=ADDRESS --amount=11.00
 #
-# Assumes it will talk to a bitcoind or Bitcoin-Qt running
-# on localhost.
+# Assumes it will talk to zerod running on localhost (reads zero.conf).
 #
 # Depends on jsonrpc
 #
@@ -33,15 +32,15 @@ def check_json_precision():
         raise RuntimeError("JSON encode/decode loses precision")
 
 def determine_db_dir():
-    """Return the default location of the bitcoin data directory"""
+    """Return the default location of the Zero data directory"""
     if platform.system() == "Darwin":
-        return os.path.expanduser("~/Library/Application Support/Bitcoin/")
+        return os.path.expanduser("~/Library/Application Support/zero/")
     elif platform.system() == "Windows":
-        return os.path.join(os.environ['APPDATA'], "Bitcoin")
-    return os.path.expanduser("~/.bitcoin")
+        return os.path.join(os.environ['APPDATA'], "zero")
+    return os.path.expanduser("~/.zero")
 
-def read_bitcoin_config(dbdir):
-    """Read the bitcoin.conf file from dbdir, returns dictionary of settings"""
+def read_zero_config(dbdir):
+    """Read the zero.conf file from dbdir, returns dictionary of settings"""
     from ConfigParser import SafeConfigParser
 
     class FakeSecHead(object):
@@ -59,11 +58,11 @@ def read_bitcoin_config(dbdir):
                 return s
 
     config_parser = SafeConfigParser()
-    config_parser.readfp(FakeSecHead(open(os.path.join(dbdir, "bitcoin.conf"))))
+    config_parser.readfp(FakeSecHead(open(os.path.join(dbdir, "zero.conf"))))
     return dict(config_parser.items("all"))
 
 def connect_JSON(config):
-    """Connect to a bitcoin JSON-RPC server"""
+    """Connect to a zerod JSON-RPC server"""
     testnet = config.get('testnet', '0')
     testnet = (int(testnet) > 0)  # 0/1 in config file, convert to True/False
     if not 'rpcport' in config:
@@ -72,7 +71,7 @@ def connect_JSON(config):
     try:
         result = ServiceProxy(connect)
         # ServiceProxy is lazy-connect, so send an RPC command mostly to catch connection errors,
-        # but also make sure the bitcoind we're talking to is/isn't testnet:
+        # but also make sure the zerod we're talking to is/isn't testnet:
         if result.getmininginfo()['testnet'] != testnet:
             sys.stderr.write("RPC server at "+connect+" testnet setting mismatch\n")
             sys.exit(1)
@@ -238,7 +237,7 @@ def main():
     (options, args) = parser.parse_args()
 
     check_json_precision()
-    config = read_bitcoin_config(options.datadir)
+    config = read_zero_config(options.datadir)
     if options.testnet: config['testnet'] = True
     bitcoind = connect_JSON(config)
 

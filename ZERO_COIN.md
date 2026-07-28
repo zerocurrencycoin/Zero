@@ -65,14 +65,37 @@ Target block spacing **120 s** (pre-Blossom); ~800k blocks per halving interval 
 
 ---
 
-## Halving calendar
+## Emission timeline (mainnet)
+
+Historical path from genesis to the current schedule. Amounts are consensus mint (`GetBlockSubsidy`); payee split is applied after (founders / zeronode / miner).
+
+| When (UTC) | Height | Event | Base subsidy /block | Halvings | Split notes |
+|------------|-------:|-------|--------------------:|---------:|-------------|
+| 19 Feb 2017 | 0 | Genesis | **10** ZER | 0 | No founders carve yet |
+| ~Sep 2018 (est.) | **412,300** | **Fee-start** | **10.8** ZER | 0 | Founders **7.5%** required; zeronode still 20% until 800k |
+| 7 Mar 2020 | **800,000** | Halving 1 | **5.4** ZER | 1 | Zeronode tier -> **25%** |
+| 25 Mar 2023 | **1,600,000** | Halving 2 | **2.7** ZER | 2 | Zeronode tier -> **30%** |
+| 12 Mar 2026 | **2,400,000** | Halving 3 | **1.35** ZER | 3 | Zeronode tier -> **35%** |
+| (next) | **3,200,000** | Halving 4 | **0.675** ZER | 4 | Zeronode tier -> **40%** |
+| (schedule) | **7,999,999** | Last founders height | (then-current halved base) | -- | Founders carve ends |
+| (asymptote) | -- | Long-run mint | -> 0 after 64 halvings | -- | Model / `MAX_MONEY` ceiling **21M** zats cap is per-output, not total supply |
+
+**Issued through height 2,400,000 (halving 3 inclusive):** **14,790,161.35 ZER** minted -- Miner **10,600,091.78** / Nodes **3,390,032.47** / Dev **800,037.10** (see **Emission totals** below).
+
+**Live tip (Jun 2026, height ~2,477,766):** model subsidy **~14.895M ZER** (`chain_stats.py --verify`). Current era: post-halving-3 base **1.35 ZER**/block; founders **7.5%** of that; zeronode **35%** when sporks on.
+
+**Projected:** next halving **3,200,000**; founders continue to **7,999,999**; cumulative mint at founders end model **~16.93M ZER**; long-run schedule asymptotes under the 21M-class ceiling used in tests -- product target remains **some 20M ZER** (supply review open).
+
+### Halving calendar (compact)
 
 | Event | Block | Date (UTC) |
 |-------|-------|------------|
 | Genesis | 0 | 19 Feb 2017 |
-| Halving 1 | 800,000 | March 7, 2020 |
-| Halving 2 | 1,600,000 | March 25, 2023 |
-| Halving 3 | 2,400,000 | March 12, 2026 |
+| Fee-start | 412,300 | ~Sep 2018 (120 s spacing est.) |
+| Halving 1 | 800,000 | 7 Mar 2020 |
+| Halving 2 | 1,600,000 | 25 Mar 2023 |
+| Halving 3 | 2,400,000 | 12 Mar 2026 |
+| Halving 4 (next) | 3,200,000 | ~2029 (spacing est.) |
 
 ---
 
@@ -117,7 +140,7 @@ At mainnet fee-start: base subsidy steps **10 -> 10.8 ZER**; founders output bec
 
 - **When:** `height >= fee-start` and `height <=` last founders height (**7,999,999** under pre-Blossom formula).
 - **Amount:** **7.5%** of **`GetBlockSubsidy`** for that height.
-- **Where:** Rotates among **`vFoundersRewardAddress`** (mainnet addresses in **Founder and system addresses** below). **`getblockchaininfo`** exposes this as **`developmentfee`**.
+- **Where:** Rotates among **`vFoundersRewardAddress`** (mainnet addresses in **Founder and system addresses** below). RPC today: **`zeronodestats`** -> `chainStats.developmentfee` / `developmentfeezats`; GBT / `getblocksubsidy` use **founders** / **foundersreward**. Naming reconcile = **DOC-FR-NAMING** (postponed).
 
 ---
 
@@ -156,6 +179,10 @@ Share of **block value** (subsidy before fees split).
 
 Total supply is targeted at some **20M ZER**. **`MAX_MONEY`** in **`src/amount.h`** limits per-output amounts; validation uses **`MoneyRange`** on individual subsidy outputs, not a running cap on total supply. Integrators should not equate **`MAX_MONEY`** with total supply.
 
+### Stable arithmetic (why integer)
+
+Subsidy and founders amounts must match in miner, `ConnectBlock`, GBT, and RPC. Mixing `double` with `CAmount` (`10.8 * COIN`, `* 0.075`, `* 7.5 / 100`) can diverge by path after many halvings. **Target:** one integer rule -- base subsidy in zats; founders **`subsidy * 75 / 1000`** (trunc toward 0); same helper everywhere. Zeronode share already uses integer percent (`blockValue * N / 100`). Implementation tracking: **TODO.md** / **BUILD_ZERO.md** §4.8 touch list.
+
 ---
 
 ## Network upgrades and branch identifiers
@@ -186,7 +213,7 @@ Mainnet donation address (zerowallet repo): `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP
 
 ## Operational reference
 
-- **Default RPC port:** **23801** (see [README -- Running Zero](README.md#-running-zero), `contrib/zero.conf`).
+- **Default RPC port:** **23811** (P2P is **23801**; see [README -- Running Zero](README.md#-running-zero), `src/chainparamsbase.cpp`).
 - **Datadir / wallet:** see table below; wallet file **`wallet.zero`** -- **back up** before upgrades.
 - **Proving params:** `zcutil/fetch-params.sh`; see [BUILD_ZERO -- .zero directory](BUILD_ZERO.md#3-zero-directory).
 
@@ -306,7 +333,9 @@ Tools: see command table in **Emission totals** above.
 
 | RPC | Use |
 |-----|-----|
-| `getblockchaininfo` | Tip, `valuePools` (sprout/sapling/transparent), `developmentfee` |
+| `getblockchaininfo` | Tip, `valuePools` (sprout/sapling/transparent) |
+| `zeronodestats` | Includes `chainStats.developmentfee` (founders carve) |
+| `getblocksubsidy` | `miner` / `founders` amounts |
 | `getblock <hash> 2` | Coinbase vout decode |
 | `gettxoutsetinfo` | UTXO set size (requires no pruning) |
 | `getmininginfo` | Network hash, difficulty |

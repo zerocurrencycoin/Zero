@@ -7,8 +7,10 @@ to `UpdateZero.md` TST-NN / §-numbers are kept so this file can be folded back 
 desired.
 
 **Baseline (2026-07-01):** `./contrib/run-tests.sh --all` (no `--strict`) passes
-clean -- C++ suites, quick checks, and all 34 RPC scripts, 0 failures. The
-failures discussed below appear only when a test is run *outside* the harness
+clean -- C++ suites, quick checks, and the then-current pass-tier RPC set
+(**34** invocations at that date), 0 failures. As of **2026-07-22**, pass-tier
+**`-all`** is **47** (A10+B29+E8 including **`getalldata_scenario`** / **`rpc_workqueue_full`** / Insight B-pass + Ext greens; exact lists **TEST_ZERO.md** §3).
+Failures discussed below appear only when a test is run *outside* the harness
 filter (raw `zero-gtest` binary) or is in a known-fail tier that `--all` does not
 gate on.
 
@@ -18,8 +20,10 @@ gate on.
 
 *(Relates to `UpdateZero.md` TST-04, TST-08, §2 Witness path, §3.3 CachedWitnesses, PIR-03. Investigation 2026-07-01.)*
 
+**Task hub (postponed):** **WitnessReindex.md** -- proposed **`reindex_shielded.py`** (B1), CleanIndex gtest (B2), witness hardening (C). Tracking: **TST-WITNESS-REINDEX**.
+
 Extends TST-04 with precise root cause and two concrete, separable proposals
-(B: harness/coverage; C: hardening). This is the authoritative record; TST-04's
+(B: harness/coverage; C: hardening). This section remains the RCA record; TST-04's
 one-line "seed `CCoinsViewCache`" summary is superseded here.
 
 ### Finding 1 -- not a regression, not a tier issue
@@ -59,7 +63,7 @@ coverage.
 
 ### Proposed solution B -- close the reindex coverage gap
 Two routes; the RPC route is preferred.
-- **B1 (preferred) -- shielded RPC reindex test.** Extend `qa/rpc-tests/reindex.py` (or add `reindex_shielded.py`) to: `z_sendmany` into a zaddr, mine to maturity, restart with `-reindex`, then assert the shielded balance is spendable and a subsequent `z_sendmany` succeeds (witnesses rebuilt with correct anchors). This exercises the **real** `BuildWitnessCache` + `pcoinsTip` + `ReadBlockFromDisk` path end-to-end with no harness faking. Lower effort, higher fidelity than B2. Slot into Tier B.
+- **B1 (preferred) -- shielded RPC reindex test (`reindex_shielded.py`).** Design and acceptance sketch: **WitnessReindex.md** §2. Extend `qa/rpc-tests/reindex.py` or add `reindex_shielded.py`: `z_sendmany` into a zaddr, mine to maturity, restart with `-reindex`, then assert the shielded balance is spendable and a subsequent `z_sendmany` succeeds (witnesses rebuilt with correct anchors). This exercises the **real** `BuildWitnessCache` + `pcoinsTip` + `ReadBlockFromDisk` path end-to-end with no harness faking. Lower effort, higher fidelity than B2. Slot into Tier B. **Not implemented yet; postponed under TST-WITNESS-REINDEX.**
 - **B2 (heavier) -- port the gtest.** Give the gtest harness (a) a `CCoinsViewCache`-backed `pcoinsTip` seeded with each block's Sprout/Sapling `(root -> tree)` anchors (extend the existing `SetBlockCommitmentTrees` helper), and (b) a disk-resolvable `ReadBlockFromDisk` -- either write blocks to a temp block store, or refactor `BuildWitnessCache` to accept an injectable block source. Medium-high effort; risk of cross-test global state leakage (must tear down `pcoinsTip` alongside the existing `mapBlockIndex` cleanup). Only pursue if in-process coverage is specifically wanted; otherwise B1 subsumes it. If completed, un-quarantine by removing the name from `GTEST_PASS_EXCLUDE`/`GTEST_FAIL_ONLY` in `qa/zcash/test_filters.sh`.
 
 ### Proposed solution C -- harden `GetSproutNoteWitnesses` / `GetSaplingNoteWitnesses` (crash-on-corrupt-cache)
@@ -122,24 +126,28 @@ declared `n,k` to Zero's **(192,7)** (`src/chainparams.cpp:94`, `Eh192_7` in
 the solver at (192,7) produces entirely different index sets and a different
 solution width (`cBitLen = n/(k+1) = 24` vs `16`). There is no adjustment short of
 **regenerating** the vectors by actually running `Equihash<192,7>::BasicSolve`.
-That is exactly the work TST-05 scopes. So the current
+That is exactly the remaining work TST-05 scopes. The current
 `if (nEquihashN != 96) return;` skip (`equihash_tests.cpp:111`) is correct
-behavior -- it prevents a guaranteed false failure -- but it silently means
-**Zero's real PoW parameters have zero known-answer coverage**.
+behavior -- it prevents a guaranteed false failure for the frozen (96,5) arrays.
+
+**Update 2026-07-22:** Zero is **not** at zero KAT coverage anymore. Boost
+`equihash_tests` also has mainnet genesis **(192,7)** valid + corrupt-solution
+cases and regtest genesis **(48,5)**; suite **PASS** on recheck. **TST-05**
+scope: add index-array KATs for **(192,7)** (128 indices) and **(48,5)**
+(32 indices) only; **drop (96,5)** / do not refresh `miner_tests` `blockinfo[]`.
 
 ### Confirmed build/run facts
 `ENABLE_MINING = 1` in this build (`src/config/bitcoin-config.h:30`), so the
-solver-vector cases compile and execute -- they early-return via the guard, they
-are not `#ifdef`-ed out. The non-solver cases (`expand_and_contract_arrays`,
+(96,5) solver-vector cases compile and early-return via the guard. The
+parameter-agnostic cases (`expand_and_contract_arrays`,
 `minimal_solution_representation`, `is_probably_duplicate`,
-`check_basic_solver_cancelled`, `check_optimised_solver_cancelled`) are
-**parameter-agnostic** and do run/pass; they cover encoding and cancellation, not
-Zero's KAT.
+`check_basic_solver_cancelled`, `check_optimised_solver_cancelled`) plus the
+Zero genesis header cases run/pass.
 
 ### Mining-test gaps found
 - **`src/gtest/test_miner.cpp`** tests only `Miner.GetScriptForMinerAddress` (miner-address plumbing). It does **not** assemble a block template, run the solver, or validate a solved header -- no end-to-end mine path in gtest.
 - **`src/test/miner_tests.cpp`** (`CreateNewBlock_validity`) carries a hardcoded `blockinfo[]` table of upstream **(96,5)** nonces/solutions and is already quarantined in the Boost known-fail bucket (`BOOST_FAIL_ONLY='miner_tests'`, `qa/zcash/test_filters.sh:8`). Same root cause as the Equihash vectors: the frozen solutions are for the wrong parameter set. It is excluded from default/`--all`, exercised only under `run-tests.sh --fail`.
-- Net: **no passing test** anywhere validates that Zero can build + solve + accept a block at (192,7). The closest live coverage is indirect -- RPC `generate` in regtest uses `-equihashsolver` at the regtest params (**(48,5)**, `src/chainparams.cpp:424`), not mainnet (192,7).
+- Net: genesis-header KATs cover **CheckEquihashSolution** at (192,7)/(48,5); **no** passing test yet validates build + solve + accept a **fresh** (192,7) block. RPC `generate` in regtest uses (**(48,5)**).
 
 ### Proposed fixes (priority order)
 1. **Regenerate (192,7) solver + validator vectors (= TST-05).** Standalone generator using `Equihash<192,7>::BasicSolve` (needs `ENABLE_MINING`) or extract `(nNonce, nSolution)` from known Zero mainnet headers and re-derive index arrays via `GetIndicesFromMinimal`. Add `solver_testvectors_192_7` (Boost, `#ifdef ENABLE_MINING`) and `validator_testvectors_192_7` (Boost, no mining needed -- validator runs without the solver). Mirror in the gtest file. Keep the (96,5) cases behind their existing guard for cross-check on non-Zero params.
@@ -176,9 +184,9 @@ Zero/Zcash-specific and integration-critical: the `z_*` shielded family,
 ### Finding A -- explorer/REST interfaces are quarantined AND were broken (highest-leverage gap)
 The tests that exercise what explorers and Insight-based wallets consume --
 `rest.py`, `addressindex.py`, `spentindex.py`, `timestampindex.py`,
-`getrawtransaction_insight.py` -- all sit in **`testScriptsTierBFailDebug`**
-(`qa/pull-tester/rpc-tests.sh`); none is in a pass tier, so `--all`
-(A + B-pass + E-pass) never gates on them. **Empirically verified 2026-07-02 --
+`getrawtransaction_insight.py` -- were in **`testScriptsTierBFailDebug`**
+(`qa/pull-tester/rpc-tests.sh`); none was in a pass tier, so `--all`
+(A + B-pass + E-pass) never gated on them. **Empirically verified 2026-07-02 --
 ran all five individually via `rpc-tests.sh <name>`; result: 0/5 pass.** This
 *corrects* an earlier assumption that the block was cache-only: the scripts
 self-provision insight
@@ -196,13 +204,15 @@ pass at all** before this work.
 #### Fixes applied 2026-07-02 (Steps 1-2 + test-side of Step 3; production code untouched)
 Edited the five scripts:
 - **Py3 ports:** `list(filter(...))` at every `filter(...)[i]` site (`spentindex`, `getrawtransaction_insight`, `addressindex`); `list(range(...))` in `timestampindex` `assert_equal`; `rest.py` reads the `/rest/getutxos.bin` response via `response_object=True` + `.read()` (raw bytes, no utf-8 decode).
-- **Maturity/height:** replaced hardcoded upstream-100 heights (102/106/107/108/109/110/111) with `COINBASE_MATURITY`-relative expressions (`mature_tip + N`, and `COINBASE_MATURITY + 2` in `rest.py`), keyed off the `coinbase_mature_tip(5)` helper the scripts already call.
+
+**Script lineage (clarified):** these are **Zcash-origin** Insight qa scripts (bundled `-insightexplorer` args). Failures against Zero are **Zero consensus/fixture mismatches** (maturity **720**, regtest founders vout gated until fee-start height), not “Pirate tests.” Pirate’s own suite uses **separate** `-addressindex` / `-spentindex` / `-timestampindex` flags.
+- **Maturity/height:** replaced hardcoded upstream-100 heights (102/106/107/108/109/110/111) with `COINBASE_MATURITY`-relative expressions (`mature_tip + N`, and `COINBASE_MATURITY + 2` in `rest.py`), keyed off the `mature_height(5)` helper the scripts already call.
 - **valueSat -> valueZat** on all vin assertions (item 3).
 
 #### Verification runs 2026-07-02 (after the fixes): 3/5 now pass, up from 0/5
 **PASS:** `timestampindex.py`, `getrawtransaction_insight.py`, `rest.py` (the last after the additional `rest.py` Py3 fixes documented below).
-**Still FAIL (deeper, non-mechanical -- a new layer the porting fixes exposed):**
-- **`spentindex.py:136` and `addressindex.py:113` -- same root cause: Zero's single-output regtest coinbase.** Both tests assume the upstream Zcash coinbase shape of **two** outputs (miner reward P2PKH + founders' reward P2SH from block 1). In Zero the founders/fee output is gated: `src/zeronode/payments.cpp:313` adds `txFounders` only when `nHeight >= consensus.nFeeStartBlockHeight`, and **regtest sets `nFeeStartBlockHeight = 5000`** (`src/chainparams.cpp:418`). These scripts mine to ~height 725-730, far below 5000, so the coinbase has **one** output. `addressindex.py:113` dereferences `tx['vout'][1]` (the absent founders output) -> `list index out of range`; `spentindex.py:136` asserts `len(coinbase outputs) == 2` and the `2.5*COIN` founders value. This is a genuine **consensus-shape divergence from Zcash**, not a harness or Py3 artifact. Two options: **(a)** rewrite the coinbase-shape expectations to Zero's single-output regtest reality (cheap, but loses founders-path coverage), or **(b)** raise the test chain above `nFeeStartBlockHeight` (5000 blocks -> slow) or lower regtest `nFeeStartBlockHeight` for these runs (touches params/harness). Recommend **(a)** for `addressindex`/`spentindex` now, and track founders-reward coverage separately. **Deferred -- needs a decision before editing** (it changes what the test asserts about Zero economics).
+**Promoted 2026-07-22 (EXT-INSIGHT-FIXTURES):**
+- **`spentindex.py` / `addressindex.py` -- Zero single-output regtest coinbase.** Scripts assumed Zcash 2-vout coinbase. **Decision: adapt tests to Zero settings** (maturity **720**, tip ~725 **below** fee-start **1000** → **1-vout**; halving-aware miner balances). Edits applied and **verified PASS** 2026-07-21; **re-PASS + moved to Tier B pass** 2026-07-22. Founders transition coverage: **`founders_window.py`** (ExtTests §4).
 - **`rest.py` -- RESOLVED as two more Python-3 idiom bugs; the REST API is correct.** Investigated 2026-07-02. The `.bin` decode fix exposed later Py2 relics, fixed in turn:
   - **`rest.py:161` (getutxos bin hash).** Was `hex(deser_uint256(output))[2:].zfill(65).rstrip("L")`. `deser_uint256` returns the right integer, but a uint256 is **64** hex chars and `.zfill(65)` padded to **65**, so it could never equal the 64-char `getbestblockhash()`; `.rstrip("L")` is a Py2 long-suffix relic. Verified by simulation: `zfill(65)` never matches, `zfill(64)` matches exactly. Fixed to `.zfill(64)` (dropped `rstrip`). **Not** a byte-order or REST-payload issue.
   - **`rest.py:256,264` (block/header hex compare).** `response_str.encode("hex")` -- Py3 removed the `"hex"` codec from `str/bytes.encode`. `response_str`/`response_header_str` are raw block **bytes** (`.bin` endpoint); the `.hex` endpoint returns ASCII-hex bytes. Fixed with `binascii.hexlify(...)` (returns bytes, matches the hex endpoint). `binascii` already imported.
@@ -211,11 +221,14 @@ Edited the five scripts:
 #### Fix A (revised) -- ordered plan
 Not a cache/tier reshuffle alone.
 1. Port the five scripts to Python 3 (`list(filter(...))`, `list(range(...))`, keep `.bin` responses as bytes). **[done]**
-2. Re-base height/maturity math on `COINBASE_MATURITY=720` (reuse the `coinbase_mature_tip` / `ensure_mature_coinbase_or_skip` helpers already used elsewhere). **[done]**
+2. Re-base height/maturity math on `COINBASE_MATURITY=720` (reuse the `mature_height` / `mature_or_skip` helpers already used elsewhere). **[done]**
 3. Resolve the `vin.valueSat` question -- confirmed a stale test expectation; asserted `valueZat` instead. **[done, no code change]**
 4. `rest.py` deeper failures -- resolved (two more Py3 idioms; see above). **[done]** `rest.py` passes.
-5. `spentindex`/`addressindex` single-output-coinbase failure -- decide between test-side adaptation and the `nFeeStartBlockHeight` change (see the dedicated analysis in section 4 below). **[open, needs decision]**
-6. Only then promote the greens from `testScriptsTierBFailDebug` to a pass group (e.g. `-E`) and add to `test_tier_inventory.csv`. `timestampindex.py`, `getrawtransaction_insight.py`, and `rest.py` are green now and promotion-ready once the group is settled. Acceptance: the promoted scripts pass under `./contrib/run-tests.sh --all --strict`.
+5. `spentindex`/`addressindex` -- adapt to Zero 1-vout regtest settings. **[done 2026-07-21; both PASS]**
+6. Promote greens from `testScriptsTierBFailDebug` to a pass group; acceptance under `./contrib/run-tests.sh --all --strict`. **[done 2026-07-22 for the five insight scripts -> Tier B pass]** Process lesson (verify ≠ promote): **TEST_ZERO.md** section **Process -> Tier engagement**.
+
+#### Related: pure `-txindex` (`txindex.py`) -- Bfail Debug 2026-07-22
+Orphan Bitcoin-era script (was not in `rpc-tests.sh`). Complements insight suite; does **not** replace it. Inventoried under **`testScriptsTierBFailDebug`**. Failures / suggested fixes: **TEST_ZERO.md** `txindex.py` debug (Py3 `Decimal` into `CTxOut.nValue`; Bitcoin **50**-ZER asserts vs Zero regtest **10** ZER). Run: `./qa/pull-tester/rpc-tests.sh txindex`. Promote to B pass only after green.
 
 ### Finding B -- shielded (`z_*`) coverage is good; a few high-value holes remain
 `z_sendmany`, `z_shieldcoinbase`, `z_mergetoaddress`, `z_listunspent`,
@@ -259,69 +272,20 @@ analysis).
 
 ---
 
-## 4. Impact analysis: lowering regtest `nFeeStartBlockHeight` (5000 -> ~800-1000)
+## 4. Founders window (regtest)
 
-*(Requested 2026-07-02 as a possible fix for the `spentindex`/`addressindex`
-single-output-coinbase failures. Conclusion: **not recommended** -- it does not
-achieve the goal without further changes and it breaks currently-passing tests.)*
+Constants (C++ and Python): **`REGTEST_FOUNDERS_START`/`STOP`** = **1000**/**1500**.
+Active **`[START, STOP)`**: base **10.8**, founders **7.5%**, two coinbase vouts.
+Outside: one miner vout (base **10** below START; **10.8** at/after STOP).
+Maturity stays **720**.
 
-### What `nFeeStartBlockHeight` actually controls
-It is a **consensus parameter** (`src/consensus/params.h:117`) coupling two things
-at its height boundary:
-1. **Block subsidy step:** `GetBlockSubsidy` returns `10 ZER` below it and `10.8 ZER` at/above it (`src/main.cpp:2112`).
-2. **Founders-reward coinbase output:** a 2nd coinbase output (7.5% of block value, `vFoundersReward = blockValue * 7.5/100`) is added only when `nFeeStartBlockHeight <= nHeight <= GetLastFoundersRewardBlockHeight` (`src/zeronode/payments.cpp:305,313`).
-
-Other consumers keyed off it: `src/main.cpp:4503` (block validation of founders
-output), `src/rpc/mining.cpp:945`, `src/metrics.cpp:345`,
-`src/wallet/rpczerowallet.cpp:2502` (supply calc), `src/zeronode/budget.cpp:535`,
-and `src/test/main_tests.cpp` (subsidy boundary -- but that test uses **MAIN**
-params, not regtest, so it is unaffected).
-
-### The regtest founders window is `[nFeeStart .. 1499]` -- and 5000 disables it on purpose
-`GetLastFoundersRewardBlockHeight` in regtest = `(nPreBlossomRegtestHalvingInterval * 10) - 1 = (150 * 10) - 1 = **1499**`
-(regtest Blossom is `NO_ACTIVATION_HEIGHT`, so the pre-Blossom branch applies;
-`src/consensus/params.cpp:35`, `src/consensus/params.h:83`).
-- **At 5000 (current):** `5000 > 1499`, so the window `[5000..1499]` is **empty** -- founders reward is **permanently OFF in regtest**. The value 5000 appears deliberately chosen to disable founders in regtest and keep coinbases single-output with clean 10-ZER math.
-- **At 800:** founders turns **ON for heights [800..1499]** (a 700-block window). The 720-block mining flows still run, but any block at height >= 800 changes shape and subsidy.
-
-The address-vector assert `assert(vFoundersRewardAddress.size() <= GetLastFoundersRewardBlockHeight(0))` (`src/chainparams.cpp:531`) is `1 <= 1499` -> **safe** either way (it does not depend on `nFeeStartBlockHeight`).
-
-### Why it breaks currently-passing tests
-The test-framework helper `zero_regtest_subsidy_range` (`qa/rpc-tests/test_framework/util.py:37`)
-hardcodes **base 10, halving every 150, and is NOT founders/fee-aware** (no
-`10.8`, no 7.5% skim). So any passing test that mines to heights >= 800 and asserts
-exact balances would compute wrong expectations:
-- `wallet.py` mines to ~height 1441-1446 and asserts balances via this helper -> would break.
-- Any `mature_tip`-relative exact-balance assertion crossing 800.
-Magnitude per block at h>=800: block value `10.8`, founders skim `0.81`, miner
-keeps `9.99` (vs helper's `10.0`) **plus** a founders P2SH output the wallet does
-not own. Small per block, but exact-match assertions fail. (Regtest also halves
-subsidy every 150 blocks, so by h~800 the per-block value is already ~0.31 ZER;
-the founders split lands on tiny values but still breaks equality checks.)
-
-### It does not even fix the target tests as-is
-`spentindex.py` / `addressindex.py` mine only to ~height 725 (`COINBASE_MATURITY + 5`),
-which is **below 800**. So lowering the threshold to 800 leaves their coinbase
-**still single-output** -- no change to the failing assertions -- unless the tests
-are *also* rewritten to mine past the threshold, at which point their `10 ZER` /
-per-height balance math breaks too.
-
-### Recommendation
-**Do not lower the consensus parameter.** It is a global regtest behavior change
-(subsidy + founders + a non-fee-aware helper) with a wide, subtle blast radius,
-and it does not achieve the goal without additional test rewrites. Prefer the
-local, low-risk path: **adapt `spentindex.py` / `addressindex.py` to Zero's
-single-output regtest coinbase** (assert one coinbase output; drop the
-`vout[1]` / `len == 2` / `2.5*COIN` founders expectations). Track founders-reward
-coverage separately -- e.g. a dedicated test that intentionally mines into
-`[800..1499]` with a founders-aware expected-balance helper, on an opt-in params
-override rather than the default regtest value.
-
-*Key files:* `src/chainparams.cpp:418` (regtest `nFeeStartBlockHeight`),
-`src/main.cpp:2112` (subsidy step), `src/zeronode/payments.cpp:305,313` (founders
-output), `src/consensus/params.cpp:35` (`GetLastFoundersRewardBlockHeight`),
-`qa/rpc-tests/test_framework/util.py:37` (`zero_regtest_subsidy_range`, not
-fee-aware), `qa/rpc-tests/wallet.py` (exact-balance assertions past 800).
+**RPC / Insight:** **`founders_window.py`** (Tier B) mines START/STOP boundaries,
+asserts subsidy + coinbase shape + GBT, and with `-insightexplorer` checks
+`getaddressbalance` / `getaddresstxids` on regtest payee
+`t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg`. Helpers: **`block_subsidy`**,
+**`founders_share`**, **`miner_share`**, **`subsidy_range`**, **`miner_range`**.
+Insight scripts at tip ~725 stay below START (1-vout). **EXT-INSIGHT-SUPERSET**
+founders-index slice: **done** in this script (2026-07-24).
 
 ---
 

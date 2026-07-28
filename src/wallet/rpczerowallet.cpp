@@ -8,13 +8,92 @@
 #include "wallet.h"
 #include "rpczerowallet.h"
 #include "utilmoneystr.h"
+#include "sync.h"
+#include "util.h"
 
 #include <utf8.h>
+#include <atomic>
 
 using namespace std;
 using namespace libzcash;
 
 bool EnsureWalletIsAvailable(bool avoidException);
+
+// W2: count of sort-key collisions during getalldata (archive vs wallet). Test hook.
+static std::atomic<uint64_t> nGetAllDataSortKeyCollisions{0};
+
+uint64_t GetGetAllDataSortKeyCollisionCount()
+{
+    return nGetAllDataSortKeyCollisions.load();
+}
+
+void ResetGetAllDataSortKeyCollisionCount()
+{
+    nGetAllDataSortKeyCollisions.store(0);
+}
+
+// W3 helper: block older than day window (testable).
+bool IsGetAllDataTxTooOld(int64_t blockTime, int64_t now, int dayDays)
+{
+    return blockTime < (now - ((int64_t)dayDays * 60 * 60 * 24));
+}
+
+// S6 + time coalesce: drop duplicate/recent getalldata without rewalking.
+// -rpcdatacontinue=<n> seconds after last success (default 20; 0 = disable time gate).
+static const int64_t DEFAULT_RPC_DATA_CONTINUE = 20;
+static CCriticalSection cs_getalldata_gate;
+static bool fGetAllDataInFlight = false;
+static int64_t nGetAllDataLastSuccess = 0;
+
+void ResetRpcDataContinueState()
+{
+    LOCK(cs_getalldata_gate);
+    fGetAllDataInFlight = false;
+    nGetAllDataLastSuccess = 0;
+}
+
+/** Test hook: leave in-flight set so a following getalldata hits S6 without a second thread. */
+void SetGetAllDataInFlightForTest(bool inFlight)
+{
+    LOCK(cs_getalldata_gate);
+    fGetAllDataInFlight = inFlight;
+}
+
+/** Acquire getalldata gate or throw RPC_DATA_CONTINUE. RAII clears in-flight. */
+class CGetAllDataInFlightGuard
+{
+    bool fActive;
+public:
+    CGetAllDataInFlightGuard() : fActive(false)
+    {
+        LOCK(cs_getalldata_gate);
+        if (fGetAllDataInFlight) {
+            throw JSONRPCError(RPC_DATA_CONTINUE, "rpc_data_continue");
+        }
+        const int64_t minInterval = GetArg("-rpcdatacontinue", DEFAULT_RPC_DATA_CONTINUE);
+        if (minInterval > 0 && nGetAllDataLastSuccess > 0) {
+            const int64_t age = GetTime() - nGetAllDataLastSuccess;
+            if (age >= 0 && age < minInterval) {
+                throw JSONRPCError(RPC_DATA_CONTINUE, "rpc_data_continue");
+            }
+        }
+        fGetAllDataInFlight = true;
+        fActive = true;
+    }
+    ~CGetAllDataInFlightGuard()
+    {
+        if (!fActive)
+            return;
+        LOCK(cs_getalldata_gate);
+        fGetAllDataInFlight = false;
+    }
+};
+
+static void MarkGetAllDataSuccess()
+{
+    LOCK(cs_getalldata_gate);
+    nGetAllDataLastSuccess = GetTime();
+}
 
 
 template<typename RpcTx>
@@ -487,7 +566,7 @@ void getRpcArcTx(uint256 &txid, RpcArcTransaction &arcTx, vector<uint256> &ivks,
     }
 }
 
-void getRpcArcTx(CWalletTx &tx, RpcArcTransaction &arcTx, vector<uint256> &ivks, vector<uint256> &ovks, bool fIncludeWatchonly) {
+void getRpcArcTx(const CWalletTx &tx, RpcArcTransaction &arcTx, vector<uint256> &ivks, vector<uint256> &ovks, bool fIncludeWatchonly) {
 
     arcTx.txid = tx.GetHash();
     arcTx.blockIndex = tx.nIndex;
@@ -884,7 +963,7 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
     //add any missing wallet transactions - unconfimred & conflicted
     int nPosUnconfirmed = 0;
     for (map<uint256,CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it) {
-      CWalletTx wtx = (*it).second;
+      const CWalletTx& wtx = (*it).second;
       std::pair<int,int> key;
 
       if (wtx.GetDepthInMainChain() == 0) {
@@ -925,7 +1004,7 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
 
         if (pwalletMain->mapWallet.count(txid)) {
 
-            CWalletTx& wtx = pwalletMain->mapWallet[txid];
+            const CWalletTx& wtx = pwalletMain->mapWallet[txid];
 
             if (!CheckFinalTx(wtx))
                 continue;
@@ -1094,7 +1173,7 @@ UniValue zs_gettransaction(const UniValue& params, bool fHelp)
 
     RpcArcTransaction arcTx;
     if (pwalletMain->mapWallet.count(hash)) {
-        CWalletTx& wtx = pwalletMain->mapWallet[hash];
+        const CWalletTx& wtx = pwalletMain->mapWallet[hash];
         getRpcArcTx(wtx, arcTx, ivks, ovks, true);
     } else {
         getRpcArcTx(hash, arcTx, ivks, ovks, true);
@@ -1265,7 +1344,7 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
     //add any missing wallet transactions - unconfimred & conflicted
     int nPosUnconfirmed = 0;
     for (map<uint256,CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it) {
-      CWalletTx wtx = (*it).second;
+      const CWalletTx& wtx = (*it).second;
       std::pair<int,int> key;
 
       if (wtx.GetDepthInMainChain() == 0) {
@@ -1306,7 +1385,7 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
 
         if (pwalletMain->mapWallet.count(txid)) {
 
-            CWalletTx& wtx = pwalletMain->mapWallet[txid];
+            const CWalletTx& wtx = pwalletMain->mapWallet[txid];
 
             if (!CheckFinalTx(wtx))
                 continue;
@@ -1542,7 +1621,7 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
     //add any missing wallet transactions - unconfimred & conflicted
     int nPosUnconfirmed = 0;
     for (map<uint256,CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it) {
-      CWalletTx wtx = (*it).second;
+      const CWalletTx& wtx = (*it).second;
       std::pair<int,int> key;
 
       if (wtx.GetDepthInMainChain() == 0) {
@@ -1582,7 +1661,7 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
 
         if (pwalletMain->mapWallet.count(txid)) {
 
-            CWalletTx& wtx = pwalletMain->mapWallet[txid];
+            const CWalletTx& wtx = pwalletMain->mapWallet[txid];
 
             if (!CheckFinalTx(wtx))
                 continue;
@@ -1818,7 +1897,7 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
     //add any missing wallet transactions - unconfimred & conflicted
     int nPosUnconfirmed = 0;
     for (map<uint256,CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it) {
-      CWalletTx wtx = (*it).second;
+      const CWalletTx& wtx = (*it).second;
       std::pair<int,int> key;
 
       if (wtx.GetDepthInMainChain() == 0) {
@@ -1859,7 +1938,7 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
         if (pwalletMain->mapWallet.count(txid)) {
 
 
-            CWalletTx& wtx = pwalletMain->mapWallet[txid];
+            const CWalletTx& wtx = pwalletMain->mapWallet[txid];
 
             if (!CheckFinalTx(wtx))
                 continue;
@@ -1978,11 +2057,20 @@ UniValue getalldata(const UniValue& params, bool fHelp)
             "                    Other number: Return all transactions\n"
             "3. \"transactioncount\"     (integer, optional) \n"
             "4. \"Include Watch Only\"   (bool, optional, Default = false) \n"
+            "\n"
+            "Soft coalesce: if another getalldata is in flight, or the last successful\n"
+            "getalldata finished less than -rpcdatacontinue seconds ago (default 20;\n"
+            "0 disables the time gate), returns error code -34 (RPC_DATA_CONTINUE)\n"
+            "with message \"rpc_data_continue\". Clients should keep the last UI payload and not treat\n"
+            "this as a hard failure.\n"
             "\nResult:\n"
             "\nExamples:\n"
             + HelpExampleCli("getalldata", "0")
             + HelpExampleRpc("getalldata", "0")
         );
+
+    // Before wallet locks / walks: in-flight or recent success -> soft continue
+    CGetAllDataInFlightGuard inFlightGuard;
 
     LOCK(cs_main);
 
@@ -2071,12 +2159,13 @@ UniValue getalldata(const UniValue& params, bool fHelp)
     }
 
 
-    //Create Ordered List
-    map<int64_t,CWalletTx> orderedTxs;
+    //Create Ordered List (S7: pointers, not CWalletTx copies)
+    // S7: const wallet-tx views for getalldata (keep even if peers use mutable copies).
+    map<int64_t, const CWalletTx*> orderedTxs;
     for (map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it) {
       const uint256& wtxid = it->first;
       const CWalletTx& wtx = (*it).second;
-      orderedTxs.insert(std::pair<int64_t,CWalletTx>(wtx.nOrderPos, wtx));
+      orderedTxs.insert(std::pair<int64_t, const CWalletTx*>(wtx.nOrderPos, &wtx));
 
       unsigned int txType = 0;
       // 0 Unassigend
@@ -2298,9 +2387,12 @@ UniValue getalldata(const UniValue& params, bool fHelp)
     UniValue trans(UniValue::VARR);
     UniValue transTime(UniValue::VARR);
 
-    if (params.size() == 3)
-    {
+    // Count is arg 3; allow 3- or 4-arg forms (Zerowallet sends 4 with watchonly).
+    // Previously `params.size() == 3` only, so `{0,0,0,true}` ignored count and kept 200.
+    if (params.size() >= 3) {
       nCount = params[2].get_int();
+      if (nCount <= 0)
+        nCount = 200;
     }
 
     if (params.size() > 0 && (params[0].get_int() == 2 || params[0].get_int() == 0))
@@ -2331,6 +2423,10 @@ UniValue getalldata(const UniValue& params, bool fHelp)
         }
 
         uint256 ut;
+        // W3: day cutoff before insert (Pirate early filter). Was applied only on emit.
+        uint64_t t = GetTime();
+        const int64_t dayCutoff = (int64_t)t - ((int64_t)day * 60 * 60 * 24);
+
         //get Sorted Archived Transactions
         std::map<std::pair<int,int>, uint256> sortedArchive;
         for (map<uint256, ArchiveTxPoint>::iterator it = pwalletMain->mapArcTxs.begin(); it != pwalletMain->mapArcTxs.end(); ++it)
@@ -2340,34 +2436,58 @@ UniValue getalldata(const UniValue& params, bool fHelp)
           std::pair<int,int> key;
 
           if (!arcTxPt.hashBlock.IsNull() && mapBlockIndex[arcTxPt.hashBlock] != nullptr) {
+            //Exclude Transactions older than max days old (W3 early filter)
+            if (IsGetAllDataTxTooOld(mapBlockIndex[arcTxPt.hashBlock]->GetBlockTime(), (int64_t)t, day)) {
+              continue;
+            }
             key = make_pair(mapBlockIndex[arcTxPt.hashBlock]->nHeight, arcTxPt.nIndex);
+            // W2: detect archive vs later wallet overwrite of same sort key
+            auto coll = sortedArchive.find(key);
+            if (coll != sortedArchive.end() && coll->second != txid) {
+              nGetAllDataSortKeyCollisions++;
+              LogPrint("wallet", "getalldata sort-key collision height=%d index=%d existing=%s new=%s\n",
+                       key.first, key.second, coll->second.ToString(), txid.ToString());
+            }
             sortedArchive[key] = txid;
           }
         }
 
         //add any missing wallet transactions - unconfimred & conflicted
         int nPosUnconfirmed = 0;
-        for (map<int64_t,CWalletTx>::reverse_iterator it = orderedTxs.rbegin(); it != orderedTxs.rend(); ++it) {
-          CWalletTx wtx = (*it).second;
+        for (map<int64_t, const CWalletTx*>::reverse_iterator it = orderedTxs.rbegin(); it != orderedTxs.rend(); ++it) {
+          const CWalletTx& wtx = *(*it).second;
           std::pair<int,int> key;
 
+          // W3: Pirate-style filters before insert (day + history membership)
+          if (!CheckFinalTx(wtx))
+              continue;
+          if (wtx.mapSaplingNoteData.size() == 0 && wtx.mapSproutNoteData.size() == 0 && !wtx.IsTrusted())
+              continue;
+          if (wtx.GetDepthInMainChain() < 0)
+              continue;
+                if (wtx.GetDepthInMainChain() > 0 && mapBlockIndex[wtx.hashBlock] != nullptr
+              && IsGetAllDataTxTooOld(mapBlockIndex[wtx.hashBlock]->GetBlockTime(), (int64_t)t, day)) {
+              continue;
+          }
+
           if (wtx.GetDepthInMainChain() == 0) {
-            LogPrintf("Unconfirmed Tx %s\n", wtx.GetHash().ToString());
-            LogPrintf("Unconfirmed Tx Key %i %i\n", chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
             ut = wtx.GetHash();
             key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
-            sortedArchive[key] = wtx.GetHash();
             nPosUnconfirmed++;
           } else if (!wtx.hashBlock.IsNull() && mapBlockIndex[wtx.hashBlock] != nullptr) {
             key = make_pair(mapBlockIndex[wtx.hashBlock]->nHeight, wtx.nIndex);
-            sortedArchive[key] = wtx.GetHash();
           } else {
-            LogPrintf("Unconfirmed Tx else %s\n", wtx.GetHash().ToString());
-            LogPrintf("Unconfirmed Tx else Key %i %i\n", chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
             key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
-            sortedArchive[key] = wtx.GetHash();
             nPosUnconfirmed++;
           }
+
+          auto coll = sortedArchive.find(key);
+          if (coll != sortedArchive.end() && coll->second != wtx.GetHash()) {
+            nGetAllDataSortKeyCollisions++;
+            LogPrint("wallet", "getalldata sort-key collision height=%d index=%d existing=%s new=%s\n",
+                     key.first, key.second, coll->second.ToString(), wtx.GetHash().ToString());
+          }
+          sortedArchive[key] = wtx.GetHash();
 
         }
 
@@ -2379,7 +2499,6 @@ UniValue getalldata(const UniValue& params, bool fHelp)
         std::vector<uint256> ivks;
         getAllSaplingIVKs(ivks, fIncludeWatchonly);
 
-        uint64_t t = GetTime();
         for (map<std::pair<int,int>, uint256>::reverse_iterator it = sortedArchive.rbegin(); it != sortedArchive.rend(); ++it)
         {
 
@@ -2388,7 +2507,7 @@ UniValue getalldata(const UniValue& params, bool fHelp)
 
             if (pwalletMain->mapWallet.count(txid)) {
 
-                CWalletTx& wtx = pwalletMain->mapWallet[txid];
+                const CWalletTx& wtx = pwalletMain->mapWallet[txid];
 
                 if (!CheckFinalTx(wtx))
                     continue;
@@ -2400,8 +2519,8 @@ UniValue getalldata(const UniValue& params, bool fHelp)
                 if (wtx.GetDepthInMainChain() < 0 )
                     continue;
 
-                //Exclude Transactions older that max days old
-                if (wtx.GetDepthInMainChain() > 0 && mapBlockIndex[wtx.hashBlock]->GetBlockTime() < (t - (day * 60 * 60 * 24))) {
+                //Exclude Transactions older that max days old (emit safety net; W3 already filtered)
+                if (wtx.GetDepthInMainChain() > 0 && mapBlockIndex[wtx.hashBlock]->GetBlockTime() < dayCutoff) {
                     continue;
                 }
 
@@ -2415,7 +2534,7 @@ UniValue getalldata(const UniValue& params, bool fHelp)
                   continue;
 
                 //Exclude Transactions older that max days old
-                if (arcTx.nBlockTime < (t - (day * 60 * 60 * 24))) {
+                if (arcTx.nBlockTime < dayCutoff) {
                     continue;
                 }
 
@@ -2451,6 +2570,7 @@ UniValue getalldata(const UniValue& params, bool fHelp)
     }
 
     returnObj.push_back(Pair("listtransactions", trans));
+    MarkGetAllDataSuccess();
     return returnObj;
 }
 

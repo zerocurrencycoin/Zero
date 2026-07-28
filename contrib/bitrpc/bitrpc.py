@@ -12,9 +12,9 @@ rpcpass = ""
 
 
 if rpcpass == "":
-    access = ServiceProxy("http://127.0.0.1:23801")
+    access = ServiceProxy("http://127.0.0.1:23811")
 else:
-    access = ServiceProxy("http://"+rpcuser+":"+rpcpass+"@127.0.0.1:23801")
+    access = ServiceProxy("http://"+rpcuser+":"+rpcpass+"@127.0.0.1:23811")
 cmd = sys.argv[1].lower()
 
 if cmd == "backupwallet":
@@ -38,7 +38,7 @@ elif cmd == "encryptwallet":
 
 elif cmd == "getaccount":
     try:
-        addr = input("Enter a Bitcoin address: ")
+        addr = input("Enter a Zero address: ")
         print(access.getaccount(addr))
     except Exception as inst:
         print(inst)
@@ -140,7 +140,7 @@ elif cmd == "getreceivedbyaccount":
 
 elif cmd == "getreceivedbyaddress":
     try:
-        addr = input("Enter a Bitcoin address (optional): ")
+        addr = input("Enter a Zero address (optional): ")
         mc = input("Minimum confirmations (optional): ")
         try:
             print(access.getreceivedbyaddress(addr, mc))

@@ -825,8 +825,8 @@ UniValue gettxout(const UniValue& params, bool fHelp)
             "     \"hex\" : \"hex\",        (string) \n"
             "     \"reqSigs\" : n,          (numeric) Number of required signatures\n"
             "     \"type\" : \"pubkeyhash\", (string) The type, eg pubkeyhash\n"
-            "     \"addresses\" : [          (array of string) array of Zcash addresses\n"
-            "        \"zcashaddress\"        (string) Zcash address\n"
+            "     \"addresses\" : [          (array of string) array of Zero addresses\n"
+            "        \"address\"        (string) Zero address\n"
             "        ,...\n"
             "     ]\n"
             "  },\n"
@@ -1216,6 +1216,97 @@ UniValue getmempoolinfo(const UniValue& params, bool fHelp)
     return mempoolInfoToJSON();
 }
 
+static UniValue LevelDBCacheObj(size_t budgetBytes, size_t blockCacheCap, size_t blockCacheUse,
+                                size_t writeBufferBudget, const std::string& stats,
+                                const std::string& filesL0)
+{
+    UniValue o(UniValue::VOBJ);
+    o.push_back(Pair("budget_bytes", (int64_t)budgetBytes));
+    o.push_back(Pair("block_cache_capacity_bytes", (int64_t)blockCacheCap));
+    o.push_back(Pair("block_cache_usage_bytes", (int64_t)blockCacheUse));
+    double fill = blockCacheCap ? (100.0 * (double)blockCacheUse / (double)blockCacheCap) : 0.0;
+    o.push_back(Pair("block_cache_fill_pct", fill));
+    o.push_back(Pair("write_buffer_budget_bytes", (int64_t)writeBufferBudget));
+    if (!filesL0.empty())
+        o.push_back(Pair("num_files_at_level0", atoi(filesL0.c_str())));
+    if (!stats.empty())
+        o.push_back(Pair("stats", stats));
+    return o;
+}
+
+UniValue getdbinfo(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getdbinfo\n"
+            "Returns -dbcache slice budgets and live fill for the in-memory UTXO cache\n"
+            "and LevelDB block caches (blocks/index and chainstate).\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"dbcache_mib\": n,                 (numeric) -dbcache argument (MiB)\n"
+            "  \"insightexplorer\": true|false,    (boolean)\n"
+            "  \"budgets\": { ... },               (object) allocated slice sizes in bytes\n"
+            "  \"utxo_cache\": {                   (object) in-memory CoinsTip cache\n"
+            "    \"bytes\": n, \"entries\": n, \"budget_bytes\": n, \"fill_pct\": n\n"
+            "  },\n"
+            "  \"block_index\": { ... },           (object) LevelDB block-cache fill + stats\n"
+            "  \"chainstate\": { ... }             (object) LevelDB block-cache fill + stats\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getdbinfo", "")
+            + HelpExampleRpc("getdbinfo", "")
+        );
+
+    LOCK(cs_main);
+
+    if (!pblocktree || !pcoinsTip)
+        throw JSONRPCError(RPC_MISC_ERROR, "Databases not loaded");
+
+    UniValue obj(UniValue::VOBJ);
+    obj.push_back(Pair("dbcache_mib", GetArg("-dbcache", nDefaultDbCache)));
+    obj.push_back(Pair("insightexplorer", fInsightExplorer));
+
+    UniValue budgets(UniValue::VOBJ);
+    budgets.push_back(Pair("block_index_bytes", (int64_t)nBlockTreeDBCacheBytes));
+    budgets.push_back(Pair("chainstate_bytes", (int64_t)nCoinDBCacheBytes));
+    budgets.push_back(Pair("utxo_cache_bytes", (int64_t)nCoinCacheUsage));
+    obj.push_back(Pair("budgets", budgets));
+
+    size_t utxoBytes = pcoinsTip->DynamicMemoryUsage();
+    unsigned int utxoEntries = pcoinsTip->GetCacheSize();
+    UniValue utxo(UniValue::VOBJ);
+    utxo.push_back(Pair("bytes", (int64_t)utxoBytes));
+    utxo.push_back(Pair("entries", (int64_t)utxoEntries));
+    utxo.push_back(Pair("budget_bytes", (int64_t)nCoinCacheUsage));
+    double utxoFill = nCoinCacheUsage ? (100.0 * (double)utxoBytes / (double)nCoinCacheUsage) : 0.0;
+    utxo.push_back(Pair("fill_pct", utxoFill));
+    obj.push_back(Pair("utxo_cache", utxo));
+
+    std::string biStats, biL0;
+    pblocktree->GetProperty("leveldb.stats", biStats);
+    pblocktree->GetProperty("leveldb.num-files-at-level0", biL0);
+    obj.push_back(Pair("block_index", LevelDBCacheObj(
+        nBlockTreeDBCacheBytes,
+        pblocktree->GetBlockCacheCapacity(),
+        pblocktree->GetBlockCacheUsage(),
+        pblocktree->GetWriteBufferBudget(),
+        biStats, biL0)));
+
+    if (pcoinsdbview) {
+        std::string csStats, csL0;
+        pcoinsdbview->GetLevelDBProperty("leveldb.stats", csStats);
+        pcoinsdbview->GetLevelDBProperty("leveldb.num-files-at-level0", csL0);
+        obj.push_back(Pair("chainstate", LevelDBCacheObj(
+            nCoinDBCacheBytes,
+            pcoinsdbview->GetLevelDBBlockCacheCapacity(),
+            pcoinsdbview->GetLevelDBBlockCacheUsage(),
+            pcoinsdbview->GetLevelDBWriteBufferBudget(),
+            csStats, csL0)));
+    }
+
+    return obj;
+}
+
 inline CBlockIndex* LookupBlockIndex(const uint256& hash)
 {
     AssertLockHeld(cs_main);
@@ -1538,6 +1629,7 @@ static const CRPCCommand commands[] =
     { "blockchain",         "getchaintips",           &getchaintips,           true  },
     { "blockchain",         "getchaintxstats",        &getchaintxstats,        true  },
     { "blockchain",         "getdifficulty",          &getdifficulty,          true  },
+    { "blockchain",         "getdbinfo",              &getdbinfo,              true  },
     { "blockchain",         "getmempoolinfo",         &getmempoolinfo,         true  },
     { "blockchain",         "getrawmempool",          &getrawmempool,          true  },
     { "blockchain",         "gettxout",               &gettxout,               true  },

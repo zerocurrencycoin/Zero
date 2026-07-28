@@ -94,6 +94,8 @@ bool fCheckBlockIndex = false;
 bool fCheckpointsEnabled = true;
 bool fCoinbaseEnforcedProtectionEnabled = true;
 size_t nCoinCacheUsage = 5000 * 300;
+size_t nBlockTreeDBCacheBytes = 0;
+size_t nCoinDBCacheBytes = 0;
 uint64_t nPruneTarget = 0;
 bool fAlerts = DEFAULT_ALERTS;
 /* If the tip is older than this (in seconds), the node is considered to be in initial block download.
@@ -603,6 +605,7 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 
 CCoinsViewCache *pcoinsTip = NULL;
 CBlockTreeDB *pblocktree = NULL;
+CCoinsViewDB *pcoinsdbview = NULL;
 CSporkDB* pSporkDB = NULL;
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1742,14 +1745,20 @@ bool GetTimestampIndex(unsigned int high, unsigned int low, bool fActiveOnly,
 bool GetSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value)
 {
     AssertLockHeld(cs_main);
-    if (!fSpentIndex)
-        return error("Spent index not enabled");
+    // Match Zcash: LogPrint("rpc", ...) instead of error() so default debug.log
+    // is not flooded when insight spentindex misses under load.
+    if (!fSpentIndex) {
+        LogPrint("rpc", "Spent index not enabled");
+        return false;
+    }
 
     if (mempool.getSpentIndex(key, value))
         return true;
 
-    if (!pblocktree->ReadSpentIndex(key, value))
-        return error("Unable to get spent index information");
+    if (!pblocktree->ReadSpentIndex(key, value)) {
+        LogPrint("rpc", "Unable to get spent index information");
+        return false;
+    }
 
     return true;
 }
@@ -2115,10 +2124,11 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus
 
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
-  CAmount nSubsidy = 10 * COIN;
-  if (nHeight>=consensusParams.nFeeStartBlockHeight) {
-    nSubsidy = 10.8 * COIN;
-  }
+    // Integer zats only: 10 ZER pre fee-start; 10.8 ZER (108/10) at and after fee-start.
+    CAmount nSubsidy = 10 * COIN;
+    if (nHeight >= consensusParams.nFeeStartBlockHeight) {
+        nSubsidy = 108 * COIN / 10;
+    }
 
     int halvings = consensusParams.Halving(nHeight);
     // Force block reward to zero when right shift is undefined.
@@ -2131,6 +2141,11 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
         // Subsidy is cut in half every 800,000 blocks which will occur approximately every 3 years.
         return nSubsidy >> halvings;
     }
+}
+
+CAmount GetFoundersRewardAmount(CAmount subsidy)
+{
+    return subsidy * 75 / 1000;
 }
 
 int64_t GetZeronodePayment(int nHeight, int64_t blockValue, int nZeronodeCount)
@@ -4542,7 +4557,7 @@ bool ContextualCheckBlock(
 
         BOOST_FOREACH(const CTxOut& output, block.vtx[0].vout) {
             if (output.scriptPubKey == chainparams.GetFoundersRewardScriptAtHeight(nHeight)) {
-                if (output.nValue == (GetBlockSubsidy(nHeight, consensusParams) * 0.075)) {
+                if (output.nValue == GetFoundersRewardAmount(GetBlockSubsidy(nHeight, consensusParams))) {
                     found = true;
                     break;
                 }
@@ -5162,6 +5177,9 @@ bool static LoadBlockIndexDB()
     // Check whether we need to continue reindexing
     bool fReindexing = false;
     pblocktree->ReadReindexing(fReindexing);
+    if (fReindexing) {
+        LogPrintf("Reindex source: resume (DB_REINDEX_FLAG present)\n");
+    }
     fReindex |= fReindexing;
 
     // Check whether we have a transaction index

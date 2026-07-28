@@ -11,7 +11,7 @@ from test_framework.authproxy import JSONRPCException
 
 from test_framework.util import (
     assert_equal,
-    coinbase_mature_tip,
+    mature_height,
     initialize_chain_clean,
     start_nodes,
     stop_nodes,
@@ -42,7 +42,7 @@ class SpentIndexTest(BitcoinTestFramework):
         self.sync_all()
 
     def run_test(self):
-        mature_tip = coinbase_mature_tip(5)
+        mature_tip = mature_height(5)
         self.nodes[0].generate(mature_tip)
         self.sync_all()
 
@@ -133,10 +133,13 @@ class SpentIndexTest(BitcoinTestFramework):
         coinbase_tx = deltas[0]
         assert_equal(coinbase_tx['index'], 0)
         assert_equal(len(coinbase_tx['inputs']), 0)
-        assert_equal(len(coinbase_tx['outputs']), 2)
+        # Zero regtest below fee-start (1000): single miner output (no founders vout).
+        # Coinbase value = subsidy (+ fees from other txs in the block).
+        assert_equal(len(coinbase_tx['outputs']), 1)
         assert_equal(coinbase_tx['outputs'][0]['index'], 0)
-        assert_equal(coinbase_tx['outputs'][1]['index'], 1)
-        assert_equal(coinbase_tx['outputs'][1]['satoshis'], 2.5*COIN)
+        cb_height = mature_tip + 1
+        subsidy = (10 * COIN) >> (cb_height // 150)
+        assert(coinbase_tx['outputs'][0]['satoshis'] >= subsidy)
 
         to_a_tx = deltas[1]
         assert_equal(to_a_tx['index'], 1)
@@ -165,10 +168,11 @@ class SpentIndexTest(BitcoinTestFramework):
         coinbase_tx = deltas[0]
         assert_equal(coinbase_tx['index'], 0)
         assert_equal(len(coinbase_tx['inputs']), 0)
-        assert_equal(len(coinbase_tx['outputs']), 2)
+        assert_equal(len(coinbase_tx['outputs']), 1)
         assert_equal(coinbase_tx['outputs'][0]['index'], 0)
-        assert_equal(coinbase_tx['outputs'][1]['index'], 1)
-        assert_equal(coinbase_tx['outputs'][1]['satoshis'], 2.5*COIN)
+        cb_height = mature_tip + 2
+        subsidy = (10 * COIN) >> (cb_height // 150)
+        assert(coinbase_tx['outputs'][0]['satoshis'] >= subsidy)
 
         to_b_tx = deltas[1]
         assert_equal(to_b_tx['index'], 1)

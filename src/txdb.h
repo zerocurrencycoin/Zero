@@ -98,6 +98,11 @@ public:
                     CNullifiersMap &mapSproutNullifiers,
                     CNullifiersMap &mapSaplingNullifiers);
     bool GetStats(CCoinsStats &stats) const;
+
+    bool GetLevelDBProperty(const std::string& property, std::string& value) const;
+    size_t GetLevelDBBlockCacheCapacity() const { return db.GetBlockCacheCapacity(); }
+    size_t GetLevelDBBlockCacheUsage() const { return db.GetBlockCacheUsage(); }
+    size_t GetLevelDBWriteBufferBudget() const { return db.GetWriteBufferBudget(); }
 };
 
 /** Access to the block database (blocks/index/) */
@@ -115,6 +120,11 @@ public:
     bool ReadLastBlockFile(int &nFile);
     bool WriteReindexing(bool fReindex);
     bool ReadReindexing(bool &fReindex);
+/** Persist reindex progress (written after each blk file; consumed on resume). */
+    bool WriteReindexLastFile(int nFile);
+    bool ReadReindexLastFile(int &nFile);
+    bool WriteReindexLastBlock(int nHeight);
+    bool ReadReindexLastBlock(int &nHeight);
     bool ReadTxIndex(const uint256 &txid, CDiskTxPos &pos);
     bool WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> > &list);
 
@@ -138,5 +148,13 @@ public:
     bool ReadFlag(const std::string &name, bool &fValue);
     bool LoadBlockIndexGuts(boost::function<CBlockIndex*(const uint256&)> insertBlockIndex);
 };
+
+/**
+ * Next blk#####.dat file index when resuming an interrupted reindex.
+ * nLastCompleted: DB_REINDEX_LASTFILE value, or negative if absent.
+ * nBlkFileCount: count of existing blk*.dat files (indices 0 .. count-1).
+ * On absent/out-of-range markers, returns 0 (replay from the first file).
+ */
+int ReindexResumeStartFile(int nLastCompleted, int nBlkFileCount, std::string* pReason = nullptr);
 
 #endif // BITCOIN_TXDB_H

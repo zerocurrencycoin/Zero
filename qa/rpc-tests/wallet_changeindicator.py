@@ -9,7 +9,7 @@ from test_framework.util import (
     assert_equal,
     assert_false,
     assert_true,
-    mine_until_node_has_mature_coinbase,
+    mine_until_mature,
     wait_and_assert_operationid_status,
 )
 
@@ -24,7 +24,7 @@ class WalletChangeIndicatorTest (BitcoinTestFramework):
 
     # Tests
     def run_test(self):
-        mine_until_node_has_mature_coinbase(self.nodes[0], self.nodes)
+        mine_until_mature(self.nodes[0], self.nodes)
 
         taddr = self.nodes[1].getnewaddress()
         zaddr1 = self.nodes[1].z_getnewaddress('sprout')

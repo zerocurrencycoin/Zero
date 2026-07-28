@@ -67,6 +67,7 @@
 
 using namespace boost::placeholders;
 #include <boost/filesystem.hpp>
+#include <boost/filesystem/fstream.hpp>
 #include <boost/function.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/thread.hpp>
@@ -178,7 +179,7 @@ public:
     // Writes do not need similar protection, as failure to write is handled by the caller.
 };
 
-static CCoinsViewDB *pcoinsdbview = NULL;
+// pcoinsdbview defined in main.cpp
 static CCoinsViewErrorCatcher *pcoinscatcher = NULL;
 static boost::scoped_ptr<ECCVerifyHandle> globalVerifyHandle;
 
@@ -565,6 +566,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-rpcport=<port>", strprintf(_("Listen for JSON-RPC connections on <port> (default: %u or testnet: %u)"), 23811, 23812));
     strUsage += HelpMessageOpt("-rpcallowip=<ip>", _("Allow JSON-RPC connections from specified source. Valid for <ip> are a single IP (e.g. 1.2.3.4), a network/netmask (e.g. 1.2.3.4/255.255.255.0) or a network/CIDR (e.g. 1.2.3.4/24). This option can be specified multiple times"));
     strUsage += HelpMessageOpt("-rpcthreads=<n>", strprintf(_("Set the number of threads to service RPC calls (default: %d)"), DEFAULT_HTTP_THREADS));
+    strUsage += HelpMessageOpt("-rpcdatacontinue=<n>", strprintf(_("Minimum seconds between successful getalldata responses before soft RPC_DATA_CONTINUE -34 (default: %d; 0 disables)"), 20));
     if (showDebug) {
         strUsage += HelpMessageOpt("-rpcworkqueue=<n>", strprintf("Set the depth of the work queue to service RPC calls (default: %d)", DEFAULT_HTTP_WORKQUEUE));
         strUsage += HelpMessageOpt("-rpcservertimeout=<n>", strprintf("Timeout during HTTP requests (default: %d)", DEFAULT_HTTP_SERVER_TIMEOUT));
@@ -659,10 +661,38 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
 {
     const CChainParams& chainparams = Params();
     RenameThread("zcash-loadblk");
-    // -reindex
+    // -reindex (including resume when DB_REINDEX_FLAG was left set)
     if (fReindex) {
         CImportingNow imp;
         int nFile = 0;
+        int nBlkFiles = 0;
+        while (true) {
+            CDiskBlockPos posCount(nBlkFiles, 0);
+            if (!boost::filesystem::exists(GetBlockPosFilename(posCount, "blk")))
+                break;
+            nBlkFiles++;
+        }
+        {
+            int nLastFile = -1;
+            std::string strReason;
+            if (pblocktree->ReadReindexLastFile(nLastFile)) {
+                nFile = ReindexResumeStartFile(nLastFile, nBlkFiles, &strReason);
+                LogPrintf("Reindex resume: lastfile=%d blkfiles=%d startfile=%d (%s)\n",
+                          nLastFile, nBlkFiles, nFile, strReason);
+            } else {
+                nFile = ReindexResumeStartFile(-1, nBlkFiles, &strReason);
+                LogPrintf("Reindex resume: %s (blkfiles=%d)\n", strReason, nBlkFiles);
+            }
+            int nLastBlock = -1;
+            if (pblocktree->ReadReindexLastBlock(nLastBlock)) {
+                LOCK(cs_main);
+                LogPrintf("Reindex resume: lastblock marker=%d chain_height=%d\n",
+                          nLastBlock, chainActive.Height());
+                if (nLastBlock < 0 || (chainActive.Height() >= 0 && nLastBlock > chainActive.Height())) {
+                    LogPrintf("Reindex resume: lastblock marker out of expected range vs tip; continuing from file cursor\n");
+                }
+            }
+        }
         while (true) {
             CDiskBlockPos pos(nFile, 0);
             if (!boost::filesystem::exists(GetBlockPosFilename(pos, "blk")))
@@ -672,6 +702,13 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
                 break; // This error is logged in OpenBlockFile
             LogPrintf("Reindexing block file blk%05u.dat...\n", (unsigned int)nFile);
             LoadExternalBlockFile(chainparams, file, &pos);
+            pblocktree->WriteReindexLastFile(nFile);
+            {
+                LOCK(cs_main);
+                int nHeight = chainActive.Height();
+                pblocktree->WriteReindexLastBlock(nHeight);
+                LogPrintf("Reindex progress: lastfile=%d lastblock=%d\n", nFile, nHeight);
+            }
             nFile++;
         }
         pblocktree->WriteReindexing(false);
@@ -1307,7 +1344,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     }
     uiInterface.InitMessage(_("Initializing..."));
 
-    // Initialize Zcash circuit parameters
+    // Initialize Sapling/Sprout circuit parameters
     ZC_LoadParams(chainparams);
 
     if (mapArgs.count("-sporkkey")) // spork priv key
@@ -1483,6 +1520,35 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     // ********************************************************* Step 7: load block chain
 
     fReindex = GetBoolArg("-reindex", false);
+    if (fReindex) {
+        LogPrintf("Reindex source: -reindex argument\n");
+        // Prefer one-shot CLI; sticky reindex= in conf wipes again every restart.
+        // Warn loudly (InitWarning + log); do not refuse -- OPS-REINDEX-CONF refuse postponed.
+        boost::filesystem::ifstream streamConfig(GetConfigFile());
+        if (streamConfig.good()) {
+            std::string line;
+            while (std::getline(streamConfig, line)) {
+                size_t begin = line.find_first_not_of(" \t\r\n");
+                if (begin == std::string::npos || line[begin] == '#')
+                    continue;
+                if (line.compare(begin, 8, "reindex=") != 0 &&
+                    line.compare(begin, 8, "reindex ") != 0)
+                    continue;
+                const std::string warn =
+                    strprintf(
+                        "WARNING: sticky reindex= is set in %s. This wipes block "
+                        "indexes and chainstate on EVERY restart (including after "
+                        "\"Reindexing finished\"). Prefer a one-time CLI: "
+                        "zerod -reindex (typically with -disablewallet on explorer "
+                        "or large-wallet hosts), then REMOVE reindex from the config. "
+                        "Refuse-on-sticky-conf is not enabled yet.",
+                        GetConfigFile().string());
+                InitWarning(warn);
+                LogPrintf("%s\n", warn);
+                break;
+            }
+        }
+    }
 
     // Upgrading to 0.8; hard-link the old blknnnn.dat files into /blocks/
     boost::filesystem::path blocksDir = GetDataDir() / "blocks";
@@ -1508,6 +1574,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         if (linked)
         {
             fReindex = true;
+            LogPrintf("Reindex source: legacy blk hardlink upgrade\n");
         }
     }
 
@@ -1531,6 +1598,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     int64_t nCoinDBCache = std::min(nTotalCache / 2, (nTotalCache / 4) + (1 << 23)); // use 25%-50% of the remainder for disk cache
     nTotalCache -= nCoinDBCache;
     nCoinCacheUsage = nTotalCache; // the rest goes to in-memory cache
+    nBlockTreeDBCacheBytes = (size_t)nBlockTreeDBCache;
+    nCoinDBCacheBytes = (size_t)nCoinDBCache;
     LogPrintf("Cache configuration:\n");
     LogPrintf("* Using %.1fMiB for block index database\n", nBlockTreeDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for chain state database\n", nCoinDBCache * (1.0 / 1024 / 1024));
@@ -1545,6 +1614,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         pblocktree->ReadFlag("archiverule", checkval);
         if (checkval != fArchive)
         {
+            LogPrintf("Reindex source: DB_FLAG mismatch (archiverule stored=%d desired=%d)\n",
+                      (int)checkval, (int)fArchive);
             pblocktree->WriteFlag("archiverule", fArchive);
             LogPrintf("Transaction archive not set, will reindex. could take a while.\n");
             fReindex = true;
@@ -1554,6 +1625,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         pblocktree->ReadFlag("txindex", checkval);
         if ( checkval != fTxIndex)
         {
+            LogPrintf("Reindex source: DB_FLAG mismatch (txindex stored=%d desired=%d)\n",
+                      (int)checkval, (int)fTxIndex);
             pblocktree->WriteFlag("txindex", fTxIndex);
             LogPrintf("set txindex, will reindex. could take a while.\n");
             fReindex = true;
@@ -1563,6 +1636,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         pblocktree->ReadFlag("prunedblockfiles", checkval);
         if ( checkval != fPruneMode)
         {
+            LogPrintf("Reindex source: DB_FLAG mismatch (prunedblockfiles stored=%d desired=%d)\n",
+                      (int)checkval, (int)fPruneMode);
             pblocktree->WriteFlag("prunedblockfiles", fPruneMode);
             LogPrintf("set prunemode, will reindex. could take a while.\n");
             fReindex = true;
@@ -1573,6 +1648,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         pblocktree->ReadFlag("insightexplorer", checkval);
         if ( checkval != fInsightExplorer )
         {
+            LogPrintf("Reindex source: DB_FLAG mismatch (insightexplorer stored=%d desired=%d)\n",
+                      (int)checkval, (int)fInsightExplorer);
             pblocktree->WriteFlag("insightexplorer", fInsightExplorer);
             LogPrintf("set insightexplorer, will reindex. could take a while.\n");
             fReindex = true;
@@ -1583,6 +1660,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         pblocktree->ReadFlag("zindex", checkval);
         if ( checkval != fZindex )
         {
+            LogPrintf("Reindex source: DB_FLAG mismatch (zindex stored=%d desired=%d)\n",
+                      (int)checkval, (int)fZindex);
             pblocktree->WriteFlag("zindex", fZindex);
             LogPrintf("set zindex, will reindex. could take a while.\n");
             fReindex = true;

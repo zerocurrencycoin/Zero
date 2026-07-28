@@ -1580,6 +1580,11 @@ class NodeConn(asyncore.dispatcher):
 
 
 class NetworkThread(Thread):
+    def __init__(self):
+        Thread.__init__(self, name="MiniNodeNetwork")
+        # Daemon so a stuck socket map cannot keep the test process alive.
+        self.daemon = True
+
     def run(self):
         while mininode_socket_map:
             # We check for whether to disconnect outside of the asyncore
@@ -1591,6 +1596,24 @@ class NetworkThread(Thread):
                     disconnected.append(obj)
             [ obj.handle_close() for obj in disconnected ]
             asyncore.loop(0.1, use_poll=True, map=mininode_socket_map, count=1)
+
+
+def disconnect_mininode_connections(conns=None):
+    """Request close on mininode NodeConns and drain the asyncore map.
+
+    If conns is None, disconnect every entry currently in mininode_socket_map.
+    """
+    if conns is None:
+        conns = list(mininode_socket_map.values())
+    for conn in conns:
+        try:
+            conn.disconnect_node()
+        except Exception:
+            pass
+    # Give NetworkThread a moment to process disconnect flags.
+    deadline = time.time() + 5.0
+    while mininode_socket_map and time.time() < deadline:
+        time.sleep(0.05)
 
 
 # An exception we can raise if we detect a potential disconnect

@@ -21,16 +21,30 @@ static bool UsesReferenceSubsidyModel(const Consensus::Params& p) {
     return GetBlockSubsidy(p.nSubsidySlowStartInterval ? p.nSubsidySlowStartInterval : 1, p) == REFERENCE_INITIAL_SUBSIDY;
 }
 
-// Zero subsidy: 10 ZER pre-fee, 10.8 ZER post-fee, halving every 800k blocks, no slow-start
+// Zero subsidy: integer zats -- 10 ZER pre-fee, 10.8 (108/10) post-fee, halving every 800k
+static const CAmount SUBSIDY_POST_FEE = 108 * COIN / 10;
+
 static void TestBlockSubsidyHalvingsZero(const Consensus::Params& consensusParams) {
     BOOST_CHECK_EQUAL(GetBlockSubsidy(0, consensusParams), 10 * COIN);
     BOOST_CHECK_EQUAL(GetBlockSubsidy(consensusParams.nFeeStartBlockHeight - 1, consensusParams), 10 * COIN);
-    BOOST_CHECK_EQUAL(GetBlockSubsidy(consensusParams.nFeeStartBlockHeight, consensusParams), 10.8 * COIN);
-    BOOST_CHECK_EQUAL(GetBlockSubsidy(800000 - 1, consensusParams), 10.8 * COIN);
-    BOOST_CHECK_EQUAL(GetBlockSubsidy(800000, consensusParams), 5.4 * COIN);
-    BOOST_CHECK_EQUAL(GetBlockSubsidy(1600000, consensusParams), 2.7 * COIN);
-    BOOST_CHECK_EQUAL(GetBlockSubsidy(2400000, consensusParams), 1.35 * COIN);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(consensusParams.nFeeStartBlockHeight, consensusParams), SUBSIDY_POST_FEE);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(800000 - 1, consensusParams), SUBSIDY_POST_FEE);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(800000, consensusParams), SUBSIDY_POST_FEE >> 1);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(1600000, consensusParams), SUBSIDY_POST_FEE >> 2);
+    BOOST_CHECK_EQUAL(GetBlockSubsidy(2400000, consensusParams), SUBSIDY_POST_FEE >> 3);
     BOOST_CHECK_EQUAL(GetBlockSubsidy(800000 * 64 - 1, consensusParams), 0);
+}
+
+static void TestFoundersRewardAmountZero() {
+    // 7.5% = * 75 / 1000, trunc toward 0
+    BOOST_CHECK_EQUAL(GetFoundersRewardAmount(SUBSIDY_POST_FEE), 81 * COIN / 100);
+    BOOST_CHECK_EQUAL(GetFoundersRewardAmount(SUBSIDY_POST_FEE >> 1), 405 * COIN / 1000);
+    BOOST_CHECK_EQUAL(GetFoundersRewardAmount(SUBSIDY_POST_FEE >> 2), 2025 * COIN / 10000);
+    BOOST_CHECK_EQUAL(GetFoundersRewardAmount(SUBSIDY_POST_FEE >> 3), 10125 * COIN / 100000);
+    BOOST_CHECK_EQUAL(GetFoundersRewardAmount(0), 0);
+    // Truncation: not divisible by 1000
+    BOOST_CHECK_EQUAL(GetFoundersRewardAmount(999), 74);
+    BOOST_CHECK_EQUAL(GetFoundersRewardAmount(1000), 75);
 }
 
 static void TestSubsidyLimitZero(const Consensus::Params& consensusParams) {
@@ -106,6 +120,7 @@ BOOST_AUTO_TEST_CASE(block_subsidy_test)
     TestBlockSubsidyHalvings(500, 1000, 3000); // Multiple halvings before Blossom activation
     } else {
         TestBlockSubsidyHalvingsZero(mainParams); // Zero: 10/10.8 ZER, 800k halving
+        TestFoundersRewardAmountZero();
     }
 }
 
