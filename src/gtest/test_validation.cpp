@@ -34,14 +34,6 @@ public:
         return false;
     }
 
-    bool HaveSproutAnchorAt(const uint256 &rt) const {
-        return false;
-    }
-
-    bool HaveSaplingAnchorAt(const uint256 &rt) const {
-        return false;
-    }
-
     bool GetNullifier(const uint256 &nf, ShieldedType type) const {
         return false;
     }

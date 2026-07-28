@@ -1591,7 +1591,12 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
 
         nValueIn = view.GetValueIn(tx);
 
-        // we have all inputs cached now, so switch back to dummy, so we don't need to keep lock on mempool
+        // We have all inputs (and shielded anchors) cached now, so switch back
+        // to dummy: release mempool.cs and prevent further tip/DB fetches
+        // (Bitcoin Core ATMP pattern). Dummy returns false for every Get*;
+        // later ContextualCheckInputs -> HaveShieldedRequirements relies on
+        // cache entries Get*AnchorAt populated above. See
+        // coins_tests/shielded_survive_dummy.
         view.SetBackend(dummy);
         }
 

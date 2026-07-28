@@ -49,8 +49,6 @@ bool CCoins::Spend(uint32_t nPos)
 }
 bool CCoinsView::GetSproutAnchorAt(const uint256 &rt, SproutMerkleTree &tree) const { return false; }
 bool CCoinsView::GetSaplingAnchorAt(const uint256 &rt, SaplingMerkleTree &tree) const { return false; }
-bool CCoinsView::HaveSproutAnchorAt(const uint256 &rt) const { return false; }
-bool CCoinsView::HaveSaplingAnchorAt(const uint256 &rt) const { return false; }
 bool CCoinsView::GetNullifier(const uint256 &nullifier, ShieldedType type) const { return false; }
 bool CCoinsView::GetCoins(const uint256 &txid, CCoins &coins) const { return false; }
 bool CCoinsView::HaveCoins(const uint256 &txid) const { return false; }
@@ -71,8 +69,6 @@ CCoinsViewBacked::CCoinsViewBacked(CCoinsView *viewIn) : base(viewIn) { }
 
 bool CCoinsViewBacked::GetSproutAnchorAt(const uint256 &rt, SproutMerkleTree &tree) const { return base->GetSproutAnchorAt(rt, tree); }
 bool CCoinsViewBacked::GetSaplingAnchorAt(const uint256 &rt, SaplingMerkleTree &tree) const { return base->GetSaplingAnchorAt(rt, tree); }
-bool CCoinsViewBacked::HaveSproutAnchorAt(const uint256 &rt) const { return base->HaveSproutAnchorAt(rt); }
-bool CCoinsViewBacked::HaveSaplingAnchorAt(const uint256 &rt) const { return base->HaveSaplingAnchorAt(rt); }
 bool CCoinsViewBacked::GetNullifier(const uint256 &nullifier, ShieldedType type) const { return base->GetNullifier(nullifier, type); }
 bool CCoinsViewBacked::GetCoins(const uint256 &txid, CCoins &coins) const { return base->GetCoins(txid, coins); }
 bool CCoinsViewBacked::HaveCoins(const uint256 &txid) const { return base->HaveCoins(txid); }
@@ -170,28 +166,6 @@ bool CCoinsViewCache::GetSaplingAnchorAt(const uint256 &rt, SaplingMerkleTree &t
     cachedCoinsUsage += ret->second.tree.DynamicMemoryUsage();
 
     return true;
-}
-
-// Existence-only variants of GetSproutAnchorAt/GetSaplingAnchorAt: skip
-// reconstructing the tree when only membership is needed. Consults this
-// cache layer's already-fetched entries first (so a prior Get call's result
-// is reused, not re-queried), otherwise defers to base without populating
-// the tree cache -- a later GetSproutAnchorAt/GetSaplingAnchorAt call still
-// works correctly, it just pays its own DB read at that point.
-bool CCoinsViewCache::HaveSproutAnchorAt(const uint256 &rt) const {
-    CAnchorsSproutMap::const_iterator it = cacheSproutAnchors.find(rt);
-    if (it != cacheSproutAnchors.end()) {
-        return it->second.entered;
-    }
-    return base->HaveSproutAnchorAt(rt);
-}
-
-bool CCoinsViewCache::HaveSaplingAnchorAt(const uint256 &rt) const {
-    CAnchorsSaplingMap::const_iterator it = cacheSaplingAnchors.find(rt);
-    if (it != cacheSaplingAnchors.end()) {
-        return it->second.entered;
-    }
-    return base->HaveSaplingAnchorAt(rt);
 }
 
 bool CCoinsViewCache::GetNullifier(const uint256 &nullifier, ShieldedType type) const {
@@ -595,16 +569,11 @@ CAmount CCoinsViewCache::GetValueIn(const CTransaction& tx) const
 
 bool CCoinsViewCache::HaveShieldedRequirements(const CTransaction& tx) const
 {
-    // Chaining (a later joinsplit's anchor matching an earlier one's output
-    // root, within this same transaction) is only possible with more than
-    // one joinsplit -- a single-joinsplit transaction (the common case) can
-    // never consume an `intermediates` entry, so there's no reason to pay
-    // for reconstructing the tree at all: a membership check on the anchor
-    // is sufficient. Only fall back to full tree reconstruction (matching
-    // Zebra's technique of a membership/existence check in place of tree
-    // reconstruction for anchor validation, see Perf.md §4/§0 item 3) when
-    // this transaction's joinsplits could actually chain.
-    bool mayChain = tx.vJoinSplit.size() > 1;
+    // AcceptToMemoryPool calls this under a tip/mempool backend (which warms
+    // this cache via Get*AnchorAt), then SetBackend(dummy) and calls again via
+    // ContextualCheckInputs. Get* must be used here -- existence-only lookups
+    // that skip cache inserts fail the second call against dummy. See Perf.md
+    // and coins_tests/shielded_survive_dummy.
     boost::unordered_map<uint256, SproutMerkleTree, CCoinsKeyHasher> intermediates;
 
     BOOST_FOREACH(const JSDescription &joinsplit, tx.vJoinSplit)
@@ -616,13 +585,6 @@ bool CCoinsViewCache::HaveShieldedRequirements(const CTransaction& tx) const
                 // double-spends!
                 return false;
             }
-        }
-
-        if (!mayChain) {
-            if (!HaveSproutAnchorAt(joinsplit.anchor)) {
-                return false;
-            }
-            continue;
         }
 
         SproutMerkleTree tree;
@@ -645,10 +607,8 @@ bool CCoinsViewCache::HaveShieldedRequirements(const CTransaction& tx) const
         if (GetNullifier(spendDescription.nullifier, SAPLING)) // Prevent double spends
             return false;
 
-        // Sapling spends never chain off a tree the way Sprout joinsplits
-        // can -- the tree is never used again after this check, so a
-        // membership check on the anchor is always sufficient here.
-        if (!HaveSaplingAnchorAt(spendDescription.anchor)) {
+        SaplingMerkleTree tree;
+        if (!GetSaplingAnchorAt(spendDescription.anchor, tree)) {
             return false;
         }
     }

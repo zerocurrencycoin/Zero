@@ -466,14 +466,6 @@ public:
         return false;
     }
 
-    bool HaveSproutAnchorAt(const uint256 &rt) const {
-        return rt == sproutTree.root();
-    }
-
-    bool HaveSaplingAnchorAt(const uint256 &rt) const {
-        return rt == saplingTree.root();
-    }
-
     bool GetNullifier(const uint256 &nf, ShieldedType type) const {
         return false;
     }

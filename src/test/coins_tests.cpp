@@ -71,20 +71,6 @@ public:
         }
     }
 
-    bool HaveSproutAnchorAt(const uint256& rt) const {
-        if (rt == SproutMerkleTree::empty_root()) {
-            return true;
-        }
-        return mapSproutAnchors_.find(rt) != mapSproutAnchors_.end();
-    }
-
-    bool HaveSaplingAnchorAt(const uint256& rt) const {
-        if (rt == SaplingMerkleTree::empty_root()) {
-            return true;
-        }
-        return mapSaplingAnchors_.find(rt) != mapSaplingAnchors_.end();
-    }
-
     bool GetNullifier(const uint256 &nf, ShieldedType type) const
     {
         const std::map<uint256, bool>* mapToUse;
@@ -694,6 +680,47 @@ BOOST_AUTO_TEST_CASE(chained_joinsplits)
         mtx.vJoinSplit.push_back(js3);
 
         BOOST_CHECK(cache.HaveShieldedRequirements(mtx));
+    }
+}
+
+// AcceptToMemoryPool builds a CCoinsViewCache on tip+mempool, calls
+// HaveShieldedRequirements (Get*AnchorAt warms this cache), then
+// SetBackend(dummy) and later ContextualCheckInputs calls
+// HaveShieldedRequirements again. Dummy returns false for every Get*;
+// the second check only works if the first populated the cache.
+// chained_joinsplits alone does not cover this (one backend, one call).
+BOOST_AUTO_TEST_CASE(shielded_survive_dummy)
+{
+    CCoinsViewTest base;
+    CCoinsView dummy;
+
+    {
+        CCoinsViewCacheTest atmp_view(&dummy);
+        atmp_view.SetBackend(base);
+        CMutableTransaction mtx;
+        JSDescription js;
+        js.anchor = SproutMerkleTree::empty_root();
+        js.commitments[0] = GetRandHash();
+        js.commitments[1] = GetRandHash();
+        mtx.vJoinSplit.push_back(js);
+
+        BOOST_CHECK(atmp_view.HaveShieldedRequirements(mtx));
+        atmp_view.SetBackend(dummy);
+        BOOST_CHECK(atmp_view.HaveShieldedRequirements(mtx));
+    }
+
+    {
+        CCoinsViewCacheTest atmp_sapling(&dummy);
+        atmp_sapling.SetBackend(base);
+        CMutableTransaction mtx;
+        SpendDescription spend;
+        spend.anchor = SaplingMerkleTree::empty_root();
+        spend.nullifier = GetRandHash();
+        mtx.vShieldedSpend.push_back(spend);
+
+        BOOST_CHECK(atmp_sapling.HaveShieldedRequirements(mtx));
+        atmp_sapling.SetBackend(dummy);
+        BOOST_CHECK(atmp_sapling.HaveShieldedRequirements(mtx));
     }
 }
 
