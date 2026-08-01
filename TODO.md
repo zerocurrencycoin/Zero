@@ -2,8 +2,6 @@
 
 Status, planning, and full work-item descriptions for the Zero full node.
 
-Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, AGENTS, man) do not link to maintainer-only files or to DevWallet address/scripting trees.
-
 ---
 
 ## Protocols, labels, and naming
@@ -34,7 +32,10 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 2. **Stable subsidy arithmetic** -- implement integer founders helper (`subsidy * 75 / 1000`); naming later (**DOC-FR-NAMING**).
 3. **WAL-GETALLDATA-W5** -- **revisit soon** (stashed on Zerowallet; pro/con below).
 4. **TST-01** remainder / **TST-05** / **TST-03** -- harness gaps. **TST-09** alert half done; block/wallet notify open. **getalldata_scenario** Ext-validated (2026-07-24).
-5. Postponed bucket (see Pending): **WAL-LOCKEDPOOL**, **OPS-CACHE-METRICS**, **OPS-TXINDEX-DEFAULT**, **OPS-AT-HEIGHT**, **TST-WITNESS-REINDEX**, **OPS-REINDEX** remainder, **OPS-ALERT-STRIP**, **DOC-FR-NAMING**, other getalldata W-items / ARG2 / UI window.
+5. Postponed bucket (see Pending): **WAL-LOCKEDPOOL**, **OPS-CACHE-METRICS**, **OPS-TXINDEX-DEFAULT**, **OPS-AT-HEIGHT**, **TST-WITNESS-REINDEX**, **OPS-REINDEX** remainder, **OPS-ALERT-STRIP**, **OPS-TOR-COMPILE-OUT**, **OPS-I2P**, **OPS-DEBUGLOG-TIMING**, **WAL-STATUS-FSM**, **DOC-FR-NAMING**, other getalldata W-items / ARG2 / UI window.
+
+**Branch gate:** Status take documented in **StatusTransitions.md** (canonical contract) and interim **Wrap401.md**. Do not open Perf log scripts / Zerowallet status impl / I2P until that take is **committed and stamped** (Wrap401 stamp criteria); then separate branches.
+
 6. **FR-ROTATE / FR-TADDR / FR-Z** -- product/consensus. Not scheduled.
 7. **WAL-RPC-ACCOUNTS** -- **postponed**; business decision + code-risk analysis. Not a gate for continuing const / getalldata work.
 8. Release / docs track -- README merge, signing, macOS notarization, Linux RC, supply review.
@@ -58,6 +59,8 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 - **WAL-GETALLDATA-W5** -- **revisit soon** (see Full descriptions)
 - macOS datadir: wallet should use `Application Support/zero/` (INT-01)
 - Fuzz harness setup
+- **v4.0.1:** Linux `--strict` (lazu) then tag/merge -- TEST_ZERO handoff + **Wrap401.md**
+- **Wrap status take:** commit `StatusTransitions.md`, `Wrap401.md`, `TODO.md` when asked (`--strict` PASS 2026-07-27)
 
 ## Pending
 
@@ -78,6 +81,10 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 - **WAL-GETALLDATA-LEGACY-SCOPE** -- which 2018--2020 surface can shrink (see Full descriptions)
 - **WAL-RPC-ACCOUNTS** -- **postponed** (see Full descriptions); line-by-line Zcash `wtxOrdered` type match stays with this item
 - OPS-TXINDEX-DEFAULT / OPS-AT-HEIGHT -- postponed
+- **OPS-TOR-COMPILE-OUT** -- postponed; optional `--disable-tor` / omit `torcontrol` from build (runtime `listenonion=0` already default)
+- **OPS-I2P** -- postponed; Bitcoin Core `-i2psam` / Pirate PIR-08; Zero not in tree
+- **OPS-DEBUGLOG-TIMING** -- postponed until stamp-ready; filter+process scripts for `debug*.log` (run separation, settings guess, sparse events); Perf continue A/B/C (+ F via `debug4.log` ~951MB). Plan: filter first, process separately.
+- **WAL-STATUS-FSM** -- postponed until stamp-ready; implement **StatusTransitions.md** in Zerowallet: **conditions at RPC edge**, presentation map to icon/label/message (colors only in UI map); dedicated Zerowallet branch after wrap.
 - EXT-INSIGHT-SUPERSET -- postponed
 - `txindex.py` -- Bfail Debug; promote after green
 - FR-ROTATE / FR-TADDR / FR-Z -- postponed
@@ -86,7 +93,7 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 - macOS libtool `-bind_at_load` -- export `MACOSX_DEPLOYMENT_TARGET=15.0` from build system
 - Params archival / Windows hardening / branch-id CI / OpenSSL 3 / SwiftTX strip / release branch cleanup / Debian packaging / GitHub org cleanup
 
-## Completed (selected)
+## Completed
 
 ### Founders window / wallet.py (2026-07-24)
 
@@ -204,7 +211,28 @@ Port LockedPool + optional `getmemoryinfo`; Zero has `GetLockedPageCount()` only
 
 ### OPS / FR / EXT (short)
 
-- **OPS-REINDEX / ALERT-STRIP / CACHE-METRICS / TXINDEX-DEFAULT / AT-HEIGHT:** see Pending.
+- **OPS-REINDEX / ALERT-STRIP / CACHE-METRICS / TXINDEX-DEFAULT / AT-HEIGHT / TOR-COMPILE-OUT / I2P / DEBUGLOG-TIMING:** see Pending.
+- **WAL-STATUS-FSM:** see Pending (Zerowallet branch after stamp-ready).
+
+### OPS-TOR-COMPILE-OUT (postponed)
+
+**Goal:** Optional compile-out of Tor control / onion HS (`torcontrol.cpp`, related tests) via configure (e.g. `--disable-tor`), so builds that never need onion do not ship that surface. Runtime defaults already leave onion off (`DEFAULT_LISTEN_ONION=false`); `-listenonion=0`, `-onion=0`, no `-proxy` to Tor remain the supported ops path.
+
+**Not in scope now:** I2P -- see **OPS-I2P**. Do not couple Tor compile-out to I2P.
+
+**When resumed:** configure.ac + Makefile.am guards; `torcontrol_tests` / proxy_test skip when compiled out; BUILD_ZERO / TEST_ZERO note; keep RPC proxy tests soft-skip (DevFeeWallets Tor note).
+
+### OPS-I2P (postponed)
+
+**Goal / non-goal:** Track ecosystem I2P only. Bitcoin Core has `-i2psam` (v22+). Pirate PIR-08 existed upstream; Zero **Defer** (UpdateZero / TEST_ZERO). **No Zero implementation** in this stage.
+
+### OPS-DEBUGLOG-TIMING (postponed; after stamp-ready)
+
+**Goal:** Filter-then-process scripts for `debug*.log` as sketched in **StatusTransitions.md** section 7; Perf continue catch-up / sync / bootstrap / fat-wallet reindex timings.
+
+### WAL-STATUS-FSM (postponed; after stamp-ready; dedicated Zerowallet branch)
+
+**Goal:** Implement **StatusTransitions.md**: derive **conditions at the RPC edge**; single UI presentation map (condition -> icon token / label / message / color). zerod side stays behavioral names only -- no presentation colors in node status vocabulary.
 - **FR-ROTATE / TADDR / Z:** product options; postponed.
 - **EXT-INSIGHT-SUPERSET:** founders-index at START/STOP **done** (`founders_window.py` + Insight). Explorer-host PRs remain out of scope.
 
@@ -225,4 +253,3 @@ Checked against upstream tip (2026-07). Explorer-host PRs are out of scope here.
 
 ---
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor guidelines.

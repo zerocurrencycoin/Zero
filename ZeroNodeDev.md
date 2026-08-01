@@ -1,4 +1,5 @@
 # ZeroNodeDev -- zeronode wallet interface
+*Project Planning*
 
 ## 1. Purpose and role
 

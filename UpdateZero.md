@@ -1,8 +1,5 @@
 # UpdateZero
-
-Maintainer **execution hub**. Developer documents in **UpdateZero.md** section **1**, **Documentation map**.
-
----
+*Project Planning*
 
 ## 1. Documentation map
 
@@ -39,7 +36,7 @@ Public set (working): **README**, **BUILD_ZERO**, **TEST_ZERO**, **ZERO_COIN**, 
 
 **Insight** is specialty. Public docs: short explorer pointer only. Full host conf / bitcore / nginx stay in **`~/Work/ZK/insight/`**. **Skip** Insight/bitcore PR / merge work on the Zero400 track.
 
-**Dev fee addresses (project-internal):** founders / DevFee payee addresses and address-ops scripts -- see [`/Users/walter/Work/ZK/0/E/DevFeeWallets/README.md`](/Users/walter/Work/ZK/0/E/DevFeeWallets/README.md). That tree is **addresses and ops only**. Do **not** put DevWallet handling or scripting in ZeroStruct, TEST_ZERO, TODO, or other public docs.
+**Dev fee / specialty ops (project-internal):** All DevFee UTXO labs, drain tooling, and related key inventory live under [`/Users/walter/Work/ZK/0/E/README.md`](/Users/walter/Work/ZK/0/E/README.md) (see also `DevFeeWallets/`). Do **not** expand DevWallet handling into ZeroStruct, TEST_ZERO, TODO, or other public docs.
 
 ### Public project documents
 
@@ -66,16 +63,14 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | File                            | Purpose                                               | Include                                                                                                                                     | Exclude                                                                                                |
 | ------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | **UpdateZero.md**               | Decisions and execution order                         | This map; **3.3a** Pirate/TENT hub; **3.4** PIR; **3.5** TNT; **3.6** Linux compatibility; **4**--**8**                                                                 | Content owned by other rows                                                                            |
-| **ZeroStruct.md**               | **zerod** structure and options by use case           | Datadir, `-dbcache`, flags per workload, `ConnectBlock`, wallet chain ops; **section 11** client integration contract; **INT-NN** concerns (**11.7**); brief zeronode cache | Ecosystem/indexer compare (**Comparison.md**); Blockbook port (**4**); zeronode setup (**ZeroNodes**) |
+| **ZeroStruct.md**               | **zerod** structures, indexes, caches, locking, algorithms; options by use case | Datadir, LevelDB keys, `-dbcache`, ConnectBlock / wallet paths, client matrices (**§11**), **INT-NN** (**§11.7**) | Status FSM / UI conditions (**StatusTransitions.md**); ecosystem compare (**Comparison.md**); Blockbook port (**4**); zeronode setup (**ZeroNodes**) |
+| **StatusTransitions.md**        | Node readiness status contract                        | Behavioral states, RPC codes, wallet conditions, UI presentation maps, diagrams                                  | Structures/algorithms (**ZeroStruct**); wrap checklist (**Wrap401.md** interim) |
 | **ZeroNodes.md**                | Run a **zeronode** (operator)                         | Collateral, conf, RPC, sporks, coinbase summary, P2P, economics pointers                                                                    | ZND table (**ZeroNodeDev** section **9**); TNT order (**3.5**); insight flags (**ZeroStruct**)         |
 | **ZeroNodeDev.md**              | **Zeronode source** (wallet boundary, TENT, tests)    | `CZeronodeWalletInterface`; library split; **ZND anchors** (section **9**); test phases                                                     | Operator workflow (**ZeroNodes**); TNT order (**3.5**)                                                 |
 | **~/Work/ZK/ZKs/Comparison.md** | Clone **source** diffs + ecosystem services           | PoW, wallet, P2P, toolchain; **section 12** indexers/explorers/notifications (absorbs former **ZKNodes.md**)                              | Org audit (**Repos/ZeroC**); local paths (**ZKRepos**); zerod how-to (**ZeroStruct**)                   |
 | **~/Work/ZK/ZKs/ZKRepos.md**    | **Local clone paths** under `ZKs/`                    | Path index, `git pull` loop, Zero400 working copies                                                                                         | Ecosystem compare, org audit, zerod flags                                                                |
 | **~/Work/ZK/Repos/ZeroC.md**    | **zerocurrencycoin** org GitHub audit                 | All org repos, mobile/light stack inventory, archive tiers, **`ZeroC.csv`**                                                                 | Local paths (**ZKRepos**); cross-fork indexer compare (**Comparison** section **12**)                   |
 | **ZebraZero.md**                | zebrad / YEC / CipherScan reference                   | Sidecar validation, Orchard lessons, YEC fork notes                                                                                         | zerod how-to (**ZeroStruct**)                                                                          |
-
-
-
 
 ### Zeronode documents (ZeroNode*)
 
@@ -114,7 +109,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | Maintainer -> maintainer | One-line pointer when another file **owns** the topic |
 
 
-**Redundancy:** One owner per table or procedure. TNT execution order only here (**3.5**). ZND detail only **ZeroNodeDev** section **9**. Ecosystem/indexer compare only **Comparison.md** (section **12**). Clone paths only **ZKRepos.md**. Org repo audit only **`Repos/ZeroC.md`**. **zerod** internals and per-client requirement matrices only **ZeroStruct.md** (sections **5**, **11**). Blockbook port and Insight **execution status** only here (**section 4**); do not duplicate full `zero.conf` or RPC catalogs in **4.3** -- pointer only.
+**Redundancy:** One owner per table or procedure. TNT execution order only here (**3.5**). ZND detail only **ZeroNodeDev** section **9**. Ecosystem/indexer compare only **Comparison.md** (section **12**). Clone paths only **ZKRepos.md**. Org repo audit only **`Repos/ZeroC.md`**. **zerod** structures/algorithms and per-client requirement matrices only **ZeroStruct.md** (sections **5**, **11**). Node readiness status FSM / conditions / UI maps only **StatusTransitions.md**. Blockbook port and Insight **execution status** only here (**section 4**); do not duplicate full `zero.conf` or RPC catalogs in **4.3** -- pointer only.
 
 **ID namespaces (do not mix):**
 
@@ -136,6 +131,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | **OPS-LINUX-ABI** | **UpdateZero.md** section **3.6** (internal; Ubuntu 18 / multi-OS until timeline vs 4.0.1 decided) |
 | **OPS-*** / **WAL-*** / **FR-*** / **EXT-*** (status + full task text) | **TODO.md** |
 | **OPS-*** / **WAL-*** / **FR-*** (architecture: structures, indexes, algorithms) | **ZeroStruct.md** (esp. §4.3, §6.2, §13) -- problem/pro-con only, not task runbooks |
+| **WAL-STATUS-*** / node readiness conditions / UI status map | **StatusTransitions.md** |
 | **INT-*** | **ZeroStruct.md** section **11.7** |
 | **Clone wallet / P2P / shielding history** | **`ZKs/Comparison.md`** sections **3**, **4** |
 | **Indexer / explorer across coins** | **`ZKs/Comparison.md`** section **12** |
@@ -1463,7 +1459,6 @@ Outline for closing gaps from zeronode gap analysis and mainnet coinbase verific
 
 ### Documentation deliverables
 
-
 | Step | Deliverable              | Target doc                                                     | Content                                                                           |
 | ---- | ------------------------ | -------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | 1    | **Operator runbook**     | `BUILD_ZERO.md` new subsection or README link                  | Build, `fetch-params`, `zero.conf` RPC creds, `zerod` launch, ports (23801/23811) |
@@ -1475,7 +1470,6 @@ Outline for closing gaps from zeronode gap analysis and mainnet coinbase verific
 
 
 ### Functional test roadmap (TST-03 extension)
-
 
 | Phase | Test                          | Harness                                                        | Pass criteria                                                              |
 | ----- | ----------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -1535,57 +1529,9 @@ Outline for closing gaps from zeronode gap analysis and mainnet coinbase verific
 | Security / CVE posture      | `ZcashFixes.md`                                     | README Security bullet        |
 
 
-### Ecosystem testnet instructions (survey Jun 2026)
-
-
-| Project   | Public testnet docs                                                                                    | Regtest / dev                                                  | Notes                                                                   |
-| --------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **Zero**  | **Undocumented** public testnet join                                                                   | `TEST_ZERO.md` regtest authoritative                           | Recommend BUILD_ZERO testnet subsection: seeds, `testnet=1`, no harness |
-| **Zcash** | [zcash.conf guide](https://zcash.readthedocs.io/en/latest/rtd_pages/zcash_conf_guide.html) `testnet=1` | [Regtest book](https://zcash.github.io/zcash/dev/regtest.html) | Reference upstream only                                                 |
-
-
-Other clone testnets: `ZKs/Comparison.md`, `ZcashFixes.md` Appendix.
-
-### Suggested testnet doc snippet (for BUILD_ZERO, not yet added)
-
-```bash
-
-```
-
-
-
-# Public testnet (operator)
-
-testnet=1
-rpcuser=...
-rpcpassword=...
-addnode=   # document current seeds from chainparams or community
-./src/zerod -testnet -daemon
-./src/zero-cli -testnet getblockchaininfo
-
-```
-
-Regtest developer path remains **`TEST_ZERO.md` Quick start** and `./contrib/run-tests.sh`.
-
 ---
 
-## Mainnet RPC tooling (Jun 2026)
-
-Synced nodes: **Mac** (`~/.zero`) and **laz24** (`ssh lazu`, datadir `/home/ubuntu/.zero`, CLI `/home/ubuntu/Work/ZK/ZeroLinux/src/zero-cli`).
-
-Repeatable coinbase decode and emission stats: **`ZERO_COIN.md`** (Emission totals section).
-
-Cross-reference: **`ZcashFixes.md`**, **`ZebraZero.md`**.
-
-**Orchard assetchain research** (removed from this file): not a Zero port source; use sidecar **`zebrad`** on Zcash per **`ZebraZero.md`**. **Fixed-seed maintainer note** remains under Testnet operator bootstrap below.
-
----
-
-## Appendix: Wallet decode tools and network bootstrap (Jun 2026)
-
-Planned home for operator tooling survey. Primary maintainer doc: this section; user narrative in **ZERO_COIN.md** Operational reference.
-
-### wallet.zero format
+### wallet.zero format ***
 
 - Berkeley DB **6.2.32** (depends); default filename **`wallet.zero`** (`-wallet=`).
 - Schema: [ZIP 400](https://zips.z.cash/zip-0400) lineage (`zkey`, `czkey`, `sapzkey`, `ckey`, ...).
@@ -1600,7 +1546,7 @@ Planned home for operator tooling survey. Primary maintainer doc: this section; 
 | `z_exportkey` / `z_exportviewingkey` | Per-address |
 | `backupwallet <path>` | Binary copy |
 
-### Offline / external tools
+### External tools ***
 
 | Tool | Zero applicability |
 |------|-------------------|
@@ -1609,54 +1555,46 @@ Planned home for operator tooling survey. Primary maintainer doc: this section; 
 | **[Zallet migrate-zcashd-wallet](https://zcash.github.io/wallet/cli/migrate-zcashd-wallet.html)** | Same; `--allow-warnings` for fork chains |
 | **pywallet** | Transparent keys only; misses Sprout/Sapling DB keys |
 
-Recipe:
-
 ```bash
 ./src/zero-cli dumpwallet /tmp/zero-export.txt
 /path/to/depends/.../db_dump -p ~/.zero/wallet.zero > wallet.dump.txt
 ```
 
-### Mainnet operator bootstrap
+*** Move to README or CONTRIB
+
+### Mainnet user
+P2P ports **23801**, RPC **23811**. Datadir on Linux: **`~/.zero`**.
 
 ```bash
 ./zcutil/fetch-params.sh          # or zero-fetch-params
-```
-
-
 
 # ~/.zero/zero.conf
 
-rpcuser=...
-rpcpassword=...
+rpcuser={USER}
+rpcpassword={PASSWORD}
 ./src/zerod -daemon
 ./src/zero-cli getblockchaininfo
-
 ```
+**Fixed-seed gap:** Mainnet uses ten DNS seeds (`seed0`..`seed9`.zerocurrency.io) but **`src/chainparamsseeds.h`** arrays are empty -- no IP fallback if DNS fails (Bitcoin Core ships hardcoded URLs generated via `contrib/seeds/generate-seeds.py`). Consider resolving `*.zerocurrency.io`.
+Public testnet seeds: **`src/chainparams.cpp`** DNS entries `testnet1.zerocurrency.io`, `testnet2.zerocurrency.io` (verify live peers before relying). No qa harness connects to testnet by design (**TEST_ZERO.md**).
 
-Ports: P2P **23801**, RPC **23811**. Datadir: **`~/.zero`**.
-
-### Testnet operator bootstrap
+### Testnet operator
+P2P ports 23802, RPC 23812
 
 ```bash
+# ~/.zero/zero.conf
+
 testnet=1
-```
-
-
-
-# P2P 23802, RPC 23812; fee-start height 1
+rpcuser={USER}
+rpcpassword={PASSWORD}
+addnode=
 
 ./src/zerod -testnet -daemon
 ./src/zero-cli -testnet getblockchaininfo
-
 ```
 
-Public testnet seeds: **`src/chainparams.cpp`** DNS entries `testnet1.zerocurrency.io`, `testnet2.zerocurrency.io` (verify live peers before relying). No qa harness connects to testnet by design (**TEST_ZERO.md**).
-
-**Fixed-seed gap (maintainer note):** Mainnet uses ten DNS seeds (`seed0`..`seed9`.zerocurrency.io) but **`src/chainparamsseeds.h`** fixed arrays are empty -- no IP fallback if DNS fails (Bitcoin Core ships hardcoded seeds via `contrib/seeds/generate-seeds.py`). Consider resolving `*.zerocurrency.io` and populating `pnSeed6_main` / `pnSeed6_test` on release.
-
-### Regtest (developers)
-
-See **TEST_ZERO.md** Quick start; ports **23803/23813**; Equihash **(48,5)**; **`REGTEST_FOUNDERS_START`/`STOP`** = **1000**/**1500**.
-
-```
+### Regtest developer
+P2P ports 23803, RPC 23813
+Equihash **(48,5)**
+**`REGTEST_FOUNDERS_START`/`STOP`** = **1000**/**1500**.
 

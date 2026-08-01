@@ -1,7 +1,5 @@
 # Height-bounded sync, reindex, and bootstrap
-
-**Status:** findings captured; implementation track **OPS-AT-HEIGHT** postponed (**TODO.md**).  
-**Scope:** full node (`zerod`) only. Related: **ZeroStruct** §13.2 (reindex resume), §13.7 (bootstrap).
+*Project Planning*
 
 ---
 
@@ -48,12 +46,7 @@ Measured `-disablewallet -reindex` on this host (rates = totals / wall seconds).
 | **archive MiB/s** | **1.15** | **1.25** | **1.50** |
 | **blk MiB/s** | **1.29** | **1.40** | **1.68** |
 
-Prefer **tiny** for most labs; **short** when a third completed file helps resume tests. Neither predicts tip reindex cost (see longhaul).
-
-| Lab dir under `~/Work/ZK/0/E/` | Role |
-|--------------------------------|------|
-| `zero-lab-tiny-run/` / `zero-lab-short-run/` | Extract-from-`zero/` timed validation |
-| `zero-lab-reindex/` | Full-chain longhaul / resume |
+Prefer **tiny** for most labs; **short** when a third completed file helps resume tests. Neither predicts tip reindex cost (see longhaul). Lab datadir layout and procedures: specialty ops tree (**UpdateZero** -- `~/Work/ZK/0/E`).
 
 **Networks:** same code paths on mainnet / testnet / regtest. **Data is not interchangeable** (magic, genesis, blk layout). Regtest remains the fast logic path (mine N blocks); short/tiny mainnet snaps are for mainnet-cost ConnectBlock behavior at low height.
 

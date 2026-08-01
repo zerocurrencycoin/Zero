@@ -5,9 +5,9 @@ Chain economics, consensus parameters, operational facts, and where Zero differs
 | Audience | Use |
 |----------|-----|
 | Miners / pools | Block reward, halving, zeronode share, payout expectations. |
-| Node operators | Ports, config, sync, resources. |
-| Exchanges / integrators | Supply, emission, RPC, branch ids. |
-| Developers | Consensus-visible rules; code truth in **`src/`**. |
+| Node operators | Ports, config, sync. |
+| Exchanges / integrators | Supply, emission, branch ids. |
+| Developers | Consensus-visible rules; code in **`src/`**. |
 
 ---
 
@@ -15,32 +15,32 @@ Chain economics, consensus parameters, operational facts, and where Zero differs
 
 | Term | Meaning |
 |------|--------|
+| **zerod** / **zero-cli** / **zero-tx** | Daemon, RPC client, tx utility (**doc/man/**). |
 | **ZER** | Ticker; amounts in RPC/wallet often in **zatoshi** (see `MAX_MONEY` / `MoneyRange` in consensus code). |
 | **zatoshi** | Smallest unit (like Bitcoin's satoshi). |
 | **Transparent address (t-addr)** | Public UTXO address. |
 | **Shielded address (z-addr)** | Shielded pool (**Sapling** generation in this codebase). |
 | **Sapling** | Shielded protocol generation; activation heights per network in **`getblockchaininfo`**. |
-| **Sprout** | Earlier shielded path; relevance follows shipped rules. |
+| **Sprout** | Earlier shielded path; relevance deminished. |
 | **JoinSplit** | Shielded component moving value into/out of the pool. |
 | **Note / commitment / nullifier** | Shielded note lifecycle on-chain. |
-| **Equihash (192, 7)** | PoW parameters for Zero; differs from Zcash's common **(200, 9)**. |
+| **Spork** | Live-adjustable network toggle (zeronode tiers). |
+| **Equihash (192, 7)** | PoW parameters for Zero; notably differents from Zcash's **(200, 9)**. |
+| **Coinbase** | Subsidy + fees in the block reward transaction. |
+| **COINBASE_MATURITY** | **720** confirmations before coinbase is spendable (not Bitcoin 100). |
 | **Block subsidy** | New coins per block before fees; **halving** reduces it. |
 | **Halving** | Subsidy right-shift at interval boundaries (see **Halving calendar**). |
 | **Founders reward** | **7.5%** of block subsidy in eligible heights to rotating transparent addresses. |
 | **Zeronode** | Incentive layer; **20-40%** of block value when sporks enable tiers (see **Zeronode payments**). |
-| **Spork** | Live-adjustable network toggle (zeronode tiers, etc.). |
-| **COINBASE_MATURITY** | **720** confirmations before coinbase is spendable (this tree; not Bitcoin's 100). |
-| **Coinbase** | Subsidy + fees in the block reward transaction. |
 | **Mainnet / testnet / regtest** | Production / public test / local regression. |
 | **Network upgrade (NU) / branch id** | Rule set by height; **branch id** in sighash for Overwinter+ txs. |
-| **zerod** / **zero-cli** / **zero-tx** | Daemon, RPC client, tx utility (**doc/man/**). |
 | **RPC** | JSON-RPC from **zerod**. |
-| **Pruning / txindex** | Optional modes; may force **reindex**. |
+| **Pruning / txindex** | Optional mode; importance reduced. |
 | **Reindex** / **Rescan** | Chain index rebuild vs wallet rescan. |
 | **Params** | Proving keys; **fetch-params** scripts. |
 | **MAX_MONEY** | Caps **single-output** amounts; total issued supply is a separate concept (**Total supply**). |
 | **Deprecation** | Node may enforce upgrade by height/date (see [README -- Deprecation](README.md#-deprecation-policy)). |
-| **P2P subver** | Peer user-agent (Zero branding). |
+| **P2P subver** | Peer user-agent subversion. |
 | **Mempool** | Unconfirmed txs awaiting blocks. |
 
 ---

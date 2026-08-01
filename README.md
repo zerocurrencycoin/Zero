@@ -100,10 +100,6 @@ See important security warnings on the
 
 **Zero is experimental and a work in progress.** Use it at your own risk.
 
-📒 Deprecation Policy
-------------------
-Disabledeprecation flag has been removed. Nodes running release 4.0.x will automatically shut down in ten years (June 2032).
-
 
 📚 Documentation
 ----------------
@@ -116,22 +112,22 @@ Disabledeprecation flag has been removed. Nodes running release 4.0.x will autom
    BUILD_ZERO     TEST_ZERO     CONTRIBUTING
         │              │              │
         └──────────────┴──────────────┘
-                        │
-                        ▼
-                      TODO
-                        ▼
+                       │
+                       ▼
+                     TODO
+                       ▼
                    ZERO_COIN.md
-                (chain + node reference)
+             (chain + node reference)
 ```
 
 | Document | Purpose | Focus |
 |----------|---------|-------|
-| [README.md](README.md) | Project front page; links and quick start | What Zero is, where to build, contribute, and read deeper docs |
-| [BUILD_ZERO.md](BUILD_ZERO.md) | Build and platform guide | Linux, macOS ARM64, Windows, depends, troubleshooting, release-style artifacts |
-| [TEST_ZERO.md](TEST_ZERO.md) | Validation runbook | Runners, modes, Tier A gate, pass-only filters, known failures, 720 maturity |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow | Patches, review, coding expectations |
-| [TODO.md](TODO.md) | Checklist and follow-ups | Implementation status, doc debt, small tracked tasks |
-| [ZERO_COIN.md](ZERO_COIN.md) | **User-facing** chain and node reference | Observable behavior, events, operations; **Glossary** and **References**; emission, halving, founders, zeronodes, addresses |
+| [README.md](README.md) | Project front page; links and quick start | What Zero is, how to build, contribute |
+| [ZERO_COIN.md](ZERO_COIN.md) | **User-facing** chain and node reference | Observable behavior, events, operations; **Glossary** and **References**; emission, halving, zeronodes, addresses |
+| [BUILD_ZERO.md](BUILD_ZERO.md) | Build and platform guide | Linux, macOS ARM64, Windows depends, troubleshooting, release artifacts |
+| [TEST_ZERO.md](TEST_ZERO.md) | Validation runbook | Runners, modes, Tier A gate, pass-only filters |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow | Patches, coding expectations |
+| [TODO.md](TODO.md) | Checklist and follow-up | Implementation status, tracked tasks and work items |
 | `doc/man/` | Shipped CLI manuals | `zerod`, `zero-cli`, `zero-tx` options and behavior |
 
 
@@ -221,13 +217,13 @@ Command-line options: `./src/zerod -help` (or set in zero.conf).
 
 Your wallet is created on first run as **`wallet.zero`** in the data directory (see table above). [Backup your wallet](https://github.com/zerocurrencycoin/Zero/wiki/Wallet-Backup) often.
 
-The usage is currently very similar to Zcash. For more information see the [Zcash User Guide](https://github.com/zcash/zcash/wiki/1.0-User-Guide#running-zcash).
+The usage is currently very similar to Zcash. For more information see the [Zcash Basics](https://zcash.readthedocs.io/en/latest/rtd_pages/basics.html)
 
 ### Block explorer
 
 Mainnet block explorer: [https://insight.zeromachine.io/](https://insight.zeromachine.io/)
 
-The public **Zero Insight** site searches transparent addresses, blocks, and transactions on the Zero mainnet chain. It is powered by the open-source **`insight-ui-zero`** and **`insight-api-zero`** stack against a synced **`zerod`** with address indexes enabled. To run your own explorer backend, see [BUILD_ZERO.md -- Block explorer](BUILD_ZERO.md#462-block-explorer).
+The public **Zero Insight** site searches transparent addresses, blocks, and transactions on the Zero mainnet chain. It is powered by the open-source **`insight-ui-zero`** and **`insight-api-zero`** stack against a synced **`zerod`** with address indexes enabled. Review [Insight Repos](https://github.com/zerocurrencycoin insight-* bitcore-* repos)
 
-This repository builds the full node (`zerod`, `zero-cli`, `zero-tx`). The Qt wallet (**zerowallet**) is a separate application and does not enable blockchain address indexes by default.
+This repository builds the full node (`zerod`, `zero-cli`, `zero-tx`). The Qt Desktop Wallet (**zerowallet**) is a separate application.
 
