@@ -227,7 +227,7 @@ Typical order for **`zero-400names`** (or any RC) -> **`master`** (remote defaul
 
 ### 4.0.1 handoff (macOS -> Linux)
 
-**Status (2026-06):** macOS ARM64 validated with **`--strict` PASS**. Linux rebuild on lazu is the **recommended** next validation before **`v4.0.1`** tag / merge -- not a process lockout.
+**Status (2026-07):** macOS ARM64 **`--strict` PASS** at tip during status-take wrap (2026-07-27). Linux rebuild on lazu remains the **recommended** next validation before **`v4.0.1`** tag / merge -- not a process lockout. Status-take docs: **Wrap401.md** (interim), **StatusTransitions.md** (canonical contract).
 
 | Step | macOS (done) | Linux lazu (`ZeroLinux`) |
 |------|--------------|---------------------------|

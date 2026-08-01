@@ -1631,6 +1631,10 @@ TEST(WalletTests, ClearNoteWitnessCache) {
     noteData[jsoutpt] = nd;
     wtx.SetSproutNoteData(noteData);
     auto saplingNotes = SetSaplingNoteData(wtx);
+    // Second Sapling outpoint with no note data (mirror jsoutpt2): Get*Witnesses
+    // resizes to notes.size(); the old test indexed [1] with only one note (UB).
+    SaplingOutPoint saplingOutPoint2 {wtx.GetHash(), 1};
+    saplingNotes.push_back(saplingOutPoint2);
 
     // Pretend we mined the tx by adding a fake witness
     SproutMerkleTree sproutTree;

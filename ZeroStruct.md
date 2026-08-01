@@ -1,16 +1,17 @@
 # Zero node structure
+*Project Planning*
 
 ## 1. Purpose and role
 
 **Audience:** **zerod** maintainers and contributors (node internals, flags, datadir, client requirements from the daemon's side). Block explorer host admins and Insight/bitcore developers use **`~/Work/ZK/insight/InsightBlock.md`** as their primary runbook; this file only states what **zerod** must expose.
 
-**Purpose:** Explain **zerod** structure and runtime **options by use case** (validator+wallet, Insight backend, external indexer RPC feed, stats, lightwalletd, zeronode on one binary).
+**Purpose:** Explain **zerod** **data structures and the algorithms that process them** -- datadir / LevelDB keys, indexes, caches, concurrent updates and locking, `ConnectBlock` and wallet paths that hit those structures -- plus runtime **options by use case** and what each client needs the node to expose.
 
-**Include:** Datadir and LevelDB keys; `-dbcache`; flags tied to workloads; `ConnectBlock` index path; wallet ops that hit the chain; RPC clients; **external client integration** (Insight stack, zerowallet, requirement matrices, cross-doc map); brief zeronode cache role. Occasional Zcash/Pirate notes **only** to orient on zerod today or likely direction.
+**Include:** Datadir and LevelDB keys; `-dbcache` and cache split; flags tied to workloads; `ConnectBlock` index path; wallet ops that hit the chain; RPC clients; **external client integration** (Insight stack, zerowallet requirement matrices, cross-doc map); brief zeronode cache role. Occasional Zcash/Pirate notes **only** to orient on zerod today or likely direction.
 
-**Exclude:** Ecosystem/indexer compare (**`Comparison.md`**); port/cherry-pick execution (**`UpdateZero.md`**); zeronode operator/dev detail (**`ZeroNodes.md`**, **`ZeroNodeDev.md`**); wallet Qt UI (**`zerowallet400/UpdateWallet.md`**); local clone paths (**`ZKRepos.md`**); **zerocurrencycoin** org repo audit (**`~/Work/ZK/Repos/ZeroC.md`**); Insight nginx/Cloudflare/bitcore install steps (**`InsightBlock.md`**).
+**Exclude:** Node **status FSM**, RPC soft-path conditions, and UI presentation maps (**`StatusTransitions.md`**); ecosystem/indexer compare (**`Comparison.md`**); port/cherry-pick execution (**`UpdateZero.md`**); zeronode operator/dev detail (**`ZeroNodes.md`**, **`ZeroNodeDev.md`**); wallet Qt UI (**`zerowallet400/UpdateWallet.md`**); local clone paths (**`ZKRepos.md`**); **zerocurrencycoin** org repo audit (**`~/Work/ZK/Repos/ZeroC.md`**); Insight nginx/Cloudflare/bitcore install steps (**`InsightBlock.md`**).
 
-**Set rule:** **`ZeroStruct` ⊆ zerod internals + per-client requirements from the node's perspective**. No Blockbook port plan (**UpdateZero** section **4**); no cross-fork indexer tables (**Comparison** section **12**); no GitHub org disposition (**Repos/ZeroC**). Integration concern IDs use prefix **INT-NN** (section **11.7**); do not reuse **C-NN** from **UpdateZero** section **8** Completed.
+**Set rule:** **`ZeroStruct` ⊆ zerod structures + algorithms + per-client requirements from the node's perspective**. Status readiness vocabulary lives in **StatusTransitions.md**. No Blockbook port plan (**UpdateZero** section **4**); no cross-fork indexer tables (**Comparison** section **12**); no GitHub org disposition (**Repos/ZeroC**). Integration concern IDs use prefix **INT-NN** (section **11.7**); do not reuse **C-NN** from **UpdateZero** section **8** Completed.
 
 Developer documents in **UpdateZero.md** section **1**, **Documentation map**. Regtest harness: **`TEST_ZERO.md`**.
 
@@ -1217,16 +1218,3 @@ Changing **updates** (how often / which slot receives) vs **type** (what script/
 
 ---
 
-## 14. Related documents
-
-| Doc | Role |
-|-----|------|
-| **`UpdateZero.md`** | Maintainer map, port execution, RPC coverage gaps |
-| **`BUILD_ZERO.md`** | Build, **OPS-SHELL**, **OPS-EXPLORER** |
-| **`ZERO_COIN.md`** | Chain reference, public ports/datadir |
-| **`TEST_ZERO.md`** | Harness tiers and `--all` matrix |
-| **`~/Work/ZK/insight/`** | Insight ops and API catalog |
-| **`~/Work/ZK/zerowallet400/`** | Wallet RPC and embed flow |
-| **`ZeroNodes.md`**, **`ZeroNodeDev.md`** | Zeronode operator vs developer |
-
-Public docs do not link here until **`UpdateZero.md` section 7** drafts are approved.

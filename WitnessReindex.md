@@ -1,9 +1,8 @@
 # Shielded witness rebuild and reindex coverage
+*Project Planning*
 
-**Status:** findings and proposals captured; implementation **postponed** (**TST-WITNESS-REINDEX** in **TODO.md**).  
-**Scope:** wallet `BuildWitnessCache` / note witnesses across `-reindex` (not mainnet height-stop -- see **AtHeight.md**).
-
-**Authoritative investigation:** **ExtTests.md** §1 (2026-07-01). This file is the **task hub** and the **`reindex_shielded`** design note so CleanIndex / B1 / B2 / C are not scattered only across TEST_ZERO / UpdateZero / ExtTests.
+**Status:** findings and proposals captured
+**Scope:** wallet `BuildWitnessCache` / note witnesses across `-reindex`
 
 ---
 
@@ -64,12 +63,3 @@ Replace `assert` on inconsistent witness roots in `GetSproutNoteWitnesses` / `Ge
 | **TST-08** / PIR-03 | `-33` while `fBuildingWitnessCache` -- separate |
 | **EXT-INSIGHT-FIXTURES** | Insight RPC promote -- orthogonal |
 
----
-
-## 6. Cross-links
-
-- Full RCA: **ExtTests.md** §1  
-- Gate / filter: **TEST_ZERO.md** (CachedWitnesses*, Appendix)  
-- Legacy backlog lines: **UpdateZero.md** TST-04 / TST-08  
-- Code: `src/wallet/gtest/test_wallet.cpp` (`CachedWitnessesCleanIndex`), `src/wallet/wallet.cpp` (`BuildWitnessCache`)  
-- Tracking: **TODO.md** -- **TST-WITNESS-REINDEX** (postponed)

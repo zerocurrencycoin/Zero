@@ -1,4 +1,5 @@
 # ExtTests -- Extended test investigations (witness, mining/Equihash, external interfaces)
+*Project Planning*
 
 Standalone record of three test investigations completed 2026-07-01/02. These
 extend the **TST-\*** backlog items in `UpdateZero.md` §4 (Testing) with full

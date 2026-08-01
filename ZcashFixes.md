@@ -1,10 +1,8 @@
 # Zcash shielded-pool vulnerabilities and remediation (2026)
+*Project Planning*
 
-Draft for publication. Scope: Orchard counterfeiting (May--June 2026), Sprout verification bypass CVE-2026-35679 (March 2026), and Zero Currency applicability.
-
-**Publication status:** Draft (Jun 2026). Audience: node operators, fork maintainers, integrators.
-
-**Fork CVE posture (all clones, including PIRATETST):** Appendix only. Do not duplicate elsewhere.
+Scope: Orchard counterfeiting (May--June 2026), Sprout verification bypass CVE-2026-35679 (March 2026)
+Audience: node operators, fork maintainers, integrators.
 
 ---
 
@@ -62,6 +60,12 @@ That breaks soundness: the proof attests to a state transition that did not occu
 
 Secondary fix in NU6.2: **strict Orchard proof length** -- reject bundles with non-canonical proof size (extra bytes appended to valid proofs, not counted by ZIP 317 fees).
 
+### 1.5 zcashd parallel track
+
+- **v6.12.5:** Orchard-disabling soft fork (aligned with Zebra 4.5.3 intent).
+- **v6.20.0:** NU6.2 activation with updated Orchard verifying key and proof-length rule.
+
+
 ### 1.4 Zebra remediation (two releases)
 
 **Phase A -- Zebra 4.5.3 (soft fork):**
@@ -83,11 +87,6 @@ Secondary fix in NU6.2: **strict Orchard proof length** -- reject bundles with n
 | Post-NU6.2 Orchard | `FixedPostNu6_2` / `VERIFYING_KEY_POST_NU6_2` | NU6.2 onward |
 
 `verifier_for(network_upgrade)` routes each bundle explicitly; keys must **never** be interchanged.
-
-### 1.5 zcashd parallel track
-
-- **v6.12.5:** Orchard-disabling soft fork (aligned with Zebra 4.5.3 intent).
-- **v6.20.0:** NU6.2 activation with updated Orchard verifying key and proof-length rule.
 
 ---
 
@@ -181,7 +180,7 @@ Zcash patch ensures Sprout proof verification cannot be skipped on the connect p
 
 **Residual inherited behavior (not the CVE):** `ProcessNewBlock` first pass uses `ProofVerifier::Disabled()`; `ConnectBlock` uses `Strict()` when `fExpensiveChecks`. Blocks that are **checkpoint ancestors** skip expensive script/proof checks during IBD (last mainnet checkpoint height **700,000**). That is normal checkpoint trust, not an `fChecked` skip of tip JoinSplits.
 
-**Inspection checklist (Zero400):**
+**Inspection checklist**
 
 | Check | Result |
 |-------|--------|
@@ -193,8 +192,6 @@ Zcash patch ensures Sprout proof verification cannot be skipped on the connect p
 ---
 
 ## Part 3: Planned Zero policy -- post-Sapling Sprout proof disable
-
-**Status:** Plan only (not implemented). Document for future NU discussion.
 
 ### 3.1 Zcash direction (reference)
 
@@ -230,13 +227,9 @@ Zcash ZIP 211 deprecated Sprout **defense in depth**: after Sapling activation, 
 
 **Ecosystem gap:** 2026 fixes were Zcash-centric (ZODL, Zebra, Shielded Labs). Most zcashd forks received **no public advisories** despite differing Sprout connect paths and absent Orchard code.
 
-**Zero public statement:** None as of Jun 2026. Technical posture: this file and `ZERO_COIN.md` Security section.
-
 ---
 
 ## Appendix: Fork stack and 2026 CVE posture
-
-Single reference for clone research. Algorithm comparisons live in `ZKs/Comparison.md`; clone paths in `ZKs/ZKRepos.md`. Compact field notes merged from `~/Work/ZK/ZcashV.md` (2026-06-08).
 
 ### A.0 Shielded pool status by project
 
@@ -257,12 +250,12 @@ Single reference for clone research. Algorithm comparisons live in `ZKs/Comparis
 
 | Project | Sprout Mar 2026 | Orchard Jun 2026 |
 |---------|-----------------|------------------|
+| **Zero** | No public statement | No public statement |
 | **Pirate** | No post found | **Formal blog**: not affected; Orchard testnet will include Zcash fix before mainnet |
 | **Hush** | Silence | Silence (structurally mitigated) |
 | **Horizen** | Silence | Silence (shielded removed 2024) |
 | **Komodo** | Silence | Silence (Sprout disabled at consensus) |
 | **Verus / Ycash / ZClassic** | No 2026 advisories | No 2026 advisories |
-| **Zero** | No public statement | No public statement |
 
 **Ecosystem themes:** Sprout sunset pressure and Scalar bounty; Orchard supply-audit debate and [Ironwood](https://tachyon.z.cash/blog/auditing-orchard-supply/) proposal; **disclosure gap vs 2018** (no documented fork outreach in 2026).
 
@@ -294,6 +287,18 @@ Komodo-style assetchain flags -- not zcashd `-regtest`, not importable to Zero v
 
 ---
 
+## Conclusions
+
+1. **Orchard (Jun 2026):** A four-year soundness bug in `halo2_gadgets` could have allowed undetectable counterfeiting inside the Orchard pool. Remediation required an emergency Orchard shutdown (Jun 2) and NU6.2 hard fork (Jun 3) with a new pinned verifying key. Zebra implements dual-key historical verification.
+
+2. **Sprout fChecked (Mar 2026):** A zcashd optimization allowed block-level skipping of Sprout proof checks. Fixed in v6.12.0. Zebra was never affected.
+
+3. **Zero Currency is not in danger from either vulnerability.** Zero has **no Orchard implementation** and **no `fChecked` bypass path**. Operators should still monitor Sprout pool balance (ZIP209) and plan a future **Sprout destination-only** sunset aligned with turnstile accounting.
+
+4. **Disclosure practice changed:** 2026 incidents lacked the 2018-style private fork notification. Zero maintainers should subscribe to ZODL/Zebra releases and diff zcashd security patches even when Orchard is absent.
+
+---
+
 ## References
 
 | Resource | URL |
@@ -313,16 +318,3 @@ Komodo-style assetchain flags -- not zcashd `-regtest`, not importable to Zero v
 | Pirate Orchard posture | https://piratechain.com/blog/pirate-chain-arrr-not-affected-by-critical-zcash-orchard-vulnerability/ |
 | ZODL Sprout write-up | https://zodl.com/zcashd-sprout-verification-vulnerability/ |
 
----
-
-## Conclusions
-
-1. **Orchard (Jun 2026):** A four-year soundness bug in `halo2_gadgets` could have allowed undetectable counterfeiting inside the Orchard pool. Remediation required an emergency Orchard shutdown (Jun 2) and NU6.2 hard fork (Jun 3) with a new pinned verifying key. Zebra implements dual-key historical verification.
-
-2. **Sprout fChecked (Mar 2026):** A zcashd optimization allowed block-level skipping of Sprout proof checks. Fixed in v6.12.0. Zebra was never affected.
-
-3. **Zero Currency is not in danger from either vulnerability.** Zero has **no Orchard implementation** and **no `fChecked` bypass path**. Operators should still monitor Sprout pool balance (ZIP209) and plan a future **Sprout destination-only** sunset aligned with turnstile accounting.
-
-4. **Disclosure practice changed:** 2026 incidents lacked the 2018-style private fork notification. Zero maintainers should subscribe to ZODL/Zebra releases and diff zcashd security patches even when Orchard is absent.
-
-**Related Zero docs:** `ZebraZero.md`, `ZERO_COIN.md`, `UpdateZero.md`.
