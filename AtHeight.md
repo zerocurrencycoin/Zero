@@ -22,7 +22,7 @@
 
 ### Persistent archives (host; not in git)
 
-**Canonical location only:** `~/Library/Application Support/zero/` (same dir as the full `chainblocks.tgz`). Do **not** keep duplicate `chainblocks*.tgz` under `~/Work/ZK/0/E/` -- extract into lab dirs from `zero/` when needed.
+**Canonical location only:** `~/Library/Application Support/zero/` (same dir as the full `chainblocks.tgz`). Extract into a dedicated lab datadir from that archive; do not duplicate the tarballs elsewhere.
 
 | Artifact | Path under `Application Support/zero/` | Measured `-disablewallet -reindex` |
 |----------|----------------------------------------|-------------------------------------|
@@ -46,7 +46,7 @@ Measured `-disablewallet -reindex` on this host (rates = totals / wall seconds).
 | **archive MiB/s** | **1.15** | **1.25** | **1.50** |
 | **blk MiB/s** | **1.29** | **1.40** | **1.68** |
 
-Prefer **tiny** for most labs; **short** when a third completed file helps resume tests. Neither predicts tip reindex cost (see longhaul). Lab datadir layout and procedures: specialty ops tree (**UpdateZero** -- `~/Work/ZK/0/E`).
+Prefer **tiny** for most labs; **short** when a third completed file helps resume tests. Neither predicts tip reindex cost (see longhaul). Use a disposable lab datadir (never the golden tree); procedure in §4.1.
 
 **Networks:** same code paths on mainnet / testnet / regtest. **Data is not interchangeable** (magic, genesis, blk layout). Regtest remains the fast logic path (mine N blocks); short/tiny mainnet snaps are for mainnet-cost ConnectBlock behavior at low height.
 
@@ -84,7 +84,7 @@ Do **not** use sticky `reindex=` in conf. Prefer one-shot CLI `-reindex` and typ
 ```bash
 # Canonical archives (macOS host example)
 ZERO_HOME="$HOME/Library/Application Support/zero"
-LAB="$HOME/Work/ZK/0/E/zero-lab-tiny-run"   # or zero-lab-short-run
+LAB="${LAB:-$TMPDIR/zero-lab-tiny-run}"   # or zero-lab-short-run; never the golden datadir
 mkdir -p "$LAB"
 # wipe lab only -- never the golden datadir
 rm -rf "$LAB"/*

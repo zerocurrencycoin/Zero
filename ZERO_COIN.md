@@ -21,11 +21,11 @@ Chain economics, consensus parameters, operational facts, and where Zero differs
 | **Transparent address (t-addr)** | Public UTXO address. |
 | **Shielded address (z-addr)** | Shielded pool (**Sapling** generation in this codebase). |
 | **Sapling** | Shielded protocol generation; activation heights per network in **`getblockchaininfo`**. |
-| **Sprout** | Earlier shielded path; relevance deminished. |
+| **Sprout** | Earlier shielded path; relevance diminished. |
 | **JoinSplit** | Shielded component moving value into/out of the pool. |
 | **Note / commitment / nullifier** | Shielded note lifecycle on-chain. |
 | **Spork** | Live-adjustable network toggle (zeronode tiers). |
-| **Equihash (192, 7)** | PoW parameters for Zero; notably differents from Zcash's **(200, 9)**. |
+| **Equihash (192, 7)** | PoW parameters for Zero; notably different from Zcash's **(200, 9)**. |
 | **Coinbase** | Subsidy + fees in the block reward transaction. |
 | **COINBASE_MATURITY** | **720** confirmations before coinbase is spendable (not Bitcoin 100). |
 | **Block subsidy** | New coins per block before fees; **halving** reduces it. |
@@ -39,7 +39,7 @@ Chain economics, consensus parameters, operational facts, and where Zero differs
 | **Reindex** / **Rescan** | Chain index rebuild vs wallet rescan. |
 | **Params** | Proving keys; **fetch-params** scripts. |
 | **MAX_MONEY** | Caps **single-output** amounts; total issued supply is a separate concept (**Total supply**). |
-| **Deprecation** | Node may enforce upgrade by height/date (see [README -- Deprecation](README.md#-deprecation-policy)). |
+| **Deprecation** | Mainnet may shut down after a long release window; see [README -- Security Warnings](README.md) and `getdeprecationinfo`. |
 | **P2P subver** | Peer user-agent subversion. |
 | **Mempool** | Unconfirmed txs awaiting blocks. |
 
@@ -82,7 +82,7 @@ Historical path from genesis to the current schedule. Amounts are consensus mint
 
 **Issued through height 2,400,000 (halving 3 inclusive):** **14,790,161.35 ZER** minted -- Miner **10,600,091.78** / Nodes **3,390,032.47** / Dev **800,037.10** (see **Emission totals** below).
 
-**Live tip (Jun 2026, height ~2,477,766):** model subsidy **~14.895M ZER** (`chain_stats.py --verify`). Current era: post-halving-3 base **1.35 ZER**/block; founders **7.5%** of that; zeronode **35%** when sporks on.
+**Current era (post-halving 3):** base **1.35 ZER**/block; founders **7.5%** of that; zeronode **35%** when sporks on. For tip-relative model sums, run `contrib/stats/chain_stats.py --verify` locally after sync (not published here).
 
 **Projected:** next halving **3,200,000**; founders continue to **7,999,999**; cumulative mint at founders end model **~16.93M ZER**; long-run schedule asymptotes under the 21M-class ceiling used in tests -- product target remains **some 20M ZER** (supply review open).
 
@@ -140,7 +140,7 @@ At mainnet fee-start: base subsidy steps **10 -> 10.8 ZER**; founders output bec
 
 - **When:** `height >= fee-start` and `height <=` last founders height (**7,999,999** under pre-Blossom formula).
 - **Amount:** **7.5%** of **`GetBlockSubsidy`** for that height.
-- **Where:** Rotates among **`vFoundersRewardAddress`** (mainnet addresses in **Founder and system addresses** below). RPC today: **`zeronodestats`** -> `chainStats.developmentfee` / `developmentfeezats`; GBT / `getblocksubsidy` use **founders** / **foundersreward**. Naming reconcile = **DOC-FR-NAMING** (postponed).
+- **Where:** Rotates among **`vFoundersRewardAddress`** (mainnet addresses in **Founder and system addresses** below). RPC today: **`zeronodestats`** -> `chainStats.developmentfee` / `developmentfeezats`; GBT / `getblocksubsidy` use **founders** / **foundersreward**.
 
 ---
 
@@ -181,7 +181,7 @@ Total supply is targeted at some **20M ZER**. **`MAX_MONEY`** in **`src/amount.h
 
 ### Stable arithmetic (why integer)
 
-Subsidy and founders amounts must match in miner, `ConnectBlock`, GBT, and RPC. Mixing `double` with `CAmount` (`10.8 * COIN`, `* 0.075`, `* 7.5 / 100`) can diverge by path after many halvings. **Target:** one integer rule -- base subsidy in zats; founders **`subsidy * 75 / 1000`** (trunc toward 0); same helper everywhere. Zeronode share already uses integer percent (`blockValue * N / 100`). Implementation tracking: **TODO.md** / **BUILD_ZERO.md** §4.8 touch list.
+Subsidy and founders amounts must match in miner, `ConnectBlock`, GBT, and RPC. Mixing `double` with `CAmount` (`10.8 * COIN`, `* 0.075`, `* 7.5 / 100`) can diverge by path after many halvings. **Target:** one integer rule -- base subsidy in zats; founders **`subsidy * 75 / 1000`** (trunc toward 0); same helper everywhere. Zeronode share already uses integer percent (`blockValue * N / 100`). Implementation tracking: **TODO.md**.
 
 ---
 
@@ -205,9 +205,9 @@ Testnet/regtest: **`src/chainparams.cpp`** (`GetFoundersRewardAddressAtHeight`).
 
 Mainnet `t1TLNF3seMZennWmmxik8r1PVEKj5zudgRw`; testnet `tmWuQ8Yh3pHDa8MingmN8ECPRBxo2n8uZRs`; regtest `s1eQnJdoWDhKhxDrX8ev3aFjb1J6ZwXCxUT`. Used to build validation-only transactions for **10,000 ZER** collateral checks.
 
-### ZeroWallet donation (out-of-tree)
+### ZeroWallet donation (separate application)
 
-Mainnet donation address (zerowallet repo): `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP`.
+Mainnet donation address published with the desktop wallet project: `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP`.
 
 ---
 
@@ -215,7 +215,7 @@ Mainnet donation address (zerowallet repo): `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP
 
 - **Default RPC port:** **23811** (P2P is **23801**; see [README -- Running Zero](README.md#-running-zero), `src/chainparamsbase.cpp`).
 - **Datadir / wallet:** see table below; wallet file **`wallet.zero`** -- **back up** before upgrades.
-- **Proving params:** `zcutil/fetch-params.sh`; see [BUILD_ZERO -- .zero directory](BUILD_ZERO.md#3-zero-directory).
+- **Proving params:** `zcutil/fetch-params.sh`; see [BUILD_ZERO.md](BUILD_ZERO.md) (`.zero` directory / params).
 
 ### Default data paths
 
@@ -227,37 +227,28 @@ Replace **`USERNAME`** with your OS login. Platform setup examples: [README](REA
 | **macOS** | `~/Library/Application Support/zero` | `~/Library/Application Support/ZcashParams` |
 | **Windows** | `C:\Users\USERNAME\AppData\Roaming\zero` | `C:\Users\USERNAME\AppData\Roaming\ZcashParams` |
 
-- **Tor:** `doc/tor.md`.
 - **New addresses:** `getnewaddress` (transparent), `z_getnewaddress sapling` (shielded); list: `getaddressesbyaccount ""`, `z_listaddresses`.
 
 ### Block explorer
 
-Mainnet: [https://insight.zeromachine.io/](https://insight.zeromachine.io/) — **Zero Insight** (blocks, transactions, transparent address search).
-
-Source: `insight-ui-zero`, `insight-api-zero`, `bitcore-node-zero`, `bitcore-lib-zero`. Backend **`zerod`** uses **`-experimentalfeatures`**, **`-insightexplorer`**, and **`-txindex`** (see [BUILD_ZERO.md -- Block explorer](BUILD_ZERO.md#462-block-explorer)).
-
+Mainnet: [https://insight.zeromachine.io/](https://insight.zeromachine.io/) -- public transparent address / block / transaction search.
 ---
 
 ## Security
 
-The node is **experimental**; use at your own risk. Back up keys and wallet files. See [README -- Deprecation](README.md#-deprecation-policy) and [Zcash security information](https://z.cash/support/security/).
-
-**2026 Zcash CVEs:** Zero has **no Orchard** and **no `fChecked` Sprout bypass**. Full analysis: **`ZcashFixes.md`**.
+The node is **experimental**; use at your own risk. Back up keys and wallet files. See [README -- Security Warnings](README.md) and [Zcash security information](https://z.cash/support/security/).
 
 ---
 
-## Emission totals and chain statistics (Jun 2026)
+## Emission totals and chain statistics
 
-Consensus-model totals from `GetBlockSubsidy` + 7.5% dev + tiered nodes share (sporks on).
+Consensus-model totals from `GetBlockSubsidy` + 7.5% founders + tiered zeronode share (sporks on). Figures below are **fixed-height** schedule totals (through halving milestones). Tip-relative checks: run the scripts locally after sync -- do not paste live tip into this file.
 
 ```bash
-./contrib/stats/chain_stats.py --cons                  # through chain tip
-./contrib/stats/chain_stats.py --cons --thru 2400000   # fixed height
-./contrib/stats/chain_stats.py --cons --dev            # dev addr deposited + balance
-./contrib/stats/chain_stats.py --verify
+./contrib/stats/chain_stats.py --cons --thru 2400000   # fixed height (halving 3)
+./contrib/stats/chain_stats.py --cons --dev            # dev addr model deposited
+./contrib/stats/chain_stats.py --verify                # model vs live tip (local only)
 ./contrib/stats/decode_coinbase.py --heights 2400000
-./contrib/stats/decode_coinbase.py --start 2471200 --count 200 --summary
-./contrib/stats/chain_stats.py --scan 2471200 200
 ```
 
 | Flag | Default | Purpose |
@@ -266,7 +257,7 @@ Consensus-model totals from `GetBlockSubsidy` + 7.5% dev + tiered nodes share (s
 | `--thru HEIGHT` | chain tip | Cumulative through tip, or fixed height |
 | `--dev` | off | Dev rotation addresses: model deposited + on-chain balance |
 | `--cli PATH` | `src/zero-cli` | RPC client |
-| `--verify` | off | Model subsidy sum vs live tip |
+| `--verify` | off | Model subsidy sum vs live tip (operator use; not a published snapshot) |
 | `--scan START COUNT` | off | Coinbase vout histogram |
 
 Split totals (through height 2,400,000):
@@ -277,8 +268,6 @@ Miner:    10,600,091.78 ZER
 Nodes:    3,390,032.47 ZER
 Dev:            800,037.10 ZER
 ```
-
-Live tip (Jun 2026, height **2,477,766**): **`--verify`** -- model subsidy **~14.895M ZER**; sprout pool **~25,842 ZER**, sapling **~547,065 ZER**. On-chain dev balances need **`zerod`** with `-experimentalfeatures -insightexplorer`.
 
 ### Through halving 3 (height 2,400,000 inclusive)
 
@@ -358,4 +347,4 @@ Sprout pool on mainnet remains non-zero (historical shielded balance); Sapling i
 
 ## Coinbase validation (extended)
 
-Mainnet-verified coinbase behavior and `contrib/stats/decode_coinbase.py` usage: run locally against synced **`src/zerod`**. Dev multisig: **`Zeros/MULTISIG.md`**. Zcash 2026 vulnerabilities: **`ZcashFixes.md`**. Emission tables: **`contrib/stats/chain_stats.py`**.
+Mainnet-verified coinbase behavior: run `contrib/stats/decode_coinbase.py` and `contrib/stats/chain_stats.py` against a synced **`src/zerod`**. Emission tables in this file are the product narrative; scripts are the check.

@@ -20,7 +20,9 @@ Developer documents: **this section**.
 | **Public** | Merge into **`master`** with the release | Stay on the release line; edit via normal PRs |
 | **Internal / project** | **Hold back** from the GA merge set | Eventually live on a **separate maintainer branch** (or sibling tree) for continued update without shipping with public docs |
 
-Public set (working): **README**, **BUILD_ZERO**, **TEST_ZERO**, **ZERO_COIN**, **TODO**, **CONTRIBUTING**, **AGENTS**, **doc/man/**. Internal set (working): **UpdateZero**, **ZeroStruct**, **ZeroNodes***, clone surveys under **`ZKs/`**, Insight specialty under **`~/Work/ZK/insight/`**, and related project notes. Exact membership of each set can still move until GA.
+Public set (working): **README**, **BUILD_ZERO**, **TEST_ZERO**, **ZERO_COIN**, **TODO**, **CONTRIBUTING**, **AGENTS**, **doc/man/**. Internal set (working): **UpdateZero**, **ZeroStruct**, **ZeroNodes***, **ExtTests**, **AtHeight**, **ZcashFixes**, **ZebraZero**, **WitnessReindex**, and related project notes. Exact membership of each set can still move until GA.
+
+**Public docs** list readers in **README**; they must **not** href maintainer files (this file, ZeroStruct, ExtTests, ZeroNodes*, ZcashFixes, …).
 
 **Target content rule.** Once a topic is **released** in a public doc, **internal** copies **pare down** to a one-line pointer -- no parallel full body. Thinning internals is intentional after public owns the fact.
 
@@ -36,7 +38,7 @@ Public set (working): **README**, **BUILD_ZERO**, **TEST_ZERO**, **ZERO_COIN**, 
 
 **Insight** is specialty. Public docs: short explorer pointer only. Full host conf / bitcore / nginx stay in **`~/Work/ZK/insight/`**. **Skip** Insight/bitcore PR / merge work on the Zero400 track.
 
-**Dev fee / specialty ops (project-internal):** All DevFee UTXO labs, drain tooling, and related key inventory live under [`/Users/walter/Work/ZK/0/E/README.md`](/Users/walter/Work/ZK/0/E/README.md) (see also `DevFeeWallets/`). Do **not** expand DevWallet handling into ZeroStruct, TEST_ZERO, TODO, or other public docs.
+**Dev fee / specialty ops (project-internal):** DevFee UTXO labs, drain tooling, and related key inventory stay out of this tree. Do **not** expand DevWallet handling, scripting, or host paths into ZeroStruct, TEST_ZERO, TODO, AtHeight, or other product docs.
 
 ### Public project documents
 
@@ -1598,3 +1600,93 @@ P2P ports 23803, RPC 23813
 Equihash **(48,5)**
 **`REGTEST_FOUNDERS_START`/`STOP`** = **1000**/**1500**.
 
+---
+
+## DOC-BUILD-INTAKE (from public BUILD_ZERO scrub)
+
+Maintainer-only material removed from **BUILD_ZERO.md** so the public build guide has no host names, absolute paths, insight install, or unfinished proposals.
+
+### Remote Linux build host notes
+
+Keep Linux release validation on a **generic** Ubuntu-class builder (2+ cores, several GB free). Steps: fetch release line, `./zcutil/fetch-params.sh`, `./zcutil/build.sh`, `./contrib/run-tests.sh --strict`. Optional widen: `--suite` (ELF stages). Darwin skips ELF release checks; `rpcbind_test` may be reduced on some hosts. `--strict` is a gate signal, not an automatic release block.
+
+### Compiler / release flag proposals (not public)
+
+(1) Gate `-g` behind `ZERO_DEBUG=1`. (2) Evaluate `-O2` for release. (3) Decouple `CXXFLAGS_overridden` from bare `-g`. (4) Integrate `split-debug.sh` for `-dbg` package.
+
+### Insight / explorer backend (specialty; not in BUILD_ZERO)
+
+Public UI: insight.zeromachine.io. Backend flags for a transparent index node: `experimentalfeatures=1`, `insightexplorer=1`, `txindex=1`; large `dbcache`; first enable needs `-reindex`. Host install (nginx, bitcore, sizing) stays in the specialty insight tree -- never path-cite it from public docs.
+
+### Subsidy arithmetic touch list (implementation)
+
+Schedule: **ZERO_COIN.md**. Status: **TODO.md**. Convert `double` mixes at approximately:
+
+| File | Notes |
+|------|--------|
+| `src/main.cpp` | `GetBlockSubsidy` `10`/`10.8 * COIN`; founders `* 0.075` |
+| `src/zeronode/payments.cpp` / `budget.cpp` | `* 7.5 / 100` |
+| `src/rpc/mining.cpp` / `zeronode.cpp` | `getblocksubsidy` / founders |
+| `src/metrics.cpp` | UI immature totals |
+| `src/test/main_tests.cpp` / `rpc_wallet_tests.cpp` | expectations |
+
+Good pattern: `GetZeronodePayment` integer percent.
+
+### Disk reclaim on small build hosts
+
+Safe: apt lists/clean, ccache, `depends/work/*`, repo `cache/`, MXE pkg/log under `$HOME/mxe`, journal vacuum. Do not document personal `~/Work/...` trees in public docs.
+
+---
+
+## DOC-TEST-INTAKE (from TEST_ZERO deep reference)
+
+Public **TEST_ZERO.md** keeps use cases, inventory, and interpreting results only.
+
+Moved / retained in **ExtTests.md**:
+
+- Promote-vs-verify rule (pass alone != in gate until array+CSV+§3 update)
+- Maturity / clean-chain porting notes
+- CachedWitnessesCleanIndex / Equihash / external-interface current state
+- Cache dir and `--jobs` standing notes
+
+Dated process diaries, RC handoffs, host disk stats, and verification snapshots stay out of public TEST_ZERO. Prefer ExtTests or this hub for narrative.
+
+---
+
+## DOC-TODO-INTAKE (stripped from public TODO)
+
+Items removed from public **TODO.md** (wrong audience or external product):
+
+- Wrap / StatusTransitions / Wrap401 stamp gates
+- Zerowallet UI / QTest / soft-path / ADDRKEY client work
+- Perf sibling tree / debug.log campaign process
+- README0 merge chore (done via README rewrite)
+- Host-named Linux RC checklists
+- DevFee / specialty ops pointers
+
+Keep engineering detail for those topics here or in ZeroStruct / ExtTests as appropriate -- not in the ship set.
+
+### DOC-FR-NAMING / FR-* (moved from public TODO)
+
+Product / naming options -- not scheduled on the public checklist:
+
+- **DOC-FR-NAMING** -- reconcile `vFoundersReward` / FoundersReward / `developmentfee` / GBT `founders` strings across code and ZERO_COIN.
+- **FR-ROTATE / FR-TADDR / FR-Z** -- founders destination product/consensus options (rotate policy, transparent vs shielded). Not a node release gate.
+
+### REL-SIGNING (moved from public TODO)
+
+**Status:** Active maintainer work. Public **BUILD_ZERO** only states that no procedure is published yet.
+
+**Minimum viable (all platforms):**
+
+| Platform | Artifact check | Signing |
+|----------|----------------|---------|
+| **Linux** | `SHA256SUMS` (or `SHA256SUMS.asc`) listing release tarball/deb hashes | Detached **GPG** signature over the sums file; publish key fingerprint with releases |
+| **macOS** | Same hash list for `.tar.gz` / `.dmg` if shipped | **Developer ID** application signing + **notarization** (stapler) for distributable binaries |
+| **Windows** | Same hash list for `.zip` / installer | **Authenticode** (OV or EV) on `zerod.exe` / installer |
+
+**Also document when ready:** where keys live, who signs, how operators verify (`gpg --verify`, `sha256sum -c`, macOS `spctl` / notarization ticket, Windows sig check), and that unsigned CI artifacts are not releases.
+
+**Out of scope for this item alone:** Guix/reproducible builds (separate if pursued); desktop-wallet signing (other repos).
+
+When the procedure is ready, copy operator-facing verify steps into **BUILD_ZERO** (no maintainer IDs).

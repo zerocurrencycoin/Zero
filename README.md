@@ -1,29 +1,33 @@
-![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/Zero%20Twitter.jpg?raw=true)
+concept![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/Zero%20Twitter.jpg?raw=true)
 
 [ZERO](https://zerocurrency.io) - [Latest Release](https://github.com/zerocurrencycoin/Zero/releases/)
 
 ### •LAUNCH DATE: 2017-02-19
 
-GENESIS BLOCK - 19th Feb 2017 11:26:40 - 068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6
+GENESIS BLOCK - 19th Feb 2017 11:26:40 - `068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6`
 
 ------------------------------------------
 
 ❓ What is ZERO?
 --------------
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/) is a revolutionary cryptocurrency and transaction platform based on Zcash.
+[ZERO](https://zerocurrency.io) is a privacy-focused cryptocurrency and transaction platform in the Zcash family.
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/) offers total payment confidentiality, while still maintaining a decentralised network using a public blockchain.
+[ZERO](https://github.com/zerocurrencycoin/Zero/releases/) offers strong payment confidentiality while maintaining a decentralised network on a public blockchain.
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/) combines Bitcoin’s security with Zcash’s anonymity and privacy.
+[ZERO](https://github.com/zerocurrencycoin/Zero) combines Bitcoin-style security with Zerocash-style shielded privacy. Transparent (t-addr) and shielded (z-addr) payments coexist; privacy is optional, not mandatory.
 
-[ZERO](https://github.com/zerocurrencycoin/Zero/releases/) stands out from the competition as a fully working product that has already
-implemented a set of special features not found in any other cryptocurrency.
+This repository is the **full node** (`zerod`, `zero-cli`, `zero-tx`). It downloads and stores the history of ZERO transactions. Sync time depends on your computer and network; plan for a substantial first sync.
 
-Our main focus as a team and community is to remain as transparent as we can possibly be and to maintain an interactive relationship with everyone involved. We are fully open about the project, listening to all suggestions from investors, miners and supporters.
+**Who should read what**
 
-This software is the [ZERO](https://github.com/zerocurrencycoin/Zero/releases/) node. It downloads and stores the entire history of ZERO's transactions, about 2GB at this point.
-Depending on the speed of your computer and network connection, the synchronization process could take several hours.
+| I want to... | Start here |
+|------------|------------|
+| **Trade or hold** | Wallets and exchanges from [zerocurrency.io](https://zerocurrency.io); verify tickers on official channels only. |
+| **Mine** | Equihash **192,7** (not Zcash **200,9**). See community mining guides for current hardware needs. |
+| **Run a node** | [Quick start](#-building) below, then [BUILD_ZERO.md](BUILD_ZERO.md). |
+| **Understand economics** | [ZERO_COIN.md](ZERO_COIN.md) (emission, halvings, founders, zeronodes). |
+| **Contribute** | [CONTRIBUTING.md](CONTRIBUTING.md) · [TEST_ZERO.md](TEST_ZERO.md) · [TODO.md](TODO.md) · [AGENTS.md](AGENTS.md). |
 
 ------------------------------------------
 
@@ -47,28 +51,31 @@ Depending on the speed of your computer and network connection, the synchronizat
 
 ### •DECENTRALIZED PAYMENTS
 
-Zero uses an alternative set of parameters for the Equihash algorithm (192, 7), which require a GPU with 8GB of RAM.
+Zero uses Equihash **(192, 7)**, which typically needs a GPU with about **8 GB** of RAM for meaningful mining.
 
+Chain facts (authoritative detail in [ZERO_COIN.md](ZERO_COIN.md)):
+
+| Topic | Summary |
+|--------|---------|
+| **Emission** | Block subsidy with halvings every **800,000** blocks (pre-Blossom); target supply on the order of **~20M ZER**. |
+| **Fee-start** | Height **412,300** -- base subsidy **10 -> 10.8 ZER**; founders carve begins. |
+| **Halvings** | **800k** (2020), **1.6M** (2023), **2.4M** (2026); next **3.2M**. |
+| **Founders** | **7.5%** of block subsidy while eligible (through height **7,999,999**). |
+| **Zeronodes** | **20-40%** of block value by height tier when sporks enable payments. |
+
+------------------------------------------
 
 ❓ Is Zero Legal?
 -------------------
-Zero is legal in most jurisdictions in the world but there are a small number of nation states that have banned its use, such as Ecuador. Wikipedia has a great guide on how Crypto is treated in all countries around the world and explains regulatory policies surrounding it. Regulations vary from one border to the next so you should always research your location’s laws before participating in the network.
+Zero is legal in most jurisdictions, but some nation states restrict or ban cryptocurrency use. Regulations vary; research your local law before participating.
 
 ❓ Why Trust Zero?
 -------------------
-Zero is a network operating by the three fundamental principles of technological freedom: Decentralization, Open Source code and true Peer-to-Peer technology. With Privacy being a fundamental human right. Zero’s trust is based on the subjective valuations of human faith in mathematical algorithms, encryption and numbers. With the three pillars of technological principles Zero’s Blockchain is a peer-reviewed system of integrity.
+Zero aims at decentralisation, open source, and peer-to-peer operation, with privacy as a core design goal. Trust rests on open review of the code and cryptography, not on a single vendor.
 
 --------------
-Zero has a low emission rate that degrades over time. See [ZERO_COIN.md — Total supply](ZERO_COIN.md#total-supply-and-max_money).
 
-Zero supports both transparent (T) and shielded (Z) addresses.  Privacy is optional, not mandatory.
-------------------------------------------
-
-[Zero](https://zero.directory/) is an implementation of the "Zerocash" protocol.
-Based on Bitcoin and Zcash code, Zero intends to offer a far higher standard of privacy
-through a sophisticated zero-knowledge proving scheme that preserves
-confidentiality of transaction metadata. More technical details are available
-in the [Protocol Specification](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf).
+[Zero](https://zero.directory/) implements the Zerocash protocol family. More technical detail: [Zcash Protocol Specification](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf).
 
 ![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/algo%20zer%20improv.jfif)
 
@@ -77,14 +84,8 @@ in the [Protocol Specification](https://github.com/zcash/zips/raw/master/protoco
 
 🔢 Development Fund
 ------------------------------------------
-7.5% of block subsidy in eligible heights. See [ZERO_COIN.md -- Founders reward](ZERO_COIN.md#founders-reward-75).
+**7.5%** of block subsidy in eligible heights. See [ZERO_COIN.md -- Founders reward](ZERO_COIN.md#founders-reward-75).
 
-
-
-📄 White Paper
------------------------
-
-**** Under Construction
 
 📣 Announcements
 -----------------
@@ -100,16 +101,31 @@ See important security warnings on the
 
 **Zero is experimental and a work in progress.** Use it at your own risk.
 
+Automatic node deprecation (mainnet) is configured on a **~10 year** window from the release baseline (`WEEKS_UNTIL_DEPRECATION` in `src/deprecation.h`). Query live values with `getdeprecationinfo`. This is **not** a near-term operator concern for current releases.
+
 
 📚 Documentation
 ----------------
 
+**Ship set** (product distribution / public docs). Cross-links among these files only.
+
+| Document | Readers | Purpose |
+|----------|---------|---------|
+| [README.md](README.md) | Everyone | Front page, quick start, links |
+| [ZERO_COIN.md](ZERO_COIN.md) | Miners, exchanges, operators, integrators | Chain economics, addresses, glossary |
+| [BUILD_ZERO.md](BUILD_ZERO.md) | Builders | Linux / macOS / Windows build and troubleshooting |
+| [TEST_ZERO.md](TEST_ZERO.md) | Contributors | Validation runbook and working inventory |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributors | Patch and review expectations |
+| [TODO.md](TODO.md) | Contributors / maintainers | Open follow-ups for the full node |
+| [AGENTS.md](AGENTS.md) | Agents and humans editing the tree | Scope and documentation rules |
+| `doc/man/` | Operators (after install) | `zerod`, `zero-cli`, `zero-tx` manuals |
+
 ```
                     README
                        │
-        ┌──────────────┼──────────────┐
-        ▼              ▼              ▼
-   BUILD_ZERO     TEST_ZERO     CONTRIBUTING
+        ┌──────────────┼──────────────┬────────────┐
+        ▼              ▼              ▼            ▼
+   BUILD_ZERO     TEST_ZERO     CONTRIBUTING    AGENTS
         │              │              │
         └──────────────┴──────────────┘
                        │
@@ -120,21 +136,9 @@ See important security warnings on the
              (chain + node reference)
 ```
 
-| Document | Purpose | Focus |
-|----------|---------|-------|
-| [README.md](README.md) | Project front page; links and quick start | What Zero is, how to build, contribute |
-| [ZERO_COIN.md](ZERO_COIN.md) | **User-facing** chain and node reference | Observable behavior, events, operations; **Glossary** and **References**; emission, halving, zeronodes, addresses |
-| [BUILD_ZERO.md](BUILD_ZERO.md) | Build and platform guide | Linux, macOS ARM64, Windows depends, troubleshooting, release artifacts |
-| [TEST_ZERO.md](TEST_ZERO.md) | Validation runbook | Runners, modes, Tier A gate, pass-only filters |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow | Patches, coding expectations |
-| [TODO.md](TODO.md) | Checklist and follow-up | Implementation status, tracked tasks and work items |
-| `doc/man/` | Shipped CLI manuals | `zerod`, `zero-cli`, `zero-tx` options and behavior |
-
 
 🔧 Building
 --------
-
-**User types:** New to Zero? Run the Quick Start below. Building on macOS or Windows? See [BUILD_ZERO.md](BUILD_ZERO.md). Want to contribute? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Quick start on Linux
 
@@ -150,15 +154,15 @@ macOS and Windows: see [BUILD_ZERO.md](BUILD_ZERO.md).
 
 ### Data directory (`zero.conf`, wallet, chain)
 
-Canonical defaults (`GetDefaultDataDir()` in `src/util.cpp`):
+Canonical defaults (`GetDefaultDataDir()` / `ZC_GetBaseParamsDir()` in `src/util.cpp`):
 
 | Platform | Data directory | Proving params |
 |----------|----------------|----------------|
 | **Linux** | `~/.zero` | `~/.zcash-params` |
-| **macOS** | `/Users/USERNAME/Library/Application Support/zero` | `/Users/USERNAME/Library/Application Support/ZcashParams` |
-| **Windows** | `C:\Users\USERNAME\AppData\Roaming\zero` | `C:\Users\USERNAME\AppData\Roaming\zero\ZcashParams` |
+| **macOS** | `~/Library/Application Support/zero` | `~/Library/Application Support/ZcashParams` |
+| **Windows** | `%APPDATA%\zero` (e.g. `C:\Users\USERNAME\AppData\Roaming\zero`) | `%APPDATA%\ZcashParams` (sibling of `zero`, **not** under it) |
 
-Replace **`USERNAME`** with your login. Override with `-datadir=<path>`. Wallet: **`wallet.zero`** inside the datadir.
+Replace **`USERNAME`** with your login. Override datadir with `-datadir=<path>`. Wallet file: **`wallet.zero`** inside the datadir.
 
 **Linux** -- create config:
 
@@ -173,10 +177,8 @@ echo "rpcport=23811" >> ~/.zero/zero.conf
 **macOS**:
 
 ```bash
-mkdir -p "/Users/$(whoami)/Library/Application Support/zero"
-echo "server=1" > "/Users/$(whoami)/Library/Application Support/zero/zero.conf"
-# Or explicit override:
-# ./src/zerod -datadir="$HOME/.zero" -daemon
+mkdir -p "$HOME/Library/Application Support/zero"
+echo "server=1" > "$HOME/Library/Application Support/zero/zero.conf"
 ```
 
 **Windows** (PowerShell):
@@ -184,10 +186,16 @@ echo "server=1" > "/Users/$(whoami)/Library/Application Support/zero/zero.conf"
 ```powershell
 mkdir $env:APPDATA\zero
 echo server=1 > $env:APPDATA\zero\zero.conf
-# Expanded: C:\Users\USERNAME\AppData\Roaming\zero\zero.conf
 ```
 
-### To use the full node RPC interface (Linux)
+### Full node RPC (Linux)
+
+With `server=1` and RPC credentials in `zero.conf`:
+
+```bash
+./src/zero-cli getblockchaininfo
+./src/zero-cli help
+```
 
 ### Optional CPU mining
 ```
@@ -196,12 +204,9 @@ echo "genproclimit=1" >> ~/.zero/zero.conf
 echo 'equihashsolver=tromp' >> ~/.zero/zero.conf
 ```
 
-### Earlier zero.conf sample
+### Config samples
 ```
 ./contrib/zero.conf
-```
-### zero.conf sample with many options
-```
 ./contrib/debian/examples/zero.conf
 ```
 
@@ -213,17 +218,27 @@ After building, binaries are in `./src`. Run the daemon in the background:
 ./src/zerod -daemon
 ```
 
-Command-line options: `./src/zerod -help` (or set in zero.conf).
+**Help and man pages**
+
+| How | What |
+|-----|------|
+| `./src/zerod -help` | Built-in option list (always available from the binary) |
+| `./src/zero-cli -help` | CLI client options |
+| `./src/zero-tx -help` | Transaction utility options |
+| `man zerod` / `man zero-cli` / `man zero-tx` | Same material as installed manuals under **`doc/man/`** (after `make install` or packaging that installs man pages) |
+
+During development from a build tree, prefer **`-help`**. After a system install that includes man pages, **`man zerod`** is the usual operator path.
 
 Your wallet is created on first run as **`wallet.zero`** in the data directory (see table above). [Backup your wallet](https://github.com/zerocurrencycoin/Zero/wiki/Wallet-Backup) often.
 
-The usage is currently very similar to Zcash. For more information see the [Zcash Basics](https://zcash.readthedocs.io/en/latest/rtd_pages/basics.html)
+Usage is similar to other Zcash-family nodes. Background: [Zcash Basics](https://zcash.readthedocs.io/en/latest/rtd_pages/basics.html).
 
 ### Block explorer
+Public transparent address / block / transaction search.
 
-Mainnet block explorer: [https://insight.zeromachine.io/](https://insight.zeromachine.io/)
+Mainnet: [https://insight.zeromachine.io/](https://insight.zeromachine.io/)
 
-The public **Zero Insight** site searches transparent addresses, blocks, and transactions on the Zero mainnet chain. It is powered by the open-source **`insight-ui-zero`** and **`insight-api-zero`** stack against a synced **`zerod`** with address indexes enabled. Review [Insight Repos](https://github.com/zerocurrencycoin insight-* bitcore-* repos)
+---
 
-This repository builds the full node (`zerod`, `zero-cli`, `zero-tx`). The Qt Desktop Wallet (**zerowallet**) is a separate application.
+Note: This repository builds the full node only. The Qt Desktop Wallet (**zerowallet**) is a separate application.
 
