@@ -145,7 +145,8 @@ Use case: gate RPC clients and harnesses; **not** ops-ready.
 | M-IBD-CLASS | network sync class | **~6–10 h** | `estimate` | `none` | `BUILD_ZERO.md` |
 | M-BOOT-FULL | bootstrap.dat import | **145.7 min**; **2,468,990** blocks; **≈282 blk/s** | `campaign` | `debug_log` (+ profile optional) | `Perf.md` §2 |
 | M-RX-PRESAP-AB | pre-Sapling A/B | **~1094** vs **~1076 blk/s** (NS) | `repro` | `zero_perf` + `debug_log` | `Perf.md` §3; `contrib/perf/bench_matrix.sh` |
-| M-RX-POSTSAP-AB | post-Sapling A/B | **~307–311 blk/s**; fdcache null win | `repro` | `zero_perf` + `debug_log` | `Perf.md` §3 |
+| M-RX-POSTSAP-AB | post-Sapling A/B (FDCACHE-era) | **~307–311 blk/s**; fdcache null win | `repro` | `zero_perf` + `debug_log` | `Perf.md` §3; historical TSV |
+| M-RX-POSTSAP-STOCK | stock `-reindex` rematch 2026-08-11 | **mean 298.45 blk/s** (n=4, stdev 5.17; min 289.58 max 302.42); window 600k–900k; run `postsapling-20260811T112614Z` | `campaign` | `zero_perf` + ledger | `bench-summaries/REPORT-postsapling.md` |
 | M-RX-WINDOW | mid-chain window | e.g. **267.5 blk/s**; **~330 KB/s** (h 610k–626k) | `campaign` | `xctrace` + `debug_log` | `Perf.md` §2 |
 
 Use case: ConnectBlock / disk / validation cost; compare only **same height window and wallet flags**.
@@ -383,11 +384,12 @@ Insight-index (`-experimentalfeatures` + `-insightexplorer`) is a **separate dep
 
 | File | Change |
 |------|--------|
-| **Measures.md** (this file) | Canonical inventory + vocabulary + contradictions + tooling target |
-| **Perf.md** | Narrative and next experiments only; each new campaign adds a row ID here |
+| **Measures.md** (this file) | Canonical inventory + vocabulary + contradictions + tooling + §12 plan rows |
+| **Perf.md** | Narrative, §0.13 BENCH/FIX/IMP specs; each new campaign adds a row ID here |
 | **AtHeight.md** | Keep procedure; results catalogued here (`M-RX-*`); no host-local lab path tables |
 | **UpdateZero.md** | Developer-doc map + topic registry rows for **Measures** / **Perf** / **AtHeight** / **OPS-AT-HEIGHT** |
-| **contrib/perf/README.md** | Launch recipes; reference metric tokens |
+| **contrib/perf/README.md** | Launch recipes; reference metric tokens + §0.13 pointer |
+| **Stores.md** | Store lifecycle; shutdown flush / Windows Ctrl+C delay note |
 
 ### Out-of-tree ops
 
@@ -417,19 +419,59 @@ DevFee / founders UTXO tooling and private lab harnesses are **not** documented 
 | `Zero400/TEST_ZERO.md` | Harness walls |
 | `Zero400/ZeroStruct.md` | Cache budgets / structure |
 
+### 10.1 Lab materials (local copies -- do not modify originals)
+
+| Role | Where (this host) | Notes |
+|------|-------------------|-------|
+| **Original bootstrap.dat** | Zero400 `contrib/linearize/bootstrap.dat` (~5.0G) | **Read-only / copy only.** Softlink for lab: `reindex-profile/bootstrap-src/bootstrap.dat` |
+| Older bootstrap | `OLD/ZeroMac/contrib/linearize/bootstrap.dat` (~4.8G) | Different generation; not the Zero400 original |
+| Full chain snap | macOS Application Support `zero/` (= `Zero/` case-insensitive) | `chainblocks.tgz` ~8.1G; live `blocks/` ~10G tip ~2.516M; `chainstate` ~624M |
+| Short / tiny snaps | same datadir | `chainblocks-short.tgz` ~342M; `chainblocks-tiny.tgz` ~228M; sha256 sidecar |
+| Bench artifacts | `reindex-profile/bench-summaries/` | Historical post-Sapling TSV (warmup 600k / measure 300k); memprofile |
+| Post-Sapling rematch | `contrib/perf/run_postsapling_baseline.sh` | Stock `-reindex` window match; scratch under `reindex-profile/postsapling-datadir` |
+| DevFee ops wallets | out-of-tree DevFeeWallets | Fat-address getalldata; not ConnectBlock CPU |
+
+**Reset bug (bench_matrix):** one datadir reset was shared for reindex and bootstrap (rsync excluded only `chainstate`). For `-loadblock`, keeping full `blocks/` made zerod reconcile against a huge existing index -> RPC -28 / "Loading block index..." for 50+ min (M-INIT-03). **Fix:** bootstrap mode also excludes `blocks/`; bounded waits then SIGTERM/SIGKILL. Also: `LoadBlockIndexDB` accounting loop lacks inner `interruption_point()`.
+
+**4x2 (FDCACHE matrix, postponed):** 4 trials x 2 buffer conditions (`defaultbuf` / `1mbbuf`). Not in the current lab mix -- current campaigns use **stock** `-reindex` only and accumulate into `ledger.*`.
+
+**Current measure campaign:** post-Sapling window warmup 600000 / measure 300000; `CONDITIONS=stock`; `N_TRIALS=4` after pipeline smoke; collation via `accumulate_bench.py` -> `REPORT.md`.
+
 ---
 
 ## 11. Immediate tooling recommendation
 
-**Proposed new file:** `contrib/perf/extract_measures.py` (filter-then-process; does not launch `zerod`).
+**Shipped:** `contrib/perf/extract_measures.py` (+ `run_tiny_baseline.sh`, `run_postsapling_baseline.sh`, `accumulate_bench.py`). Outputs under `test-logs/` / `reindex-profile/bench-summaries/` (gitignored).
 
-Build a path that:
+Still useful extensions (non-blocking):
 
-1. Accepts one or more `debug.log` / `debugN.log` files (rotation-aware), or `--datadir` that is **not** the default user datadir.
-2. Emits JSONL using §1 vocabulary.
-3. Prints a markdown summary table (human) and writes `measures_<run_id>.csv` (machine).
-4. Starts with stock markers only (`init_*`, `update_tip`, `reindex_*`, `building_witnesses`, `cache_*`); plug in `-debug=bench` and xctrace as optional backends later.
+1. Rotation-aware multi-file `debugN.log` input.
+2. Optional `-debug=bench` / xctrace backends into the same vocabulary.
+3. Cross-check witness/init duration gaps with structured fields (2.6 h vs 8–10 h class contradictions).
 
-Do **not** block that on Groth16 product work; it unblocks witness/init duration gaps and reconciles the 2.6 h vs 8–10 h contradiction with structured fields.
+Do **not** block tooling on Groth16 product work. Full campaign / fix / improvement specs: **Perf.md** §0.13; plan rows below.
 
-**Ship path:** `contrib/perf/extract_measures.py` (+ `run_tiny_baseline.sh` for M-RX-TINY/SHORT labs). Outputs land under `test-logs/` (gitignored).
+---
+
+## 12. Planned campaigns and fix tracking (2026-08)
+
+Canonical narrative + acceptance detail: **Perf.md** §0.13 (BENCH-*, FIX-*, IMP-*). This table is the Measures inventory side (`type=plan` until measured).
+
+| Measure / Spec ID | op_class | Goal | type | tools | Status |
+|-------------------|----------|------|------|-------|--------|
+| M-RX-POSTSAP-STOCK / BENCH-STOCK | reindex | Stock post-Sapling window n=4 | campaign | lab_monitor | **Done** (~298 blk/s) |
+| M-BOOT-* / BENCH-BOOT | bootstrap | Bootstrap import matrix n≥1 then n=4 | plan | lab_monitor | Do next (measure track) |
+| M-RX-SEG-* / BENCH-SEG | reindex | Era segments + shielded-density.csv | plan | lab_monitor | Do |
+| M-UTIL-* / BENCH-UTIL | reindex | RSS/CPU util.tsv during import | campaign / repro | lab_monitor | Smoke done; keep on postsap |
+| M-MINE-* / BENCH-MINE | connect | Equihash **solve** profile (`zcash-miner`) | plan | xctrace | Parallel; not reindex-verify |
+| M-GAD-* / BENCH-WAL | getalldata | Profiles 0/2/3 tip RPC matrix | plan | cli_timer / lab_monitor | Wallet track; Accounts/W5 **pending review** |
+| BENCH-FDCACHE | reindex | 4×2 + O1/O2 | plan | lab_monitor | **Postponed** (bundled) |
+| BENCH-WIN-SIG | init | Windows RPC stop + Ctrl+C teardown | plan | none / debug_log | Expect **delayed** exit (store flush); not instant kill |
+| BENCH-LOGROT | init | Linux `create`+HUP debug.log reopen | plan | debug_log | macOS done; Linux plan |
+| FIX-LBI | init | LoadBlockIndex inner interrupt | plan | none | **Immediate fix** |
+| FIX-IMPORT-POLL | reindex / bootstrap | Import path honors shutdown | plan | none | Immediate |
+| FIX-TST09 | harness | `-blocknotify` / `-walletnotify` tests | plan | harness | Next among TST |
+
+**Windows Ctrl+C (operator observation):** process does **not** exit immediately; delay matches `Shutdown()` store updates (wallet Flush, `FlushStateToDisk`, DB close). Validate with `Shutdown: In progress...` in `debug.log`. See Perf.md §0.8.
+
+**Accounts / W5:** postponed, pending further review -- not in active measure queue (Perf.md §0.12).

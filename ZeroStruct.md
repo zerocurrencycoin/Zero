@@ -509,7 +509,7 @@ Sample sets derived from **section 11** (zerowallet and Insight). "Harness" = me
 
 | Concern | Structure impact | Direction |
 |---------|------------------|-----------|
-| Tip poll CPU on large `mapWallet` | Full History decrypt + JSON each tick | Datatype split / cache (W5/W6); day default; helpers -- **TODO** |
+| Tip poll CPU on large `mapWallet` | Full History decrypt + JSON each tick | Datatype split / cache (W5/W6); day default; helpers -- **W5/W6 postponed, pending further review** (`Perf.md` §0.12); ARG2-DEFAULT still TODO |
 | Balance-walk Base58 cost | `addressBalances` keyed by `EncodeDestination` / `EncodePaymentAddress` strings; every credited vout re-encodes | Prefer destination-typed keys; encode once at JSON emit -- **WAL-GETALLDATA-ADDRKEY** (possibility; finding below) |
 | Omitted arg2 ~30y window | Near-unbounded filter before nCount | ARG2-DEFAULT -- **TODO** |
 | Duplicate day / count parsing | Drift between emit and early filter | Shared helpers -- **TODO** |
@@ -1041,7 +1041,7 @@ So UI/RPC "transaction time" is the smart time when present; the expensive Zero 
 | **2015-10-19** | Zcash tree | Same optimisation lands early: [`31d49b09b`](https://github.com/zcash/zcash/commit/31d49b09b756e73958350ae12a976e072377347f) (wallet.h/cpp, rpcwallet, walletdb, accounting_tests) | Present long before NU5/4.x |
 | **2018-07-31** | Bitcoin | Kill accounts: remove `CAccountingEntry` / account RPCs; `TxItems` becomes `CWalletTx*` only | [bitcoin#13825](https://github.com/bitcoin/bitcoin/pull/13825) lineage (`[wallet] Kill accounts`) |
 | **2021-08 (zcashd 4.5.0)** | Zcash | Backport kill-accounts ([`8af7e138a`](https://github.com/zcash/zcash/commit/8af7e138ac2e06ebe148c4be6f0b9a2d366e3f2e), merge [`5b194067e`](https://github.com/zcash/zcash/commit/5b194067eab3f5f343d4696897fd0e4deca892f6) / [#5271](https://github.com/zcash/zcash/pull/5271)); release [v4.5.0](https://github.com/zcash/zcash/releases/tag/v4.5.0) | `wtxOrdered` **kept**; accounts removed |
-| **Zero today** | Zero | Incremental **`wtxOrdered`** with **`TxPair`** (accounts kept); `OrderedTxItems` merges lacentries | WAL-WTXORDERED done; RPC removal still **WAL-RPC-ACCOUNTS** |
+| **Zero today** | Zero | Incremental **`wtxOrdered`** with **`TxPair`** (accounts kept); `OrderedTxItems` merges lacentries | WAL-WTXORDERED done; **WAL-RPC-ACCOUNTS postponed, pending further review** (`Perf.md` §0.12) |
 | **2021-11-17** | Pirate daemon | Skip smart-time walk: both times = **blocktime** | [`5f0cab6ba`](https://github.com/PirateNetwork/pirate/commit/5f0cab6bad6e61bcc751c4c44dd98c1f3a286709) |
 | **PirateOcean** | Qt desktop tree | Still full OrderedTxItems + delete/reorder | Not the daemon shortcut |
 
@@ -1049,7 +1049,7 @@ So UI/RPC "transaction time" is the smart time when present; the expensive Zero 
 
 | Layer | Question | Track |
 |-------|----------|-------|
-| **Business** | Deprecate / disable / delete `getaccount`, `listaccounts`, `move`, `sendfrom`, …? | Product (clients, docs, Zerowallet) |
+| **Business** | Deprecate / disable / delete `getaccount`, `listaccounts`, `move`, `sendfrom`, …? | Product (clients, docs, Zerowallet) -- **postponed, pending further review** (`Perf.md` §0.12) |
 | **Code risk** | Blast radius if removed: BDB `acentry`, account filters, reorder rewrite, RPC table/help, callers | Engineering analysis -- **WAL-RPC-ACCOUNTS** |
 
 Kill-accounts (Bitcoin [#13825](https://github.com/bitcoin/bitcoin/pull/13825) / Zcash 4.5) drops that layer because accounts are non-consensus and confusing. Zero may keep RPCs until business decides; port **`wtxOrdered` with `TxPair` + `laccentries`**.

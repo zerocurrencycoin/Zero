@@ -31,7 +31,7 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 ## Ordered next (execution priority)
 
 1. ~~**WAL-WTXORDERED** (+ Assure-4)~~ -- **done** (incremental `wtxOrdered`, keep accounts/`TxPair`). Line-by-line Zcash type match **deprioritized** (see **WAL-RPC-ACCOUNTS**, postponed).
-2. **Stable subsidy arithmetic** -- implement integer founders helper (`subsidy * 75 / 1000`); naming later (**DOC-FR-NAMING**).
+2. ~~**Stable subsidy arithmetic**~~ -- **done** in-tree (`GetFoundersRewardAmount` / integer `GetBlockSubsidy`); naming later (**DOC-FR-NAMING**).
 3. **WAL-GETALLDATA-W5** -- **revisit soon** (stashed on Zerowallet; pro/con below).
 4. **TST-01** remainder / **TST-05** / **TST-03** -- harness gaps. **TST-09** alert half done; block/wallet notify open. **getalldata_scenario** Ext-validated (2026-07-24).
 5. Postponed bucket (see Pending): **WAL-LOCKEDPOOL**, **OPS-CACHE-METRICS**, **OPS-TXINDEX-DEFAULT**, **OPS-AT-HEIGHT**, **TST-WITNESS-REINDEX**, **OPS-REINDEX** remainder, **OPS-ALERT-STRIP**, **DOC-FR-NAMING**, other getalldata W-items / ARG2 / UI window.
@@ -49,7 +49,7 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 - Chain bootstrap: end-user import path (`-loadblock` / auto-import); linearize tool in `contrib/linearize/`
 - macOS developer signing (codesign + notarization)
 - Total supply discrepancy: arithmetic vs ~20M ZER target
-- **Stable subsidy arithmetic** implementation (see Full descriptions; schedule in ZERO_COIN)
+- ~~**Stable subsidy arithmetic**~~ -- **done** (helper + tests); keep ZERO_COIN as normative description
 - RPC coverage matrix: `RPCs.csv` (`zero=y`) vs harness depth + client grep -> `RPCs_extended.csv` / `RPC_coverage.csv`
 - **TST-01** -- exclusive getalldata gates and Ext `getalldata_scenario` are **working**; under development: `getsupply` / `zs_*` / sapling depth. Run: `./src/test/test_bitcoin --run_test=rpc_zero_exclusive_tests` ; `./qa/pull-tester/rpc-tests.sh getalldata_scenario`
 - **TST-03** -- `zeronodestats` + zeronode/budget subcmds; arg validation first (under development)
@@ -65,7 +65,7 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 - OPS-ALERT-STRIP -- gut P2P `alert.cpp` after TST-09 slim
 - DOC-FR-NAMING -- FoundersReward vs developmentfee naming
 - TST-SAPLING-ROOT -- `finalsaplingroot.py` Bfail
-- TST-WITNESS-REINDEX -- hub WitnessReindex.md
+- TST-WITNESS-REINDEX -- hub WitnessReindex.md; B1 `reindex_shielded.py` in Tier B pass; CleanIndex B2/C postponed
 - OPS-CACHE-METRICS -- tunable insight split + hit/miss
 - **WAL-GETALLDATA-CACHE (W6)** -- postponed; prefer after W5
 - **WAL-GETALLDATA-W1** -- postponed; after current slew validated

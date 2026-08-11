@@ -2,7 +2,7 @@
 
 **Status:** findings captured; implementation track **OPS-AT-HEIGHT** postponed (**TODO.md**).  
 **Scope:** full node (`zerod`) only. Related: **ZeroStruct** §13.2 (reindex resume), §13.7 (bootstrap).  
-**Numbers inventory:** short-snap walls and rates are catalogued in **[Measures.md](Measures.md)** (`M-RX-TINY`, `M-RX-SHORT`, …).
+**Numbers inventory:** short-snap walls and rates are catalogued in **[Measures.md](Measures.md)** (`M-RX-TINY`, `M-RX-SHORT`, …). **Benchmark / fix plans:** **Perf.md** §0.13; Measures §12.
 
 ---
 
@@ -203,4 +203,4 @@ Tracked as **OPS-AT-HEIGHT**. Candidates if ever scheduled (pick one; do not inv
 - Fork index defaults: **`~/Work/ZK/ZKs/Comparison.md`** §12.6  
 - Insight ops: **`~/Work/ZK/insight/InsightBlock.md`**  
 - Tracking: **TODO.md** -- **OPS-AT-HEIGHT** (postponed)  
-- Shielded `-reindex` coverage (CleanIndex / `reindex_shielded`): **WitnessReindex.md** (**TST-WITNESS-REINDEX**, postponed)
+- Shielded `-reindex` coverage: **WitnessReindex.md** (**TST-WITNESS-REINDEX**); B1 `qa/rpc-tests/reindex_shielded.py` implemented

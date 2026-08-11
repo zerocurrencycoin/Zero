@@ -5,8 +5,10 @@ Scripts supporting the `zerod` sync performance investigation documented in
 and the reasoning these scripts implement; this README is just usage.
 
 **Numbers inventory:** campaign IDs, metric tokens (`height_per_s`, `wall_s`,
-`cpu_pct`, ...), and contradictions live in **`Measures.md`**. Prefer those
-tokens in new TSV/JSONL columns when extending these scripts.
+`cpu_pct`, ...), and contradictions live in **`Measures.md`** (§12 plan table).
+**Plans / specs** (benchmarking BENCH-*, immediate FIX-*, improvements IMP-*):
+**`Perf.md` §0.13**. Prefer Measures tokens in new TSV/JSONL columns when
+extending these scripts.
 
 **Datadir rule:** never use the default `~/Library/Application Support/zero`
 (or `~/.zero`) as a writable lab datadir. Scripts refuse that path.
@@ -77,3 +79,33 @@ contrib/perf/bench_matrix.sh reindex-profile/bench 50000 300000 4
 
 Env: `ZERO_PERF_SRC_DATADIR` (read-only rsync source), `ZERO_PERF_SCRATCH_DATADIR`
 (must not be the default user datadir; default `reindex-profile/datadir`).
+
+## run_postsapling_baseline.sh
+
+Post-Sapling window rematch (default warmup 600000, measure 300000).
+**Current mix:** stock `-reindex` only (`CONDITIONS=stock`, `N_TRIALS=4`).
+FDCACHE A/B is optional later, not the default. Each trial appends to the
+durable ledger.
+
+```bash
+ZERO_PERF_SRC_DATADIR="$HOME/Library/Application Support/zero" \
+  contrib/perf/run_postsapling_baseline.sh
+# override: N_TRIALS=4 CONDITIONS=stock CAMPAIGN=postsapling
+# util samples (default on): SAMPLE_UTIL=1 UTIL_PERIOD_S=30
+#   -> per-trial util.tsv (ps %cpu/%mem/rss + vmmap Physical footprint at milestones)
+```
+
+## accumulate_bench.py
+
+Append-only store + collation across campaigns/runs:
+
+- `reindex-profile/bench-summaries/ledger.jsonl` / `ledger.tsv`
+- `REPORT.md` / `REPORT-<campaign>.md`
+
+```bash
+python3 contrib/perf/accumulate_bench.py --import-tsv \
+  reindex-profile/bench-summaries/bench_postsapling_results.tsv \
+  --campaign postsapling-historical
+python3 contrib/perf/accumulate_bench.py --report \
+  --md reindex-profile/bench-summaries/REPORT.md
+```

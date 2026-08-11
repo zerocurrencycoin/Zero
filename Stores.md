@@ -38,7 +38,9 @@ Reviewed online references:
 
 `../Peer.md` is the canonical local note for `peers.dat`, addrman behavior, peer discovery, and practical peer monitoring. `Runtime.md` should not duplicate the whole peer treatment, but it should summarize the lifecycle and link back to `../Peer.md`.
 
-`Perf.md` is the current authority on sync-performance experiments. It is performance-oriented, not a data-directory map, but it matters for classifying `blocks/index/`, `chainstate/`, and the optional Insight indexes by lifecycle and rebuild cost.
+`Perf.md` is the current authority on sync-performance experiments (plans/specs in §0.13). It is performance-oriented, not a data-directory map, but it matters for classifying `blocks/index/`, `chainstate/`, and the optional Insight indexes by lifecycle and rebuild cost.
+
+**Shutdown and stores:** orderly exit runs `Shutdown()` -- wallet `Flush`, `FlushStateToDisk` (chainstate / block index), LevelDB/BDB close, optional zeronode/budget dumps. That work is why stop/Ctrl+C can take seconds to minutes on a large tip or fat wallet. **Windows (operator observation):** Ctrl+C does **not** exit immediately; treat the delay as store update / teardown unless `debug.log` shows an abrupt kill without `Shutdown: In progress...`. SIGHUP `debug.log` reopen is POSIX-only; Windows log rotate = stop/start or copy while stopped (`Perf.md` §0.8).
 
 `../Zeros/ZEROV.md` has been reframed as a superseded transition note. Its old recommendation to target BDB 18.1.40 should not drive current wallet work. The safer current framing is compatibility first, explicit migration second, and no hard dependency upgrade tied to node/index/performance work.
 
