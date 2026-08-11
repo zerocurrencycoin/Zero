@@ -8,6 +8,9 @@
 #include "ui_interface.h"
 #include "util.h"
 #include "utilstrencodings.h"
+#ifdef ENABLE_WALLET
+#include "wallet/wallet.h"
+#endif
 
 #include <boost/bind/bind.hpp>
 #include <boost/filesystem/operations.hpp>
@@ -156,3 +159,45 @@ TEST_F(DeprecationTest, AlertNotify) {
 
     boost::filesystem::remove(temp);
 }
+
+TEST_F(DeprecationTest, BlockNotifyDefaultSkipsShell) {
+    boost::filesystem::path temp = GetTempPath() /
+        boost::filesystem::unique_path("blocknotify-%%%%.txt");
+
+    mapArgs["-blocknotify"] = std::string("echo %s >> ") + temp.string();
+    uint256 tip = uint256S("0x1");
+    BlockNotifyCallback(tip);
+
+#ifdef ENABLE_SYSTEM_COMMAND
+    // Opt-in build: allow the async echo thread a moment.
+    MilliSleep(200);
+    std::vector<std::string> r = read_lines(temp);
+    EXPECT_GE(r.size(), 1u);
+#else
+    // Default build (TST-09): marker must stay empty (no ::system).
+    MilliSleep(50);
+    EXPECT_EQ(read_lines(temp).size(), 0u);
+#endif
+
+    boost::filesystem::remove(temp);
+}
+
+#ifdef ENABLE_WALLET
+TEST_F(DeprecationTest, WalletNotifyDefaultSkipsShell) {
+    boost::filesystem::path temp = GetTempPath() /
+        boost::filesystem::unique_path("walletnotify-%%%%.txt");
+
+    mapArgs["-walletnotify"] = std::string("echo %s >> ") + temp.string();
+    RunWalletNotifyCommand(uint256S("0x2"));
+
+#ifdef ENABLE_SYSTEM_COMMAND
+    MilliSleep(200);
+    EXPECT_GE(read_lines(temp).size(), 1u);
+#else
+    MilliSleep(50);
+    EXPECT_EQ(read_lines(temp).size(), 0u);
+#endif
+
+    boost::filesystem::remove(temp);
+}
+#endif

@@ -1,0 +1,1077 @@
+#!/usr/bin/env bash
+# Runtime ops validation: one catalog id per invocation.
+#
+# Interesting (operator-equivalent data, this binary):
+#   contrib/ops-validate.sh live     # RPC to SRC (operator datadir); does not start or stop
+#   contrib/ops-validate.sh attach   # RPC to LAB; does not start or stop
+#   contrib/ops-validate.sh copy     # rsync blocks/chainstate into LAB, isolated start, wait stable tip
+#
+# Binary-up only (not a wallet/sync test):
+#   contrib/ops-validate.sh cold
+#   contrib/ops-validate.sh restart  # after cold; tip unchanged
+#
+# Equihash / mining (separate invocations; not a load soak):
+#   contrib/ops-validate.sh equihash     # Boost KATs (test_bitcoin)
+#   contrib/ops-validate.sh verifyeq [N] # zcbenchmark verifyequihash (default 20; MAIN 192,7)
+#   contrib/ops-validate.sh solveeq [N]  # OptimisedSolve N times (default 1; long; ENABLE_MINING)
+#   contrib/ops-validate.sh mine [N]     # isolated regtest generate N (48,5); default 8
+#
+# Bundles:
+#   contrib/ops-validate.sh smoke    # cold + restart
+#   contrib/ops-validate.sh short    # equihash + verifyeq + smoke (RC short)
+#   --force / ZERO_OPS_FORCE=1       # override datadir/zerod/port gates (WARNING)
+#
+#   contrib/ops-validate.sh reindex            # -reindex tiny snap to 100000
+#   contrib/ops-validate.sh reindex all        # -reindex to snap tip (tiny 187417)
+#   contrib/ops-validate.sh reindex all p0     # same, inject wallet id 0
+#   contrib/ops-validate.sh rescan p0          # keep indexes, -rescan, wait Done loading
+#   contrib/ops-validate.sh bootstrap          # -loadblock to 100000
+#   contrib/ops-validate.sh bootstrap all      # -loadblock to end of file
+#   contrib/ops-validate.sh wallets            # list p0/p1/fat paths
+# Add keep / --keep / ZERO_OPS_KEEP=1 to leave LAB zerod up, then attach (not live).
+# Wallet: p0|p1|fat|none or --wallet=PATH (default none = -disablewallet).
+#
+# Env:
+#   ZERO_OPS_LAB       scratch for copy/cold/reindex (default /tmp/zero-ops-validate)
+#   ZERO_OPS_EQ_LAB    verifyeq/solveeq/mine scratch (default /tmp/zero-ops-eq)
+#   ZERO_OPS_SRC       read-only source (default ~/Library/Application Support/zero)
+#   ZERO_OPS_WALLET    wallet path (overrides p0/p1/fat). default empty = -disablewallet
+#   ZERO_OPS_WALLET_P0 / P1 / FAT   catalog paths (default SRC/wallet.zero0, personalbak, wallet.zero)
+#   ZERO_OPS_SNAP      tiny|short|full  (reindex/rescan chain; default tiny). also snap=tiny
+#   ZERO_OPS_TARGET    stop height (default 100000). all = to end / snap tip
+#   ZERO_OPS_BOOTSTRAP / LOADBLOCK   bootstrap.dat copy (not the lab original)
+#   ZERO_OPS_KEEP      1 = do not stop LAB zerod (then attach / stop)
+#   ZERO_RPCPORT       LAB rpcport (default 23941, outside deployment 23801-23820).
+#                      live uses SRC conf rpcport (mainnet default 23811).
+#   ZERO_OPS_WAIT      seconds to wait (default 1800)
+#   ZERO_OPS_LEDGER    append-only JSONL
+#   ZERO400            extra refuse path for LAB
+#   LINEARIZE_DIR      out-of-tree linearize dir holding the original bootstrap.dat
+#                      (default ~/Work/ZK/linearize)
+set -euo pipefail
+ME="ops-validate"
+# shellcheck disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/../zcutil/fzero.sh"
+cd "$REPO_ROOT"
+
+ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
+ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
+LAB="${ZERO_OPS_LAB:-/tmp/zero-ops-validate}"
+RPCPORT="${ZERO_RPCPORT:-23941}"
+WAIT_S="${ZERO_OPS_WAIT:-1800}"
+ZERO400="${ZERO400:-$HOME/Work/ZK/Zero400}"
+LINEARIZE_DIR="${LINEARIZE_DIR:-$HOME/Work/ZK/linearize}"
+SRC="${ZERO_OPS_SRC:-$HOME/Library/Application Support/zero}"
+SNAP="${ZERO_OPS_SNAP:-tiny}"
+WALLET_FILE="${ZERO_OPS_WALLET:-${ZERO_PERF_WALLET_FILE:-}}"
+WALLET_SEL=""
+BOOTSTRAP="${ZERO_OPS_BOOTSTRAP:-${LOADBLOCK:-}}"
+TARGET="${ZERO_OPS_TARGET:-}"
+ARG_TARGET=""
+TPL_DIR="$REPO_ROOT/contrib/conf-templates"
+ZERO_CONF="$REPO_ROOT/contrib/zero-conf.sh"
+
+if [[ -n "${ZERO_BUILD_DIR:-}" ]]; then
+  LEDGER="${ZERO_OPS_LEDGER:-$ZERO_BUILD_DIR/ops-status.jsonl}"
+else
+  LEDGER="${ZERO_OPS_LEDGER:-$REPO_ROOT/test-logs/ops-status.jsonl}"
+fi
+
+KEEP="${ZERO_OPS_KEEP:-0}"
+FORCE="${ZERO_OPS_FORCE:-0}"
+while [[ $# -ge 1 ]]; do
+  case "$1" in
+    force|--force) FORCE=1; shift ;;
+    keep|--keep) KEEP=1; shift ;;
+    *) break ;;
+  esac
+done
+CMD="${1:-}"
+ARG2=""
+if [[ $# -ge 1 ]]; then
+  shift
+  for a in "$@"; do
+    case "$a" in
+      keep|--keep) KEEP=1 ;;
+      force|--force) FORCE=1 ;;
+      all|ALL) ARG_TARGET=all ;;
+      snap=*) SNAP="${a#snap=}" ;;
+      --snap=*) SNAP="${a#--snap=}" ;;
+      wallet=*) WALLET_SEL="${a#wallet=}" ;;
+      --wallet=*) WALLET_SEL="${a#--wallet=}" ;;
+      p0|p1|fat|none|nowallet|0|1|3)
+        if [[ "$a" =~ ^[0-9]+$ ]] && [[ "$CMD" == "mine" || "$CMD" == "solveeq" || "$CMD" == "verifyeq" ]]; then
+          ARG_TARGET="$a"
+        else
+          WALLET_SEL="$a"
+        fi
+        ;;
+      *)
+        if [[ "$a" =~ ^[0-9]+$ ]]; then
+          ARG_TARGET="$a"
+        elif [[ -f "$a" ]]; then
+          WALLET_SEL="$a"
+        elif [[ "$CMD" == "boot" || "$CMD" == "cold" ]]; then
+          ARG2="$a"
+        else
+          echo "ERROR: extra arg $a (want all|N|p0|p1|fat|none|keep|force|snap=tiny|--wallet=PATH)" >&2
+          exit 2
+        fi
+        ;;
+    esac
+  done
+fi
+if [[ "$FORCE" == "1" ]]; then
+  export ZERO_OPS_FORCE=1
+fi
+TPL="lab"
+
+usage() {
+  cat <<'EOF'
+Usage: contrib/ops-validate.sh CMD [args...]
+
+CMD
+  short              equihash + verifyeq + smoke (RC short)
+  smoke              cold keep, then restart (tip unchanged)
+  cold [TPL]         empty scratch, RPC up, stop (TPL default lab; alias: boot)
+  restart            stop+start LAB after cold; tip must be unchanged
+  attach             RPC to LAB (does not start or stop)
+  stop               stop LAB zerod
+  live               RPC to SRC only (does not start or stop)
+  copy               rsync SRC blocks+chainstate into LAB, isolated start
+  reindex [all|N]    -reindex from snap; default stop 100000; all = snap tip
+  rescan [all|N]     keep indexes, -rescan, wait Done loading
+  bootstrap [all|N]  -loadblock; default stop 100000; all = end of file
+  equihash           Boost equihash_tests (test_bitcoin; no zerod)
+  verifyeq [N]       zcbenchmark verifyequihash (default 20; MAIN 192,7)
+  solveeq [N]        OptimisedSolve N times (default 1; long; ENABLE_MINING)
+  mine [N]           isolated regtest generate N (48,5); default 8
+  wallets            list p0/p1/fat paths
+  -h | --help        this text
+
+Modifiers (any order after CMD; force/keep also allowed before CMD)
+  keep | --keep      leave LAB zerod up (then attach / stop)
+  force | --force    override datadir, running-zerod, and port gates (WARNING)
+  all                run to snap tip / end of bootstrap file
+  N                  stop height, or count for verifyeq / solveeq / mine
+  p0 | p1 | fat | none | --wallet=PATH
+  snap=tiny|short|full   reindex/rescan chain (default tiny)
+
+Env
+  ZERO_OPS_LAB              scratch (default /tmp/zero-ops-validate)
+  ZERO_OPS_EQ_LAB           isolated scratch for verifyeq/solveeq/mine (default /tmp/zero-ops-eq)
+  ZERO_OPS_EQ_RPCPORT       isolated rpcport (default 23951)
+  ZERO_OPS_SRC              read-only source (default ~/Library/Application Support/zero)
+  ZERO_OPS_WALLET           wallet path (overrides p0/p1/fat); empty = -disablewallet
+  ZERO_OPS_WALLET_P0/P1/FAT catalog paths
+  ZERO_OPS_SNAP             tiny|short|full
+  ZERO_OPS_TARGET           stop height (default 100000)
+  ZERO_OPS_BOOTSTRAP        bootstrap.dat copy (or LOADBLOCK)
+  ZERO_OPS_KEEP=1           same as keep
+  ZERO_OPS_FORCE=1          same as --force
+  ZERO_RPCPORT              LAB rpcport (default 23941); live uses SRC conf
+                            23801-23820 reserved for deployments; LAB refuses unless --force
+  ZERO_OPS_WAIT             seconds (default 1800; longer when target=end)
+  ZERO_OPS_LEDGER           append-only JSONL
+  ZEROD / ZERO_CLI          binaries (default src/zerod, src/zero-cli)
+  TEST_BITCOIN              Boost runner (default src/test/test_bitcoin)
+  ZERO400                   extra refuse path for LAB
+  LINEARIZE_DIR             original bootstrap.dat (must pass a copy, not this file)
+EOF
+}
+
+resolve() { (cd "$1" 2>/dev/null && pwd -P) || echo "$1"; }
+
+# resolve() canonicalizes directories only (it cd's), so on a file path it falls
+# through to echoing the input unchanged -- a symlink, a relative path, and the
+# literal path to one file all compare unequal. Use this for file comparisons.
+resolve_file() {
+  local d b t
+  t="$(readlink -f "$1" 2>/dev/null)" && [[ -n "$t" ]] && { echo "$t"; return; }
+  # no readlink -f (older macOS / BSD): canonicalize the parent, follow one link
+  d="$(cd "$(dirname "$1")" 2>/dev/null && pwd -P)" || { echo "$1"; return; }
+  b="$(basename "$1")"
+  if [[ -L "$d/$b" ]]; then
+    t="$(readlink "$d/$b")"
+    case "$t" in
+      /*) echo "$t" ;;
+      *)  echo "$(cd "$(dirname "$d/$t")" 2>/dev/null && pwd -P)/$(basename "$t")" ;;
+    esac
+    return
+  fi
+  echo "$d/$b"
+}
+
+is_default_datadir() {
+  local d x
+  d="$(resolve "$1")"
+  for x in \
+    "$HOME/Library/Application Support/zero" \
+    "$HOME/Library/Application Support/Zero" \
+    "$HOME/.zero"
+  do
+    [[ -e "$x" ]] || continue
+    [[ "$d" == "$(resolve "$x")" ]] && return 0
+  done
+  return 1
+}
+
+refuse_lab() {
+  local d
+  d="$(resolve "$1")"
+  if is_default_datadir "$d"; then
+    if [[ "$FORCE" == "1" ]]; then
+      echo "WARNING: LAB is the default user datadir: $d (--force)" >&2
+    else
+      echo "ERROR: LAB must not be the default user datadir: $d (pass --force)" >&2
+      exit 1
+    fi
+  fi
+  if [[ -d "$ZERO400" ]]; then
+    local z4
+    z4="$(resolve "$ZERO400")"
+    case "$d" in
+      "$z4"|"$z4"/*)
+        if [[ "$FORCE" == "1" ]]; then
+          echo "WARNING: LAB is under Zero400: $d (--force)" >&2
+        else
+          echo "ERROR: LAB must not be under Zero400: $d (pass --force)" >&2
+          exit 1
+        fi
+        ;;
+    esac
+  fi
+}
+
+warn_or_die_zerod() {
+  local why="$1"
+  if pgrep -x zerod >/dev/null 2>&1; then
+    if [[ "$FORCE" == "1" ]]; then
+      echo "WARNING: zerod already running ($why); continuing (--force)" >&2
+      return 0
+    fi
+    echo "ERROR: stop zerod first ($why); or pass --force" >&2
+    exit 1
+  fi
+}
+
+port_listen() {
+  local p="$1"
+  command -v lsof >/dev/null 2>&1 || return 1
+  lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1
+}
+
+require_lab_port() {
+  if [[ "$RPCPORT" -ge 23801 && "$RPCPORT" -le 23820 ]]; then
+    if [[ "$FORCE" == "1" ]]; then
+      echo "WARNING: LAB rpcport $RPCPORT is in deployment range 23801-23820 (--force)" >&2
+      return 0
+    fi
+    echo "ERROR: LAB rpcport $RPCPORT is reserved for deployments (23801-23820); use 23941+ or pass --force" >&2
+    exit 1
+  fi
+}
+
+require_lab_clear() {
+  require_lab_port
+  local busy=0
+  if pgrep -f "zerod .*-datadir=${LAB}" >/dev/null 2>&1; then
+    busy=1
+  fi
+  if port_listen "$RPCPORT"; then
+    busy=1
+  fi
+  if [[ "$busy" -eq 1 ]]; then
+    if [[ "$FORCE" == "1" ]]; then
+      echo "WARNING: LAB zerod or rpcport $RPCPORT in use; continuing (--force)" >&2
+      return 0
+    fi
+    echo "ERROR: LAB zerod or rpcport $RPCPORT in use (stop that node, or pass --force)" >&2
+    exit 1
+  fi
+}
+
+pass_force() {
+  if [[ "$FORCE" == "1" ]]; then
+    printf '%s\n' --force
+  fi
+}
+
+src_rpcport() {
+  local conf="$1/zero.conf" p=""
+  if [[ -f "$conf" ]]; then
+    p="$(awk -F= '/^rpcport=/{print $2; exit}' "$conf" | tr -d '\r')"
+  fi
+  printf '%s\n' "${p:-23811}"
+}
+
+cli() { "$ZERO_CLI" -datadir="$LAB" -rpcport="$RPCPORT" -rpcclienttimeout=3600 "$@"; }
+cli_src() { "$ZERO_CLI" -datadir="$SRC" -rpcport="$(src_rpcport "$SRC")" "$@"; }
+
+append_ledger() {
+  mkdir -p "$(dirname "$LEDGER")"
+  local zsha="missing"
+  if [[ -x "$ZEROD" ]]; then
+    zsha="$(shasum -a 256 "$ZEROD" | awk '{print $1}')"
+  fi
+  printf '{"ts":"%s","id":"%s","exit":%s,"head":"%s","zerod":"%s","lab":"%s","src":"%s","height":"%s","duration_s":%s}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" \
+    "$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo none)" \
+    "$zsha" "$LAB" "$SRC" "${3:-}" "${4:-0}" >> "$LEDGER"
+}
+
+cmd_extra() {
+  if [[ -n "$WALLET_FILE" ]]; then
+    echo ""
+  else
+    echo "-disablewallet"
+  fi
+}
+
+maybe_inject_wallet() {
+  if [[ -n "$WALLET_FILE" ]]; then
+    inject_wallet
+  else
+    echo "nowallet (-disablewallet)"
+  fi
+}
+
+finish_ok() {
+  local id="$1" h="${2:-}"
+  local dur=$(( $(date +%s) - T0 ))
+  local line="$id ok duration=${dur}s"
+  [[ -n "$h" ]] && line="$line height=$h"
+  [[ -n "$WALLET_FILE" ]] && line="$line wallet=$WALLET_FILE"
+  echo "$line"
+  append_ledger "$id" 0 "$h" "$dur"
+}
+
+maybe_stop() {
+  if [[ "$KEEP" == "1" ]]; then
+    echo "left running datadir=$LAB rpcport=$RPCPORT (attach / stop; live is SRC not LAB)"
+    return 0
+  fi
+  cli stop >/dev/null 2>&1 || true
+  local i=0
+  while cli getblockcount >/dev/null 2>&1; do
+    i=$((i + 1))
+    if [[ "$i" -gt 60 ]]; then
+      echo "ERROR: LAB rpcport $RPCPORT still up after stop" >&2
+      return 1
+    fi
+    sleep 1
+  done
+}
+
+finish_err() {
+  local id="$1" h="${2:-}"
+  local dur=$(( $(date +%s) - T0 ))
+  append_ledger "$id" 1 "$h" "$dur"
+}
+
+write_isolated_conf() {
+  mkdir -p "$LAB"
+  [[ -x "$ZERO_CONF" && -f "$TPL_DIR/${TPL}.conf" ]] || {
+    echo "ERROR: missing $ZERO_CONF or $TPL_DIR/${TPL}.conf" >&2
+    exit 1
+  }
+  ZERO_RPCPORT="$RPCPORT" "$ZERO_CONF" "$TPL" -dir "$LAB" -out zero.conf -force >/dev/null
+}
+
+wait_rpc() {
+  local limit="${1:-${WAIT_RPC_S:-180}}" i
+  for i in $(seq 1 "$limit"); do
+    if cli getblockchaininfo >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "ERROR: RPC not up in ${limit}s (params? see $LAB/debug.log)" >&2
+  return 1
+}
+
+# First RPC is not a loaded tip. Wait until getblockcount repeats.
+wait_stable_height() {
+  local last="" h="" same=0 i=0
+  while [[ "$i" -lt "$WAIT_S" ]]; do
+    h="$(cli getblockcount 2>/dev/null || true)"
+    if [[ "$h" =~ ^[0-9]+$ ]] && [[ "$h" == "$last" ]]; then
+      same=$((same + 1))
+      if [[ "$same" -ge 3 && "$h" -gt 0 ]]; then
+        printf '%s\n' "$h"
+        return 0
+      fi
+    else
+      same=0
+      last="$h"
+    fi
+    sleep 2
+    i=$((i + 2))
+  done
+  echo "ERROR: height not stable in ${WAIT_S}s (last=$last). See $LAB/debug.log" >&2
+  return 1
+}
+
+launch_zerod() {
+  # shellcheck disable=SC2086
+  "$ZEROD" -datadir="$LAB" -daemon -listen=0 -connect=0 -maxconnections=0 -rpcport="$RPCPORT" "$@" >/dev/null
+}
+
+start_zerod() {
+  if [[ "${START_QUIET:-0}" != "1" ]]; then
+    echo "starting zerod datadir=$LAB rpcport=$RPCPORT"
+  fi
+  launch_zerod "$@"
+  if [[ "${START_QUIET:-0}" != "1" ]]; then
+    echo "waiting for RPC timeout=${WAIT_RPC_S:-180}s"
+  fi
+  wait_rpc
+  if [[ "${START_QUIET:-0}" != "1" ]]; then
+    echo "RPC up height=$(cli getblockcount 2>/dev/null || echo NA)"
+  fi
+}
+
+start_isolated() {
+  # shellcheck disable=SC2086
+  start_zerod $(cmd_extra)
+}
+
+wipe_chain() {
+  rm -rf "$LAB/blocks" "$LAB/chainstate" "$LAB/wallet.zero" "$LAB/.lock" "$LAB/debug.log" "$LAB/.cookie"
+}
+
+copy_from_src() {
+  local s
+  s="$(resolve "$SRC")"
+  [[ -d "$s/blocks" && -d "$s/chainstate" ]] || { echo "ERROR: SRC needs blocks/ and chainstate/: $s" >&2; exit 1; }
+  if is_default_datadir "$LAB"; then
+    if [[ "$FORCE" == "1" ]]; then
+      echo "WARNING: copy dest is the default datadir (--force)" >&2
+    else
+      echo "ERROR: copy dest is the default datadir (pass --force)" >&2
+      exit 1
+    fi
+  fi
+  if [[ "$(resolve "$LAB")" == "$s" ]]; then
+    echo "ERROR: LAB and SRC are the same path" >&2
+    exit 1
+  fi
+  warn_or_die_zerod "do not snapshot a live chainstate"
+  echo "wipe LAB then copy $s/{blocks,chainstate} -> $(resolve "$LAB") (read-only source)"
+  rm -rf "$LAB"
+  mkdir -p "$LAB"
+  rsync -a --delete "$s/blocks/" "$LAB/blocks/"
+  rsync -a --delete "$s/chainstate/" "$LAB/chainstate/"
+  if [[ -n "$WALLET_FILE" && -f "$WALLET_FILE" ]]; then
+    cp -p "$WALLET_FILE" "$LAB/wallet.zero"
+    echo "copied wallet $WALLET_FILE"
+  elif [[ -n "$WALLET_FILE" && -f "$s/wallet.zero" ]]; then
+    cp -p "$s/wallet.zero" "$LAB/wallet.zero"
+    echo "copied wallet.zero"
+  else
+    echo "nowallet (did not copy wallet.zero)"
+  fi
+}
+
+# Load/import stop height. Default 100000. all = 0 (run to end).
+resolve_load_target() {
+  local tok="${1:-}"
+  [[ -n "$tok" ]] || tok="${ZERO_OPS_TARGET:-}"
+  case "$tok" in
+    all|ALL) echo 0 ;;
+    "") echo 100000 ;;
+    *)
+      if [[ "$tok" =~ ^[0-9]+$ ]]; then
+        echo "$tok"
+      else
+        echo "ERROR: target must be all or a block height (got '$tok')" >&2
+        exit 1
+      fi
+      ;;
+  esac
+}
+
+snap_target() {
+  case "$SNAP" in
+    tiny) echo 187417 ;;
+    short) echo 245992 ;;
+    full) echo 0 ;;
+    *) echo "ERROR: SNAP must be tiny|short|full (got '$SNAP')" >&2; exit 1 ;;
+  esac
+}
+
+# $1 = reindex|rescan|bootstrap
+apply_cmd_target() {
+  local kind="$1"
+  local tok="${ARG_TARGET:-${TARGET:-}}"
+  case "$kind" in
+    bootstrap)
+      TARGET="$(resolve_load_target "$tok")"
+      ;;
+    reindex|rescan)
+      case "$tok" in
+        all|ALL)
+          ARG_TARGET=all
+          TARGET="$(snap_target)"
+          ;;
+        "")
+          if [[ "$kind" == "rescan" ]]; then
+            TARGET="$(snap_target)"
+          else
+            TARGET="$(resolve_load_target "")"
+          fi
+          ;;
+        *)
+          TARGET="$(resolve_load_target "$tok")"
+          ;;
+      esac
+      ;;
+  esac
+  if [[ "$TARGET" -eq 0 ]]; then
+    WAIT_S="${ZERO_OPS_WAIT:-10800}"
+  fi
+}
+
+wallet_catalog_path() {
+  local id="$1"
+  case "$id" in
+    none|nowallet|"") echo "" ;;
+    p0|0) echo "${ZERO_OPS_WALLET_P0:-${ZERO_PERF_WALLET_P0:-$SRC/wallet.zero0}}" ;;
+    p1|1) echo "${ZERO_OPS_WALLET_P1:-${ZERO_PERF_WALLET_P1:-$SRC/wallet.zero.personalbak-20260720}}" ;;
+    fat|3) echo "${ZERO_OPS_WALLET_FAT:-${ZERO_PERF_WALLET_FAT:-$SRC/wallet.zero}}" ;;
+    *) echo "$id" ;;
+  esac
+}
+
+resolve_wallet() {
+  local id="$1" p
+  p="$(wallet_catalog_path "$id")"
+  case "$id" in
+    none|nowallet|"") echo ""; return 0 ;;
+  esac
+  if [[ -z "$p" ]]; then
+    echo "ERROR: wallet '$id' resolved empty" >&2
+    exit 1
+  fi
+  if [[ ! -f "$p" ]]; then
+    echo "ERROR: wallet file missing: $p (id=$id). Set ZERO_OPS_WALLET_P0/P1/FAT or --wallet=PATH" >&2
+    exit 1
+  fi
+  echo "$p"
+}
+
+cmd_wallets() {
+  local id p
+  printf "%-6s  %-8s  %s\n" "id" "bytes" "path"
+  for id in p0 p1 fat; do
+    p="$(wallet_catalog_path "$id")"
+    if [[ -f "$p" ]]; then
+      printf "%-6s  %-8s  %s\n" "$id" "$(stat -f%z "$p" 2>/dev/null || stat -c%s "$p")" "$p"
+    else
+      printf "%-6s  %-8s  %s\n" "$id" "MISSING" "$p"
+    fi
+  done
+  echo "none    --        -disablewallet (default)"
+}
+
+wait_done_loading() {
+  local i=0
+  while [[ "$i" -lt "$WAIT_S" ]]; do
+    if grep -q "Done loading" "$LAB/debug.log" 2>/dev/null; then
+      return 0
+    fi
+    sleep 2
+    i=$((i + 2))
+  done
+  echo "ERROR: Done loading not seen in ${WAIT_S}s (last height=$(cli getblockcount 2>/dev/null || echo none)). See $LAB/debug.log" >&2
+  return 1
+}
+
+target_label() {
+  if [[ -z "${TARGET:-}" ]]; then
+    echo n/a
+  elif [[ "$TARGET" -eq 0 ]]; then
+    echo end
+  else
+    echo "$TARGET"
+  fi
+}
+
+unpack_snap() {
+  refuse_lab "$LAB"
+  warn_or_die_zerod "reindex/rescan snap unpack"
+  rm -rf "$LAB"
+  mkdir -p "$LAB"
+  case "$SNAP" in
+    tiny)
+      [[ -f "$SRC/chainblocks-tiny.tgz" ]] || { echo "ERROR: missing $SRC/chainblocks-tiny.tgz" >&2; exit 1; }
+      tar -xzf "$SRC/chainblocks-tiny.tgz" -C "$LAB"
+      ;;
+    short)
+      [[ -f "$SRC/chainblocks-short.tgz" ]] || { echo "ERROR: missing $SRC/chainblocks-short.tgz" >&2; exit 1; }
+      tar -xzf "$SRC/chainblocks-short.tgz" -C "$LAB"
+      ;;
+    full)
+      mkdir -p "$LAB/blocks"
+      rsync -a --delete "$SRC/blocks/" "$LAB/blocks/"
+      if [[ -d "$SRC/chainstate" ]]; then
+        rsync -a --delete "$SRC/chainstate/" "$LAB/chainstate/"
+      fi
+      ;;
+    *)
+      echo "ERROR: ZERO_OPS_SNAP must be tiny|short|full" >&2
+      exit 1
+      ;;
+  esac
+  rm -rf "$LAB/.lock" "$LAB/.cookie"
+  rm -f "$LAB/zero.conf"
+}
+
+prepare_snap_for_reindex() {
+  unpack_snap
+  rm -rf "$LAB/chainstate"
+}
+
+inject_wallet() {
+  [[ -f "$WALLET_FILE" ]] || { echo "ERROR: wallet file missing: $WALLET_FILE" >&2; exit 1; }
+  cp -p "$WALLET_FILE" "$LAB/wallet.zero"
+  echo "injected wallet $WALLET_FILE -> $LAB/wallet.zero ($(stat -f%z "$WALLET_FILE" 2>/dev/null || stat -c%s "$WALLET_FILE") bytes)"
+}
+
+wait_until_height() {
+  local need="$1" h="" i=0 last_print=-30
+  if [[ "$need" -le 0 ]]; then
+    wait_stable_height
+    return
+  fi
+  echo "waiting for height>=$need timeout=${WAIT_S}s" >&2
+  while [[ "$i" -lt "$WAIT_S" ]]; do
+    h="$(cli getblockcount 2>/dev/null || true)"
+    if [[ "$h" =~ ^[0-9]+$ ]] && [[ "$h" -ge "$need" ]]; then
+      echo "reached height=$h" >&2
+      printf '%s\n' "$h"
+      return 0
+    fi
+    if [[ $((i - last_print)) -ge 30 ]]; then
+      echo "  height=${h:-NA} need=$need t=${i}s" >&2
+      last_print=$i
+    fi
+    sleep 2
+    i=$((i + 2))
+  done
+  echo "ERROR: height $need not reached in ${WAIT_S}s (last=$h). See $LAB/debug.log" >&2
+  return 1
+}
+
+walletinfo_ok() {
+  perl -e 'alarm 30; exec @ARGV' -- "$ZERO_CLI" -datadir="$LAB" -rpcport="$RPCPORT" getwalletinfo >/dev/null
+}
+
+TEST_BITCOIN="${TEST_BITCOIN:-$REPO_ROOT/src/test/test_bitcoin}"
+
+cmd_equihash() {
+  [[ -x "$TEST_BITCOIN" ]] || { echo "missing $TEST_BITCOIN (build test_bitcoin)" >&2; exit 1; }
+  echo "OPS-EQUIHASH --run_test=equihash_tests"
+  if (cd "$REPO_ROOT" && "$TEST_BITCOIN" --run_test=equihash_tests); then
+    finish_ok OPS-EQUIHASH ""
+  else
+    finish_err OPS-EQUIHASH ""
+    exit 1
+  fi
+}
+
+enable_wallet_conf() {
+  local conf="$LAB/zero.conf"
+  [[ -f "$conf" ]] || return 0
+  grep -v '^disablewallet=' "$conf" > "$conf.tmp" || true
+  mv "$conf.tmp" "$conf"
+}
+
+finish_eq_conf() {
+  enable_wallet_conf
+  local conf="$LAB/zero.conf"
+  grep -vE '^(regtest|rpcuser|rpcpassword|rpcport|rpcservertimeout)=' "$conf" > "$conf.tmp" || true
+  mv "$conf.tmp" "$conf"
+  {
+    echo "regtest=1"
+    echo "rpcuser=rt"
+    echo "rpcpassword=rt"
+    echo "rpcport=$RPCPORT"
+    echo "rpcservertimeout=3600"
+  } >> "$conf"
+}
+
+eq_lab_push() {
+  EQ_SAVED_LAB="$LAB"
+  EQ_SAVED_PORT="$RPCPORT"
+  LAB="${ZERO_OPS_EQ_LAB:-/tmp/zero-ops-eq}"
+  RPCPORT="${ZERO_OPS_EQ_RPCPORT:-23951}"
+}
+
+eq_lab_pop() {
+  LAB="$EQ_SAVED_LAB"
+  RPCPORT="$EQ_SAVED_PORT"
+}
+
+prepare_eq_lab() {
+  refuse_lab "$LAB"
+  require_lab_clear
+  rm -rf "$LAB"
+  mkdir -p "$LAB"
+  write_isolated_conf
+  finish_eq_conf
+}
+
+eq_count() {
+  local def="$1" n="${ARG_TARGET:-}"
+  if [[ -z "$n" ]]; then
+    printf '%s\n' "$def"
+    return 0
+  fi
+  if [[ "$n" == "all" || "$n" == "ALL" ]]; then
+    echo "ERROR: $CMD wants a count, not all" >&2
+    exit 2
+  fi
+  if ! [[ "$n" =~ ^[0-9]+$ ]] || [[ "$n" -lt 1 ]]; then
+    echo "ERROR: $CMD N must be a positive integer (got '$n')" >&2
+    exit 2
+  fi
+  printf '%s\n' "$n"
+}
+
+json_runningtimes() {
+  python3 -c "$(cat <<'PY'
+import json, sys
+raw = sys.stdin.read()
+try:
+    data = json.loads(raw)
+except Exception as e:
+    sys.stderr.write(raw)
+    sys.stderr.write("\nERROR: zcbenchmark JSON: %s\n" % e)
+    sys.exit(1)
+if not isinstance(data, list) or not data:
+    sys.stderr.write(raw + "\n")
+    sys.exit(1)
+for x in data:
+    print("%.6f" % float(x["runningtime"]))
+PY
+)"
+}
+
+summarize_times() {
+  local unit="${1:-s}"
+  python3 -c "$(cat <<'PY'
+import sys
+unit = sys.argv[1]
+scale = 1000.0 if unit == "ms" else 1.0
+fmt = "%.3f" if unit == "ms" else "%.2f"
+times = [float(x) * scale for x in sys.stdin if x.strip()]
+if not times:
+    sys.stderr.write("ERROR: no sample times\n")
+    sys.exit(1)
+n = len(times)
+s = sum(times)
+mean = s / n
+line = "samples=%d min=%s%s max=%s%s mean=%s%s" % (
+    n, fmt % min(times), unit, fmt % max(times), unit, fmt % mean, unit)
+if n >= 2:
+    ordered = sorted(times)
+    if n % 2:
+        med = ordered[n // 2]
+    else:
+        med = (ordered[n // 2 - 1] + ordered[n // 2]) / 2.0
+    var = sum((x - mean) ** 2 for x in times) / (n - 1)
+    line += " median=%s%s stdev=%s%s" % (fmt % med, unit, fmt % (var ** 0.5), unit)
+line += " total=%s%s" % (fmt % s, unit)
+print(line)
+PY
+)" "$unit"
+}
+
+run_eq_bench() {
+  local rpc="$1" samples="$2" id="$3" json h i t timesfile
+  eq_lab_push
+  prepare_eq_lab
+  echo "$id n=$samples MAIN (192,7)"
+  START_QUIET=1 start_zerod -keypool=1
+  timesfile="$(mktemp "${TMPDIR:-/tmp}/zero-eq-times.XXXXXX")"
+  if [[ "$rpc" == "solveequihash" ]]; then
+    for i in $(seq 1 "$samples"); do
+      if ! json="$(cli zcbenchmark solveequihash 1)"; then
+        echo "$json" >&2
+        rm -f "$timesfile"
+        maybe_stop
+        finish_err "$id" ""
+        eq_lab_pop
+        exit 1
+      fi
+      t="$(printf '%s\n' "$json" | json_runningtimes)"
+      printf '%s/%s  %.2fs\n' "$i" "$samples" "$t"
+      printf '%s\n' "$t" >> "$timesfile"
+    done
+  else
+    if ! json="$(cli zcbenchmark "$rpc" "$samples")"; then
+      echo "$json" >&2
+      rm -f "$timesfile"
+      maybe_stop
+      finish_err "$id" ""
+      eq_lab_pop
+      exit 1
+    fi
+    if ! printf '%s\n' "$json" | json_runningtimes >> "$timesfile"; then
+      rm -f "$timesfile"
+      maybe_stop
+      finish_err "$id" ""
+      eq_lab_pop
+      exit 1
+    fi
+  fi
+  if [[ "$rpc" == "solveequihash" ]]; then
+    if [[ "$samples" -gt 1 ]]; then
+      summarize_times s < "$timesfile"
+    fi
+  else
+    summarize_times ms < "$timesfile"
+  fi
+  rm -f "$timesfile"
+  maybe_stop
+  finish_ok "$id" ""
+  eq_lab_pop
+}
+
+cmd_mine() {
+  local n i h0 h
+  n="$(eq_count 8)"
+  eq_lab_push
+  prepare_eq_lab
+  echo "OPS-MINE n=$n regtest (48,5)"
+  START_QUIET=1 start_zerod -keypool=1
+  h0="$(cli getblockcount)"
+  for i in $(seq 1 "$n"); do
+    cli generate 1 >/dev/null
+    echo "$i/$n  height=$((h0 + i))"
+  done
+  h="$(cli getblockcount)"
+  if [[ "$h" -ne $((h0 + n)) ]]; then
+    echo "ERROR: expected height $((h0 + n)), got $h" >&2
+    maybe_stop
+    finish_err OPS-MINE "$h"
+    eq_lab_pop
+    exit 1
+  fi
+  maybe_stop
+  finish_ok OPS-MINE "$h"
+  eq_lab_pop
+}
+
+cmd_restart() {
+  refuse_lab "$LAB"
+  [[ -f "$LAB/zero.conf" ]] || { echo "ERROR: run cold first (need $LAB/zero.conf)" >&2; exit 1; }
+  local h0 h1
+  h0="$(cli getblockcount 2>/dev/null || echo NA)"
+  cli stop >/dev/null 2>&1 || true
+  sleep 2
+  start_isolated
+  h1="$(cli getblockcount)"
+  maybe_stop
+  echo "OPS-RESTART height=$h1 (before_stop=${h0})"
+  if [[ "$h0" != "NA" && "$h1" != "$h0" ]]; then
+    echo "ERROR: tip changed across restart ($h0 -> $h1)" >&2
+    finish_err OPS-RESTART "$h1"
+    exit 1
+  fi
+  finish_ok OPS-RESTART "$h1"
+}
+
+cmd_smoke() {
+  local self="$REPO_ROOT/contrib/ops-validate.sh"
+  local f
+  f="$(pass_force)"
+  echo "OPS-SMOKE cold + restart LAB=$LAB"
+  # shellcheck disable=SC2086
+  "$self" cold keep $f
+  # shellcheck disable=SC2086
+  "$self" restart $f
+  finish_ok OPS-SMOKE ""
+}
+
+cmd_short() {
+  local self="$REPO_ROOT/contrib/ops-validate.sh"
+  local f
+  f="$(pass_force)"
+  echo "OPS-SHORT equihash + verifyeq + smoke"
+  # shellcheck disable=SC2086
+  "$self" equihash $f
+  # shellcheck disable=SC2086
+  "$self" verifyeq $f
+  # shellcheck disable=SC2086
+  "$self" smoke $f
+  finish_ok OPS-SHORT ""
+}
+
+[[ -n "$CMD" ]] || { usage >&2; exit 2; }
+if [[ "$CMD" == "wallets" || "$CMD" == "-h" || "$CMD" == "--help" ]]; then
+  [[ "$CMD" == "wallets" ]] && { cmd_wallets; exit 0; }
+  usage; exit 0
+fi
+if [[ -n "$WALLET_SEL" ]]; then
+  WALLET_FILE="$(resolve_wallet "$WALLET_SEL")"
+fi
+if [[ "$CMD" != "equihash" ]]; then
+  [[ -x "$ZEROD" ]] || { echo "missing $ZEROD" >&2; exit 1; }
+fi
+
+T0=$(date +%s)
+
+case "$CMD" in
+  reindex)
+    refuse_lab "$LAB"
+    require_lab_clear
+    prepare_snap_for_reindex
+    maybe_inject_wallet
+    write_isolated_conf
+    apply_cmd_target reindex
+    echo "OPS-REINDEX snap=$SNAP wallet=${WALLET_FILE:-none} target=$(target_label) (CLI -reindex, no sticky conf)"
+    # shellcheck disable=SC2086
+    start_zerod $(cmd_extra) -reindex
+    h="$(wait_until_height "$TARGET")"
+    if [[ "${ARG_TARGET:-}" == "all" || "$TARGET" -eq 0 ]]; then
+      wait_done_loading
+      h="$(cli getblockcount 2>/dev/null || echo "$h")"
+    fi
+    if [[ -n "$WALLET_FILE" ]]; then
+      walletinfo_ok || { echo "ERROR: getwalletinfo failed or timed out" >&2; cli stop >/dev/null 2>&1 || true; finish_err OPS-REINDEX "$h"; exit 1; }
+    fi
+    maybe_stop
+    finish_ok OPS-REINDEX "$h"
+    ;;
+  bootstrap)
+    refuse_lab "$LAB"
+    [[ -n "$BOOTSTRAP" && -f "$BOOTSTRAP" ]] || {
+      echo "ERROR: set ZERO_OPS_BOOTSTRAP or LOADBLOCK to a bootstrap.dat copy" >&2
+      exit 1
+    }
+    if [[ "$(resolve_file "$BOOTSTRAP")" == "$(resolve_file "$LINEARIZE_DIR/bootstrap.dat")" ]]; then
+      echo "ERROR: pass a copy of bootstrap.dat, not the lab original" >&2
+      exit 1
+    fi
+    warn_or_die_zerod "bootstrap -loadblock"
+    rm -rf "$LAB"
+    mkdir -p "$LAB"
+    cp -p "$BOOTSTRAP" "$LAB/bootstrap.dat"
+    write_isolated_conf
+    apply_cmd_target bootstrap
+    echo "OPS-BOOTSTRAP loadblock=$LAB/bootstrap.dat target=$(target_label) wait=${WAIT_S}s"
+    start_zerod -disablewallet -loadblock="$LAB/bootstrap.dat"
+    h="$(wait_until_height "$TARGET")"
+    maybe_stop
+    finish_ok OPS-BOOTSTRAP "$h"
+    ;;
+  rescan)
+    refuse_lab "$LAB"
+    unpack_snap
+    [[ -d "$LAB/chainstate" ]] || { echo "ERROR: rescan needs chainstate in the snap (SNAP=$SNAP)" >&2; exit 1; }
+    maybe_inject_wallet
+    write_isolated_conf
+    apply_cmd_target rescan
+    echo "OPS-RESCAN snap=$SNAP wallet=${WALLET_FILE:-none} target=$(target_label) (CLI -rescan, indexes kept)"
+    # shellcheck disable=SC2086
+    launch_zerod $(cmd_extra) -rescan
+    wait_done_loading
+    wait_rpc
+    echo "RPC up height=$(cli getblockcount 2>/dev/null || echo NA)"
+    h="$(cli getblockcount 2>/dev/null || true)"
+    if [[ "$TARGET" -gt 0 ]]; then
+      h="$(wait_until_height "$TARGET")"
+    else
+      h="$(wait_until_height 0)"
+    fi
+    if [[ -n "$WALLET_FILE" ]]; then
+      walletinfo_ok || echo "WARN: getwalletinfo failed or timed out"
+    fi
+    maybe_stop
+    finish_ok OPS-RESCAN "$h"
+    ;;
+  live)
+    [[ -d "$SRC" ]] || { echo "ERROR: SRC missing $SRC" >&2; exit 1; }
+    if ! cli_src getblockchaininfo >/dev/null 2>&1; then
+      echo "ERROR: no RPC on $SRC (start zerod on the default datadir first, then re-run live)" >&2
+      echo "  e.g. $ZEROD -datadir=\"$SRC\" -daemon" >&2
+      finish_err OPS-LIVE ""
+      exit 1
+    fi
+    h="$(cli_src getblockcount)"
+    cli_src getwalletinfo >/dev/null 2>&1 || echo "WARN: getwalletinfo failed"
+    echo "OPS-LIVE height=$h src=$SRC rpcport=$(src_rpcport "$SRC") (did not start or stop)"
+    if ! [[ "$h" =~ ^[0-9]+$ ]] || [[ "$h" -le 0 ]]; then
+      echo "ERROR: live expected height > 0" >&2
+      finish_err OPS-LIVE "$h"
+      exit 1
+    fi
+    finish_ok OPS-LIVE "$h"
+    ;;
+  copy)
+    refuse_lab "$LAB"
+    require_lab_clear
+    copy_from_src
+    write_isolated_conf
+    WAIT_RPC_S=600 start_isolated
+    h="$(wait_stable_height)"
+    if [[ -f "$LAB/wallet.zero" ]]; then
+      cli getwalletinfo >/dev/null
+    fi
+    maybe_stop
+    echo "OPS-COPY src=$SRC lab=$LAB isolated (this zerod, no P2P)"
+    finish_ok OPS-COPY "$h"
+    ;;
+  cold|boot)
+    refuse_lab "$LAB"
+    require_lab_clear
+    mkdir -p "$LAB"
+    wipe_chain
+    TPL="${ARG2:-lab}"
+    write_isolated_conf
+    start_isolated
+    h="$(cli getblockcount)"
+    maybe_stop
+    echo "OPS-START-COLD (binary-up only, not a sync test)"
+    finish_ok OPS-START-COLD "$h"
+    ;;
+  restart)
+    cmd_restart
+    ;;
+  smoke)
+    cmd_smoke
+    ;;
+  short)
+    cmd_short
+    ;;
+  equihash)
+    cmd_equihash
+    ;;
+  verifyeq)
+    run_eq_bench verifyequihash "$(eq_count 20)" OPS-VERIFYEQ
+    ;;
+  solveeq)
+    run_eq_bench solveequihash "$(eq_count 1)" OPS-SOLVEEQ
+    ;;
+  mine)
+    cmd_mine
+    ;;
+  attach)
+    refuse_lab "$LAB"
+    echo "OPS-ATTACH LAB=$LAB rpcport=$RPCPORT"
+    wait_rpc
+    h="$(cli getblockcount)"
+    echo "RPC up height=$h"
+    finish_ok OPS-ATTACH "$h"
+    ;;
+  stop)
+    refuse_lab "$LAB"
+    cli stop >/dev/null
+    finish_ok OPS-STOP ""
+    ;;
+  -h|--help) usage; exit 0 ;;
+  wallets) cmd_wallets; exit 0 ;;
+  *) usage >&2; exit 2 ;;
+esac

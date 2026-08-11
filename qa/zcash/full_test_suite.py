@@ -21,7 +21,7 @@ REPOROOT = os.path.dirname(
 def repofile(filename):
     return os.path.join(REPOROOT, filename)
 
-# Same exclusions as contrib/run-tests.sh — canonical source: qa/zcash/test_filters.sh
+# Same exclusions as contrib/run-tests.sh -- canonical source: qa/zcash/test_filters.sh
 def _load_test_filters():
     script = repofile('qa/zcash/test_filters.sh')
     out = subprocess.check_output(
@@ -35,7 +35,7 @@ BOOST_PASS_EXCLUDE, GTEST_PASS_FILTER = _load_test_filters()
 
 def btest_command(unfiltered):
     cmd = [repofile('src/test/test_bitcoin'), '-p']
-    if not unfiltered:
+    if not unfiltered and BOOST_PASS_EXCLUDE:
         cmd.append('--run_test=' + BOOST_PASS_EXCLUDE)
     return cmd
 

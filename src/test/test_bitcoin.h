@@ -4,6 +4,7 @@
 #include "consensus/upgrades.h"
 #include "pubkey.h"
 #include "txdb.h"
+#include "chainparamsbase.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/thread.hpp>
@@ -34,7 +35,7 @@ struct TestingSetup: public JoinSplitTestingSetup {
     boost::filesystem::path pathTemp;
     boost::thread_group threadGroup;
 
-    TestingSetup();
+    TestingSetup(CBaseChainParams::Network network = CBaseChainParams::MAIN);
     ~TestingSetup();
 };
 

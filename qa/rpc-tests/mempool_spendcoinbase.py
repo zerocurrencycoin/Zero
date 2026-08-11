@@ -44,7 +44,7 @@ class MempoolSpendCoinbaseTest(BitcoinTestFramework):
 
     def run_test(self):
         chain_height = self.nodes[0].getblockcount()
-        # initialize_chain cache extends to COINBASE_MATURITY + 5 (see TEST_ZERO.md)
+        # initialize_chain cache extends to COINBASE_MATURITY + 5
         assert_greater_than(chain_height, COINBASE_MATURITY)
         node0_address = self.nodes[0].getnewaddress()
 

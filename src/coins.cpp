@@ -569,6 +569,11 @@ CAmount CCoinsViewCache::GetValueIn(const CTransaction& tx) const
 
 bool CCoinsViewCache::HaveShieldedRequirements(const CTransaction& tx) const
 {
+    // AcceptToMemoryPool calls this under a tip/mempool backend (which warms
+    // this cache via Get*AnchorAt), then SetBackend(dummy) and calls again via
+    // ContextualCheckInputs. Get* must be used here -- existence-only lookups
+    // that skip cache inserts fail the second call against dummy.
+    // See coins_tests/shielded_survive_dummy.
     boost::unordered_map<uint256, SproutMerkleTree, CCoinsKeyHasher> intermediates;
 
     BOOST_FOREACH(const JSDescription &joinsplit, tx.vJoinSplit)

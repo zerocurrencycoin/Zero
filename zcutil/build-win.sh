@@ -24,7 +24,7 @@ ME="build-win"
 cd "$REPO_ROOT"
 
 show_build_win_help() {
-  local log="${1:-logs/build-win.log}"
+  local log="${1:-.build/build-win.log}"
   cat <<EOF
 Usage: $ME [ -m/--mxe PATH ] [ -L | --log PATH ] [ MAKEARGS... ]
   Cross-compile zerod for Windows (x86_64) from Linux.
@@ -40,7 +40,7 @@ EOF
 
 # shellcheck disable=SC2034
 parse_build_win_args() {
-  local default_log="${1:-logs/build-win.log}"
+  local default_log="${1:-.build/build-win.log}"
   shift
   parse_log_opts "$default_log" "$@"
   if [[ ${#REMAINING_ARGS[@]} -gt 0 ]] && { [[ "x${REMAINING_ARGS[0]}" == "x--help" ]] || [[ "x${REMAINING_ARGS[0]}" == "x-h" ]]; }; then
@@ -55,9 +55,9 @@ resolve_host_win() {
   CC=$(command -v x86_64-w64-mingw32.static-gcc 2>/dev/null) || err "x86_64-w64-mingw32.static-gcc not found. Set MXE_ROOT (e.g. export MXE_ROOT=\$HOME/mxe) or pass -m/--mxe."
   CXX="${CC%gcc}g++"
   WINDRES=$(command -v x86_64-w64-mingw32.static-windres 2>/dev/null) || err "x86_64-w64-mingw32.static-windres not found (MXE incomplete?)."
-  PREFIX="$PWD/depends/$HOST"
+  PREFIX="$REPO_ROOT/depends/$HOST"
   if [[ -z "${MAKE:-}" ]]; then MAKE=make; fi
-  if [[ -z "${BUILD:-}" ]]; then BUILD="$(./depends/config.guess)"; fi
+  guess_build_host
 }
 
 build_depends_win() {
@@ -78,7 +78,7 @@ run_make_win() {
   env CC="$CC" CXX="$CXX" WINDRES="$WINDRES" "$MAKE" V=1 "${MAKEARGS[@]}" zerod.exe zero-cli.exe zero-tx.exe
 }
 
-parse_build_win_args "logs/build-win.log" "$@"
+parse_build_win_args ".build/build-win.log" "$@"
 init_logging
 resolve_host_win
 trap 'build_fail "build failed"' ERR

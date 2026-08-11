@@ -14,8 +14,8 @@ For each uncovered method (or --all-registered), classify:
 Destructive / state-changing methods are only checked via help <name>
 (recognize+respond without side effects).
 
-Does NOT prove argument coverage. See ZeroStruct section 6.2 / 6.3 and
-TEST_ZERO.md RPC coverage notes.
+Does NOT prove argument coverage: it checks that each RPC is reachable,
+not that its parameters are exercised.
 
 Run:
   ./qa/pull-tester/rpc-tests.sh rpc_coverage_probe

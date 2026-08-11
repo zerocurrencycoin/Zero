@@ -318,9 +318,10 @@ Zero's only related API is [`GetLockedPageCount()`](src/support/pagelocker.h) --
 
 **RPC `getdbinfo`:** returns `-dbcache` slice budgets, in-memory UTXO `DynamicMemoryUsage` / `GetCacheSize` / fill %, and per-DB LevelDB block-cache capacity/usage (`Cache::TotalCharge`, Zero patch -- upstream LevelDB 1.x has no `block-cache-usage` property), write-buffer budget, `leveldb.stats`, `num-files-at-level0`.
 
-**Script:** `contrib/measure_dbcache_utxo.py`
+**Script:** ZeroPerf `contrib/measure_dbcache_utxo.py` (campaign; not in this tree).
 
 ```bash
+# In the ZeroPerf worktree:
 PATH=src:$PATH ZERO_MEASURE_MATRIX=800,2048,4096 ZERO_MEASURE_INSIGHT=both \
   ZERO_MEASURE_BLOCKS=600 ZERO_MEASURE_SETINFO_EVERY=0 \
   python3 contrib/measure_dbcache_utxo.py
@@ -728,6 +729,8 @@ Wallet-critical RPCs include **`getalldata`** (primary UI refresh), chain info R
 
 Release couples embedded **`zerod`** binary to wallet tag; exercise **`getalldata`** on release smoke.
 
+**Attach vs launch.** The wallet may spawn `zerod`, attach to an already-running node, or the operator starts `zerod` first. RPC creds and `rpcport` must match that datadir's `zero.conf` (mainnet default **23811**). Path case: **INT-01**. Node-side lifetime and RPC state: **TEST_ZERO.md** §8. GUI clicks stay in the wallet repo.
+
 ### 11.6 RPC / REST / ZMQ
 
 | Surface | Enabled by | Insight | zerowallet |
@@ -775,6 +778,8 @@ Node-repo validation: **`TEST_ZERO.md`** -- **`--strict`** strongly recommended 
 | ZMQ | Port **28332** listening or subscribe test | Events after block/tx |
 | Insight API | `curl .../insight-api-zero/sync` | `status` synced |
 | Wallet RPC | `getalldata` via wallet or CLI | Non-error JSON object |
+| Wallet attach | GUI or CLI against an already-running `zerod` using that datadir `zero.conf` | Same RPC; **TEST_ZERO.md** §8 OPS-ATTACH |
+| Release artifact | `sha256` (+ signature when REL-01/02 exist) of the binary under test | Unsigned CI is not a release |
 | Testnet | `-testnet`, RPC **23812** | P2P + RPC up |
 
 Optional: zerod REST (`-rest=1`) -- not used by Insight or zerowallet.

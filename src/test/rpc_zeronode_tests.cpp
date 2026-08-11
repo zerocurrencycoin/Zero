@@ -6,6 +6,10 @@
 #include "rpc/client.h"
 
 #include "test/test_bitcoin.h"
+#include "main.h"
+#include "amount.h"
+#include "chainparams.h"
+#include "zeronode/spork.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/test/unit_test.hpp>
@@ -104,6 +108,84 @@ BOOST_AUTO_TEST_CASE(rpc_zeronode_super_param_validation)
 {
     BOOST_CHECK_THROW(CallRPC("zeronode invalid"), runtime_error);
     BOOST_CHECK_THROW(CallRPC("zeronode unknown"), runtime_error);
+}
+
+BOOST_AUTO_TEST_CASE(rpc_zeronodestats)
+{
+    BOOST_CHECK_THROW(CallRPC("zeronodestats extra"), runtime_error);
+    UniValue r;
+    BOOST_CHECK_NO_THROW(r = CallRPC("zeronodestats"));
+    BOOST_CHECK(r.isObject());
+    BOOST_CHECK(r.exists("chainStats"));
+    BOOST_CHECK(r.exists("nodeCount"));
+    BOOST_CHECK(r["chainStats"].exists("zeronodepayment"));
+    BOOST_CHECK(r["chainStats"].exists("developmentfee"));
+}
+
+BOOST_AUTO_TEST_CASE(rpc_zeronodecurrent)
+{
+    BOOST_CHECK_THROW(CallRPC("zeronodecurrent extra"), runtime_error);
+    CheckRPCThrows("zeronodecurrent", "unknown");
+}
+
+BOOST_AUTO_TEST_CASE(rpc_getzeronodeoutputs)
+{
+    BOOST_CHECK_THROW(CallRPC("getzeronodeoutputs extra"), runtime_error);
+    // Success path needs g_zeronodeWallet (not installed in TestingSetup).
+}
+
+BOOST_AUTO_TEST_CASE(rpc_startzeronode_param_validation)
+{
+    BOOST_CHECK_THROW(CallRPC("startzeronode"), runtime_error);
+    BOOST_CHECK_THROW(CallRPC("startzeronode local"), runtime_error);
+}
+
+BOOST_AUTO_TEST_CASE(rpc_zeronodedebug)
+{
+    BOOST_CHECK_THROW(CallRPC("zeronodedebug extra"), runtime_error);
+    UniValue r;
+    BOOST_CHECK_NO_THROW(r = CallRPC("zeronodedebug"));
+    BOOST_CHECK(r.isStr());
+}
+
+BOOST_AUTO_TEST_CASE(rpc_createsporkkeys)
+{
+    BOOST_CHECK_THROW(CallRPC("createsporkkeys extra"), runtime_error);
+    UniValue r;
+    BOOST_CHECK_NO_THROW(r = CallRPC("createsporkkeys"));
+    BOOST_CHECK(r.isObject());
+    BOOST_CHECK(r.exists("pubkey"));
+    BOOST_CHECK(r.exists("privkey"));
+}
+
+BOOST_AUTO_TEST_CASE(rpc_getzeronodewinners)
+{
+    UniValue r;
+    BOOST_CHECK_NO_THROW(r = CallRPC("getzeronodewinners"));
+    BOOST_CHECK(r.isArray() || r.isNum());
+}
+
+BOOST_AUTO_TEST_CASE(getzeronodepayment_sporks)
+{
+    std::map<int, CSporkMessage> saved = mapSporksActive;
+    mapSporksActive.clear();
+    BOOST_CHECK_EQUAL(GetZeronodePayment(0, 10 * COIN), 0);
+
+    CSporkMessage s7;
+    s7.nSporkID = SPORK_7_ZERONODE_PAYMENT_ENABLED;
+    s7.nValue = 0;
+    mapSporksActive[SPORK_7_ZERONODE_PAYMENT_ENABLED] = s7;
+    BOOST_CHECK_EQUAL(GetZeronodePayment(0, 10 * COIN), 100000);
+
+    CSporkMessage s6;
+    s6.nSporkID = SPORK_6_ZERONODE_FULL_PAYMENT_ENABLED;
+    s6.nValue = 0;
+    mapSporksActive[SPORK_6_ZERONODE_FULL_PAYMENT_ENABLED] = s6;
+    // TestingSetup uses mainnet params (halving interval 800000, not regtest 150).
+    const int interval = Params().GetConsensus().nPreBlossomSubsidyHalvingInterval;
+    BOOST_CHECK_EQUAL(GetZeronodePayment(0, 10 * COIN), 10 * COIN * 20 / 100);
+    BOOST_CHECK_EQUAL(GetZeronodePayment(interval, 10 * COIN), 10 * COIN * 25 / 100);
+    mapSporksActive = saved;
 }
 
 BOOST_AUTO_TEST_SUITE_END()

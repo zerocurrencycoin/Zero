@@ -9,12 +9,10 @@ A,gate,paymentdisclosure.py
 A,gate,getchaintips.py
 A,gate,rewind_index.py
 A,gate,p2p_nu_peer_management.py
+B,pass,wallet.py
 B,pass,wallet_anchorfork.py
 B,pass,wallet_changeindicator.py
 B,pass,wallet_import_export.py
-B,pass,wallet_protectcoinbase.py
-B,pass,wallet_shieldcoinbase_sapling.py
-B,pass,wallet_nullifiers.py
 B,pass,wallet_1941.py
 B,pass,listtransactions.py
 B,pass,mempool_resurrect_test.py
@@ -27,8 +25,10 @@ B,pass,proxy_test.py
 B,pass,signrawtransactions.py
 B,pass,nodehandling.py
 B,pass,rescan_startup.py
-B,pass,zkey_import_export.py
 B,pass,getblocktemplate.py
+B,pass,founders_window.py
+B,pass,zeronode_coinbase.py
+B,pass,zeronode_startalias.py
 B,pass,p2p_txexpiry_dos.py
 B,pass,p2p_txexpiringsoon.py
 B,pass,p2p_node_bloom.py
@@ -38,8 +38,9 @@ B,pass,addressindex.py
 B,pass,spentindex.py
 B,pass,timestampindex.py
 B,pass,walletbackup.py
+B,pass,reindex_shielded.py
+B,pass,wallet_witness_defer.py
 Bfail,debug,shorter_block_times.py
-Bfail,debug,wallet.py
 Bfail,debug,wallet_changeaddresses.py
 Bfail,debug,wallet_addresses.py
 Bfail,debug,rescan_import.py
@@ -63,6 +64,10 @@ Bfail,debug,bipdersig-p2p.py
 Bfail,debug,regtest_signrawtransaction.py
 Bfail,debug,finalsaplingroot.py
 Bfail,debug,txindex.py
+Bfail,debug,wallet_shieldcoinbase_sapling.py
+Bfail,debug,wallet_protectcoinbase.py
+Bfail,debug,wallet_nullifiers.py
+Bfail,debug,zkey_import_export.py
 Bfail,retired,prioritisetransaction.py
 Bfail,retired,wallet_treestate.py
 Bfail,retired,wallet_overwintertx.py

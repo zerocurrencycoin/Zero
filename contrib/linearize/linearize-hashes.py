@@ -41,7 +41,7 @@ class BitcoinRPC:
 	def build_request(idx, method, params):
 		obj = { 'version' : '1.1',
 			'method' : method,
-			'id' : idx }n
+			'id' : idx }
 		if params is None:
 			obj['params'] = []
 		else:

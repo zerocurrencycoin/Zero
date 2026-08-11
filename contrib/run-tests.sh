@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run Zero tests. Modes:
-#   passing (default): pass-only C++ + Tier A RPC; excludes known hang/crash/fail suites.
-#   --fail: ONLY the C++ suites excluded from default (known hang, crash, or fail; see TEST_ZERO.md).
+# passing (default): pass-only C++ + Tier A RPC. GTest exclude: CachedWitnessesCleanIndex.
+#   --fail: ONLY that excluded GTest (canonical list: qa/zcash/test_filters.sh).
 #   --all: same C++ filters as default + rpc-tests.sh -all (-A -B -E pass tiers).
 #   --rpcfail: rpc-tests.sh -rpcfail (-Bfail -Efail diagnostic; no C++, no util).
 #
@@ -10,7 +10,7 @@
 # Env: ZERO_MINE_COINBASE=1 to mine 1000 blocks for get_coinbase_address tests (slow).
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
 # --no-python: skip Python RPC tests (qa/rpc-tests); superset of --quick (adds C++ layers per mode).
-# --build-checks: run make check-security (requires python on PATH; see TEST_ZERO.md)
+# --build-checks: run make check-security (requires python on PATH)
 # --jobs=N: Tier A RPC only, default pass-only mode. Serial (N=1) is the supported path (CI / contributor gate).
 # --suite: run qa/zcash/full_test_suite.py only (ordered stages; not --all, not default).
 # rpc_test: basename of one qa/rpc-tests script (e.g. proxy_test or proxy_test.py).
@@ -21,18 +21,19 @@ if [ -z "${BASH_VERSION:-}" ]; then
     echo "run-tests.sh requires bash (use ./contrib/run-tests.sh or bash contrib/run-tests.sh)" >&2
     exit 2
 fi
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ME="run-tests"
+# shellcheck disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/../zcutil/fzero.sh"
 cd "$REPO_ROOT"
 export BUILDDIR="${BUILDDIR:-$REPO_ROOT}"
 export ZERO_RPC_CACHE_DIR="${ZERO_RPC_CACHE_DIR:-$REPO_ROOT/cache}"
 
-LOG_DIR="${LOG_DIR:-$REPO_ROOT/test-logs}"
+LOG_DIR="${LOG_DIR:-$ZERO_BUILD_DIR/test-logs}"
 mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
 
-# Default: exclude these suites. --fail: run ONLY these (must match TEST_ZERO.md Known failures).
-# Canonical values: qa/zcash/test_filters.sh
+# Default exclude: qa/zcash/test_filters.sh (GTest CachedWitnessesCleanIndex). --fail runs GTEST_FAIL_ONLY.
 . "$REPO_ROOT/qa/zcash/test_filters.sh"
 
 # Tier A basenames for --jobs=N parallel runs only. Canonical list: testScriptsTierA in qa/pull-tester/rpc-tests.sh.
@@ -46,13 +47,6 @@ PYTHON_PASSING=(
 echo "Zero test validation - $TIMESTAMP"
 echo "Logs: $LOG_DIR"
 echo ""
-
-find_python3() {
-    if [ -n "$PYTHON" ]; then echo "$PYTHON"; return; fi
-    if command -v python3 &>/dev/null && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' 2>/dev/null; then echo "python3"; return; fi
-    if command -v python &>/dev/null && python -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' 2>/dev/null; then echo "python"; return; fi
-    echo ""
-}
 
 MODE=passing
 QUICK=0
@@ -96,6 +90,10 @@ for arg in "$@"; do
     esac
 done
 
+if [ "$NO_PYTHON" -eq 0 ]; then
+    run_check_setup --levels=toolchain || exit 1
+fi
+
 
 bump_fail() {
     OVERALL_FAIL=1
@@ -131,15 +129,13 @@ run_bg() {
 
 if [ "$BUILD_CHECKS" -eq 1 ]; then
     echo "--- Build checks ---"
-    PY_DIR=""
-    if [ -n "$PYTHON" ] && [ -x "$PYTHON" ]; then
-        PY_DIR="$(dirname "$PYTHON")"
-    elif command -v python3 &>/dev/null; then
-        PY_DIR="$(dirname "$(command -v python3)")"
-    elif command -v python &>/dev/null; then
-        PY_DIR="$(dirname "$(command -v python)")"
-    fi
-    if [ -n "$PY_DIR" ]; then
+    PY3="$(find_python3 || true)"
+    if [ -n "$PY3" ]; then
+        if [[ "$PY3" == /* ]]; then
+            PY_DIR="$(dirname "$PY3")"
+        else
+            PY_DIR="$(dirname "$(command -v "$PY3")")"
+        fi
         run_cmd "check-security" env PATH="$PY_DIR:$PATH" make -C src check-security || true
     else
         echo "Skipping check-security: no python in PATH (set PYTHON or use python3)"
@@ -148,7 +144,7 @@ if [ "$BUILD_CHECKS" -eq 1 ]; then
 fi
 
 if [ "$FULL_SUITE" -eq 1 ]; then
-    PY3=$(find_python3)
+    PY3="$(find_python3 || true)"
     if [ -z "$PY3" ]; then
         echo "FAIL: Python 3.10+ required for full_test_suite"
         exit 1
@@ -169,7 +165,7 @@ fi
 # Single RPC script by name: only that test (no util / C++ / Tier A).
 if [ -n "$RPC_SINGLE" ]; then
     echo "--- Single RPC: qa/rpc-tests/${RPC_SINGLE}.py ---"
-    PY3=$(find_python3)
+    PY3="$(find_python3 || true)"
     if [ -z "$PY3" ]; then
         echo "FAIL: Python 3.10+ required for RPC tests"
         exit 1
@@ -202,7 +198,7 @@ fi
 # --rpcfail: RPC known-fail tiers only (-Bfail -Efail).
 if [ "$MODE" = "rpcfail" ]; then
     echo "--- --rpcfail: RPC -Bfail -Efail (diagnostic; no util, no C++) ---"
-    PY3=$(find_python3)
+    PY3="$(find_python3 || true)"
     if [ -n "$PY3" ]; then
         export PYTHON="$PY3"
         if ! run_cmd "rpc-rpcfail" \
@@ -224,7 +220,7 @@ if [ "$MODE" = "rpcfail" ]; then
     exit 0
 fi
 
-# --fail: only suites listed in TEST_ZERO.md Known failures (hang / crash / fail).
+# --fail: only the known-failing suites (hang / crash / fail).
 if [ "$MODE" = "fail" ]; then
     echo "--- --fail: known hang / crash / fail C++ suites only (no util, no RPC) ---"
     if [ "$QUICK" -eq 1 ]; then
@@ -238,8 +234,8 @@ if [ "$MODE" = "fail" ]; then
             GTEST_PID=$BG_LAST_PID
         fi
         BTEST_PID=""
-        if [ -x "src/test/test_bitcoin" ]; then
-            echo "--- Boost: miner_tests (blockinfo is (96,5); skips on Zero) ---"
+        if [ -x "src/test/test_bitcoin" ] && [ -n "$BOOST_FAIL_ONLY" ]; then
+            echo "--- Boost fail-only: $BOOST_FAIL_ONLY ---"
             run_bg "test_bitcoin-fail-only" \
                 ./src/test/test_bitcoin --run_test="$BOOST_FAIL_ONLY" --log_level=test_suite
             BTEST_PID=$BG_LAST_PID
@@ -304,9 +300,14 @@ if [ "$QUICK" -eq 0 ]; then
     echo ""
     BTEST_PID=""
     if [ -x "src/test/test_bitcoin" ]; then
-        echo "--- Boost (excludes --fail suites: miner_tests) ---"
-        run_bg "test_bitcoin" \
-            ./src/test/test_bitcoin --run_test="$BOOST_PASS_EXCLUDE" --log_level=test_suite
+        echo "--- Boost ---"
+        if [ -n "$BOOST_PASS_EXCLUDE" ]; then
+            run_bg "test_bitcoin" \
+                ./src/test/test_bitcoin --run_test="$BOOST_PASS_EXCLUDE" --log_level=test_suite
+        else
+            run_bg "test_bitcoin" \
+                ./src/test/test_bitcoin --log_level=test_suite
+        fi
         BTEST_PID=$BG_LAST_PID
     fi
 
@@ -332,7 +333,7 @@ if [ "$NO_PYTHON" -eq 0 ]; then
             pkill -f "zerod -datadir=/var/folders" 2>/dev/null || true
         fi
     fi
-    PY3=$(find_python3)
+    PY3="$(find_python3 || true)"
     if [ -n "$PY3" ]; then
         export PYTHON="$PY3"
         if [ "$MODE" = "all" ]; then

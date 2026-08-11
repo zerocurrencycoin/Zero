@@ -462,6 +462,9 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-wallet=<file>", _("Specify wallet file (within data directory)") + " " + strprintf(_("(default: %s)"), "wallet.zero"));
     strUsage += HelpMessageOpt("-walletbroadcast", _("Make the wallet broadcast transactions") + " " + strprintf(_("(default: %u)"), true));
     strUsage += HelpMessageOpt("-walletnotify=<cmd>", _("Execute command when a wallet transaction changes (%s in cmd is replaced by TxID)"));
+    strUsage += HelpMessageOpt("-walletwitness=<mode>", _("Opt-in witness cache policy: default (build during IBD); ibd-defer (skip per-block BuildWitnessCache during IBD/reindex, rebuild once after import -- z_sendmany/getalldata unavailable until rebuild finishes); rebuild (force tip rebuild after import)"));
+    strUsage += HelpMessageOpt("-walletwitnessnote", strprintf(_("Opt-in: witness scan uses note-bearing txs only (NOTEIDX; default: %u)"), false));
+    strUsage += HelpMessageOpt("-walletwitnessstats", _("Debug: log per-Verify note visit / early-continue / full-work counts"));
     strUsage += HelpMessageOpt("-zapwallettxes=<mode>", _("Delete all wallet transactions and only recover those parts of the blockchain through -rescan on startup") +
         " " + _("(1 = keep tx meta data e.g. account owner and payment request information, 2 = drop tx meta data)"));
 #endif
@@ -587,7 +590,7 @@ std::string HelpMessage(HelpMessageMode mode)
     return strUsage;
 }
 
-static void BlockNotifyCallback(const uint256& hashNewTip)
+void BlockNotifyCallback(const uint256& hashNewTip)
 {
     std::string strCmd = GetArg("-blocknotify", "");
     if (strCmd.empty())
@@ -694,6 +697,10 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
             }
         }
         while (true) {
+            if (ShutdownRequested()) {
+                LogPrintf("Reindexing interrupted by shutdown request (lastfile cursor preserved for resume)\n");
+                return;
+            }
             CDiskBlockPos pos(nFile, 0);
             if (!boost::filesystem::exists(GetBlockPosFilename(pos, "blk")))
                 break; // No block files left to reindex
@@ -702,6 +709,14 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
                 break; // This error is logged in OpenBlockFile
             LogPrintf("Reindexing block file blk%05u.dat...\n", (unsigned int)nFile);
             LoadExternalBlockFile(chainparams, file, &pos);
+            if (ShutdownRequested()) {
+                // Do not advance lastfile -- L means last *completed* blk file.
+                // Mid-file interrupt leaves L at the previous completed file so
+                // resume restarts this file (may redo already-connected blocks).
+                LogPrintf("Reindexing interrupted by shutdown request during/after blk%05u.dat (last completed file unchanged)\n",
+                          (unsigned int)nFile);
+                return;
+            }
             pblocktree->WriteReindexLastFile(nFile);
             {
                 LOCK(cs_main);
@@ -720,14 +735,15 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
 
     // hardcoded $DATADIR/bootstrap.dat
     boost::filesystem::path pathBootstrap = GetDataDir() / "bootstrap.dat";
-    if (boost::filesystem::exists(pathBootstrap)) {
+    if (!ShutdownRequested() && boost::filesystem::exists(pathBootstrap)) {
         FILE *file = fopen(pathBootstrap.string().c_str(), "rb");
         if (file) {
             CImportingNow imp;
             boost::filesystem::path pathBootstrapOld = GetDataDir() / "bootstrap.dat.old";
             LogPrintf("Importing bootstrap.dat...\n");
             LoadExternalBlockFile(chainparams, file);
-            RenameOver(pathBootstrap, pathBootstrapOld);
+            if (!ShutdownRequested())
+                RenameOver(pathBootstrap, pathBootstrapOld);
         } else {
             LogPrintf("Warning: Could not open bootstrap file %s\n", pathBootstrap.string());
         }
@@ -735,6 +751,10 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
 
     // -loadblock=
     BOOST_FOREACH(const boost::filesystem::path& path, vImportFiles) {
+        if (ShutdownRequested()) {
+            LogPrintf("Block import interrupted by shutdown request\n");
+            break;
+        }
         FILE *file = fopen(path.string().c_str(), "rb");
         if (file) {
             CImportingNow imp;
@@ -744,6 +764,29 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
             LogPrintf("Warning: Could not open blocks file %s\n", path.string());
         }
     }
+
+#ifdef ENABLE_WALLET
+    // Fat-wallet IBD deferral: rebuild witnesses once after import/reindex completes.
+    // Historical tips often remain in IsInitialBlockDownload, so ChainTip never takes
+    // the near-tip BuildWitnessCache(false) path without this hook.
+    {
+        const std::string witnessMode = GetArg("-walletwitness", "");
+        if (pwalletMain && !ShutdownRequested() &&
+            (witnessMode == "ibd-defer" || witnessMode == "rebuild")) {
+            int tipHeight = -1;
+            {
+                LOCK(cs_main);
+                if (chainActive.Tip())
+                    tipHeight = chainActive.Height();
+            }
+            if (tipHeight >= 0) {
+                LogPrintf("walletwitness=%s: RebuildWitnessCacheForChainTip height=%d after import\n",
+                          witnessMode, tipHeight);
+                pwalletMain->RebuildWitnessCacheForChainTip();
+            }
+        }
+    }
+#endif
 
     if (GetBoolArg("-stopafterblockimport", false)) {
         LogPrintf("Stopping after block import\n");

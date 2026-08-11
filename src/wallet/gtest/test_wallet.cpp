@@ -54,6 +54,11 @@ public:
     void BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, const CBlock* pblockIn = nullptr) {
         CWallet::BuildWitnessCache(pindex, witnessOnly, pblockIn);
     }
+    void EnsureNoteTxIndexPublic() { EnsureNoteTxIndex(); }
+    void SelectWalletTxsForWitnessScanPublic(
+        std::vector<std::pair<const uint256, CWalletTx>*>& out) {
+        SelectWalletTxsForWitnessScan(out);
+    }
     void DecrementNoteWitnesses(const CBlockIndex* pindex) {
         CWallet::DecrementNoteWitnesses(pindex);
     }
@@ -992,7 +997,7 @@ TEST(WalletTests, NavigateFromSaplingNullifierToNote) {
         ASSERT_FALSE(nd.nullifier);
     }
 
-    // Build witness manually — BuildWitnessCache needs pcoinsTip (test harness does not provide)
+    // Build witness manually -- BuildWitnessCache needs pcoinsTip (test harness does not provide)
     uint256 hash = wtx.GetHash();
     SaplingMerkleTree saplingTree;
     saplingTree.append(testNote.note.cm().get());
@@ -1112,7 +1117,7 @@ TEST(WalletTests, SpentSaplingNoteIsFromMe) {
     wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
 
-    // Build witness for note B manually — note A is synthetic, not from any block.
+    // Build witness for note B manually -- note A is synthetic, not from any block.
     auto wtxHash = wtx.GetHash();
     for (uint32_t i = 0; i < wtx.vShieldedOutput.size(); i++) {
         saplingTree.append(wtx.vShieldedOutput[i].cm);
@@ -1518,6 +1523,73 @@ TEST(WalletTests, CachedWitnessesDecrementFirst) {
     chainActive.SetTip(NULL);
     mapBlockIndex.erase(block1.GetHash());
     mapBlockIndex.erase(block2.GetHash());
+}
+
+// GTest-DEC: witnessHeight above disconnect height must not pop
+// (even when witnesses.size() > 1 would otherwise allow a pop).
+TEST(WalletTests, DecrementNoteWitnessesSkipsAboveHeight) {
+    TestWallet wallet;
+    CBlock block1;
+    CBlockIndex index1(block1);
+    SproutMerkleTree sproutTree;
+    SaplingMerkleTree saplingTree;
+
+    auto sk = libzcash::SproutSpendingKey::random();
+    wallet.AddSproutSpendingKey(sk);
+
+    index1.nHeight = 1;
+    auto outpts = CreateValidBlock(wallet, sk, index1, block1, sproutTree, saplingTree);
+
+    const int above = index1.nHeight + 5;
+    size_t sproutBefore = 0;
+    size_t saplingBefore = 0;
+    {
+        LOCK(wallet.cs_wallet);
+        for (auto& wtxItem : wallet.mapWallet) {
+            for (auto& item : wtxItem.second.mapSproutNoteData) {
+                if (item.first != outpts.first)
+                    continue;
+                ASSERT_FALSE(item.second.witnesses.empty());
+                // Duplicate front so size > 1; height above disconnect skips pop.
+                item.second.witnesses.push_front(item.second.witnesses.front());
+                item.second.witnessHeight = above;
+                sproutBefore = item.second.witnesses.size();
+            }
+            for (auto& item : wtxItem.second.mapSaplingNoteData) {
+                if (item.first != outpts.second)
+                    continue;
+                ASSERT_FALSE(item.second.witnesses.empty());
+                item.second.witnesses.push_front(item.second.witnesses.front());
+                item.second.witnessHeight = above;
+                saplingBefore = item.second.witnesses.size();
+            }
+        }
+    }
+    ASSERT_GT(sproutBefore, 1u);
+    ASSERT_GT(saplingBefore, 1u);
+
+    wallet.DecrementNoteWitnesses(&index1);
+
+    {
+        LOCK(wallet.cs_wallet);
+        for (auto& wtxItem : wallet.mapWallet) {
+            for (auto& item : wtxItem.second.mapSproutNoteData) {
+                if (item.first == outpts.first) {
+                    EXPECT_EQ(item.second.witnesses.size(), sproutBefore);
+                    EXPECT_EQ(item.second.witnessHeight, above);
+                }
+            }
+            for (auto& item : wtxItem.second.mapSaplingNoteData) {
+                if (item.first == outpts.second) {
+                    EXPECT_EQ(item.second.witnesses.size(), saplingBefore);
+                    EXPECT_EQ(item.second.witnessHeight, above);
+                }
+            }
+        }
+    }
+
+    chainActive.SetTip(NULL);
+    mapBlockIndex.erase(block1.GetHash());
 }
 
 TEST(WalletTests, CachedWitnessesCleanIndex) {
@@ -1977,7 +2049,7 @@ TEST(WalletTests, UpdatedSaplingNoteData) {
     wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
 
-    // Build witness manually for change output only — BuildWitnessCache needs pcoinsTip.
+    // Build witness manually for change output only -- BuildWitnessCache needs pcoinsTip.
     // Wallet has key for change (sop1) but not payment (sop0).
     uint256 hash = wtx.GetHash();
     SaplingMerkleTree saplingTree;
@@ -2132,7 +2204,7 @@ TEST(WalletTests, MarkAffectedSaplingTransactionsDirty) {
     wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
 
-    // Build witness manually — no synthetic note; tree starts empty, append block outputs.
+    // Build witness manually -- no synthetic note; tree starts empty, append block outputs.
     uint256 hash = wtx.GetHash();
     SaplingWitness noteBWitness;
     for (uint32_t i = 0; i < tx1.vShieldedOutput.size(); i++) {
@@ -2305,4 +2377,55 @@ TEST(WalletTests, WtxOrderedConsistentAfterErase) {
 
     EXPECT_EQ(wallet.mapWallet.size(), 1u);
     EXPECT_TRUE(wallet.WtxOrderedConsistent());
+}
+
+// Prototype NOTEIDX: index lists only note-bearing txs; AddToWallet marks stale.
+TEST(WalletTests, NoteTxIndexTracksNoteBearingTxs) {
+    TestWallet wallet;
+    LOCK2(cs_main, wallet.cs_wallet);
+
+    CMutableTransaction mtx;
+    mtx.nVersion = CTransaction::SPROUT_MIN_CURRENT_VERSION;
+    mtx.vin.resize(1);
+    mtx.vin[0].prevout.SetNull();
+    mtx.vin[0].scriptSig = CScript() << OP_1;
+    mtx.vout.resize(1);
+    mtx.vout[0].nValue = 1 * COIN;
+    mtx.vout[0].scriptPubKey = CScript() << OP_TRUE;
+
+    CWalletTx emptyTx(&wallet, CTransaction(mtx));
+    emptyTx.nOrderPos = 0;
+    emptyTx.nTimeReceived = 1;
+    wallet.AddToWallet(emptyTx, true, NULL);
+    EXPECT_TRUE(wallet.NoteTxIndexStale());
+    wallet.EnsureNoteTxIndexPublic();
+    EXPECT_FALSE(wallet.NoteTxIndexStale());
+    EXPECT_EQ(wallet.NoteTxIndexSize(), 0u);
+
+    mtx.vin[0].scriptSig = CScript() << OP_2;
+    CWalletTx noteTx(&wallet, CTransaction(mtx));
+    noteTx.nOrderPos = 1;
+    noteTx.nTimeReceived = 2;
+    {
+        // Bypass SetSaplingNoteData validation -- index only cares about non-empty maps.
+        SaplingOutPoint op{noteTx.GetHash(), 0};
+        noteTx.mapSaplingNoteData[op] = SaplingNoteData();
+    }
+    wallet.AddToWallet(noteTx, true, NULL);
+    EXPECT_TRUE(wallet.NoteTxIndexStale());
+    wallet.EnsureNoteTxIndexPublic();
+    EXPECT_EQ(wallet.NoteTxIndexSize(), 1u);
+    EXPECT_EQ(wallet.mapWallet.size(), 2u);
+
+    // Height-walk + Verify share SelectWalletTxsForWitnessScan.
+    mapArgs["-walletwitnessnote"] = "1";
+    std::vector<std::pair<const uint256, CWalletTx>*> scanNote;
+    wallet.SelectWalletTxsForWitnessScanPublic(scanNote);
+    EXPECT_EQ(scanNote.size(), 1u);
+    EXPECT_EQ(scanNote[0]->first, noteTx.GetHash());
+
+    mapArgs.erase("-walletwitnessnote");
+    std::vector<std::pair<const uint256, CWalletTx>*> scanAll;
+    wallet.SelectWalletTxsForWitnessScanPublic(scanAll);
+    EXPECT_EQ(scanAll.size(), 2u);
 }

@@ -12,7 +12,7 @@ ME="release-linux"
 cd "$REPO_ROOT"
 
 show_help() {
-  local log="${1:-logs/release-linux.log}"
+  local log="${1:-.build/release-linux.log}"
   cat <<EOF
 Usage: $ME [ -L | --log PATH ] [ -v X.Y.Z ] [ -s ]
   Package zerod, zero-cli, zero-tx and README into artifacts/linux-zero-vX.Y.Z.tgz and .deb.
@@ -25,7 +25,7 @@ EOF
 }
 
 parse_args() {
-  local default_log="${1:-logs/release-linux.log}"
+  local default_log="${1:-.build/release-linux.log}"
   shift
   VERSION_OVERRIDE=""
   SKIP_STRIP=""
@@ -46,7 +46,7 @@ get_version_from_zerod() {
   "$REPO_ROOT/src/zerod" --version 2>/dev/null | sed -n 's/.*version v\([^ ]*\).*/\1/p' | head -1 | sed 's/-.*$//'
 }
 
-parse_args "logs/release-linux.log" "$@"
+parse_args ".build/release-linux.log" "$@"
 init_logging
 
 if [ -n "$VERSION_OVERRIDE" ]; then

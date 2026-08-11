@@ -74,6 +74,8 @@ testScripts=(
     'reorg_limit.py'
     'getblocktemplate.py'
     'founders_window.py'
+    'zeronode_coinbase.py'
+    'zeronode_startalias.py'
     'bip65-cltv-p2p.py'
     'bipdersig-p2p.py'
     'p2p_nu_peer_management.py'
@@ -165,6 +167,8 @@ testScriptsTierBPass=(
     'rescan_startup.py'
     'getblocktemplate.py'
     'founders_window.py'
+    'zeronode_coinbase.py'
+    'zeronode_startalias.py'
     'p2p_txexpiry_dos.py'
     'p2p_txexpiringsoon.py'
     'p2p_node_bloom.py'
@@ -174,6 +178,8 @@ testScriptsTierBPass=(
     'spentindex.py'
     'timestampindex.py'
     'walletbackup.py'
+    'reindex_shielded.py'  # Sapling spend after -reindex
+    'wallet_witness_defer.py'  # opt-in ibd-defer + NOTEIDX
 )
 
 # Tier B fail: known broken; diagnostic only (-Bfail). Subgroups for triage (still one -Bfail run).
@@ -247,8 +253,8 @@ testScriptsExtFail=(
     'p2p-acceptblock.py'
 )
 
-# Invocation tiers (documented in TEST_ZERO.md; inventory: -list-csv):
-#   Pass: A=10, B=27 (26 unique; txn_doublespend x2), E=8 (-all = 45). Bfail Debug includes heavy proving. Efail=5.
+# Invocation tiers (inventory: -list-csv):
+#   Pass: A=10, B=31 (30 unique; txn_doublespend x2), E=8 (-all = 49). Bfail Debug includes heavy proving. Efail=5.
 #   -A | --tier-a       Tier A gate
 #   -B | --tier-b       Tier B pass only
 #   -Bfail              Tier B fail only (Debug then Retired; diagnostic)

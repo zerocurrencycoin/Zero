@@ -58,6 +58,7 @@ debug/
 release/
 build-logs/
 logs/
+.build/
 cache/
 qa/rpc-tests/cache/
 venv-mnf/

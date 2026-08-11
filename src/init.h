@@ -8,6 +8,7 @@
 
 #include <string>
 
+#include "uint256.h"
 #include "zcash/JoinSplit.hpp"
 
 class CScheduler;
@@ -27,6 +28,9 @@ bool ShutdownRequested();
 void Interrupt(boost::thread_group& threadGroup);
 void Shutdown();
 bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler);
+
+/** Run -blocknotify hook (or log skip when ENABLE_SYSTEM_COMMAND is off). Exposed for TST-09. */
+void BlockNotifyCallback(const uint256& hashNewTip);
 
 /** The help message mode determines what help message to show */
 enum HelpMessageMode {

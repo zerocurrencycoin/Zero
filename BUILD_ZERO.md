@@ -4,7 +4,7 @@ Build guide for the Zero full node binary `zerod`.
 
 **Quick Start:** §2 -- clone, install packages, build (Linux, macOS, Windows cross-compile, packaging).
 **Data directory:** §3. **Developer / depends:** §4. **Per-platform:** §5. **Troubleshooting:** §6.
-**Testing:** [TEST_ZERO.md -- Use cases](TEST_ZERO.md#2-use-cases).
+**Testing:** [TEST_ZERO.md](TEST_ZERO.md) -- merge gate, platform evidence, operational soaks.
 
 ---
 
@@ -38,7 +38,41 @@ cd Zero
 ./zcutil/build.sh -j4
 ```
 
-Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. zerowallet is a separate application (zerowalletmac, zerowalletlinux, zerowalletwin repos).
+`fetch-params.sh` is **system setup** (once per machine, before first `zerod` start). Confirm with `zcutil/check-setup.sh`. It is not a step in `zcutil/check-release.sh` / `zcutil/build.sh`. Later rebuilds: `./zcutil/build.sh` only.
+
+Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. The Qt desktop wallet is a separate application (not built from this tree).
+
+**Receipts.** Gitignored **`.build/`** holds identity and command logs (`ready-*.txt`, `build-native-*.log`, `test-logs/`). Autotools `config.log` / `config.status` stay at the repo root (also gitignored) and are not the validation pin. Older **`logs/`** and **`test-logs/`** paths remain gitignored if present.
+
+**Rebuild stages** (`./zcutil/build.sh` runs these in order). Sapling params (`./zcutil/fetch-params.sh`) are **system setup** (before first `zerod` start, §3). They are not part of this cycle.
+
+| Stage | What `build.sh` runs | When it is cheap | When it is expensive |
+|-------|----------------------|------------------|----------------------|
+| **depends** | `make -C depends` (always invoked) | Cached tarballs in `depends/built/$HOST/` match recipe hashes: checksum check, restamp `depends/$HOST/`, no package compile | Missing sources, checksum mismatch, recipe/`.mk` change, new `HOST`, wiped `depends/built` or `depends/$HOST/` -- **fetch and/or rebuild that package** (see below) |
+| **autogen** | `./autogen.sh` | Always seconds-class: regenerates `configure` via autoreconf. Does **not** fetch or compile Boost, Rust, or BDB | Missing automake/libtool (fails, does not hang on a download) |
+| **configure** | `./configure` with `CONFIG_SITE=depends/$HOST/share/config.site` | Seconds to a couple of minutes: compiler/header probes, writes `config.status` | Does **not** rebuild depends. Slow or wrong if `config.site` is missing (depends not installed for this `HOST`) |
+| **compile** | `make` | Incremental objects already built | Full tree compile after clean / first configure |
+
+`make -C depends` is **not** a no-op invocation -- it always runs `check-sources` / `check-packages` -- but a warm cache does not recompile Boost.
+
+**Depends packages that can fetch or rebuild** (`depends/packages/packages.mk`; default `NO_PROTON=1` omits Proton):
+
+| Package | Role | Fetch (first time / cache miss) | Rebuild compile |
+|---------|------|---------------------------------|-----------------|
+| **boost** | C++ (chrono, filesystem, program_options, system, thread, test) | Large 1.88 source tarball (`archives.boost.io` or depends-sources mirror) | **The usual long one.** `b2` is hardcoded `-j2` in `boost.mk` |
+| **rust** | cargo/rustc for librustzcash | **macOS:** default is **system** rust (symlink; no 1.32 tarball) unless `FORCE_DEPENDS_RUST=1`. **Linux:** pinned **1.32.0** dist tarball unless `RUST_USE_SYSTEM=1` | Tarball extract + stage, or symlink; not a Boost-class compile by itself |
+| **librustzcash** + **crates** | Sapling/Rust FFI | GitHub tarball + many crate tarballs on first miss | **`cargo --release --frozen`** -- long on a cold cache; follows rust |
+| **openssl** | TLS | Dist tarball | Moderate compile |
+| **bdb** | Wallet (`wallet_packages`; default on) | Dist tarball | Moderate; skipped only if `NO_WALLET` |
+| **libevent**, **zeromq**, **libsodium**, **utfcpp**, **googletest** | Event, ZMQ, crypto, tests | Smaller tarballs | Shorter than Boost / librustzcash |
+| **native_ccache** | Native helper | Small | Small |
+| **proton** | AMQP | Off unless `--enable-proton` | Not in the default cycle |
+
+A recipe hash includes `packages/<name>.mk` and patches. Editing those, changing `HOST`, `DEBUG`, or `NO_WALLET`, or deleting `depends/built/$HOST/<pkg>/` forces that package. Autogen and configure never kick Boost or Rust compiles.
+
+There is **no** flag on `build.sh` to skip depends, autogen, or configure. Incremental object rebuild: `make -j` in an already-configured tree. Warm `depends/built/$HOST/` means `make -C depends` still runs but does not recompile Boost. Host/setup: `zcutil/check-setup.sh` (toolchain, params). Product/tree: `zcutil/check-release.sh` (tree / depends / configure / **build**). Compile wrapper: `zcutil/build-release.sh` (setup + receipt then `build.sh`). Tests: `contrib/run-tests.sh --strict`.
+
+**Python:** **3.10+** (harness floor). Not 3.11. `hashlib.blake2b` is stdlib; maintainer validation uses 3.12.
 
 ### 2.2 Linux x86_64
 
@@ -58,27 +92,8 @@ sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib \
 ./zcutil/build.sh -j$(nproc)
 ```
 
-**Other Linux distros:** Install the same toolchain roles as the Ubuntu list above. BDB comes from `depends/`. If `make -C depends` fails, see §4.8-4.9.
+**Other Linux distros:** Install the same toolchain roles as the Ubuntu list above. BDB comes from `depends/`. If `make -C depends` fails, see §4.7.
 
-#### 2.2a Remote Linux build host (lazu / ZeroLinux)
-
-Maintainer clone: **`/home/ubuntu/Work/ZK/ZeroLinux`** on host **`lazu`** (Ubuntu 24.04, **2** cores, **~4 GB** RAM). Same upstream remote as macOS; branch **`zero-400names`**.
-
-```bash
-cd /home/ubuntu/Work/ZK/ZeroLinux
-git fetch origin
-git checkout zero-400names
-git pull --ff-only origin zero-400names
-./zcutil/fetch-params.sh
-./zcutil/build.sh -j2
-./contrib/run-tests.sh --strict
-```
-
-Optional widen: **`./contrib/run-tests.sh --suite`** (Linux ELF stages). See [TEST_ZERO.md](TEST_ZERO.md).
-
-Disk: full native + depends build needs several GB free. If **`/`** is near full, see §6.9 before building.
-
-**v4.0.1 handoff (2026-06):** macOS **`--strict`** PASS. **Linux rebuild on lazu strongly recommended** before tag/merge (Darwin skips ELF release checks; reduced **`rpcbind_test`**). **`--strict` is not an automatic release block** -- maintainer decides. Checklist: **TEST_ZERO.md** section **4.0.1**. Platform matrix beyond **`--all`**: **TEST_ZERO.md** **Platform validation beyond `--all`** (Linux `--suite` ELF; Windows MXE build + optional native/`WSL2` `--strict`).
 
 ### 2.3 macOS ARM64
 
@@ -105,7 +120,7 @@ Windows builds use [MXE](https://mxe.cc/) (M Cross Environment). Build MXE once 
 
 **1. Set MXE root** (default **`$HOME/mxe`**):
 
-Use a **home-built** MXE (GCC 11.x on lazu). Apt **`mxe-*`** packages install **`/usr/lib/mxe`** with an older toolchain (GCC 5.5) -- **`build-win.sh`** does not use that path unless **`MXE_ROOT`** is set explicitly.
+Prefer a **home-built** MXE (modern GCC). Distro **`mxe-*`** packages may ship an older toolchain -- **`build-win.sh`** uses **`MXE_ROOT`** when set.
 
 ```bash
 export MXE_ROOT="${MXE_ROOT:-$HOME/mxe}"
@@ -171,25 +186,19 @@ Default builds are **not** stripped. `release-linux.sh` strips unless you pass `
 
 **Git.**
 
-```bash
-git fetch origin
-git checkout zero-merge
-git pull --ff-only origin zero-merge
-```
+Tag `vMAJOR.MINOR.PATCH` from the release line after a clean build and contributor gate. Archives: `Zero-<ver>-<target>-<triplet>.<ext>`.
 
-Tag `vMAJOR.MINOR.PATCH`. Archives: `Zero-<ver>-<target>-<triplet>.<ext>`.
-
-**Build and test.** Build per §2. Then:
+**Build and test.** Build per §2. Confirm the machine with `zcutil/check-setup.sh` and identity with `zcutil/check-release.sh --exact` when tagging (clean tree; HEAD must equal `--release`, default **v4.0.1**). Then `zcutil/build-release.sh` if you still need a compile, and:
 
 ```bash
 ./contrib/run-tests.sh --strict
 ```
 
-Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`. On failure: [TEST_ZERO.md](TEST_ZERO.md).
+Or `./contrib/run-tests.sh --strict` if a receipt already exists. Logs: `.build/test-logs/`. Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`. On failure: [TEST_ZERO.md](TEST_ZERO.md).
 
 **Package.** `zcutil/release-linux.sh` stages stripped binaries into tarball and .deb. `contrib/devtools/split-debug.sh` exists for separate debuginfo but is not wired in.
 
-**Signing.** No procedure exists yet. Minimum viable: Linux `SHA256SUMS` + GPG; macOS Developer ID + notarization; Windows Authenticode OV.
+**Checksum and sign.** Do this during release prep (same sitting as tag + package), not after the GitHub Release is published. Unsigned CI artifacts are not releases. Until the procedure is written: `SHA256SUMS` for every artifact; detached GPG over the sums file for Linux; macOS Developer ID + notarization (stapler) for shipped binaries; Authenticode if a Windows PE ships. Operator verify steps belong in this section when ready. RC recording (present vs explicitly missing): [TEST_ZERO.md](TEST_ZERO.md) §8.
 
 ### 2.7 Compiler and release flags
 
@@ -201,7 +210,6 @@ Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`. On failur
 | `zcutil/release-linux.sh` | `strip` | Strips staged binaries by default. |
 | `contrib/devtools/split-debug.sh` | `objcopy --only-keep-debug` | Not wired into release. |
 
-**Proposed changes:** (1) Gate `-g` behind `ZERO_DEBUG=1`. (2) Evaluate `-O2` for release. (3) Decouple `CXXFLAGS_overridden` from bare `-g`. (4) Integrate `split-debug.sh` for `-dbg` package.
 
 ---
 
@@ -259,7 +267,7 @@ See [doc/files.md](doc/files.md) for details.
 
 | Component | Approx. size |
 |-----------|--------------|
-| .zero (full sync) | under 8 GB |
+| .zero (full sync) | around **8 GB** |
 | .zcash_params (Sapling only) | ~800 MB |
 | Fresh .zero (no chain) | &lt;50 MB |
 
@@ -267,7 +275,7 @@ See [doc/files.md](doc/files.md) for details.
 
 ### 3.4 Zcash Params
 
-Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params only (~800 MB). Sprout params are not used. Source: `https://download.z.cash/downloads`. If present and checksum-valid, no download occurs.
+**System setup**, not the build/validate cycle. Run `./zcutil/fetch-params.sh` once per machine before first `zerod` start. Zero fetches Sapling params only (~800 MB). Sprout params are not used. Source: `https://download.z.cash/downloads`. If present and checksum-valid, no download occurs.
 
 **Params mirror:** still planned.
 
@@ -420,25 +428,9 @@ Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine on
 | New block | **`-zmqpubhashblock=tcp://127.0.0.1:28332`** (requires ZMQ-enabled build; default on) |
 | New tx | **`-zmqpubhashtx=...`**, **`-zmqpubrawtx=...`** |
 | Wallet activity | Poll **`listtransactions`** / **`zs_listtransactions`** from a sidecar, or ZMQ raw tx |
-| Explorer backend | **`txindex`**, **`-insightexplorer`**, REST — see [Block explorer](#462-block-explorer) |
 
-**Testing:** GTest **`DeprecationTest.AlertNotify`** covers **`-alertnotify`** (default: no side effects; TST-09 alert half **PASS**). **`-blocknotify`** / **`-walletnotify`** still need TST-09 marker tests. Full **`alert.cpp`** strip postponed (**OPS-ALERT-STRIP**). See **TEST_ZERO.md** and **TODO.md** (TST-09).
+**Testing:** GTest **`DeprecationTest.AlertNotify`** covers **`-alertnotify`**. See **TEST_ZERO.md** / **TODO.md** for notify coverage status.
 
-#### 4.6.2 Block explorer -- `zerod` flags (current)
-
-**Public mainnet UI:** [https://insight.zeromachine.io/](https://insight.zeromachine.io/)
-
-Minimum **`zerod`** flags for a transparent t-address index backend:
-
-```ini
-experimentalfeatures=1
-insightexplorer=1
-txindex=1
-```
-
-Recommended on a dedicated explorer host: `dbcache=4096` (or **2048** on a 4 GiB VPS). First enable of insight indexes requires one run with **`-reindex`**. Insight uses a large share of `-dbcache` for `blocks/index/`. Mainnet RPC port **23811**.
-
-Host install, nginx, bitcore, sizing, and recovery: **`~/Work/ZK/insight/`** (start at that tree's README / InsightBlock). This file owns only the **current zerod** flags above.
 
 ### 4.7 Depends recipe troubleshooting
 
@@ -451,25 +443,6 @@ Host install, nginx, bitcore, sizing, and recovery: **`~/Work/ZK/insight/`** (st
 | **Googletest** | If you change macOS deployment targets or see link warnings about **OSX** version, **`googletest.mk`** aligns **`OSX_MIN_VERSION`** with the rest of the graph--**rebuild depends** after changing it. |
 | **libsodium, libevent, ZeroMQ, ccache** | Routine version bumps: update version + hash in **`.mk`**, then full depends rebuild and smoke test. |
 
-### 4.8 Subsidy arithmetic -- current code touchpoints
-
-Schedule and rationale: **ZERO_COIN.md** (Emission timeline; Stable arithmetic). Implementation status: **TODO.md**. Below is the **current** `double` / mixed touch list to convert when landing the integer helper.
-
-| File | Lines (approx.) | Notes |
-|------|-----------------|--------|
-| **`src/main.cpp`** | **2111-2113** | **`GetBlockSubsidy`**: **`10 * COIN`**, **`10.8 * COIN`** (`double` × `COIN`). |
-| **`src/main.cpp`** | **4508** | Founders output check: **`GetBlockSubsidy(...) * 0.075`** (`double`). |
-| **`src/zeronode/payments.cpp`** | **305** | **`vFoundersReward = blockValue * 7.5 / 100`** (promotion via **`7.5`**). |
-| **`src/zeronode/budget.cpp`** | **536-537** | Same pattern on **`txNew.vout[0].nValue`**. |
-| **`src/rpc/mining.cpp`** | **946** | **`getblocksubsidy`**: **`nFoundersReward = nReward*0.075`**. |
-| **`src/metrics.cpp`** | **346** | **`subsidy -= subsidy*0.075`** (UI / immature totals). |
-| **`src/rpc/zeronode.cpp`** | **1090** | **`vFoundersReward = blockValue * 7.5 / 100`**. |
-| **`src/test/main_tests.cpp`** | **16-32**, **40-45**, **124-134** | Expectations use **`10.8 * COIN`**, **`5.4 * COIN`**, etc. -- update when **`GetBlockSubsidy`** goes integer-only. |
-| **`src/test/rpc_wallet_tests.cpp`** | **273-290** | **`getblocksubsidy`** RPC expected **`founders`** decimals. |
-
-**Good pattern (reference):** **`GetZeronodePayment`** in **`src/main.cpp`** (**~2129-2145**) uses **`blockValue * 20 / 100`**-style **integer** arithmetic.
-
-**Non-consensus:** **`src/init.cpp`** (obfuscation denominations use fractional **`COIN`**), **`src/wallet/test/wallet_tests.cpp`** -- not chain rules.
 
 ---
 
@@ -528,9 +501,9 @@ Or run **`./zcutil/build.sh`**, which does this automatically. Do **not** use **
 
 **"virtual memory exhausted" or "killed":** Reduce jobs: `make -j1 zerod`. Or add swap.
 
-### 6.5 zerowallet
+### 6.5 Desktop wallet
 
-zerowallet (Qt GUI) is built from separate repos. This repo builds only zerod, zero-cli, zero-tx.
+The Qt desktop wallet is built elsewhere. This repo builds only `zerod`, `zero-cli`, `zero-tx`.
 
 ### 6.6 Clean Rebuild
 
@@ -549,22 +522,4 @@ make -j4 2>&1 | tee build.log
 grep -i error build.log
 ```
 
-### 6.8 Disk space on build hosts
-
-Low disk causes failed links, truncated depends tarballs, and RPC cache build failures. On a tight VPS, reclaim before **`./zcutil/build.sh`** or **`./contrib/run-tests.sh`**.
-
-| Target | Command / notes |
-|--------|-----------------|
-| apt package indexes | **`sudo rm -rf /var/lib/apt/lists/*`** then **`sudo apt-get update`** (~900 MB on typical Ubuntu) |
-| apt `.deb` cache | **`sudo apt-get clean`** / **`autoclean`** |
-| compiler cache | **`ccache -C`** or **`rm -rf ~/.ccache`** |
-| depends work dirs | **`rm -rf depends/work/*`** per clone (rebuilt on next depends make) |
-| RPC harness cache | **`<repo>/cache/`** (gitignored; safe to delete; Tier A rebuilds to maturity **725**) |
-| MXE build artifacts | **`rm -rf ~/mxe/pkg/* ~/mxe/log/*`** (keep **`~/mxe/usr`**) |
-| Duplicate apt MXE | **`sudo apt-get purge 'mxe-*'`** if Windows builds use **`$HOME/mxe`** only (~1.9 GB under **`/usr/lib/mxe`**) |
-| journald | **`sudo journalctl --vacuum-time=7d`** |
-| snap old revisions | **`snap list --all`**; remove **`disabled`** revisions |
-| swapfile | **`/swapfile`** reserves disk whether used or not; shrink/remove only if RAM headroom allows (see session notes) |
-
-**Not helpful on typical dev VPS:** **`/var/cache`** (~200 MB), Apache logs (~6 MB). Largest consumer is usually **`~/Work`** build trees -- audit with **`du -sh ~/Work/ZK/*`**.
 
