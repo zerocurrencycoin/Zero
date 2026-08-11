@@ -1,5 +1,7 @@
 # `zerod` sync performance: current understanding, and next steps
 
+**Quantitative inventory** (campaigns, vocabulary, contradictions, debug.log tooling target): **[Measures.md](Measures.md)**. This file keeps optimization narrative and next experiments. Doc-map ownership: **UpdateZero.md** section **1**.
+
 ## 0. Status at a glance (updated 2026-07-08, end of session)
 
 **Where this stands:** three real fixes shipped (§3 fd-cache/bufsize, §4 root latch, §4 anchor-existence index) — two of the three measured *zero* throughput win despite being correct and well-tested, a genuinely useful negative result. The one bucket that actually matters (Groth16 proof verification, 48–55% of chain-wide CPU) is scoped in depth but not yet implemented; a real, working proof-of-concept for the hand-port approach was built and tested this session (Phases 0–1 of a 7-phase plan), then **a materially better option surfaced mid-session** — an already-shipped, production-proven batch verifier upstream — that needs a decision before Phase 2 continues. See §0.1.

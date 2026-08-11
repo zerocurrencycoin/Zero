@@ -430,12 +430,6 @@ Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine on
 
 Self-hosted Insight uses the **`insight-*-zero`** / **`bitcore-node-zero`** stack against a synced **`zerod`**.
 
-**Insight prod configuration (central):** **`~/Work/ZK/ZKs/insight/InsightBlock.md`** section **2.2** — required/suggested **`zero.conf`** keys, **`-reindex`** / **`-dbcache`** rules, and alignment with **`insight/config/zero.conf`** and **`insight/config/bitcore-node.json`**. This file does not duplicate that table.
-
-**Zero repo owns:** what flags mean (`Runtime.md` section **5**), `-dbcache` math (section **4**), and public one-liner below. **`contrib/zero.conf`** is a wallet sample only.
-
-Minimum insight flags:
-=======
 Minimum **`zerod`** flags for a transparent t-address index backend:
 
 ```ini
@@ -446,7 +440,7 @@ txindex=1
 
 Recommended on a dedicated explorer host: `dbcache=4096` (or **2048** on a 4 GiB VPS). First enable of insight indexes requires one run with **`-reindex`**. Insight uses a large share of `-dbcache` for `blocks/index/`. Mainnet RPC port **23811**.
 
-Host install, nginx, bitcore, sizing, and recovery: **`~/Work/ZK/insight/`** (start at that tree's README / InsightBlock). This file owns only the **current zerod** flags above.
+Flag meanings / use-case matrix: **ZeroStruct.md** sections **5**, **11**. Host install, nginx, bitcore, sizing, and recovery: **`~/Work/ZK/insight/`** (start at that tree's README / InsightBlock). This file owns only the **current zerod** flags above.
 
 ### 4.7 Depends recipe troubleshooting
 

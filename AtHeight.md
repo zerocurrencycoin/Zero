@@ -1,7 +1,8 @@
 # Height-bounded sync, reindex, and bootstrap
 
 **Status:** findings captured; implementation track **OPS-AT-HEIGHT** postponed (**TODO.md**).  
-**Scope:** full node (`zerod`) only. Related: **ZeroStruct** §13.2 (reindex resume), §13.7 (bootstrap).
+**Scope:** full node (`zerod`) only. Related: **ZeroStruct** §13.2 (reindex resume), §13.7 (bootstrap).  
+**Numbers inventory:** short-snap walls and rates are catalogued in **[Measures.md](Measures.md)** (`M-RX-TINY`, `M-RX-SHORT`, …).
 
 ---
 
@@ -24,7 +25,7 @@
 
 ### Persistent archives (host; not in git)
 
-**Canonical location only:** `~/Library/Application Support/zero/` (same dir as the full `chainblocks.tgz`). Do **not** keep duplicate `chainblocks*.tgz` under `~/Work/ZK/0/E/` -- extract into lab dirs from `zero/` when needed.
+**Canonical location only:** `~/Library/Application Support/zero/` (same dir as the full `chainblocks.tgz`). Extract into a dedicated lab datadir from that archive; do not duplicate the tarballs elsewhere.
 
 | Artifact | Path under `Application Support/zero/` | Measured `-disablewallet -reindex` |
 |----------|----------------------------------------|-------------------------------------|
@@ -43,17 +44,16 @@ Measured `-disablewallet -reindex` on this host (rates = totals / wall seconds).
 | Archive | 228 MiB | 342 MiB | 114 MiB |
 | Uncompressed `blk*.dat` | 256 MiB | 384 MiB | 128 MiB |
 | Tip height | 187417 | 245992 | 58575 |
-| Wall | 198 s | 274 s | 76 s |
-| **height/s** | **946.6** | **897.8** | **770.7** |
+| Wall (2026-07 manual) | 198 s | 274 s | 76 s |
+| **height/s** (2026-07) | **946.6** | **897.8** | **770.7** |
+| Wall (2026-08-11b extractor) | **188 s** (`tiny-20260811T085328Z`) | **247 s** (`short-20260811T085646Z`) | **59 s** |
+| **height/s** (2026-08-11b) | **996.9** | **995.9** | **992.8** |
 | **archive MiB/s** | **1.15** | **1.25** | **1.50** |
 | **blk MiB/s** | **1.29** | **1.40** | **1.68** |
 
 Prefer **tiny** for most labs; **short** when a third completed file helps resume tests. Neither predicts tip reindex cost (see longhaul).
 
-| Lab dir under `~/Work/ZK/0/E/` | Role |
-|--------------------------------|------|
-| `zero-lab-tiny-run/` / `zero-lab-short-run/` | Extract-from-`zero/` timed validation |
-| `zero-lab-reindex/` | Full-chain longhaul / resume |
+Use a disposable lab datadir (not the golden `Application Support/zero` tree) for tiny/short timed validation and for full-chain longhaul / resume.
 
 **Networks:** same code paths on mainnet / testnet / regtest. **Data is not interchangeable** (magic, genesis, blk layout). Regtest remains the fast logic path (mine N blocks); short/tiny mainnet snaps are for mainnet-cost ConnectBlock behavior at low height.
 
@@ -91,7 +91,12 @@ Do **not** use sticky `reindex=` in conf. Prefer one-shot CLI `-reindex` and typ
 ```bash
 # Canonical archives (macOS host example)
 ZERO_HOME="$HOME/Library/Application Support/zero"
-LAB="$HOME/Work/ZK/0/E/zero-lab-tiny-run"   # or zero-lab-short-run
+LAB="${LAB:-$TMPDIR/zero-lab-tiny-run}"   # or zero-lab-short-run; never the golden datadir
+# Refuse running against the default user datadir
+case "$(cd "$LAB" 2>/dev/null && pwd -P || echo "$LAB")" in
+  "$ZERO_HOME"|"$HOME/Library/Application Support/Zero"|"$HOME/.zero")
+    echo "ERROR: LAB must not be the default zero datadir" >&2; exit 1;;
+esac
 mkdir -p "$LAB"
 # wipe lab only -- never the golden datadir
 rm -rf "$LAB"/*
@@ -153,7 +158,7 @@ If you pass `-reindex` again on restart, that is a **new wipe**, not a resume.
 |-----|---------|-----|
 | Fast ConnectBlock / dbcache / FD | **tiny** (2 blk) | ~198s baseline |
 | Resume across a completed file boundary | **short** (3 blk) | Third file gives a clearer `L` step |
-| Full tip / longhaul | `chainblocks.tgz` into `zero-lab-reindex/` | Hours; optional rich monitor outside git |
+| Full tip / longhaul | `chainblocks.tgz` into a dedicated lab datadir | Hours; optional rich monitor outside git |
 
 ### E. Common mistakes
 

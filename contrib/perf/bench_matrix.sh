@@ -7,10 +7,12 @@
 # (b) one trial per condition gives no noise estimate at all.
 #
 # Design:
-#   - Every trial resets to a freshly-rsynced scratch datadir (source
-#     ~/Library/Application Support/Zero/ is only ever read, never modified
-#     or deleted -- all resets act on the local scratch copy only). The reset
-#     differs by mode (see reset_scratch_datadir): reindex keeps the source's
+#   - Every trial resets to a freshly-rsynced scratch datadir (source from
+#     ZERO_PERF_SRC_DATADIR or ~/Library/Application Support/zero/ is only ever
+#     read, never modified or deleted -- all resets act on the local scratch
+#     copy only; scratch defaults to reindex-profile/datadir and must not be
+#     the default user datadir). The reset differs by mode (see
+#     reset_scratch_datadir): reindex keeps the source's
 #     blocks/ (it rescans them) and excludes only chainstate; bootstrap
 #     excludes blocks/ too, since -loadblock needs a genuinely empty chain to
 #     import into, not one whose blocks/index already covers the full source
@@ -50,9 +52,30 @@ BOOTSTRAP_DAT="${5:-}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ZEROD="$REPO_ROOT/src/zerod"
 ZERO_CLI="$REPO_ROOT/src/zero-cli"
-SRC_DATADIR="/Users/walter/Library/Application Support/Zero/"
-SCRATCH_DATADIR="$REPO_ROOT/reindex-profile/datadir"
+# Read-only source for rsync resets. Override with ZERO_PERF_SRC_DATADIR.
+# Must NOT be the scratch dir; never wipe or -reindex this path in place.
+SRC_DATADIR="${ZERO_PERF_SRC_DATADIR:-$HOME/Library/Application Support/zero}"
+SCRATCH_DATADIR="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/datadir}"
 RPCPORT=23921   # distinct from capture_sequence.sh's 23920, in case both run near each other
+
+default_datadir_mac="$HOME/Library/Application Support/zero"
+default_datadir_mac_alt="$HOME/Library/Application Support/Zero"
+refuse_default_datadir() {
+    local label="$1" d
+    d="$(cd "$2" 2>/dev/null && pwd -P)" || d="$2"
+    case "$d" in
+        "$default_datadir_mac"|"$default_datadir_mac_alt"|"$HOME/.zero")
+            echo "ERROR: $label must not be the default user datadir: $d" >&2
+            echo "Set ZERO_PERF_SCRATCH_DATADIR to a disposable path under the repo or \$TMPDIR." >&2
+            exit 1
+            ;;
+    esac
+}
+refuse_default_datadir "scratch datadir" "$SCRATCH_DATADIR"
+if [ "$(cd "$SRC_DATADIR" 2>/dev/null && pwd -P)" = "$(cd "$SCRATCH_DATADIR" 2>/dev/null && pwd -P)" ]; then
+    echo "ERROR: SRC_DATADIR and SCRATCH_DATADIR must differ (source is read-only)." >&2
+    exit 1
+fi
 
 mkdir -p "$OUT_DIR"
 RESULTS_TSV="$OUT_DIR/results.tsv"
@@ -125,30 +148,11 @@ reset_scratch_datadir() {
 # Reads debug.log's UpdateTip timestamps to get the exact wall-clock elapsed
 # time between the block at $1 first appearing and the block at $2 first
 # appearing -- exact, not RPC-poll-interval-limited (Perf.md §6 method).
+# Delegates to extract_measures.py so tip parsing stays in one place.
 elapsed_between_heights() {
     local log_path="$1" h_start="$2" h_end="$3"
-    python3 - "$log_path" "$h_start" "$h_end" <<'PYEOF'
-import re, sys
-from datetime import datetime
-
-log_path, h_start, h_end = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
-pat = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UpdateTip:.*?height=(\d+)")
-t_start = t_end = None
-with open(log_path, errors="replace") as f:
-    for line in f:
-        m = pat.match(line)
-        if not m:
-            continue
-        h = int(m.group(2))
-        if h == h_start and t_start is None:
-            t_start = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
-        if h == h_end:
-            t_end = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
-if t_start is None or t_end is None:
-    print("NA")
-else:
-    print((t_end - t_start).total_seconds())
-PYEOF
+    python3 "$REPO_ROOT/contrib/perf/extract_measures.py" \
+        --elapsed-heights "$log_path" "$h_start" "$h_end"
 }
 
 # Runs one trial: launch zerod with the given extra args (reindex or
