@@ -33,6 +33,10 @@ MEASURE_BLOCKS="${MEASURE_BLOCKS:-300000}"
 N_TRIALS="${N_TRIALS:-4}"
 CONDITIONS="${CONDITIONS:-stock}"
 CAMPAIGN="${CAMPAIGN:-postsapling}"
+# MODE=reindex (default) or bootstrap (-loadblock). Bootstrap excludes blocks/
+# from the scratch reset and requires LOADBLOCK / BOOTSTRAP_DAT.
+MODE="${MODE:-reindex}"
+LOADBLOCK="${LOADBLOCK:-${BOOTSTRAP_DAT:-}}"
 RPCPORT="${ZERO_PERF_RPCPORT:-23926}"
 # System utilization samples (ps + optional vmmap). Default on; SAMPLE_UTIL=0 to disable.
 SAMPLE_UTIL="${SAMPLE_UTIL:-1}"
@@ -59,6 +63,19 @@ if [ ! -x "$ZEROD" ]; then
   echo "ERROR: missing $ZEROD" >&2
   exit 1
 fi
+case "$MODE" in
+  reindex) ;;
+  bootstrap)
+    if [ -z "$LOADBLOCK" ] || [ ! -f "$LOADBLOCK" ]; then
+      echo "ERROR: MODE=bootstrap requires LOADBLOCK=/path/to/bootstrap.dat (copy or softlink; do not modify original)" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "ERROR: MODE must be reindex or bootstrap (got '$MODE')" >&2
+    exit 1
+    ;;
+esac
 
 FDCACHE_BUILT=0
 if "$ZEROD" -help 2>&1 | grep -qi 'perffdcache\|perfbufsize'; then
@@ -88,8 +105,11 @@ log() { echo "$(date -u '+%Y-%m-%d %H:%M:%S UTC') $*" | tee -a "$DRIVER"; }
 TARGET_END=$((WARMUP_HEIGHT + MEASURE_BLOCKS))
 IFS=',' read -r -a COND_ARR <<< "$CONDITIONS"
 
-log "RUN_ID=$RUN_ID campaign=$CAMPAIGN SRC=$SRC_DATADIR SCRATCH=$SCRATCH"
+log "RUN_ID=$RUN_ID campaign=$CAMPAIGN mode=$MODE SRC=$SRC_DATADIR SCRATCH=$SCRATCH"
 log "window warmup=$WARMUP_HEIGHT end=$TARGET_END N_TRIALS=$N_TRIALS CONDITIONS=$CONDITIONS"
+if [ "$MODE" = "bootstrap" ]; then
+  log "LOADBLOCK=$LOADBLOCK"
+fi
 log "ZERO_FDCACHE_built=$FDCACHE_BUILT (0 => A/B flags ignored by binary)"
 log "SAMPLE_UTIL=$SAMPLE_UTIL UTIL_PERIOD_S=$UTIL_PERIOD_S"
 
@@ -131,12 +151,23 @@ kill_pid_hard() {
 }
 
 reset_scratch() {
-  log "reset scratch (rsync blocks, exclude chainstate; source read-only)"
-  rm -rf "$SCRATCH"
-  mkdir -p "$SCRATCH"
-  rsync -a --exclude='chainstate' --exclude='wallet.zero' --exclude='wallet.zero*' \
-    --exclude='debug*.log' --exclude='.lock' \
-    "$SRC_DATADIR/" "$SCRATCH/"
+  if [ "$MODE" = "bootstrap" ]; then
+    log "reset scratch bootstrap (exclude blocks/ + chainstate; empty chain for -loadblock)"
+    rm -rf "$SCRATCH"
+    mkdir -p "$SCRATCH"
+    # Keep conf/params-adjacent files if present; never copy blocks or chainstate.
+    rsync -a --exclude='blocks' --exclude='chainstate' --exclude='wallet.zero' \
+      --exclude='wallet.zero*' --exclude='debug*.log' --exclude='.lock' \
+      --exclude='bootstrap.dat' --exclude='bootstrap.dat.old' \
+      "$SRC_DATADIR/" "$SCRATCH/" 2>/dev/null || true
+  else
+    log "reset scratch (rsync blocks, exclude chainstate; source read-only)"
+    rm -rf "$SCRATCH"
+    mkdir -p "$SCRATCH"
+    rsync -a --exclude='chainstate' --exclude='wallet.zero' --exclude='wallet.zero*' \
+      --exclude='debug*.log' --exclude='.lock' \
+      "$SRC_DATADIR/" "$SCRATCH/"
+  fi
   {
     echo "listen=0"
     echo "maxconnections=0"
@@ -163,10 +194,17 @@ run_one() {
   # shellcheck disable=SC2206
   local extra_arr=($extra)
 
-  log "trial start condition=$condition trial=$trial args=${extra:-none}"
-  "$ZEROD" -datadir="$SCRATCH" -disablewallet -reindex -connect=0 -listen=0 \
-    -rpcport="$RPCPORT" ${extra_arr[@]+"${extra_arr[@]}"} \
-    >"$trial_dir/zerod_stdout.log" 2>&1 &
+  log "trial start mode=$MODE condition=$condition trial=$trial args=${extra:-none}"
+  if [ "$MODE" = "bootstrap" ]; then
+    "$ZEROD" -datadir="$SCRATCH" -disablewallet -connect=0 -listen=0 \
+      -loadblock="$LOADBLOCK" \
+      -rpcport="$RPCPORT" ${extra_arr[@]+"${extra_arr[@]}"} \
+      >"$trial_dir/zerod_stdout.log" 2>&1 &
+  else
+    "$ZEROD" -datadir="$SCRATCH" -disablewallet -reindex -connect=0 -listen=0 \
+      -rpcport="$RPCPORT" ${extra_arr[@]+"${extra_arr[@]}"} \
+      >"$trial_dir/zerod_stdout.log" 2>&1 &
+  fi
   local pid=$!
   log "zerod pid=$pid"
   sample_util start "$pid" 0
@@ -221,12 +259,12 @@ run_one() {
     return 1
   fi
   bps=$(python3 -c "print(round($MEASURE_BLOCKS / float('$elapsed'), 4))")
-  printf "reindex\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
-    "$condition" "$trial" "$WARMUP_HEIGHT" "$TARGET_END" "$MEASURE_BLOCKS" "$elapsed" "$bps" "$RUN_ID" \
+  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+    "$MODE" "$condition" "$trial" "$WARMUP_HEIGHT" "$TARGET_END" "$MEASURE_BLOCKS" "$elapsed" "$bps" "$RUN_ID" \
     >> "$RESULTS"
-  log "result condition=$condition trial=$trial elapsed_s=$elapsed blk/s=$bps"
+  log "result mode=$MODE condition=$condition trial=$trial elapsed_s=$elapsed blk/s=$bps"
 
-  local notes="fdcache_built=$FDCACHE_BUILT"
+  local notes="fdcache_built=$FDCACHE_BUILT;mode=$MODE"
   if [ "$SAMPLE_UTIL" = "1" ] && [ -f "$UTIL_TSV" ]; then
     notes="${notes};util=$(basename "$trial_dir")/util.tsv"
   fi
@@ -235,7 +273,7 @@ run_one() {
     --append \
     --campaign "$CAMPAIGN" \
     --run-id "$RUN_ID" \
-    --mode reindex \
+    --mode "$MODE" \
     --condition "$condition" \
     --trial "$trial" \
     --warmup-height "$WARMUP_HEIGHT" \
@@ -249,7 +287,7 @@ run_one() {
   python3 "$REPO_ROOT/contrib/perf/extract_measures.py" \
     --datadir "$SCRATCH" \
     --run-id "${RUN_ID}-${condition}-t${trial}" \
-    --op-class reindex --no-wallet --env lab \
+    --op-class "$MODE" --no-wallet --env lab \
     --sample-tip 200 \
     --csv "$OUT_DIR/measures_${condition}_t${trial}.csv" \
     --no-md 2>>"$DRIVER" || true

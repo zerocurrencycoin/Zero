@@ -54,7 +54,7 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 - **TST-01** -- exclusive getalldata gates and Ext `getalldata_scenario` are **working**; under development: `getsupply` / `zs_*` / sapling depth. Run: `./src/test/test_bitcoin --run_test=rpc_zero_exclusive_tests` ; `./qa/pull-tester/rpc-tests.sh getalldata_scenario`
 - **TST-03** -- `zeronodestats` + zeronode/budget subcmds; arg validation first (under development)
 - **TST-05** -- wire genesis (192,7) indices from `1927EQ.txt` + (48,5) KATs (under development)
-- **TST-09** -- alertnotify path **working**; under development: `-blocknotify` / `-walletnotify`
+- **TST-09** -- **done** (alert + block + wallet notify default-build skip markers in `DeprecationTest`)
 - **WAL-GETALLDATA-W5** -- **revisit soon** (see Full descriptions)
 - macOS datadir: wallet should use `Application Support/zero/` (INT-01)
 - Fuzz harness setup

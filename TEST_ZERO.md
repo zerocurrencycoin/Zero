@@ -432,7 +432,7 @@ Commands and inventory: see **§2 Use cases** and **§3 Inventory** above.
 | Default | **`./src/zero-gtest --gtest_filter=DeprecationTest.AlertNotify`** | Notify temp file **0** lines (hook skipped) |
 | Opt-in shell | Reconfigure with **`CXXFLAGS="-DENABLE_SYSTEM_COMMAND"`**, rebuild, same filter | Temp file **1** line (sanitized deprecation text) |
 
-**TST-09:** **`-alertnotify` closed** -- **`DeprecationTest.AlertNotify`** (default: 0 side-effect lines). Remaining: **`-blocknotify`** / **`-walletnotify`** marker tests on default builds. Full alert subsystem strip = **OPS-ALERT-STRIP** (postponed; **TODO**).
+**TST-09:** **Closed on default builds** -- `DeprecationTest.AlertNotify` + `BlockNotifyDefaultSkipsShell` + `WalletNotifyDefaultSkipsShell` (marker files stay empty without `ENABLE_SYSTEM_COMMAND`). Opt-in build path still expects shell side effects when the flag is set. Full alert subsystem strip = **OPS-ALERT-STRIP** (postponed; **TODO**).
 
 Manual check (either mode): regtest **`zerod`** with **`-blocknotify='echo %s >> /tmp/zero-block.log'`**, generate one block -- log appended **only** on opt-in build; default logs **"Block notification skipped"** in **`debug.log`**. See **BUILD_ZERO.md** section **4.6.1** (**OPS-SHELL**).
 

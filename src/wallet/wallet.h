@@ -899,6 +899,18 @@ public:
     std::map<uint256, SaplingOutPoint> mapArcSaplingOutPoints;
     void AddToArcSaplingOutPoints(const uint256& nullifier, const SaplingOutPoint& op);
 
+    /** Full witness rebuild at chainActive.Tip() (used by -walletwitness=ibd-defer after import). */
+    void RebuildWitnessCacheForChainTip();
+
+    /** Lab/prototype: -walletwitnessnoteidx=1 maintains note-bearing txid list for Verify. */
+    void InvalidateNoteTxIndex();
+    void EnsureNoteTxIndex(); // requires cs_wallet
+    size_t NoteTxIndexSize() const { return vNoteTxHashes.size(); }
+    bool NoteTxIndexStale() const { return fNoteTxIndexStale; }
+
+    /** True when -walletwitness=ibd-defer (skip per-block BuildWitnessCache during IBD). */
+    static bool IsIBDWitnessDeferred();
+
 protected:
 
     int SproutWitnessMinimumHeight(const uint256& nullifier, int nWitnessHeight, int nMinimumHeight);
@@ -1255,6 +1267,10 @@ public:
 
     /** Incremental activity order (WAL-WTXORDERED). Tx side only; lacentries merged in OrderedTxItems. */
     TxItems wtxOrdered;
+
+    /** Note-bearing txids for -walletwitnessnoteidx (prototype NOTEIDX). */
+    std::vector<uint256> vNoteTxHashes;
+    bool fNoteTxIndexStale = true;
 
     /**
      * Get the wallet's activity log
@@ -1706,5 +1722,7 @@ public:
     KeyAddResult operator()(const libzcash::InvalidEncoding& no) const;
 };
 
+/** Run -walletnotify hook (or log skip when ENABLE_SYSTEM_COMMAND is off). Exposed for TST-09. */
+void RunWalletNotifyCommand(const uint256& hash);
 
 #endif // BITCOIN_WALLET_WALLET_H

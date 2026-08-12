@@ -2278,6 +2278,9 @@ UniValue getwalletinfo(const UniValue& params, bool fHelp)
             "  \"unconfirmed_balance\": xxx, (numeric) the total unconfirmed balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"immature_balance\": xxxxxx, (numeric) the total immature balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"txcount\": xxxxxxx,         (numeric) the total number of transactions in the wallet\n"
+            "  \"note_tx_count\": xxxxxxx,   (numeric) txs with non-empty Sprout or Sapling note maps\n"
+            "  \"sprout_note_count\": xxxxx, (numeric) total Sprout notes in the wallet\n"
+            "  \"sapling_note_count\": xxxx, (numeric) total Sapling notes in the wallet\n"
             "  \"keypoololdest\": xxxxxx,    (numeric) the timestamp (seconds since GMT epoch) of the oldest pre-generated key in the key pool\n"
             "  \"keypoolsize\": xxxx,        (numeric) how many new keys are pre-generated\n"
             "  \"unlocked_until\": ttt,      (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
@@ -2291,12 +2294,29 @@ UniValue getwalletinfo(const UniValue& params, bool fHelp)
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
+    int noteTxCount = 0;
+    int sproutNoteCount = 0;
+    int saplingNoteCount = 0;
+    for (const auto& wtxItem : pwalletMain->mapWallet) {
+        const CWalletTx& wtx = wtxItem.second;
+        const size_t nSprout = wtx.mapSproutNoteData.size();
+        const size_t nSapling = wtx.mapSaplingNoteData.size();
+        if (nSprout || nSapling) {
+            noteTxCount++;
+            sproutNoteCount += (int)nSprout;
+            saplingNoteCount += (int)nSapling;
+        }
+    }
+
     UniValue obj(UniValue::VOBJ);
     obj.push_back(Pair("walletversion", pwalletMain->GetVersion()));
     obj.push_back(Pair("balance",       ValueFromAmount(pwalletMain->GetBalance())));
     obj.push_back(Pair("unconfirmed_balance", ValueFromAmount(pwalletMain->GetUnconfirmedBalance())));
     obj.push_back(Pair("immature_balance",    ValueFromAmount(pwalletMain->GetImmatureBalance())));
     obj.push_back(Pair("txcount",       (int)pwalletMain->mapWallet.size()));
+    obj.push_back(Pair("note_tx_count", noteTxCount));
+    obj.push_back(Pair("sprout_note_count", sproutNoteCount));
+    obj.push_back(Pair("sapling_note_count", saplingNoteCount));
     obj.push_back(Pair("keypoololdest", pwalletMain->GetOldestKeyPoolTime()));
     obj.push_back(Pair("keypoolsize",   (int)pwalletMain->GetKeyPoolSize()));
     if (pwalletMain->IsCrypted())

@@ -447,13 +447,13 @@ class ZCProof(object):
         self.g_H = None
 
     def deserialize(self, f):
-        def deser_g1(self, f):
+        def deser_g1(f):
             leadingByte = struct.unpack("<B", f.read(1))[0]
             return {
                 'y_lsb': leadingByte & 1,
                 'x': f.read(32),
             }
-        def deser_g2(self, f):
+        def deser_g2(f):
             leadingByte = struct.unpack("<B", f.read(1))[0]
             return {
                 'y_gt': leadingByte & 1,
@@ -529,7 +529,7 @@ class JSDescription(object):
         self.proof = None
         self.ciphertexts = [None] * ZC_NUM_JS_OUTPUTS
 
-    def deserialize(self, f):
+    def deserialize(self, f, use_groth=False):
         self.vpub_old = struct.unpack("<q", f.read(8))[0]
         self.vpub_new = struct.unpack("<q", f.read(8))[0]
         self.anchor = deser_uint256(f)
@@ -549,8 +549,12 @@ class JSDescription(object):
         for i in range(ZC_NUM_JS_INPUTS):
             self.macs.append(deser_uint256(f))
 
-        self.proof = ZCProof()
-        self.proof.deserialize(f)
+        if use_groth:
+            # libzcash::GrothProof -- 48 + 96 + 48
+            self.proof = f.read(192)
+        else:
+            self.proof = ZCProof()
+            self.proof.deserialize(f)
 
         self.ciphertexts = []
         for i in range(ZC_NUM_JS_OUTPUTS):
@@ -711,7 +715,20 @@ class CTransaction(object):
             self.shieldedOutputs = deser_vector(f, OutputDescription)
 
         if self.nVersion >= 2:
-            self.vJoinSplit = deser_vector(f, JSDescription)
+            # JoinSplit proof encoding depends on Sapling tx format (Groth vs PHGR).
+            use_groth = bool(isSaplingV4)
+            nit = struct.unpack("<B", f.read(1))[0]
+            if nit == 253:
+                nit = struct.unpack("<H", f.read(2))[0]
+            elif nit == 254:
+                nit = struct.unpack("<I", f.read(4))[0]
+            elif nit == 255:
+                nit = struct.unpack("<Q", f.read(8))[0]
+            self.vJoinSplit = []
+            for _ in range(nit):
+                js = JSDescription()
+                js.deserialize(f, use_groth=use_groth)
+                self.vJoinSplit.append(js)
             if len(self.vJoinSplit) > 0:
                 self.joinSplitPubKey = deser_uint256(f)
                 self.joinSplitSig = f.read(64)

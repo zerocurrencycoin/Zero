@@ -73,8 +73,8 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | **~/Work/ZK/ZKs/ZKRepos.md**    | **Local clone paths** under `ZKs/`                    | Path index, `git pull` loop, Zero400 working copies                                                                                         | Ecosystem compare, org audit, zerod flags                                                                |
 | **~/Work/ZK/Repos/ZeroC.md**    | **zerocurrencycoin** org GitHub audit                 | All org repos, mobile/light stack inventory, archive tiers, **`ZeroC.csv`**                                                                 | Local paths (**ZKRepos**); cross-fork indexer compare (**Comparison** section **12**)                   |
 | **ZebraZero.md**                | zebrad / YEC / CipherScan reference                   | Sidecar validation, Orchard lessons, YEC fork notes                                                                                         | zerod how-to (**ZeroStruct**)                                                                          |
-| **Measures.md**                 | Quantitative measures inventory                       | Vocabulary (`op_class`/`metric`/`type`/`tools`); campaign IDs (**M-***); contradictions; §12 plan rows; debug.log tooling                    | Optimization narrative (**Perf.md**); short-snap procedure (**AtHeight.md**)                           |
-| **Perf.md**                     | ConnectBlock / sync optimization narrative            | CPU buckets, Groth16 decision, §0.8 signals/Win, §0.13 BENCH/FIX/IMP specs; links **Measures.md** for numbers                               | Raw campaign tables (home in **Measures.md**); wallet `wtxOrdered` (ZeroStruct §13.4); Accounts/W5 pending review |
+| **Measures.md**                 | Quantitative measures inventory                       | Vocabulary; **`M-*`** campaigns; comparability; extraction schema; §8 ledger `CAMPAIGN=` map                                              | Optimization narrative + lab materials (**Perf.md**); short-snap procedure (**AtHeight.md**)           |
+| **Perf.md**                     | ConnectBlock / sync optimization narrative            | CPU buckets; Groth **G**; **P1-P4**; Stages 0-6; **L0-L7**; lab materials; §0.13 BENCH/FIX/IMP; cites **Measures.md** for numbers          | Raw campaign tables (home in **Measures.md**); wallet `wtxOrdered` (ZeroStruct §13.4); Accounts/W5 pending review |
 | **AtHeight.md**                 | Height-bounded reindex / short-snap lab procedure     | Tiny/short archive unpack, timed reindex, resume interrupt lab; points numbers to **Measures.md**                                           | Full tip longhaul design; `-stopatheight` product work (**OPS-AT-HEIGHT** postponed)                   |
 
 
@@ -139,7 +139,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | **OPS-*** / **WAL-*** / **FR-*** / **EXT-*** (status + full task text) | **TODO.md** |
 | **OPS-*** / **WAL-*** / **FR-*** (architecture: structures, indexes, algorithms) | **ZeroStruct.md** (esp. §4.3, §6.2, §13) -- problem/pro-con only, not task runbooks |
 | **OPS-AT-HEIGHT** | **AtHeight.md** (procedure); status in **TODO.md** (postponed) |
-| **M-*** / measures inventory | **Measures.md** (campaign numbers, vocabulary, contradictions, debug.log tooling target) |
+| **M-*** / measures inventory | **Measures.md** (campaign numbers, vocabulary, comparability, extraction, ledger §8) |
 | **PERF-*** / ConnectBlock optimization narrative | **Perf.md** (next experiments; cite **Measures.md** for numbers) |
 | **INT-*** | **ZeroStruct.md** section **11.7** |
 | **Clone wallet / P2P / shielding history** | **`ZKs/Comparison.md`** sections **3**, **4** |

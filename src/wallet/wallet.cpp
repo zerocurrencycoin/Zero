@@ -625,8 +625,12 @@ void CWallet::ChainTip(const CBlockIndex *pindex,
             RunSaplingConsolidation(pindex->nHeight);
             DeleteWalletTransactions(pindex);
         } else {
-            //Build intial witnesses on every block
-            BuildWitnessCache(pindex, true);
+            // Build initial witnesses on every block during IBD/reindex.
+            // -walletwitness=ibd-defer: skip here; ThreadImport rebuilds once at tip
+            // after import (lab/product prototype for fat-wallet reindex cost).
+            if (!IsIBDWitnessDeferred()) {
+                BuildWitnessCache(pindex, true);
+            }
             if (initialDownloadCheck && pindex->nHeight % fDeleteInterval == 0) {
                 DeleteWalletTransactions(pindex);
             }
@@ -1340,11 +1344,29 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
   }
 
   int nWitnessTxIncrement = 0;
-  int nWitnessTotalTxCount = mapWallet.size();
   int nMinimumHeight = pindex->nHeight;
   bool walletHasNotes = false; //Use to enable z_sendmany when no notes are present
 
-  for (std::pair<const uint256, CWalletTx>& wtxItem : mapWallet) {
+  // Prototype NOTEIDX: iterate note-bearing txs only (lab: -walletwitnessnoteidx=1).
+  // Fat reindex loads mapWallet before connect; index rebuilds once then stays hot.
+  std::vector<std::pair<const uint256, CWalletTx>*> wtxScan;
+  if (GetBoolArg("-walletwitnessnoteidx", false)) {
+    EnsureNoteTxIndex();
+    wtxScan.reserve(vNoteTxHashes.size());
+    for (const uint256& h : vNoteTxHashes) {
+      auto it = mapWallet.find(h);
+      if (it != mapWallet.end())
+        wtxScan.push_back(&(*it));
+    }
+  } else {
+    wtxScan.reserve(mapWallet.size());
+    for (auto& wtxItem : mapWallet)
+      wtxScan.push_back(&wtxItem);
+  }
+  int nWitnessTotalTxCount = (int)wtxScan.size();
+
+  for (std::pair<const uint256, CWalletTx>* pwtxItem : wtxScan) {
+    std::pair<const uint256, CWalletTx>& wtxItem = *pwtxItem;
     nWitnessTxIncrement += 1;
 
     if (wtxItem.second.mapSproutNoteData.empty() && wtxItem.second.mapSaplingNoteData.empty())
@@ -1571,6 +1593,39 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
     initWitnessesBuilt = true;
 
   return nMinimumHeight;
+}
+
+bool CWallet::IsIBDWitnessDeferred()
+{
+    return GetArg("-walletwitness", "") == "ibd-defer";
+}
+
+void CWallet::InvalidateNoteTxIndex()
+{
+    fNoteTxIndexStale = true;
+}
+
+void CWallet::EnsureNoteTxIndex()
+{
+    AssertLockHeld(cs_wallet);
+    if (!fNoteTxIndexStale)
+        return;
+    vNoteTxHashes.clear();
+    for (const auto& wtxItem : mapWallet) {
+        if (!wtxItem.second.mapSproutNoteData.empty() || !wtxItem.second.mapSaplingNoteData.empty())
+            vNoteTxHashes.push_back(wtxItem.first);
+    }
+    fNoteTxIndexStale = false;
+}
+
+void CWallet::RebuildWitnessCacheForChainTip()
+{
+    LOCK(cs_main);
+    if (!chainActive.Tip()) {
+        LogPrintf("RebuildWitnessCacheForChainTip: chainActive tip is null\n");
+        return;
+    }
+    BuildWitnessCache(chainActive.Tip(), false);
 }
 
 void CWallet::BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, const CBlock* pblockIn)
@@ -2046,6 +2101,7 @@ void CWallet::UpdateNullifierNoteMapForBlock(const CBlock *pblock) {
 bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletDB* pwalletdb)
 {
     uint256 hash = wtxIn.GetHash();
+    InvalidateNoteTxIndex();
 
     if (fFromLoadWallet)
     {
@@ -2159,20 +2215,23 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
         NotifyTransactionChanged(this, hash, fInsertedNew ? CT_NEW : CT_UPDATED);
 
         // notify an external script when a wallet transaction comes in or is updated
-        std::string strCmd = GetArg("-walletnotify", "");
-
-        if ( !strCmd.empty())
-        {
-            boost::replace_all(strCmd, "%s", wtxIn.GetHash().GetHex());
-#ifdef ENABLE_SYSTEM_COMMAND
-            boost::thread t(runCommand, strCmd); // thread runs free
-#else
-            LogPrintf("Wallet notification skipped: %s\nTo enable, rebuild with: ./configure CXXFLAGS=\"-DENABLE_SYSTEM_COMMAND\"\n", strCmd);
-#endif
-        }
+        RunWalletNotifyCommand(wtxIn.GetHash());
 
     }
     return true;
+}
+
+void RunWalletNotifyCommand(const uint256& hash)
+{
+    std::string strCmd = GetArg("-walletnotify", "");
+    if (strCmd.empty())
+        return;
+    boost::replace_all(strCmd, "%s", hash.GetHex());
+#ifdef ENABLE_SYSTEM_COMMAND
+    boost::thread t(runCommand, strCmd); // thread runs free
+#else
+    LogPrintf("Wallet notification skipped: %s\nTo enable, rebuild with: ./configure CXXFLAGS=\"-DENABLE_SYSTEM_COMMAND\"\n", strCmd);
+#endif
 }
 
 bool CWallet::UpdatedNoteData(const CWalletTx& wtxIn, CWalletTx& wtx)
@@ -2312,6 +2371,7 @@ void CWallet::EraseFromWallet(const uint256 &hash)
         if (it != mapWallet.end()) {
             RemoveFromWtxOrdered(&it->second);
             mapWallet.erase(it);
+            InvalidateNoteTxIndex();
             CWalletDB(strWalletFile).EraseTx(hash);
         }
     }

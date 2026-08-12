@@ -2,7 +2,7 @@
 
 **Status:** findings captured; implementation track **OPS-AT-HEIGHT** postponed (**TODO.md**).  
 **Scope:** full node (`zerod`) only. Related: **ZeroStruct** §13.2 (reindex resume), §13.7 (bootstrap).  
-**Numbers inventory:** short-snap walls and rates are catalogued in **[Measures.md](Measures.md)** (`M-RX-TINY`, `M-RX-SHORT`, …). **Benchmark / fix plans:** **Perf.md** §0.13; Measures §12.
+**Numbers inventory:** short-snap walls and rates are catalogued in **[Measures.md](Measures.md)** (`M-RX-TINY`, `M-RX-SHORT`, …). **Benchmark / fix plans:** **Perf.md** §0.13. Ledger `CAMPAIGN=` map: Measures §8.
 
 ---
 

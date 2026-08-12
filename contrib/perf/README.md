@@ -4,20 +4,25 @@ Scripts supporting the `zerod` sync performance investigation documented in
 `Perf.md` at the repo root. Read that file first -- it has the methodology
 and the reasoning these scripts implement; this README is just usage.
 
-**Numbers inventory:** campaign IDs, metric tokens (`height_per_s`, `wall_s`,
-`cpu_pct`, ...), and contradictions live in **`Measures.md`** (§12 plan table).
-**Plans / specs** (benchmarking BENCH-*, immediate FIX-*, improvements IMP-*):
-**`Perf.md` §0.13**. Prefer Measures tokens in new TSV/JSONL columns when
-extending these scripts.
+**Numbers inventory:** `M-*` campaign IDs, metric tokens (`height_per_s`,
+`wall_s`, `cpu_pct`, ...), comparability rules, extraction schema, and the
+ledger `CAMPAIGN=` map live in **`Measures.md`** (§8 for bindings). **Plans /
+specs** (BENCH-*, FIX-*, IMP-*, L0-L7, Stages) and **lab materials**:
+**`Perf.md`**. Prefer Measures tokens in new TSV/JSONL columns when extending
+these scripts.
 
 **Datadir rule:** never use the default `~/Library/Application Support/zero`
 (or `~/.zero`) as a writable lab datadir. Scripts refuse that path.
 Archives may be read-only sources via `ZERO_PERF_SRC_DATADIR` /
 `ZERO_PERF_ARCHIVE_DIR`.
 
-**Not wallet:** these tools profile **chain import / ConnectBlock** (`zcash-loadblk`),
-not `AddToWallet` / `OrderedTxItems`. For wallet-order CPU, retarget as described
-in `Perf.md` (scope note + retarget paragraph) and `ZeroStruct.md` §13.4.3.
+**Long trials:** do not batch runs where each trial is expected to exceed
+~20 minutes unless each trial can be restarted individually (separate
+invocation or resume-from-trial). See `AGENTS.md` and `Perf.md` §0.13.
+**ConnectBlock vs wallet-on:** `capture_sequence` / `bench_matrix` target import
+CPU on `zcash-loadblk`. Wallet-on fat reindex is a separate track
+(`run_wallet_sync_profile.sh`, M-WAL-SYNC-FAT / M-CPU-WAL-FAT) -- bottleneck is
+`VerifyAndSetInitialWitness`, not `OrderedTxItems` (see **Perf.md** §0.14).
 
 ## extract_measures.py
 
@@ -87,12 +92,86 @@ Post-Sapling window rematch (default warmup 600000, measure 300000).
 FDCACHE A/B is optional later, not the default. Each trial appends to the
 durable ledger.
 
+`MODE=reindex` (default) or `MODE=bootstrap` with `LOADBLOCK=/path/to/bootstrap.dat`
+(use a copy or softlink; do not modify the Zero400 original). Bootstrap reset
+excludes `blocks/` so `-loadblock` starts on an empty chain.
+
 ```bash
 ZERO_PERF_SRC_DATADIR="$HOME/Library/Application Support/zero" \
   contrib/perf/run_postsapling_baseline.sh
 # override: N_TRIALS=4 CONDITIONS=stock CAMPAIGN=postsapling
 # util samples (default on): SAMPLE_UTIL=1 UTIL_PERIOD_S=30
 #   -> per-trial util.tsv (ps %cpu/%mem/rss + vmmap Physical footprint at milestones)
+# bootstrap smoke (example):
+#   MODE=bootstrap LOADBLOCK=reindex-profile/bootstrap-src/bootstrap.dat \
+#   CAMPAIGN=bootstrap-smoke WARMUP_HEIGHT=50000 MEASURE_BLOCKS=25000 N_TRIALS=1 \
+#   contrib/perf/run_postsapling_baseline.sh
+```
+
+Plans/specs: **Perf.md** §0.13 (BENCH-BOOT / FIX-*).
+Lab materials / density banding: **Perf.md** §0.9 / §1.
+
+## run_mine_bench.sh (BENCH-MINE)
+
+Equihash **solve** lab env (not ConnectBlock rematch). Modes:
+
+```bash
+contrib/perf/run_mine_bench.sh regtest          # generate N blocks (48,5); util.tsv
+contrib/perf/run_mine_bench.sh mainnet-template # (192,7) env + notes; opt-in solve
+contrib/perf/run_mine_bench.sh neon-probe       # arch / NEON / blake2b symbol probe
+```
+
+Env: `MINE_BLOCKS`, `MINE_TIMEOUT_S`, `ZERO_PERF_NEON_ZEROD` (NEON A/B binary;
+**G7 postponed** -- probe-only until a NEON `zerod` exists),
+`CAMPAIGN=mine-equihash-*`. Stock arm64 still links `blake2b_compress_ref`.
+Mainnet (192,7) timed solve stays Instruments / `MINE_MAINNET_SOLVE=1` (**G5**).
+
+KATs: **`kats/`** (`1927EQ.txt`, `1927EQ_h1.hex`; see `kats/README.md`). TST-05 green;
+further test adaptation **postponed (G9)**.
+
+## run_wallet_sync_profile.sh
+
+Wallet-on `-reindex` util (CPU / RSS / `wallet.zero` bytes / `txcount`). Pass the
+wallet file via env (no ops paths in Measures):
+
+```bash
+ZERO_PERF_WALLET_FILE="$HOME/Library/Application Support/zero/wallet.zero0" \
+ZERO_PERF_CHAIN_SNAP=tiny \
+  contrib/perf/run_wallet_sync_profile.sh
+# fat compare (G0): point ZERO_PERF_WALLET_FILE at golden fat wallet.zero
+```
+
+`ZERO_PERF_CHAIN_SNAP=tiny|short|full`. `RESUME=1` keeps scratch. Samples ->
+`test-logs/walletsync-*/util.tsv`. Bound `M-*`: M-WAL-SYNC-P0, M-WAL-SYNC-FAT,
+M-CPU-WAL-FAT (done). **Caveat:** `getwalletinfo` in `sample_row` can block under
+fat-wallet `cs_wallet` contention -- tip time then from `debug.log`; hygiene
+timeout is queue **G0b**.
+
+Archive: `test-logs/archives/walletsync-fat-g0-20260812.tar.gz` + per-run
+`FINDINGS.md`. Mitigations: **Perf.md** §0.14. Queue: **Perf.md** §0.13 G.
+
+`WALLETINFO_TIMEOUT_S` (default 5; `0` skips txcount). `ZEROD_EXTRA_ARGS` for
+lab flags e.g. `-walletwitness=ibd-defer`, `-walletwitnessnoteidx=1`. Note counts
+on `getwalletinfo`: `note_tx_count`, `sprout_note_count`, `sapling_note_count`.
+Witness test/DoS notes: `test-logs/witness-defer-test-plan.md`.
+
+## shielded_density.py
+
+Build `reindex-profile/shielded-density.csv` (+ `.progress.jsonl`) by walking
+heights over RPC (`getblockhash` + `getblock <hash> false`) and counting via
+`qa` mininode deserialize. **Do not use `getblock` verbosity 2** -- Zero omits
+Sapling/Sprout shield arrays from that JSON.
+
+Requires a running `zerod` (`-connect=0 -listen=0` OK). Fine rematch windows
+first; then coarse **400k** bands split at Sapling activation 492850.
+
+```bash
+# zerod already up on the datadir:
+python3 contrib/perf/shielded_density.py \
+  --datadir "$HOME/Library/Application Support/zero" \
+  --out-dir reindex-profile \
+  --mode all
+# --mode fine|coarse|all ; resumes by skipping eras already in the CSV
 ```
 
 ## accumulate_bench.py

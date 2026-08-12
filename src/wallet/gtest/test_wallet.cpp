@@ -54,6 +54,7 @@ public:
     void BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, const CBlock* pblockIn = nullptr) {
         CWallet::BuildWitnessCache(pindex, witnessOnly, pblockIn);
     }
+    void EnsureNoteTxIndexPublic() { EnsureNoteTxIndex(); }
     void DecrementNoteWitnesses(const CBlockIndex* pindex) {
         CWallet::DecrementNoteWitnesses(pindex);
     }
@@ -2305,4 +2306,43 @@ TEST(WalletTests, WtxOrderedConsistentAfterErase) {
 
     EXPECT_EQ(wallet.mapWallet.size(), 1u);
     EXPECT_TRUE(wallet.WtxOrderedConsistent());
+}
+
+// Prototype NOTEIDX: index lists only note-bearing txs; AddToWallet marks stale.
+TEST(WalletTests, NoteTxIndexTracksNoteBearingTxs) {
+    TestWallet wallet;
+    LOCK2(cs_main, wallet.cs_wallet);
+
+    CMutableTransaction mtx;
+    mtx.nVersion = CTransaction::SPROUT_MIN_CURRENT_VERSION;
+    mtx.vin.resize(1);
+    mtx.vin[0].prevout.SetNull();
+    mtx.vin[0].scriptSig = CScript() << OP_1;
+    mtx.vout.resize(1);
+    mtx.vout[0].nValue = 1 * COIN;
+    mtx.vout[0].scriptPubKey = CScript() << OP_TRUE;
+
+    CWalletTx emptyTx(&wallet, CTransaction(mtx));
+    emptyTx.nOrderPos = 0;
+    emptyTx.nTimeReceived = 1;
+    wallet.AddToWallet(emptyTx, true, NULL);
+    EXPECT_TRUE(wallet.NoteTxIndexStale());
+    wallet.EnsureNoteTxIndexPublic();
+    EXPECT_FALSE(wallet.NoteTxIndexStale());
+    EXPECT_EQ(wallet.NoteTxIndexSize(), 0u);
+
+    mtx.vin[0].scriptSig = CScript() << OP_2;
+    CWalletTx noteTx(&wallet, CTransaction(mtx));
+    noteTx.nOrderPos = 1;
+    noteTx.nTimeReceived = 2;
+    {
+        // Bypass SetSaplingNoteData validation -- index only cares about non-empty maps.
+        SaplingOutPoint op{noteTx.GetHash(), 0};
+        noteTx.mapSaplingNoteData[op] = SaplingNoteData();
+    }
+    wallet.AddToWallet(noteTx, true, NULL);
+    EXPECT_TRUE(wallet.NoteTxIndexStale());
+    wallet.EnsureNoteTxIndexPublic();
+    EXPECT_EQ(wallet.NoteTxIndexSize(), 1u);
+    EXPECT_EQ(wallet.mapWallet.size(), 2u);
 }

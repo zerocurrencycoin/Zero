@@ -1,16 +1,20 @@
 # `zerod` sync performance: current understanding, and next steps
 
-**Quantitative inventory** (campaigns, vocabulary, contradictions, debug.log tooling target): **[Measures.md](Measures.md)**. This file keeps optimization narrative and next experiments. Doc-map ownership: **UpdateZero.md** section **1**.
+**Quantitative inventory** (`M-*` campaigns, vocabulary, comparability, extraction, ledger `CAMPAIGN=` map): **[Measures.md](Measures.md)** -- cite IDs only here; means/stdevs live there. This file keeps optimization narrative, **BENCH-/FIX-/IMP-***, baseline tracks **L0-L7**, Stages 0-6, priorities **G**/**P1-P4**, Groth decision, and **lab materials** (§1). Doc-map: **UpdateZero.md** §1.
 
-**Current lab mix (2026-08):** gather overall ConnectBlock / reindex execution measures (stock `-reindex`, post-Sapling window, ledger accumulation). **FDCACHE A/B is not in the mix** until that campaign is resumed deliberately. Groth16 work remains decision-blocked (§0.0 / §0.1) -- explanation-ready, not code-ready. **Active plans/specs:** §0.13 (BENCH / FIX / IMP). Accounts and W5: postponed, pending further review (§0.12).
+**Program: recreate the ConnectBlock / import performance baseline** so Groth and other decisions sit on current measured numbers. Already-shipped product work with tests stays in the tree (§3 fd-cache, §4 root latch + anchor index, reindex resume, ExtTests **B1** `reindex_shielded`, founders integer subsidy, FIX-LBI/IMPORT). **Baseline tracks** (§0.13 F **L0-L7**): tiny/short, pre-Sap reindex+bootstrap, post-Sap reindex+bootstrap, era segments, util; then Groth decision inputs. FDCACHE 4x2 postponed. Accounts/W5 pending review.
 
-## 0. Status at a glance (updated 2026-07-08, end of session)
+**ID note:** ExtTests **B1** (`reindex_shielded`) is unrelated to baseline track **L1**. Do not reuse bare B0-B7 for lab tracks.
+
+## 0. Status at a glance
+
+Orientation for the sync/perf lab. Detail lives in subsections and **Measures.md**.
 
 **Where this stands:** three real fixes shipped (§3 fd-cache/bufsize, §4 root latch, §4 anchor-existence index) — two of the three measured *zero* throughput win despite being correct and well-tested, a genuinely useful negative result. The one bucket that actually matters (Groth16 proof verification, 48–55% of chain-wide CPU) is scoped in depth but not yet implemented; a real, working proof-of-concept for the hand-port approach was built and tested this session (Phases 0–1 of a 7-phase plan), then **a materially better option surfaced mid-session** — an already-shipped, production-proven batch verifier upstream — that needs a decision before Phase 2 continues. See §0.0 (lead-in) and §0.1 (decision).
 
-### 0.0 Groth16 item -- lead-in and step-by-step (explain first)
+### 0.0 Groth16 item -- lead-in and step-by-step
 
-This subsection is the walkthrough for discussing the item with someone who has not lived inside §§2/6/9.4. Detail and evidence stay in those sections; this is the story and the ordered steps.
+Explain-first walkthrough for discussion. This subsection is the walkthrough for discussing the item with someone who has not lived inside §§2/6/9.4. Detail and evidence stay in those sections; this is the story and the ordered steps.
 
 #### Why it exists
 
@@ -20,7 +24,9 @@ This subsection is the walkthrough for discussing the item with someone who has 
 4. **What "batching" would change:** for N proofs that share a verifying key, combine them with random linear weights and pay **one** expensive final-exponentiation for the batch instead of N. Same pass/fail math class; different operation schedule (consensus-adjacent -- needs review).
 5. **Why this is not "just implement it":** mid-investigation, upstream `sapling-crypto::BatchValidator` (production since 2022; used by zcashd and Zebra; Pirate has a C++/`cxx` precedent) appeared as a full alternative to hand-porting only the pairing batch math into Zero's pinned 2018 crates. That forks the project into a **decision**, not more Phase-2 coding.
 
-#### Step-by-step (human process)
+#### Step-by-step
+
+Human process order.
 
 | Step | Action | Status |
 |------|--------|--------|
@@ -48,16 +54,28 @@ Post-Sapling sync is Groth16-bound (~half of ConnectBlock CPU). Zero verifies ev
 - Hand-port phase checklist: §9.4  
 - Independent of this decision: NEON blake2b (§5 / §0.2 item 2), measure campaigns (stock rematch)
 
-### 0.1 Immediate next step (decide before any more Groth16 code work)
+### 0.1 Immediate next step
 
-**Hand-port vs. adopt upstream — this is the actual next action, not more coding.** §6.1/§6.2 found that `zcash/sapling-crypto`'s `BatchValidator` (production since 2022, used today by both `zcashd` and Zebra, with a real C++ integration precedent in Pirate Chain — a same-lineage fork) does more than the hand-port plan (§9.4) scoped: it batches RedJubjub signatures too, not just Groth16 proofs. Two live options:
+Decide before any more Groth16 product code. **Hand-port vs. adopt upstream — this is the actual next action, not more coding.** §6.1/§6.2 found that `zcash/sapling-crypto`'s `BatchValidator` (production since 2022, used today by both `zcashd` and Zebra, with a real C++ integration precedent in Pirate Chain — a same-lineage fork) does more than the hand-port plan (§9.4) scoped: it batches RedJubjub signatures too, not just Groth16 proofs. Two live options:
 
 1. **Continue the hand-port** (§9.4 as written) — port only the batching math into Zero's pinned 2018-era crate stack. Phases 0–1 are done and passing (see §0.3). Smaller footprint, no crate migration, but reinvents ~4 years of upstream work and misses signature batching.
 2. **Adopt `sapling-crypto` directly** — migrate to the current crate stack, call `BatchValidator` as-is, following `zcashd`'s or Pirate Chain's real integration as a template. Bigger migration (crosses the `ff`/`group` trait-split §6 flagged as "a large, separate undertaking"), but battle-tested, includes signature batching, has a real batch-size precedent (`MAX_BATCH_SIZE=64`/`MAX_BATCH_LATENCY=100ms` from Zebra).
 
 **This decision is not made in this document — it needs a person to weigh migration cost against reuse value.** Full detail: §6.1 (what upstream ships), §6.2 (who else has adopted it), §9.4's status note (what's already built and tested for option 1).
 
-### 0.1a PENDING DECISION — Groth16 batch verification: hand-port vs. adopt `sapling-crypto`
+### 0.1a PENDING DECISION -- Groth16 batch verification: hand-port vs adopt `sapling-crypto`
+
+**Pending questions (lab-wide, settled owners):**
+
+| Question | Owner / gate | Status |
+|----------|--------------|--------|
+| Groth16 Option A vs B (§0.1a) | Person | **Open** -- G2 then G3 consecutive after G5/G9 |
+| cxx bridge questions (§0.6a) | G2 evidence pass | **Open** |
+| ARM fleet mix (NEON worth?) | Deploy survey | **Open**; G7 NEON **postponed** anyway |
+| FDCACHE 8/16KB vs default vs 1MB | G6 | **Queued** |
+| W5/W6 / getalldata cache / Zerowallet notmodified | Product review | **Postponed** |
+| Halo/Orchard for Zero | Not Zero consensus; Zebro D2 | **Postpone G8** |
+| KAT adapt tests beyond TST-05 green | G9 | **Postponed** |
 
 **Status: blocking.** No further Groth16 implementation work (§9.4 Phase 2 onward) should start until this is resolved by a person, not inferred from this document. Nothing below picks a winner.
 
@@ -94,11 +112,11 @@ Post-Sapling sync is Groth16-bound (~half of ConnectBlock CPU). Zero verifies ev
 - Real risk of the migration itself introducing regressions unrelated to Groth16 batching, simply by virtue of touching every consumer of the affected crates — a much larger consensus-code blast radius than Option A's narrowly-scoped change.
 - Bigger, harder-to-interrupt effort for a single-maintainer project — more exposure if only partially completed.
 
-**Recommendation (offered, not decided): lean toward Option B if the migration cost turns out to be smaller than it currently looks, otherwise Option A.** Concretely: the single highest-leverage next step is **not** more coding on either path, but **scoping Option B's actual migration cost** (§0.2 item 6) — right now it's the con with the least evidence behind it ("large, separate undertaking" is a characterization from §6, not a sized estimate), while Option A's cost and viability are already fully measured (§9.4 Phases 0–1). A short, bounded research spike into what the `ff`/`group` migration and FFI-layer question actually require (see §0.5, §0.6) would turn this from a qualitative pro/con list into a real comparison. Until that spike happens, Option A is the lower-uncertainty choice by default, purely because it's the one with a working prototype — not because it's been shown to be better.
+**Recommendation (offered, not decided): lean toward Option B if the migration cost turns out to be smaller than it currently looks, otherwise Option A.** Concretely: the single highest-leverage next step is **not** more coding on either path, but **scoping Option B's actual migration cost** (§0.2 item 6) — right now it's the con with the least evidence behind it ("large, separate undertaking" is a characterization from §6, not a sized estimate), while Option A's cost and viability are already fully measured (§9.4 Phases 0–1). A short, bounded research spike into what the `ff`/`group` migration and FFI-layer question actually require (see §0.5, §0.6) would turn this from a qualitative pro/con list into a comparison grounded in bridge/depends evidence (§0.6a). Until then, Option A is the lower-uncertainty choice by default only because a working prototype exists -- not because it has been shown better.
 
-### 0.2 Priority-ordered open items (ConnectBlock / sync lab)
+### 0.2 Priority-ordered open items
 
-Planning for this tree stays here (and in **Measures.md** / **WitnessReindex.md** where noted). Do **not** heavily rework **TODO.md** / **ExtTests.md** / **UpdateZero.md** on ZeroPerf until a future merge from Zero400 -- those files are authoritative on the product branch.
+ConnectBlock / sync lab only. Planning for this tree stays here (and in **Measures.md** / **WitnessReindex.md** where noted). Do **not** heavily rework **TODO.md** / **ExtTests.md** / **UpdateZero.md** on ZeroPerf until a future merge from Zero400 -- those files are authoritative on the product branch.
 
 **Groth16 investigation group (ongoing -- one decision gate, then phased work):** hand-port vs adopt (`§0.1a`); optional migration-cost spike; Phases 2+ only after decide; multicore later. Treat as one program, not mixed with FR/wallet Decide items.
 
@@ -106,49 +124,54 @@ Planning for this tree stays here (and in **Measures.md** / **WitnessReindex.md*
 
 | # | Item | Deps | Effort | Risk | Note |
 |---|------|------|--------|------|------|
-| G | Groth16 program | Person decides A/B | L (spike) then XL | Consensus if Phase 3 | See §0.0–0.1a |
-| P1 | NEON blake2b (Equihash) | Confirm ARM deployments | M | Low (not consensus) | Parallel to Groth |
-| P2 | Segmented wallet-off rematch + bootstrap segments + shielded-era profile table | Lab materials | M | None | Measure track |
+| G | Groth16 program | Person decides A/B | L (spike) then XL | Consensus if Phase 3 | See §0.0-0.1a; Stages 2-3 |
+| P1 | NEON blake2b (Equihash) | Confirm ARM deployments | M | Low (not consensus) | Parallel to Groth; Stage 4 |
+| P2 | Segmented wallet-off rematch + bootstrap segments + shielded-era profile table | Lab materials | M | None | Track **L3** / BENCH-SEG; Stage 1 |
 | P3 | Shieldex | Optional dead-field PR; full gate **set aside** (§0.10) | S / M | Med if gating | RSS only |
-| P4 | LoadBlockIndex inner `interruption_point` | None | S | Very low | Interruptibility |
+| P4 | LoadBlockIndex inner interrupt | None | S | Very low | **Done** FIX-LBI |
 | -- | `-O1`/`-O2` + FDCACHE 4×2 | Deliberate resume | M wall | None | **Postponed together** -- O1 estimated low impact; retest with 4×2 later |
 
 **Decoupled product Decide (not Groth -- different owners/risk):** FR-ROTATE / FR-TADDR / FR-Z. **Accounts / W5:** postponed, pending further review (§0.12) -- do not block sync lab. Track product Decide on Zero400 **TODO** at merge; do not edit Zero400 from this lab.
 
-### 0.2a Postponed triage (impact / deps / effort / risk)
+### 0.2a Postponed triage
+
+Columns: impact / deps / effort / risk / suggest.
 
 | Item | Impact if done | Deps | Effort | Risk | Suggest |
 |------|----------------|------|--------|------|---------|
-| Bootstrap matrix leg (n≥1 then n=4) | Closes M-BOOT gap vs reindex | Fixed reset; bootstrap.dat copy | M–L wall | Low | **Do** on measure track |
-| LoadBlockIndex interrupt | Lab/ops stop without SIGKILL | None | S | Very low | **Do** when touching init/main |
+| Bootstrap matrix leg (n≥1 then n=4) | Closes M-BOOT gap vs reindex | Fixed reset; bootstrap.dat copy | M–L wall | Low | **Done** pre-Sapling (M-BOOT-PRESAP); optional post-Sapling |
+| LoadBlockIndex interrupt | Lab/ops stop without SIGKILL | None | S | Very low | **Done** FIX-LBI |
 | FDCACHE 4×2 + O1/O2 | Confirms null / compiler | ZERO_FDCACHE build; wall time | L | None | **Hold** (bundle later) |
 | OPS-AT-HEIGHT / stopatheight | Ops UX | Product design | M | Med | Hold (Zero400) |
 | OPS-REINDEX refuse / `-reindexforce` | Footgun | Loud warn shipped | S | Low | **Postpone** -- warn enough for now (§0.8a) |
 | OPS-REINDEX-SKIP wallet below H | Fat-wallet reindex | Resume markers shipped | M | Med wallet | **Postpone** -- not ConnectBlock (§0.8a) |
-| CleanIndex B2 / witness C | In-process coverage / hardening | B1 RPC shipped | M / S | Med / Med | Hold (B1 enough for now) |
+| CleanIndex ExtTests B2 / witness C | In-process coverage / hardening | ExtTests B1 RPC shipped | M / S | Med / Med | Hold (B1 enough for now) |
 | Second post-Sapling malloc window | Allocation narrative | None | M | None | Skip (unlikely to change §7) |
 | Multicore Groth batch | Throughput on idle cores | Groth land first | M | Med | After single-thread batch |
 
-### 0.2b Lab facts (2026-08) -- do not confuse with product TODO
+### 0.2b Lab facts
+
+Do not confuse with product TODO on Zero400. Numbers: **Measures.md** only.
 
 - Integer founders helper **`GetFoundersRewardAmount` = `subsidy * 75 / 1000`** and integer `GetBlockSubsidy` base are **present in this tree and Zero400** (tests in `main_tests` / founders gtest). Treat checklist "implement subsidy" lines as **status-lag** until Zero400 TODO is updated on merge -- not as missing code here.
 - Reindex **resume** (`L`/`H`/`R`, conf loud warn): **shipped**; interrupt/resume lab in AtHeight. Refuse/`-reindexforce` and skip-wallet: **not** shipped.
-- Stock post-Sapling rematch: **M-RX-POSTSAP-STOCK** ~298 blk/s n=4. Util sampling: on by default in `run_postsapling_baseline.sh`.
+- **FIX-LBI / FIX-IMPORT-POLL:** `LoadBlockIndexDB` and `ThreadImport` honor `ShutdownRequested()`; mid-file interrupt does not advance `L`.
+- Baseline campaigns done: **M-RX-POSTSAP-STOCK**, **M-BOOT-PRESAP**, **M-RX-PRESAP**, **M-BOOT-POSTSAP** (parity note in Measures §8). Util sampling on by default in `run_postsapling_baseline.sh`. Contended tiny/short: **M-RX-TINY-20260811d** / **M-RX-SHORT-20260811b**.
 
-### 0.3 What's actually been built and tested (not just planned)
+### 0.3 What's actually been built and tested
 
 - **§3, §4 (root latch), §4 (anchor-existence index):** implemented, in this repo's tracked source, full regression-tested (Boost `test_bitcoin` 284/284; `zero-gtest` 205–207/207 with 2 known pre-existing flakes). These are real, committed changes.
 - **§9.4 Phases 0–1 (Groth16 hand-port prototype):** real, working code — but **lives entirely in this session's scratchpad** (`/private/tmp/claude-501/.../scratchpad/groth16-batch/`), **not in this repo, and not durable past session end.** Fetched the pinned `librustzcash` source at the exact commit, hand-ported a random-linear-combination batch verifier against the real pinned `bellman`/`pairing` crates, generated genuine Groth16 proofs via `bellman`'s own MiMC/BLS12-381 test circuit, and confirmed batch accept/reject exactly matches per-proof `verify_proof` for N=1,2,8,64 (all-valid and one-corrupted-among-N), repeated 6 times. **If picked back up, Phase 0 (fetch the pinned source) needs re-running from scratch** — nothing to reload, only results to trust (which are fully written up in §9.4, not just asserted here).
 
-### 0.4 Postponed (documented so they aren't lost, not scheduled for near-term work)
+### 0.4 Postponed
 
-- **Run the bootstrap-import leg of `bench_matrix.sh` for real** — the datadir-reset bug is fixed and validated on a small dry run only; a full 4-trial × 2-condition bootstrap comparison hasn't been run.
-- **`LoadBlockIndexDB`'s missing interruption point** (§3 / §0.8) — real, narrow-blast-radius gap; **recommend Do** on next `main.cpp`/`init` touch (was "may stay indefinitely"; now on interruptibility track).
+- **FDCACHE-era bootstrap 4x2 via `bench_matrix.sh`:** still not re-run; stock bootstrap peers are done (**M-BOOT-PRESAP**, **M-BOOT-POSTSAP**). Reset bug fixed earlier.
+- **`LoadBlockIndexDB` interruption:** fixed -- FIX-LBI.
 - **A second `MallocStackLogging` window sampled entirely post-Sapling-activation** (§7) — the current one straddles the activation boundary; given Groth16 verification itself allocates nothing and the dominant allocator (`AddToBlockIndex`) has no Sapling-specific component, a second window is unlikely to change the qualitative conclusion, so not pursued further.
 - **§9.4's originally-planned per-transaction-attributed fallback design** (Phase 4) — §6.2 found current `zcashd` doesn't do this at all (it rejects the whole block with one generic error on batch failure); whether Zero should match that simpler upstream behavior or keep the more careful per-tx design is an open question folded into §0.1's decision, not resolved separately.
 - **Multicore/`rayon`-equivalent parallel batch verification** — both the hand-port (§9.4 Phase 2 item 10) and Zebra's real deployment (§6.2, `sapling-crypto`'s `"multicore"` feature) treat this as separable, later work on top of single-threaded batching, not a prerequisite.
 
-### 0.5 Known gaps in understanding / unresolved questions
+### 0.5 Known gaps / unresolved questions
 
 - **ARM vs. x86_64 real deployment mix for Zero nodes — unknown.** Directly determines whether NEON blake2b (item 2, §0.2) is worth pursuing at all; not checked this session or any prior one.
 - **Whether Zero's current C-header FFI (`librustzcash.h`, raw `extern "C"`) could be kept alongside a `sapling-crypto` migration, or would need replacing with a `cxx`-bridge like `zcashd`'s current architecture** — not investigated; directly affects how big option 2 in §0.1 really is.
@@ -156,15 +179,51 @@ Planning for this tree stays here (and in **Measures.md** / **WitnessReindex.md*
 - **No `-O1`/`-O2` measurement exists at all** (item 3, §0.2) — the "little difference" claim in this document's history has never been checked against real data, in either direction.
 - **§9.4 Phase 4's fallback design vs. current `zcashd`'s simpler whole-block-reject behavior** — genuinely open, not just postponed (see §0.4); affects error-message/ban-scoring granularity, not correctness.
 
-### 0.6 Possible research spikes (not yet scoped as tasks — smaller than the items above, worth a look if time allows)
+### 0.6 Possible research spikes
 
 - **Whether Pirate Chain's C++ `cxx`-bridge port (`src/rust/src/sapling.rs`, `src/rust/src/bridge.rs`) is directly adaptable to Zero**, given both are same-lineage zcashd forks — could shortcut a large fraction of option 2's (§0.1) scoping work if their crate-version pins and build tooling are close enough to Zero's `depends/` system. Not checked: how their `depends`-equivalent build step differs from Zero's, or how much of their bridge code is Pirate-specific vs. reusable.
 - **Whether `zcashd`'s own pre-`cxx`-migration history (its git log, before the current `rust/bridge.h` architecture) shows an intermediate step comparable to Zero's current state** — could reveal a real, tested incremental path from raw-C FFI to batching, rather than jumping straight to `cxx`. Not investigated — the `zcashd` checkout fetched this session was a shallow, single-commit clone with no history to search.
 - **Whether `Equihash::IsValidSolution` has existing test fixtures with known edge cases** (§9.2 step 4 flags `src/test/equihash_tests.cpp` as unchecked) — would materially de-risk the NEON differential-testing step; a five-minute check not yet done.
 
-### 0.7 Section index (each section's own header states its finding — this is a pointer list, not a summary)
 
-§0.0 Groth16 lead-in / steps · §0.1 decision · §0.2 sync-lab priorities · §0.2a postponed triage · §0.2b lab facts · §0.8 signals/logrotate/Win · §0.8a reindex remainder · §0.9 mining+density · §0.10 Shieldex · §0.11 huge-wallet plan · §0.12 accounts/W5/TST · §0.13 plans/specs · §1 methodology · §2 CPU bucket breakdown (Groth16 dominates post-Sapling) · §3 disk I/O fd-cache/bufsize (implemented, no measured win) · §4 root latch (implemented, flat) + anchor-existence index (implemented, untested for CPU-bucket impact) · §5 Equihash/blake2b root cause · §6 Groth16 batching scoped, §6.1 upstream `BatchValidator` found, §6.2 cross-ecosystem survey · §7 memory profiling (`AddToBlockIndex` dominates) · §8 per-block allocation detail + Shieldex field audit · §9 recommended paths, §9.4 Groth16 execution plan (Phases 0–1 done).
+### 0.6a Groth Option B migration-cost spike
+
+Qualitative scope only. Calendar time estimates are **not** refined here -- there is no measured basis for days/weeks claims.
+
+**Question:** how large is adopting `sapling-crypto::BatchValidator` relative to continuing the hand-port on pinned crates?
+
+| Layer | Finding | Effort band |
+|-------|---------|-------------|
+| Crypto API | `BatchValidator` batches Groth16 and RedJubjub spend-auth/binding sigs; Zebra documents batch-size / latency knobs | Reuse if crates move |
+| Crate graph | Modern stack crosses the `ff`/`group` trait split vs Zero's pinned 2018 `bellman`/`pairing`/`jubjub` | L–XL depends + Rust consumers |
+| FFI | See **cxx questions** below | M–L if adopting cxx; unknown if C header can be kept |
+| Consensus glue | Buffer proofs in `ContextualCheckBlock` (today eager per-tx); batch-fail policy | M |
+| Hand-port alternative | `groth16-batch-poc` Phases 0–1 prove math on pinned crates; Phase 2 = FFI + `main` only, no crate migration, no sig batching | M after decide A |
+
+**Decision inputs, not a schedule:** Option B is a release-scale migration if done like current zcashd (depends + bridge + Sapling verify + regression). Option A is narrower (Phase 2–3 on pinned crates) but omits signature batching and keeps in-house crypto review. Next engineering choice after baseline numbers: Pirate/zcashd bridge inventory **or** Option A Phase 2 FFI sketch -- not both in parallel.
+
+**Lab host:** this ZeroPerf machine is arm64 with NEON available; fleet mix remains unknown.
+
+#### cxx questions
+
+**What `cxx` is:** the [cxx](https://cxx.rs/) crate generates a typed bridge between C++ and Rust so each side can call the other with real types, instead of hand-written `extern "C"` plus raw pointers/bytes. Modern `zcashd` uses this pattern for Sapling (`rust::Box<...>`, generated bridge headers). Pirate mirrors that shape in a vendored `src/rust/` crate.
+
+**What Zero has today:** `librustzcash.h` and raw `extern "C"` entry points (e.g. `librustzcash_sapling_check_spend`). No in-tree `cxx` bridge.
+
+**Open questions (unanswered -- these are the spike, not settled facts):**
+
+1. **Must Option B use `cxx`?** Or can upgraded Rust crates still expose a stable C ABI that keeps Zero's existing header shape?
+2. **If `cxx` is required,** what is the blast radius in Zero's `depends/` / cargo-offline / reproducible-build path compared to Pirate or current zcashd?
+3. **How much of Pirate's or zcashd's bridge** is reusable vs fork-specific?
+4. **Can batching land behind the current C FFI** as an incremental Option A/B hybrid, or is crate migration inseparable from the bridge rewrite?
+
+Until those are answered with file/crate evidence, do not treat "need cxx" as decided -- treat it as the main unknown that sizes Option B.
+
+### 0.7 Section index
+
+Pointer list only; each section states its own finding.
+
+§0.0 Groth16 lead-in / steps · §0.1 decision · §0.2 sync-lab priorities · §0.2a postponed triage · §0.2b lab facts · §0.6a Option B / cxx · §0.8 signals · §0.8a reindex remainder · §0.9 mining+density · §0.10 Shieldex · §0.11 huge-wallet · §0.12 accounts/W5/TST · §0.13 plans (BENCH/FIX/IMP, L0-L7, Stages) · §0.13 G stages · §1 methodology · §2 CPU buckets · §3 fd-cache · §4 latch/anchor · §5 Equihash · §6 Groth16 · §7 memory · §8 allocations · §9 paths / §9.4 Phases 0–1.
 
 ---
 
@@ -190,18 +249,22 @@ Planning for this tree stays here (and in **Measures.md** / **WitnessReindex.md*
 
 Prefer `interruption_point()` on Boost worker threads; add explicit `ShutdownRequested()` returns in long CPU loops that may not be interruptible yet.
 
-| Priority | Function / area | Why (CPU) | Mechanism |
-|----------|-----------------|-----------|-----------|
-| P0 | `LoadBlockIndexDB` `vSortedByHeight` + map build (`main.cpp`) | Multi-minute index reconcile | `interruption_point()` every N |
-| P0 | `ThreadImport` / `LoadExternalBlockFile` between files / progress (`init.cpp` / `main.cpp`) | Full reindex / bootstrap on `zcash-loadblk` | `ShutdownRequested()` + existing interrupt |
-| P1 | `ConnectBlock` / `ContextualCheckBlock` outer per-block path on import | Dominant reindex CPU (Groth16 inside) | Rely on thread interrupt at block boundaries; optional flag check per block |
-| P1 | Equihash verify in header checks (reindex) | Smaller but steady | Optional every N headers |
-| P2 | `BuildWitnessCache` wallet rebuild | Fat-wallet start | Flag check between heights |
+| Tier | Function / area | Why (CPU) | Mechanism |
+|------|-----------------|-----------|-----------|
+| T0 | `LoadBlockIndexDB` `vSortedByHeight` + map build (`main.cpp`) | Multi-minute index reconcile | `interruption_point()` every N -- **FIX-LBI done** |
+| T0 | `ThreadImport` / `LoadExternalBlockFile` between files / progress (`init.cpp` / `main.cpp`) | Full reindex / bootstrap on `zcash-loadblk` | `ShutdownRequested()` -- **FIX-IMPORT-POLL done** |
+| T1 | `ConnectBlock` / `ContextualCheckBlock` outer per-block path on import | Dominant reindex CPU (Groth16 inside) | Rely on thread interrupt at block boundaries; optional flag check per block |
+| T1 | Equihash verify in header checks (reindex) | Smaller but steady | Optional every N headers |
+| T2 | `BuildWitnessCache` wallet rebuild | Fat-wallet start | Flag check between heights |
 | -- | Signal handlers | -- | **Never** call `exit()`; only set atomics |
+
+**ID note:** Tiers **T0-T2** are interrupt-site ordering in this subsection only. Lab priorities remain **G** / **P1-P4** in §0.2.
 
 Do **not** spray checks into every Groth16 pairing call (overhead). Boundaries of blocks/files/heights are enough.
 
-#### debug.log reopen -- `create` explained; validate Linux / Windows
+#### debug.log reopen
+
+Explain `create`; validate Linux / Windows.
 
 **What `create` means (logrotate):** after rotating (renaming) the old `debug.log`, logrotate's `create mode owner group` creates a **new empty file at the original path** before `postrotate`. That matches what `freopen(..., "a", fileout)` expects: a path named `debug.log` exists again. Equivalent manual step: `mv debug.log debug.log.1 && touch debug.log && kill -HUP $PID`.
 
@@ -213,9 +276,11 @@ Without `create`/`touch`, behavior depends on OS/`freopen`: the process may keep
 |----------|-------|---------------|
 | **Linux** | Install/sample logrotate snippet with `create 0600` + `postrotate kill -HUP $(cat datadir/.../zerod.pid)`; or manual mv/touch/HUP; force `-debug=rpc` traffic | New `debug.log` grows; `.1` does not; process stays up |
 | **Windows** | No SIGHUP. Document: rotate by stopping node or using copytruncate-style tooling; or implement/confirm reopen trigger if any Win path exists (today reopen is SIGHUP-only) | Expected: **graceful rotate via SIGHUP is POSIX-only**; Windows ops use stop/start or external copy while stopped |
-| **macOS** | Done (2026-08-11) | -- |
+| **macOS** | Done | -- |
 
-#### Windows signals -- expected behavior and validation plan
+#### Windows signals
+
+Expected behavior and validation plan.
 
 POSIX `sigaction(SIGTERM/SIGINT/SIGHUP/SIGPIPE)` is under `#ifndef WIN32` in `init.cpp`. This tree has **no** `SetConsoleCtrlHandler` wiring for Ctrl+C → `StartShutdown()`.
 
@@ -231,7 +296,9 @@ POSIX `sigaction(SIGTERM/SIGINT/SIGHUP/SIGPIPE)` is under `#ifndef WIN32` in `in
 
 **Plan:** Windows smoke: (1) RPC stop clean; (2) Ctrl+C -- expect delayed exit + store flush evidence in log; (3) no SIGHUP logrotate claim.
 
-### 0.8a Not-done reindex items -- assessment and recommendation
+### 0.8a Not-done reindex items
+
+Assessment and recommendation.
 
 | Item | Status | Impact | Deps | Effort | Risk | Recommendation |
 |------|--------|--------|------|--------|------|----------------|
@@ -240,12 +307,14 @@ POSIX `sigaction(SIGTERM/SIGINT/SIGHUP/SIGPIPE)` is under `#ifndef WIN32` in `in
 | Conf / mismatch **refuse** + `-reindexforce` | Not done | Medium footgun | Product UX copy | S | Low | **Postpone** -- warn already reduces footgun; refuse is nice-to-have after merge, not on perf critical path |
 | **SKIP-wallet** below H | Not done | High for fat-wallet reindex | Resume markers | M | Med (wallet/tip consistency) | **Postpone** -- valuable for DevFee-scale wallet reindex, but separate from ConnectBlock lab; needs careful wallet-scan semantics |
 | Skip-chain connect below H | Out of scope | -- | Snapshot story | L | High | **Do not pursue** until assumeutxo-class design |
-| LoadBlockIndex interrupt | Not done | High for stuck lab/bootstrap-reset | None | S | Very low | **Do** on next `main.cpp`/`init` touch (perf lab pain) |
-| Bootstrap segment benches | Not done | High measure | bootstrap.dat | M–L wall | Low | **Do** on measure track |
+| LoadBlockIndex interrupt | **Done** (FIX-LBI) | High for stuck lab/bootstrap-reset | None | S | Very low | Shipped -- poll every 1000 |
+| Bootstrap segment benches | Pre-Sapling n=4 done | High measure | bootstrap.dat | M–L wall | Low | Optional post-Sapling bootstrap window / density CSV |
 
 **Justify:** shipped resume+warn already make reindex operable and interruptible at file boundaries. Remaining refuse/skip-wallet are product/ops polish and fat-wallet specific -- they do not improve Groth16 or stock `-disablewallet` blk/s. Lab priority is interruptibility + segmented bootstrap/reindex measures.
 
-### 0.9 Measure-task add-ons (mining profile; shielded density table)
+### 0.9 Measure-task add-ons
+
+Mining profile and shielded density table.
 
 **`zcash-loadblk`:** pthread name of `ThreadImport` (`init.cpp`) -- the single worker that runs `-reindex` / `bootstrap.dat` / `-loadblock`. Instruments Time Profiler filters to this thread for ConnectBlock CPU. Not the miner (`zcash-miner`) and not scriptcheck (`zcash-scriptch`).
 
@@ -259,9 +328,23 @@ POSIX `sigaction(SIGTERM/SIGINT/SIGHUP/SIGPIPE)` is under `#ifndef WIN32` in `in
 
 **Single shielded density table (drive lookups once):**
 
-Build once offline from blocks/bootstrap (wallet off): CSV keyed by height or era id with columns `era`, `h0`, `h1`, `sapling_spends`, `sapling_outputs`, `sprout_js`, `fully_shielded_tx`, `blocks`, `shielded_tx_per_block`. Eras at least: pre-Sapling, Sapling-onset window, deep post-Sapling (match rematch windows). Every segment rematch cites `era` id instead of re-scanning. Store under `reindex-profile/shielded-density.csv` (gitignored lab artifact OK).
+**When:** **now / before or in parallel with Stage 1 onset rematch** -- offline scan of `blocks/` or `bootstrap.dat`, wallet off, **no** long `zerod` trial and **not** gated on rematch completion. Prefer finishing density **before** citing onset rematch numbers so those rows can reference `era` ids. Rematch may proceed with a provisional era label if CSV is still building; backfill the cite when the file lands.
 
-### 0.10 Shieldex -- attempt outcome / finish or set aside
+**What:** CSV keyed by height or era id with columns `era`, `h0`, `h1`, `sapling_spends`, `sapling_outputs`, `sprout_js`, `fully_shielded_tx`, `blocks`, `shielded_tx_per_block`. Eras at least: pre-Sapling (match M-*-PRESAP windows), Sapling-onset (e.g. 490k-520k), deep post-Sapling (match 600k-900k). Store under `reindex-profile/shielded-density.csv` (gitignored). Assign an `M-*` row in Measures when first produced -- until then this stays a Perf §0.9 / BENCH-SEG input, not a placeholder measure ID.
+
+**Chunked scan / progress (required):** do not wait for a full tip pass before assessing. Use two layers:
+
+1. **Progress cursor (monitor):** append-only checkpoint file (e.g. `reindex-profile/shielded-density.progress.jsonl`) every **400k heights** completed (or wall ~N minutes if preferred). Fields: `h_done`, `blocks_scanned`, running totals for spends/outputs/js, `ts`. Tip ~2.5M => **~7** coarse ticks (400k = half of an **800k** lab band). Resume = continue from last `h_done + 1`.
+
+2. **Density rows (assess):** write/append CSV rows as each **closed** height band finishes -- partial chain is still usable.
+   - **Fine first (Stage 1 value):** rematch windows -- e.g. 50k-75k, 490k-520k, 600k-900k -- scan these before or as dedicated passes so onset rematch is not blocked on a tip-wide job.
+   - **Coarse chain bands:** **400k** height bands for whole-chain shape (~7 to tip), but **split at Sapling activation 492850** so no row mixes pre- and post-Sapling (e.g. `0-399999`, `400000-492849`, `492850-799999`, `800000-1199999`, ...). Do **not** use a naive band that straddles activation.
+
+**Partial-run rule:** any completed fine or coarse band with a CSV row is citable; incomplete bands stay out of Measures until closed. Progress file alone is ops monitoring, not a measure row.
+
+**Scanner:** `contrib/perf/shielded_density.py` (RPC `getblock <hash> false` + mininode). Zero's `getblock` verbosity 2 omits shield arrays -- do not count from that JSON.
+
+Attempt outcome; finish or set aside.
 
 **Finding (unchanged):** 22×`int64_t` always in RAM (~176 B/block); disk populate/serialize gated on `-zindex`; real RPC consumer in `rpc/blockchain.cpp`; **`nNotarizations` dead** (increment commented out).
 
@@ -274,7 +357,9 @@ Build once offline from blocks/bootstrap (wallet off): CSV keyed by height or er
 
 **Set aside (recommended now):** do **not** block Groth/measure track on (3). Optional tiny PR for (2) only when editing `chain.h` anyway. Full gating is a memory project with index-layout risk; payoff ~435 MB tip RSS, zero ConnectBlock ms. **Status: set aside with explanation; tiny dead-field cleanup optional.**
 
-### 0.11 Huge-wallet utilization -- execution plan (ready)
+### 0.11 Huge-wallet utilization
+
+Execution plan is ready to run.
 
 **Scope:** tip-quiet wallet RPC CPU/latency; **not** `zcash-loadblk` blk/s. Profiles **0 / 2 / 3** = named wallet snapshots (empty / extracting / current fat). Separately, getalldata **day code 2** = **7 days** of History (`rpczerowallet.cpp`: 1→1d, 2→7d, 3→30d, …; omitted arg2 still ~30y).
 
@@ -297,7 +382,9 @@ Build once offline from blocks/bootstrap (wallet off): CSV keyed by height or er
 4. Optional: 1000 unused T-addrs control wallet -- expect small delta vs UTXO-fat profile 3.
 5. Record under Measures M-GAD-* / campaign `wallet-util-*`; no host paths in public docs.
 
-### 0.12 Accounts, W5, TST -- revisited recommendations
+### 0.12 Accounts, W5, TST
+
+Revisited recommendations.
 
 **Accounts (`WAL-RPC-ACCOUNTS`) and W5 -- postponed, pending further review.**
 
@@ -314,45 +401,52 @@ Both stay **out of the active sync-lab queue**. No implement / apply recommendat
 
 | Item | Rec | Why |
 |------|-----|-----|
-| **TST-09** `-blocknotify` / `-walletnotify` | **Implement next** among TST | Small; alert half done; unblocks OPS-ALERT-STRIP confidence; no perf dependency |
-| **TST-05** Equihash (192,7) vectors | **Implement when mining profile starts** | Directly de-risks mining/NEON lab; low value until then |
+| **TST-09** `-blocknotify` / `-walletnotify` | **Done** | `DeprecationTest.BlockNotify*` / `WalletNotify*`; alert half already done |
+| **TST-05** Equihash (192,7)/(48,5) KATs | **Done** (validator + solver cases; `1927EQ.txt` + `1927EQ_h1.hex`) | `equihash_tests` green; pairs BENCH-MINE |
 | **TST-01** `getsupply` / `zs_*` depth | **Implement opportunistically** | Exclusive depth; not gate-blocking; pairs getalldata work |
 | **TST-03** zeronode arg validation | **Postpone unless editing zeronode RPC** | Under-dev; no sync-lab coupling |
-| **CleanIndex B2** / witness C | **Postpone** | B1 `reindex_shielded` covers reindex witness; B2 high harness cost |
+| **CleanIndex ExtTests B2** / witness C | **Postpone** | ExtTests B1 `reindex_shielded` covers reindex witness; B2 high harness cost |
 | **finalsaplingroot** / other Bfail | **Postpone** | Not on measure critical path |
 
-### 0.13 Plans and specifications -- benchmarking, immediate fixes, improvements
+### 0.13 Plans and specifications
 
-Doc ownership: **Perf.md** (this section) + campaign IDs / vocabulary in **Measures.md** §12. Do **not** edit Zero400 TODO/ExtTests from this track. Scripts: `contrib/perf/`.
+Benchmarking, immediate fixes, and improvements.
 
-#### A. Benchmarking -- campaign specifications
+Doc ownership: **BENCH-/FIX-/IMP-***, **L0-L7**, Stages, **G**/**P1-P4**, lab materials (§1) here. **`M-*`** numbers + ledger `CAMPAIGN=` map: **Measures.md** §8 (one-line ID cites below). Do **not** edit Zero400 TODO/ExtTests from this track. Scripts: `contrib/perf/`.
+
+#### A. Benchmarking
 
 | Spec ID | Campaign / measure | Goal | Method | Pass / deliverable | Deps | Status |
 |---------|-------------------|------|--------|-------------------|------|--------|
-| **BENCH-STOCK** | M-RX-POSTSAP-STOCK | Stock ConnectBlock baseline | `run_postsapling_baseline.sh` n=4, window 600k–900k, `-disablewallet`, ledger | Mean blk/s + stdev in ledger/`REPORT`; util.tsv optional | Full/short source datadir | **Done** (~298 blk/s) |
-| **BENCH-BOOT** | M-BOOT-* | Bootstrap import vs reindex | `bench_matrix.sh` bootstrap mode; fixed reset (exclude `blocks/`); n≥1 then n=4 | Comparable height_per_s; no -28 stuck | Original `bootstrap.dat` copy-only | **Plan -- Do** |
-| **BENCH-SEG** | Segment rematch + density | Era-bounded throughput | Wallet-off segments citing `shielded-density.csv` eras | Per-era blk/s rows in Measures | Density CSV (§0.9) | **Plan -- Do** |
-| **BENCH-UTIL** | Util smoke | RSS/CPU during import | `SAMPLE_UTIL=1` on short window | util.tsv milestones | Stock binary | Smoke done; keep on postsap runs |
-| **BENCH-MINE** | Mining Equihash profile | Solve cost ≠ verify | Instruments on `zcash-miner`; ENABLE_MINING | ms/block + blake2b share; separate campaign id | ARM-mix optional later | **Plan** (parallel) |
-| **BENCH-WAL** | M-GAD-* huge wallet | Tip RPC CPU (not loadblk) | Profiles 0/2/3; getalldata matrix (§0.11) | wall_ms + CPU sample table | Disposable copies | **Plan** (wallet track) |
+| **BENCH-STOCK** | M-RX-POSTSAP-STOCK | Stock ConnectBlock baseline | `run_postsapling_baseline.sh` n=4, window 600k-900k, `-disablewallet`, ledger | Mean/stdev in Measures | Full/short source datadir | **Done** |
+| **BENCH-BOOT** | M-BOOT-PRESAP / M-BOOT-POSTSAP | Bootstrap import vs reindex | `MODE=bootstrap`; reset excludes `blocks/`; n>=1 then n=4 | Comparable height_per_s; no -28 stuck | Original `bootstrap.dat` copy-only | **Done** (pre-Sap + post-Sap; post-Sap parity in Measures) |
+| **BENCH-SEG** | M-DENS-* / M-BOOT-ONSET / M-RX-ONSET | Era-bounded throughput + density | Density tip-complete; onset bootstrap+reindex n=1 peers done | Per-era rows in Measures §3.2a / §8 | Density CSV (§0.9) | **Active** (track L3; optional n=4) |
+| **BENCH-UTIL** | M-RX-UTIL-SMOKE | RSS/CPU during import | `SAMPLE_UTIL=1` on short window | util.tsv milestones | Stock binary | Smoke done; keep on postsap runs |
+| **BENCH-MINE** | M-MINE-REGTEST-SMOKE / M-MINE-NEON-PROBE | Solve cost ≠ verify | regtest+probe done; mainnet Instruments opt-in; **NEON A/B parked** (grouped hold) | ms/block + blake2b share | NEON build (parked) | **Active** (solve profile); NEON hold |
+| **BENCH-WAL** | M-WAL-SYNC-P0 / M-WAL-SYNC-FAT / M-CPU-WAL-FAT; getalldata matrix open | Tip RPC + wallet-on sync util | fat done ~19 blk/s (~50x vs P0); CPU = VerifyAndSetInitialWitness; Idx1 tip util open; getalldata matrix (§0.11) open | wall_ms + CPU + wallet_bytes | Disposable copies | Catalogued; Idx1 next |
 | **BENCH-FDCACHE** | 4×2 + O1/O2 | Confirm null / compiler | Bundled later; not current mix | A/B ledger | ZERO_FDCACHE build | **Postponed** |
 | **BENCH-WIN-SIG** | Windows stop / Ctrl+C | Document teardown | RPC stop + Ctrl+C; inspect `debug.log` for `Shutdown` / flush | Written expected-behavior note | Win host/VM | **Plan** |
 | **BENCH-LOGROT** | Linux debug.log HUP | Validate `create`+HUP | mv/touch/HUP or logrotate `create`; `-debug=rpc` | New file grows; rotated frozen | Linux host | **Plan** (macOS done) |
 
-**Harness rules (all BENCH-*):** never write default Application Support / `%APPDATA%\zero`; refuse that path; cite Measures vocabulary; append ledger via `accumulate_bench.py`.
+**Harness rules (all BENCH-*):** never write default Application Support / `%APPDATA%\zero`; refuse that path; cite Measures vocabulary; append ledger via `accumulate_bench.py`. Do **not** batch trials expected to exceed **~20 minutes each** unless each trial can be restarted alone (separate command / resume from trial index). Long windows (e.g. post-Sap 600k-900k) run as one trial per invocation, or with explicit `TRIAL=` / resume support.
 
-#### B. Immediate fixes (small blast radius, do next)
+**Extractor extensions (non-blocking):** rotation-aware multi-file `debugN.log`; optional `-debug=bench` / xctrace into the same Measures vocabulary; witness/init duration fields so tip-hour contradictions can be cross-checked in structured form. Do not block these on Groth16 product work.
+
+#### B. Immediate fixes
 
 | Fix ID | Change | Why now | Spec | Risk |
 |--------|--------|---------|------|------|
-| **FIX-LBI** | Inner `interruption_point()` / `ShutdownRequested()` in `LoadBlockIndexDB` long loops | Lab/ops stuck without SIGKILL; high-CPU site | Poll every N blocks in `vSortedByHeight` / map build; never in signal handler | Very low |
-| **FIX-IMPORT-POLL** | Confirm `ThreadImport` / file boundaries honor shutdown | Ctrl+C / stop during reindex/bootstrap | Existing interrupt + explicit flag at file/block boundary if missing | Low |
-| **FIX-LOG-DOC** | Ops note: logrotate needs `create`/`touch` before HUP | Prevents silent write-to-renamed-inode | Snippet in contrib or BUILD; Linux validate BENCH-LOGROT | None |
-| **FIX-TST09** | Tests for `-blocknotify` / `-walletnotify` | Alert strip confidence | ExtTests/TST when editing alerts | Low |
+| **FIX-LBI** | Inner `ShutdownRequested()` + `interruption_point()` in `LoadBlockIndexDB` long loops | Lab/ops stuck without SIGKILL; high-CPU site | **Done:** poll every 1000 in collect / accounting / fill-link loops; return false | Very low |
+| **FIX-IMPORT-POLL** | `ThreadImport` honors shutdown at file boundaries | Ctrl+C / stop during reindex/bootstrap | **Done:** poll before each blk file and after `LoadExternalBlockFile`; do not advance `L` mid-file; skip further bootstrap/loadblock if shutting down | Low |
+| **FIX-LOG-DOC** | Ops note: logrotate needs `create`/`touch` before HUP | Prevents silent write-to-renamed-inode | **Done:** `doc/files.md` + Perf §0.8; Linux validate still BENCH-LOGROT | None |
+| **FIX-TST09** | Tests for `-blocknotify` / `-walletnotify` | Alert strip confidence | **Done** -- `DeprecationTest` block+wallet skip markers | Low |
+| **FIX-WAL-WITNESS-IBD** | Skip/throttle `BuildWitnessCache` during IBD; rebuild at tip | Fat-wallet reindex ~50x (M-CPU-WAL-FAT) | **Prototype done** -- `-walletwitness=ibd-defer` (~35x to h15k); productize/tests open -- §0.14 | Med (spend UX during sync) |
+| **FIX-WAL-WITNESS-NOTEIDX** | Iterate note-bearing txs only | Same; avoid `empty()` on ~801k maps | **Prototype done** -- `-walletwitnessnoteidx=1` (~33x h8k); productize open -- §0.14 | Low–med |
+| **FIX-WAL-WITNESS-DIRTY** | Dirty set for notes needing initial witness | Differential; skip validated | **Proposed** -- §0.14 | Med (reorg/load) |
 
-Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex gating, Accounts, W5, Groth Phase 2 (decision-blocked).
+Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex gating, Accounts, W5, Groth Phase 2 (decision-blocked). FDCACHE buffer A/B (G6) held until wallet-witness triage decides order.
 
-#### C. Improvements (near-term, after B or parallel measure)
+#### C. Improvements
 
 | Imp ID | Improvement | Track | Gate |
 |--------|-------------|-------|------|
@@ -360,15 +454,246 @@ Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex ga
 | **IMP-NEON** | NEON blake2b if ARM mix warrants | Equihash | ARM deployment check |
 | **IMP-GROTH-SPIKE** | Bound Option B migration cost (FFI/`cxx`, `ff`/`group`) | Groth | Person still decides A/B before Phase 2 |
 | **IMP-SHIELDEX-DEAD** | Optional remove dead `nNotarizations` when touching `chain.h` | RSS/cleanup | Opportunistic; full gate set aside |
-| **IMP-WITNESS-B2** | CleanIndex harness | WitnessReindex | Postponed; B1 enough |
+| **IMP-WITNESS-B2** | CleanIndex harness | WitnessReindex | Postponed; ExtTests B1 enough |
 | **IMP-WAL-MATRIX** | Execute §0.11 getalldata matrix | Wallet util | Disposable wallets; Accounts/W5 still pending review |
 
-#### D. Explicit non-goals (this cycle)
+#### D. Explicit non-goals
 
 - Edit Zero400 TODO / ExtTests / UpdateZero from ZeroPerf lab
 - FDCACHE 4×2 until deliberately resumed
 - WAL-RPC-ACCOUNTS or W5 implementation
 - Groth16 Phase 2+ without §0.1a decision
+
+#### E. Recent results
+
+Pointers only -- numbers in **Measures.md**.
+
+| Item | Pointer |
+|------|---------|
+| FIX-LBI / FIX-IMPORT-POLL / FIX-TST09 | Shipped (this tree) |
+| Pre-Sap peer | M-BOOT-PRESAP, M-RX-PRESAP |
+| Post-Sap peer | M-BOOT-POSTSAP, M-RX-POSTSAP-STOCK (parity) |
+| Contended snaps | M-RX-TINY-20260811d, M-RX-SHORT-20260811b |
+| Density | M-DENS-* fine + coarse tip-complete (`shielded-density.csv`) |
+| Onset rematch | M-BOOT-ONSET (~130) / M-RX-ONSET (~140) n=1 peers |
+| Wallet sync | M-WAL-SYNC-P0 / M-WAL-SYNC-FAT / M-CPU-WAL-FAT / M-CPU-WAL0-TINY; archive `test-logs/archives/walletsync-fat-g0-20260812.tar.gz`; FINDINGS + §0.14 |
+| Equihash KATs | `contrib/perf/kats/` + TST-05 green; G9 adapt postponed |
+| Accepted queue | Perf §0.13 G -- G0 catalogued; witness FIX triage next; G6 held; G7/G8 postpone |
+| Ledger map | Measures §8 `CAMPAIGN=` |
+
+#### F. Baseline recreation program
+
+Active program -- not optional leftovers.
+
+Goal: one coherent **current** baseline set for decisions (Groth A/B, NEON, further ConnectBlock work). Prior session under-scoped this as interruptibility + one bootstrap window; that was wrong relative to the program.
+
+| Track | Items | Why | Status |
+|-------|-------|-----|--------|
+| **Already shipped + tested** | §3 FDCACHE path, §4 latch + anchor Exists, resume L/H/R, ExtTests **B1** `reindex_shielded`, founders integer subsidy, FIX-LBI/IMPORT, `groth16-batch-poc` Phases 0-1 | Product/lab foundation; do not re-litigate | In tree |
+| **L0 clean snaps** | Solo tiny + short after FIX-LBI | Uncontaminated tip rates | Done; **contended** -- see M-RX-TINY-20260811d / M-RX-SHORT-20260811b; optional clean re-run |
+| **L1 pre-Sap peer** | Reindex n=4 window 50k-75k | Peer to M-BOOT-PRESAP | **Done** -- M-RX-PRESAP |
+| **L2 post-Sap bootstrap** | Bootstrap n=4 window 600k-900k | Peer to M-RX-POSTSAP-STOCK | **Done** -- M-BOOT-POSTSAP |
+| **L3 era segments** | Sapling-onset rematch + density table | Era-bounded narrative | **Near-done** -- density tip-complete; M-BOOT-ONSET / M-RX-ONSET n=1 peers; optional n=4 if noise warrants |
+| **L4 util** | util.tsv on L1/L2-class trials | RSS/CPU at milestones | On by default; smoke M-RX-UTIL-SMOKE |
+| **L5 TST-09** | `-blocknotify` / `-walletnotify` default-build markers | Approved PIR-01 companion; alert half done | **Done** (FIX-TST09) |
+| **L6 Groth inputs** | Option B migration-cost spike; keep `groth16-batch-poc` runnable | Unblocks §0.1a without Phase 2 code | Spike prose in §0.6a; poc verify still open |
+| **L7 ARM note** | This lab host is **arm64** (NEON=1) | Deployment mix still unknown; NEON worth labbing here | Fact |
+| Hold | FDCACHE 4x2, Accounts/W5, CleanIndex ExtTests B2, Groth Phase 2 | Explicit non-goals until gates clear | -- |
+
+**Naming:** **L0-L7** = baseline recreation tracks. ExtTests **B1** / CleanIndex **B2** = harness IDs (WitnessReindex / ExtTests) -- different namespace.
+
+Acceptance: Measures.md rows for L0-L3 campaigns with ledger REPORT lines; TST-09 green on default `zero-gtest`; §0.1a inputs include the cxx questions in §0.6a answered with evidence or explicitly still open.
+
+#### G. Next stages
+
+Ordered stages for improvements, experiments, and doc/code updates. No calendar estimates. Gates are explicit.
+
+**Stage 0 -- Finish baseline in flight**
+
+- **Done.** Tracks L0/L1/L2 complete; Measures rows + §0.13 E pointers updated.
+- Pre-Sap / post-Sap peer parity: see Measures §8 cross-campaign notes.
+- Next: Stage 1 era segments; long trials only one-at-a-time or with per-trial resume.
+
+**Stage 1 -- Close the baseline matrix**
+
+Status: density tip-complete; onset bootstrap + reindex peers n=1 **done**.
+
+- Density: `shielded-density.csv` / **M-DENS-*** (fine + coarse to tip); `DENSITY_SCAN_DONE`.
+- Onset: **M-BOOT-ONSET** 129.87 vs **M-RX-ONSET** 140.19 blk/s (n=1 each, 490k-520k) -- ~parity; both ~2x slower than deep post-Sap ~300 (dual Sprout+Sapling).
+- Optional: raise onset to n=4 only if noise warrants; clean solo tiny if L0 stays contention-marked.
+- Gate to Stage 2: met (density + onset throughput + peer).
+
+#### Accepted lab queue
+
+Owner-accepted order (solo host; one long trial at a time):
+
+| Step | ID | Work | Status |
+|------|-----|------|--------|
+| 1 | **G0** | Fat-wallet tiny sync + CPU catalog vs P0 | **Done** -- ~19 blk/s, ~50x; `VerifyAndSetInitialWitness` ~97%; archive + FINDINGS + §0.14 |
+| 2 | **G1** | Measurement hygiene: leaf+height SOP; needle notes | **Done** |
+| 3 | **G0b** | Lab hygiene: util sampler timeout; split witness vs AddToWallet buckets | **Done** -- `WALLETINFO_TIMEOUT_S`; `witness_cache` bucket (re-bucket ~97% / add_ordered ~0.03%) |
+| 4 | **G0c** | Note-density on golden fat wallet | **Done** -- note_tx **1403 / 801619 (0.175%)**, all Sapling |
+| 5 | **G0d** | Prototype **FIX-WAL-WITNESS-IBD** A/B | **Done** -- stock **16.75** vs defer **595** blk/s to h~15k (~**35x**); `-walletwitness=ibd-defer` |
+| 6 | **G0e** | Tip-quiet getalldata on fat tiny tip | **Done** (scoped) -- ~0.75–1.2 s after rebuild; **not** mainnet Idx1 513k-UTXO; full Idx1 still open |
+| -- | **NOTEIDX** | FIX-WAL-WITNESS-NOTEIDX prototype | **Advanced** -- `-walletwitnessnoteidx=1` ~**33x** to h8k (14.9→486 blk/s); DIRTY still postponed |
+| -- | **G6** | FDCACHE 8/16 KB A/B | **Hold** -- stock binary has no `-perffdcache`; prior 1MB A/B **null** (M-CPU-FD-THR); low priority vs witness ship |
+| 7 | **G5** | Equihash solve Instruments (mainnet template) | After deliberate resume |
+| 8 | **G9** | KAT adapt/extra validate postponed | Note only |
+| -- | **G7** / **G8** | NEON / Halo-Orchard | **Postpone** |
+| 9 | **G2** then **G3** | Groth decision then implement | Consecutive after G5/G9 slot |
+
+**Next after this batch:** productize `-walletwitness=ibd-defer` (tests/docs) or hold as lab flag; full-mainnet Idx1 getalldata when a full-tip disposable is ready; G5 when resumed.
+
+**G8 lookup note (postpone body):** Zebro treats Orchard/Halo2 as a gated decision (D2): launch assumption Orchard-only / no Sprout-Sapling residue; blocked on **NU6.2 Halo2 incident review** (emergency Orchard disable, dual verifying keys, proof-length rule -- see Zebro `ROADMAP.md` M4, `ZEBRO.md` D2). No Orchard numbers until that opens. Pirate NU5+ integration attempts: review when G8 resumes; not a ZeroPerf implement track. Zero consensus remains Sprout+Sapling Groth16 only.
+
+**G1 -- leaf table + height SOP**
+
+1. Capture Time Profiler during a height-bounded import (or tip RPC).
+2. Record `height_before` / `height_after` (and era: pre-Sap / onset / post-Sap).
+3. Export XML; run `bucket_profile.py` with `zcash-loadblk` and optionally `ALL`.
+4. Report **buckets** (near 100% of filtered weight) and **top leaves** (top-N only -- do not expect 100%).
+5. Do not name `Fr::mul_assign` as Sapling Groth16 unless the stack also hits `verify_proof` / `miller_loop` / `librustzcash_sapling_check_*` (jubjub/pairing frames are shared with tree and Sprout paths). Prefer post-Sap windows for Groth narrative; pre-Sap for Sprout/tree/Equihash/disk.
+
+**Stage 2 -- Groth decision inputs only**
+
+- Answer §0.6a **cxx questions** with file/crate evidence from Pirate and/or zcashd, or mark each still open.
+- Confirm `groth16-batch-poc` still runs against pinned checkout.
+- **Person decides** §0.1a Option A vs B. No Phase 2 product code before that.
+- Queue: run **immediately after** G5/G9 slot (accepted queue steps 6--7), not interleaved with G6/G5.
+
+**Stage 3 -- Path-dependent Groth implementation**
+
+- If A: Phase 2 FFI design on pinned crates -> Phase 3 shadow/batch in `main.cpp` -> measure vs Stage 1 post-Sap baseline.
+- If B: depends + bridge work package first; then BatchValidator wiring; measure same windows.
+- Keep sequential verify as fallback until proven.
+- Multicore batch is a later stage on top of single-thread batch.
+- Queue: **consecutive with G2** (same program run series).
+
+**Stage 4 -- Equihash solve profile (NEON postponed)**
+
+- BENCH-MINE tools: `contrib/perf/run_mine_bench.sh` (regtest / mainnet-template / neon-probe).
+- Regtest smoke + NEON probe measured (M-MINE-*); TST-05 **done** (kats in `contrib/perf/kats/`).
+- Mainnet (192,7) timed solve: Instruments / opt-in -- **G5** in accepted queue.
+- **G7 NEON postponed** (grouped hold above). Stock arm64 remains `compress_ref`-only.
+- Verify baseline still ~0.252 ms/blk Equihash (M-CPU-SEQ).
+
+**Stage 5 -- Ops and platform validation**
+
+- Linux debug.log `create`+HUP.
+- Windows RPC stop + Ctrl+C store-flush note on a real host.
+- Optional: refuse/`-reindexforce` only after merge planning; skip-wallet still postponed.
+
+**Stage 6 -- Wallet tip util + wallet-on reindex**
+
+- Fat-wallet reindex bottleneck catalogued (M-WAL-SYNC-FAT / M-CPU-WAL-FAT); mitigations §0.14.
+- Idx1 tip util (G0e); then §0.11 getalldata matrix on disposable profiles 0/2/3.
+- Accounts / W5 remain postponed pending review -- do not block Stage 0–4.
+
+**Hold until deliberate resume:** FDCACHE 4x2 + O1/O2 (G6 after witness triage); CleanIndex ExtTests B2; Shieldex full gate; Zero400 TODO edits from this tree.
+
+### 0.14 Wallet-on reindex -- witness bottleneck (G0)
+
+**Settled:** With a large `mapWallet`, IBD/reindex wall is dominated by per-block `BuildWitnessCache(..., witnessOnly=true)` -> `VerifyAndSetInitialWitness` full-wallet walk -- **not** by `OrderedTxItems` (WAL-WTXORDERED already incremental). Evidence: Measures M-WAL-SYNC-FAT / M-CPU-WAL-FAT; package `test-logs/walletsync-fat-cpu-20260812T194107Z/FINDINGS.md`; combined archive `test-logs/archives/walletsync-fat-g0-20260812.tar.gz`.
+
+**Call path:** `CWallet::ChainTip` IBD else-branch (`wallet.cpp` ~628-629) calls `BuildWitnessCache(pindex, true)` every connected block. `VerifyAndSetInitialWitness` loops all `mapWallet` (~1347+).
+
+**Util sampler:** `contrib/perf/run_wallet_sync_profile.sh` `sample_row` -> `util.tsv` (ps, height, wallet bytes, `getwalletinfo` txcount). Fat run stalled at h~104k: `getwalletinfo` blocked on `cs_wallet` while loadblk held the lock in Verify. Tip time from `debug.log` `UpdateTip`.
+
+#### Mitigation assessment
+
+Effort bands: **S** small, **M** medium, **L** large (no calendar estimates). Impact = expected fraction of the ~50x fat gap closable if the hypothesis holds.
+
+##### FIX-WAL-WITNESS-IBD -- skip/throttle during IBD
+
+| Axis | Assessment |
+|------|------------|
+| **Idea** | During `IsInitialBlockDownload` (and/or `-reindex` import), do **not** call `BuildWitnessCache` every block; rebuild once when leaving IBD (or every N blocks / at tip). Near-tip path (`BuildWitnessCache(pindex, false)`) unchanged. |
+| **Impact** | **High** if almost all of the 97% stack is avoidable until tip -- potential return toward empty-wallet blk/s class for ConnectBlock-bound work (Equihash/disk/tree). Residual: still need one rebuild at tip (cost once, not per block). |
+| **Complexity** | **Low–med**. Policy change in `ChainTip` + ensure `initWitnessesBuilt` / spend RPCs stay gated until rebuild completes (existing `initWitnessesBuilt` already gates some paths). |
+| **Effort** | **S** for flag prototype; **M** to productize (RPC/docs: z_sendmany unavailable until catch-up; tests). |
+| **Risk** | **Med**. Spends/migration during IBD already restricted; must not leave `initWitnessesBuilt` true with empty/wrong witnesses; reorg during deferred rebuild; operators expecting spend-while-syncing. |
+| **Prototype first** | Yes. Behind `-walletwitness=ibd-defer` (name TBD) or compile/env lab flag. |
+
+**Implementation sketch**
+
+1. In `ChainTip` IBD branch: no-op or `if (pindex->nHeight % N == 0)` instead of every-block `BuildWitnessCache(pindex, true)`.
+2. On IBD exit (existing tip/near-tip branch or explicit transition): `BuildWitnessCache(tip, false)` once; set `initWitnessesBuilt` only after success.
+3. Keep `DecrementNoteWitnesses` on disconnect correct if any witnesses were partially built.
+
+**Validation**
+
+1. Fat tiny A/B: stock vs flag; wall tip time / blk/s; xctrace witness bucket % (expect collapse during sync).
+2. After tip: `z_sendmany` / balance / `reindex_shielded.py` still green; optional founders note spend smoke.
+3. Kill mid-sync + restart: witnesses rebuild; no crash; `initWitnessesBuilt` false until ready.
+4. Compare RSS/peak during sync (expect lower lock contention; util sampler should advance).
+
+##### FIX-WAL-WITNESS-NOTEIDX -- note-bearing tx index
+
+| Axis | Assessment |
+|------|------------|
+| **Idea** | Maintain a structure of wallet txs (or note outpoints) that have non-empty Sprout/Sapling note maps. `VerifyAndSetInitialWitness` / `BuildWitnessCache` inner loops iterate that set, not all `mapWallet`. |
+| **Impact** | **High if** most of 801k txs are transparent (top leaves are `map*NoteData::empty` -- strongly suggests this). **Low if** almost every tx has notes. **G0c** measures this before committing. |
+| **Complexity** | **Med**. Insert/erase/load/reorder must keep the index consistent (same discipline as `wtxOrdered`). |
+| **Effort** | **M** (index + Assure-style gtest + fat A/B). |
+| **Risk** | **Low–med**. Missed index update -> skipped witness -> spend failure; over-index -> only perf regression. |
+| **Prototype first** | Count first (G0c). Optional: temporary filter `if (maps empty) continue` already exists -- the cost is the iteration/`empty()` itself; prove with a hack that walks a precomputed `vector<CWalletTx*>` of note txs built once at load. |
+
+**Implementation sketch**
+
+1. `std::unordered_set` / vector of `uint256` (or `CWalletTx*`) with notes; rebuild on load; add/remove in `AddToWallet` / erase / note-map updates.
+2. Replace `for (mapWallet)` in Verify/BuildWitnessCache note loops with iteration over the index.
+3. Gtest: index ≡ `{wtx in mapWallet : has notes}` after load/add/erase.
+
+**Validation**
+
+1. G0c: report `n_note_txs / mapWallet.size()` on golden fat (and Idx1 if different).
+2. Hack prototype: build vector once after load; A/B blk/s on fat tiny window.
+3. Full FIX: Assure gtest + fat A/B + xctrace (expect `__tree_*` / `empty()` leaves drop).
+
+##### FIX-WAL-WITNESS-DIRTY -- differential initial-witness set
+
+| Axis | Assessment |
+|------|------------|
+| **Idea** | Track notes that still need initial witness / root validation. After `witnessRootValidated` (or successful set), remove from dirty set. Per-block work = O(dirty), not O(all notes) or O(mapWallet). |
+| **Impact** | **High** once most notes are validated -- per-block cost should fall over the sync. Complements NOTEIDX; alone still walks all notes every block if none stay validated under `witnessOnly` quirks. |
+| **Complexity** | **Med–high**. Dirty transitions on add, spend, reorg (`DecrementNoteWitnesses`), load, clear-cache paths. |
+| **Effort** | **M–L**. |
+| **Risk** | **Med**. Stale dirty -> wasted CPU; missing dirty -> wrong/missing witness; reorg is the sharp edge. |
+| **Prototype first** | After NOTEIDX count: instrument how often the Verify loop takes the early `witnessRootValidated && witnessOnly` continue vs full work; if almost always continue, dirty-set win is large. |
+
+**Implementation sketch**
+
+1. Dirty set keyed by note outpoint (Sprout/Sapling).
+2. Mark dirty on note discovery / cache clear; clear on validated initial witness.
+3. `VerifyAndSetInitialWitness` iterates dirty only; `witnessOnly` path becomes near-O(1) when dirty empty.
+4. Reorg: mark affected notes dirty (audit `DecrementNoteWitnesses`).
+
+**Validation**
+
+1. Counters: dirty size vs height (debug.log or `-debug=wallet`).
+2. Fat A/B + xctrace; expect Verify time falling with height if validation sticks.
+3. Reorg/rescan RPC tests; `reindex_shielded.py`; mid-sync kill/restart.
+
+#### Recommended order
+
+1. **G0b hygiene** -- **done**.
+2. **G0c note density** -- **done** (0.175%).
+3. **G0d IBD defer A/B** -- **done** (~35x).
+4. **NOTEIDX prototype A/B** -- **done** (~33x without defer); DIRTY still optional.
+5. **Productize** prefer `ibd-defer` + NOTEIDX on rebuild path (tests in `witness-defer-test-plan.md`); decide defaults.
+6. **G0e** fat@tiny getalldata -- **done** (scoped); full-mainnet Idx1 open.
+7. **G6** FDCACHE 8/16KB -- **hold** (needs `ZERO_FDCACHE` binary; prior null throughput).
+
+#### Tests / DoS (lab)
+
+See `test-logs/witness-defer-test-plan.md`. Automated: RPC freeze while `fBuildingWitnessCache`; witness gates; note inventory fields; `IsIBDWitnessDeferred`; NOTEIDX gtest. **DoS note:** post-import rebuild still freezes **all** RPC until complete -- NOTEIDX shrinks that window; consider allowlisting status RPCs when productizing.
+
+#### Companion hygiene (not FIX-WAL-WITNESS-*)
+
+| Item | Change | Validation |
+|------|--------|------------|
+| Util sampler | Timeout/`alarm` on `getwalletinfo`; or skip txcount while IBD; never block measure loop | Fat rerun: util.tsv reaches tip |
+| `bucket_profile.py` | Separate buckets: `witness_cache` (`VerifyAndSetInitialWitness`, `BuildWitnessCache`) vs `wallet_add_ordered` (`AddToWallet`, `OrderedTxItems`, …) | Re-bucket M-CPU-WAL-FAT XML; witness ~97%, add/order ~0 |
 
 
 ## 1. Scope, method, and reproduction procedure
@@ -384,9 +709,9 @@ Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex ga
 
 **Profiling method:** a real mainnet datadir (not synthetic/regtest — script/tx mix affects where time goes) profiled with Instruments Time Profiler (`xcrun xctrace`, headless CLI) attached to the single worker thread that does the actual reindex/import work (`zcash-loadblk`, running `ThreadImport`). Every other thread (idle script-check-queue workers, RPC/net/**wallet** threads) is filtered out — unfiltered, all-threads profiles are dominated by idle-thread noise (85%+ of raw samples blocked on a condvar) and say nothing about where real work goes.
 
-**Scope note -- not wallet:** this Perf.md line and `contrib/perf/` (`capture_sequence.sh`, `bench_matrix.sh`, `bucket_profile.py`) measure **ConnectBlock / import** throughput and CPU buckets (Groth16, Equihash, disk, trees). They intentionally **exclude** wallet/`AddToWallet`/`OrderedTxItems`. Fat-wallet reindex pain and `wtxOrdered` work are **out of scope** here; see Zero400 **ZeroStruct** §13.4.3.
+**Scope note -- ConnectBlock vs wallet-on:** `capture_sequence.sh` / `bench_matrix.sh` default filter is **ConnectBlock / import** on `zcash-loadblk` (Groth16, Equihash, disk, trees). Fat-wallet reindex is a **separate** track: M-WAL-SYNC-FAT / M-CPU-WAL-FAT / §0.14 -- bottleneck is `VerifyAndSetInitialWitness`, not `OrderedTxItems` (WAL-WTXORDERED done). ZeroStruct §13.4.3 for order-insert history.
 
-**Retarget for wallet CPU (if measuring `wtxOrdered`):** do **not** reuse the default filter. Attach to the thread that runs `AddToWallet` (or temporarily avoid filtering wallet frames); add buckets for `OrderedTxItems` / `AddToWallet` / `CWallet::`; use a **large wallet** datadir and a **short** height window; prefer insight/txindex off when indexes are not under test. `bench_matrix.sh` blk/s is only informative if the window is wallet-bound -- otherwise it reports ConnectBlock noise.
+**Retarget for wallet-on sync CPU:** attach Time Profiler to live `-reindex` with fat wallet; bucket **ALL** threads (or loadblk -- witness runs on loadblk); use `witness_cache` needles (§0.14 hygiene) plus AddToWallet/OrderedTxItems; record height window. Do not interpret empty-wallet profiles as fat-wallet cost.
 
 **Reproduction procedure** (fresh scratch datadir → launch → attach profiler → export/bucket → determine the exact height window covered):
 
@@ -429,6 +754,22 @@ Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex ga
 
 **General lesson:** don't trust a bucket percentage, height range, or throughput figure that wasn't cross-checked against a second source of truth (a different trace, a log timestamp, an RPC call) — every number in §2 that turned out to matter was caught or confirmed this way, and every early mistake (an 86%-other mis-parse, a wrong-timezone height window, a substring-match height search) was a case of trusting one source without a second check.
 
+### Lab materials
+
+Canonical home for lab inputs and scratch locations (not duplicated in Measures). Do not modify originals; copy or softlink into scratch.
+
+| Role | Location | Notes |
+|------|----------|-------|
+| Original `bootstrap.dat` | Zero400 `contrib/linearize/bootstrap.dat` (~5.0G) | Read-only / copy only. Lab softlink: `reindex-profile/bootstrap-src/bootstrap.dat` |
+| Older bootstrap | `OLD/ZeroMac/contrib/linearize/bootstrap.dat` (~4.8G) | Different generation; not the Zero400 original |
+| Full chain snap | macOS Application Support `zero/` | `chainblocks.tgz` ~8.1G; live `blocks/` ~10G tip ~2.516M; `chainstate` ~624M |
+| Short / tiny snaps | same datadir | `chainblocks-short.tgz` ~342M; `chainblocks-tiny.tgz` ~228M; sha256 sidecar |
+| Bench ledger / reports | `reindex-profile/bench-summaries/` | `ledger.*` via `accumulate_bench.py`; historical TSV / memprofile |
+| Post-Sapling scratch | `reindex-profile/postsapling-datadir` | From `run_postsapling_baseline.sh` |
+| DevFee ops wallets | out-of-tree DevFeeWallets | Fat-address getalldata; not ConnectBlock CPU |
+
+Bootstrap-mode datadir reset must exclude `blocks/` (M-INIT-03 / §3). Current stock campaigns use `-reindex` / `-loadblock` without FDCACHE 4x2. Script usage: **contrib/perf/README.md**. Bound ledger campaigns: **Measures.md** §8.
+
 ---
 
 ## 2. CPU cost breakdown: what dominates, and why it's height-dependent
@@ -443,7 +784,7 @@ Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex ga
 
 **This breakdown is identical for `-reindex` and `bootstrap.dat` import** — both call the same `ConnectBlock`/`CheckEquihashSolution`/`AbstractPushAnchor` validation per block; `bootstrap.dat` only changes how block bytes arrive, not what validation happens once a block is in hand. Measured `bootstrap.dat` import: **145.7 minutes** (8,743,120 ms, self-reported) for 2,468,990 blocks, ≈282 blocks/sec average across the entire chain history. **`bootstrap.dat`'s entire benefit is skipping network download time; it cannot reduce the CPU-bound validation cost.**
 
-**`bootstrap.dat`'s source, for reproducibility (previously undocumented).** The 5,415,354,491-byte file used for these measurements (`reindex-profile/bootstrap/bootstrap.dat`) was generated locally via Zero400's own `contrib/linearize` tooling (`/Users/walter/Work/ZK/Zero400/contrib/linearize/linearize-hashes.py` + `linearize-data.py`, which build a bootstrap file directly from a synced node's own `blocks/*.dat`, not downloaded from any external source) — an identical-size copy is kept at `/Users/walter/Work/ZK/Zero400/contrib/linearize/bootstrap.dat`. If `reindex-profile/bootstrap/bootstrap.dat` is ever deleted as scratch, it can be regenerated by re-running `linearize-data.py` against a fully-synced datadir, or copied fresh from the Zero400 location above — not refetched from any network source.
+**`bootstrap.dat` for these measurements** was generated via Zero400 `contrib/linearize` from a synced node's `blocks/` (not a network download). Paths and regenerate notes: §1 Lab materials.
 
 **The idle script-check-queue threads (`zcash-scriptch`, `-par`) cannot help any of this bucket breakdown.** They're wired only to per-transaction signature verification, never to anchor/tree updates, in every codebase checked (Bitcoin Core, zcashd, Zero, Zebra). This is a per-call cost problem in code that has never been parallelized, not a parallelism gap in otherwise-idle threads.
 
@@ -541,6 +882,8 @@ This closes §0 item 1's open question: post-Sapling heights behave the same as 
 **A narrow-blast-radius interruptibility gap found while diagnosing the above (pre-existing, upstream-inherited — not introduced by this work).** The stuck process couldn't be stopped by RPC `stop` (not up yet) or `SIGTERM` (no effect for 50+ minutes) — traced to `LoadBlockIndexDB`'s per-block accounting loop (the `BOOST_FOREACH` over `vSortedByHeight` building `nChainWork`/`nChainTx`/branch-ID data), which has exactly one `interruption_point()` call *before* the loop starts and none inside it. On a multi-million-block index this loop alone can run for tens of minutes with no way to interrupt it short of `SIGKILL`. Only reachable when reconciling a very large pre-existing index (not normal `-reindex`/`-loadblock` usage). `bench_matrix.sh` now bounds every wait loop to 10 minutes and escalates `SIGTERM` then `SIGKILL` automatically.
 
 **Tooling:** `contrib/perf/bench_matrix.sh` — repeated-trial A/B harness for any `-perffdcache`/`-perfbufsize` combination, against `-reindex` and (given a `bootstrap.dat` path) `-loadblock`. See `contrib/perf/README.md` for usage.
+
+**G6 (accepted queue):** when FDCACHE resumes, add **8192** and **16384** bufsize conditions vs libc default and 1048576 -- 1MB already looked slightly worse; mid-size buffers test the "syscall vs cache pressure" hypothesis without assuming 1MB is optimal.
 
 ---
 
@@ -644,7 +987,7 @@ Idle and Sapling-output-only blocks match perfectly but were already cheap (empt
 6. Perf re-measurement with the existing tooling: same Instruments/`xctrace` methodology as §2 (`contrib/perf/capture_sequence.sh` + `decode_captures.py`), same height windows, for a directly comparable before/after Groth16-bucket percentage and ms/block figure; plus a `bench_matrix.sh`-style throughput A/B with the same statistical rigor (t-test, n≥4 trials) §3 used — §3's "implemented but no measurable win" outcome is a reminder not to skip this step.
 7. If the multicore/parallel-accumulation variant is pursued: a separate throughput test varying `-par`/thread count, since the entire point there is engaging otherwise-idle `zcash-scriptch`-adjacent cores — measure scaling, not just single-thread speedup.
 
-### 6.2 Cross-ecosystem status: who else has (and hasn't) adopted batch verification
+### 6.2 Cross-ecosystem status: who else has and has not adopted batch verification
 
 **Question.** §6.1 found `sapling-crypto`'s `BatchValidator` and confirmed Zebra uses it. How widely has this actually propagated across the rest of the Zcash-descended node ecosystem — is Zero unusually behind, or is unbatched verification still the norm among comparable forks? Checked five real, currently-active repositories directly (fetched each fresh this session, not from memory).
 
@@ -684,7 +1027,7 @@ Idle and Sapling-output-only blocks match perfectly but were already cheap (empt
 
 **Reading `Physical footprint` alone produces a spurious "growth rate is slowing down" story: 1.94 → 1.74 → 1.40 → 1.05 → 0.45 KB/block across the five segments — a suspiciously clean monotonic decline that doesn't survive a second look.** `Physical footprint` nets out macOS's memory compressor, and the "swapped/compressed" column above shows *why* it can't be trusted alone here: compression kicks in unevenly (0% for the first two checkpoints, a spike to 71% at height 901,000, then 2–38% afterward) as system-wide memory pressure varies over this ~2-hour run — that's a fact about *this machine's other memory demand during the run*, not about `zerod`'s own allocation behavior. **`Writable regions: Total`** (the total address space actually written to, unaffected by whether pages are later compressed) tells a cleaner story: it grows from 702.0M to 4.7G, monotonically, at a much less dramatically-declining rate (1.83, 1.53, 3.07, 1.43, 1.09 KB/block — noisier, with one high-swap-affected segment reading anomalously high, but no clean downward trend). **Lesson for any future memory-profiling work here: use `Writable regions: Total`, not the headline `Physical footprint` figure, when comparing checkpoints spread over a long enough run for compression pressure to vary** — this is the same class of mistake §1's methodology repeatedly warns about (don't trust one source without cross-checking against a second).
 
-**Net conclusion, corrected for the compression confound: memory grows roughly linearly with chain length (no leak signature), at a rate in the rough 1–3KB/block range that's noisier than initially measured but not cleanly increasing or decreasing** — consistent with the dominant cost (`AddToBlockIndex`, below) being close to a constant per-block-header cost. This resolves §0's original next-step framing (was there unbounded growth?) to "no": growth tracks a permanent, one-entry-per-block-header in-memory index that's expected to accumulate and never compact, not a leak. (Chain-length-proportional growth is real and worth knowing operator-side — a fully-synced node's block-index memory floor scales with chain height, and this run's `Writable regions: Total` reached 4.7GB at the real chain tip — but that's a capacity-planning fact, not a defect.)
+**Net conclusion:** see Measures **M-MEM-VMMAP** / **M-MEM-GROWTH** / **M-MEM-ALLOC** / **M-MEM-PARAMS**. Memory grows roughly linearly with chain length (no leak signature), ~1–3KB/block Writable; `AddToBlockIndex` dominates retained heap; Groth16 verify allocates nothing on the heap.
 
 **Allocation-site breakdown (`malloc_history -callTree`, 673-second stack-logged window spanning roughly height 20,198 → 501,321, i.e. crossing Sapling activation):** ~987MB total tracked allocation across the window, essentially all of it (896MB, >90%) under the single `ThreadImport` worker thread, confirming again (as in §1's profiling methodology) that this is where real work happens. Within that:
 
@@ -707,7 +1050,9 @@ Idle and Sapling-output-only blocks match perfectly but were already cheap (empt
 
 **Motivation.** §7 reported `AddToBlockIndex` as ~66% of tracked allocation and ~1.2KB/header, as an aggregate. This section breaks that aggregate into its actual per-call allocation sites (piece count, size, lifetime) using the same `malloc_history -callTree` raw data §7 summarized, and resolves two follow-up questions: what the `CBlockIndex` "Shieldex" stat fields cost and who uses them, and what was actually behind an unexplained large-average-size Rust allocator (`alloc::raw_vec::finish_grow`) visible in the raw trace.
 
-### 8.1 `AddToBlockIndex` (`main.cpp:3932`) — 4 heap allocations per block
+### 8.1 `AddToBlockIndex` -- 4 heap allocations per block
+
+Site: `main.cpp` around the `AddToBlockIndex` implementation used on the import path.
 
 | # | Site (`main.cpp` offset) | What | Count (stack-logged window) | Avg size | Total | Lifetime |
 |---|---|---|---|---|---|---|

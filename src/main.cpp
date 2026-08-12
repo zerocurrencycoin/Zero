@@ -5024,16 +5024,35 @@ bool static LoadBlockIndexDB()
     boost::this_thread::interruption_point();
 
     // Calculate nChainWork
+    // Poll shutdown inside these loops: AppInit runs here on the main thread
+    // before DetectShutdownThread can interrupt workers, and a multi-million-block
+    // index can spend tens of minutes with only the interruption_point above.
     vector<pair<int, CBlockIndex*> > vSortedByHeight;
     vSortedByHeight.reserve(mapBlockIndex.size());
+    size_t nLoadIndexPoll = 0;
     BOOST_FOREACH(const PAIRTYPE(uint256, CBlockIndex*)& item, mapBlockIndex)
     {
+        if ((++nLoadIndexPoll % 1000) == 0) {
+            if (ShutdownRequested()) {
+                LogPrintf("%s: shutdown requested while collecting block index\n", __func__);
+                return false;
+            }
+            boost::this_thread::interruption_point();
+        }
         CBlockIndex* pindex = item.second;
         vSortedByHeight.push_back(make_pair(pindex->nHeight, pindex));
     }
     sort(vSortedByHeight.begin(), vSortedByHeight.end());
+    nLoadIndexPoll = 0;
     BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item, vSortedByHeight)
     {
+        if ((++nLoadIndexPoll % 1000) == 0) {
+            if (ShutdownRequested()) {
+                LogPrintf("%s: shutdown requested during block index accounting\n", __func__);
+                return false;
+            }
+            boost::this_thread::interruption_point();
+        }
         CBlockIndex* pindex = item.second;
         pindex->nChainWork = (pindex->pprev ? pindex->pprev->nChainWork : 0) + GetBlockProof(*pindex);
         // We can link the chain of blocks for which we've received transactions at some point.
@@ -5204,8 +5223,16 @@ bool static LoadBlockIndexDB()
     LogPrintf("%s: shielded index %s\n", __func__, fZindex ? "enabled" : "disabled");
 
     // Fill in-memory data
+    nLoadIndexPoll = 0;
     BOOST_FOREACH(const PAIRTYPE(uint256, CBlockIndex*)& item, mapBlockIndex)
     {
+        if ((++nLoadIndexPoll % 1000) == 0) {
+            if (ShutdownRequested()) {
+                LogPrintf("%s: shutdown requested while filling block index links\n", __func__);
+                return false;
+            }
+            boost::this_thread::interruption_point();
+        }
         CBlockIndex* pindex = item.second;
         // - This relationship will always be true even if pprev has multiple
         //   children, because hashSproutAnchor is technically a property of pprev,
