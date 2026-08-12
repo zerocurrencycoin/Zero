@@ -539,7 +539,7 @@ Shielded entries in the same map need a parallel typed key or tagged binary id (
 
 Task id: **WAL-GETALLDATA-ADDRKEY** -- **Zerowallet / out of Zero400 scope** (finding only here; 2026-07-24).
 
-**Dispatch gates (server):** warmup; witness rebuild; `initWitnessesBuilt` for `getalldata`/`z_sendmany`; HTTP work-queue full -> 503. Test commands: **TEST_ZERO**. Task IDs S4--S8 / W*: **TODO**.
+**Dispatch gates (server):** warmup; `!initWitnessesBuilt` -> **-31** on `getalldata`/`z_sendmany`; `fBuildingWitnessCache` -> **-33** on **all** RPC (Pirate-style; only during full `witnessOnly=false` rebuild). Fat-wallet lab flags: **Perf.md** §0.14. Tests: **TEST_ZERO** TST-08 **done**.
 
 **Impl refs:** `src/wallet/rpczerowallet.cpp`; client convert `src/rpc/client.cpp`; shared emit helpers `getRpcArcTx*` (also `zs_*`).
 

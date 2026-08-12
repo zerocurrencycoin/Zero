@@ -288,6 +288,10 @@ BOOST_AUTO_TEST_CASE(rpc_witness_building_cache_blocks_all_rpc)
     const bool savedInit = initWitnessesBuilt;
     initWitnessesBuilt = true;
     fBuildingWitnessCache = true;
+    // TST-08 / PIR-03: spend path must see -33 (message), not only -31.
+    CheckRPCExecuteThrows("z_sendmany",
+        "RPC interface disabled while building witness cache. Check debug.log for progress.");
+    // Zero matches Pirate: freeze is global, not spend-only.
     CheckRPCExecuteThrows("getsupply 0",
         "RPC interface disabled while building witness cache. Check debug.log for progress.");
     CheckRPCExecuteThrows("getalldata 1",

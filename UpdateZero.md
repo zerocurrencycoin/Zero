@@ -280,7 +280,7 @@ Cross-chain history, commit volume, feature dates, wallet RPC matrices, hex vali
 | ------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------- |
 | PIR-01  | Security                | `d213d7884` (2026-01) `ENABLE_SYSTEM_COMMAND` gate on `runCommand`                                                                     | **Shipped** -- opt-in compile flag; default builds log skip, no **`::system`** (`alert.cpp`, `init.cpp`, `wallet.cpp`)                              | Spec **OPS-SHELL** -> **BUILD_ZERO.md** section **4.6.1**; automation **TST-09** | High           |
 | PIR-02  | Wallet / coin selection | Knapsack early exit `nTotalLower > 4*nTargetValue + CENT` (`79383e0a7`, jl777, 2017-10-18 Komodo interest calc)                        | Missing; scans all UTXOs                                                                                                                            | **Port** -- low-risk perf; optional `std::shuffle` as Pirate                                                        | Medium         |
-| PIR-03  | Wallet / RPC            | `1f707492f` (2024-03) witness rebuild lockout (`fBuilingWitnessCache`)                                                                 | `initWitnessesBuilt` never cleared on rebuild (**Comparison.md** **3.4**)                                                                           | **Port (adapted)** -- in-progress flag; block `z_sendmany` until complete                                           | Medium         |
+| PIR-03  | Wallet / RPC            | `1f707492f` (2024-03) witness rebuild lockout (`fBuilingWitnessCache`)                                                                 | Pirate/Zero: **global** `-33` while building (not spend-only); `-31` for `z_sendmany` until init; TST-08 **done** | **Port (adapted)** -- in tree; see **Perf.md** §0.14 lockout vs zcashd | Medium         |
 | PIR-04  | Policy / relay          | `6fb6a2e2b` (2024-05) `fAcceptDatacarrier` from `-datacarrier`; `IsStandard` rejects oversize or disabled OP_RETURN                    | Partial: `-datacarriersize` in `init.cpp`; size enforced in `Solver()` template match; no global `fAcceptDatacarrier`; Komodo AC size constants N/A | **Port (partial)** -- add `fAcceptDatacarrier` + `IsStandard` NULL_DATA check; keep Zero `MAX_OP_RETURN_RELAY = 80` | Low            |
 | PIR-05  | P2P / DoS               | `2bec27973` (2023-03) rate-limit incoming `addr` processing; commit message cites Bitcoin `0d64b8f709` and Zcash `7c739e2b2` (PR 6477) | Not present                                                                                                                                         | **Consider** -- port from `bitcoin-src` or Zcash PR; Pirate is ~2y late backport                                    | Medium         |
 | PIR-06  | P2P                     | BIP155 / addrv2 (`50699aba6`, `b5ae39c84`, 2022-05)                                                                                    | Not present                                                                                                                                         | **Defer** -- `Comparison.md` section **4**; port from `bitcoin-src`                                                 | Low (epic)     |
@@ -300,7 +300,7 @@ Cross-chain history, commit volume, feature dates, wallet RPC matrices, hex vali
 **Suggested execution order (node repo only):**
 
 1. **PIR-01** -- **shipped**; spec **OPS-SHELL** in **BUILD_ZERO.md** section **4.6.1**; **TST-09** pending.
-2. **PIR-03** -- wallet correctness; add **TST-08** GTest that `z_sendmany` returns **-33** while `fBuildingWitnessCache` is set.
+2. **PIR-03** -- wallet correctness; **TST-08 done** (`rpc_witness_building_cache_blocks_all_rpc`). Remaining: productize fat-wallet rebuild duration (NOTEIDX / ibd-defer) and optional status-RPC allowlist (**Perf.md** §0.14).
 3. **PIR-02** -- coin selection perf; run existing `wallet_tests` knapsack cases unchanged.
 4. **PIR-05** then **PIR-06--08** -- schedule as a P2P modernization epic tied to fixed-seed work (DOC-02 fixed-seed note) and `Comparison.md` gap list.
 
@@ -322,7 +322,7 @@ Files: `src/alert.cpp`, `src/init.cpp`, `src/util.cpp`, `src/util.h`, `src/walle
 
 **Owner:** **BUILD_ZERO.md** section **4.6.1** (flags, opt-in rebuild, distributed-release policy, ZMQ alternatives). **Tests:** **TEST_ZERO.md** **TST-09**. Do not duplicate that spec here.
 
-**PIR-03 Zero-specific note:** `BuildWitnessCache` runs from `CWallet::ChainTip` each block (`wallet.cpp` ~623); `initWitnessesBuilt` is never cleared on rebuild. See `ZKs/Comparison.md` section **3.4** for lockout comparison; patch in table above.
+**PIR-03 Zero-specific note:** `BuildWitnessCache` from `ChainTip` each IBD block (`witnessOnly`); full rebuild sets `fBuildingWitnessCache` and clears `initWitnessesBuilt`. Lab: `-walletwitness=ibd-defer` / `-walletwitnessnoteidx=1` (**Perf.md** §0.14). Pirate also uses a **global** `-33` freeze (symbol typo `fBuilingWitnessCache`); zcashd has no equivalent all-RPC lockout.
 
 ### 3.5 TENT upstream cherry-pick candidates (2018--2021)
 
@@ -1019,21 +1019,7 @@ Zero has no structured fuzzing infrastructure. The only fuzz-related code is `CN
 
 Sapling header root script moved to **TST-SAPLING-ROOT** (`finalsaplingroot.py`, still Bfail) -- see **TODO** Pending.
 
-**TST-08 -- PIR-03 witness lockout (`RPC_BUILDING_WITNESS_CACHE = -33`).** P1 priority. **Blocks PIR-03 merge without this or an equivalent regtest check.**
-
-*Problem:* While **`BuildWitnessCache`** runs, **`initWitnessesBuilt`** is false and witness state is mid-rebuild. Without **`fBuildingWitnessCache`**, **`z_sendmany`** could proceed with stale witnesses or only the generic **-31** (`RPC_DISABLED_BEFORE_WITNESSES`) when witnesses were never built -- not when a rebuild is in flight.
-
-*Scope (GTest, minimal):*
-
-1. Set **`fBuildingWitnessCache = true`** (and wallet loaded) in a test fixture.
-2. Invoke RPC dispatch for **`z_sendmany`** (same path as **`src/rpc/server.cpp`** table lookup + **`JSONRPCError`**).
-3. Assert JSON-RPC **error code -33** and message substring **`building witness cache`**.
-
-*Optional follow-up:* regtest that triggers a real **`BuildWitnessCache`** (slow; harness lacks full **`pcoinsTip`** chain -- see **`CachedWitnessesCleanIndex`** notes in TEST_ZERO).
-
-*Files:* new case in **`src/wallet/gtest/`** or **`src/gtest/`** exercising **`tableRPC`** / **`CRPCTable::execute`**; **`src/rpc/protocol.h`** (**`-33`**), **`src/rpc/server.cpp`**, **`src/wallet/wallet.cpp`**.
-
-*Acceptance:* **`./src/zero-gtest --gtest_filter=...`** passes; case included in default pass-only gate once stable.
+**TST-08 -- PIR-03 witness lockout (`RPC_BUILDING_WITNESS_CACHE = -33`).** **Done** -- Boost `rpc_zero_exclusive_tests/rpc_witness_building_cache_blocks_all_rpc` (message assert on `z_sendmany` + global freeze samples). Optional: regtest mid-rebuild; status-RPC allowlist product decision (**Perf.md** §0.14).
 
 ### Deferred
 
@@ -1196,9 +1182,9 @@ Cross-fork indexing strategies: **`~/Work/ZK/ZKs/Comparison.md`** section **12**
 | `consolidationstatus` **RPC**      | Status of auto consolidation                    | None                            | **Review** -- low cost if auto consolidation stays                                  |
 | `z_getbalances`                    | All z-addrs + balances in one call              | None (`z_gettotalbalance` only) | **Review** -- wallet UX; Zcash upstream still draft PR                              |
 | **Cleanup / dust modes**           | Aggressive consolidation; dust filter threshold | None                            | **Review** -- useful for spammed wallets; define Zero policy thresholds             |
-| **GetFilteredNotes optimization**  | Large-wallet note selection                     | Older path                      | **Consider** with PIR-03 witness work                                               |
+| **GetFilteredNotes optimization**  | Large-wallet note selection                     | Older path                      | **Consider** with fat-wallet witness work (**Perf.md** §0.14)                       |
 | `maxprocessingthreads`             | Throttle witness/decrypt threads                | None                            | **Consider** -- ops tuning                                                          |
-| **Witness lockout during rebuild** | `fBuildingWitnessCache` blocks `z_sendmany`     | Gap documented                  | **Port (PIR-03)**                                                                   |
+| **Witness lockout during rebuild** | Global `-33` while `fBuildingWitnessCache`      | In tree (Pirate-style)          | **Done (PIR-03)** -- TST-08; duration/allowlist open (**Perf.md** §0.14)            |
 | **Knapsack early exit**            | Perf                                            | Missing                         | **Port (PIR-02)**                                                                   |
 
 
@@ -1218,7 +1204,7 @@ Cross-fork indexing strategies: **`~/Work/ZK/ZKs/Comparison.md`** section **12**
 
 ### 5.4 Suggested port order (wallet)
 
-1. **PIR-03** witness lockout + regtest/`z_sendmany` guard test.
+1. **PIR-03** -- **done** (global `-33` + TST-08). Next: productize NOTEIDX / ibd-defer; optional status-RPC allowlist.
 2. `consolidateaddress` RPC (manual consolidation) reusing `AsyncRPCOperation_saplingconsolidation` building blocks.
 3. `z_getbalances` or document `z_gettotalbalance` + `z_listaddresses` workaround.
 4. Dust filter / cleanup mode -- product decision on default thresholds.

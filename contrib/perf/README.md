@@ -151,9 +151,13 @@ Archive: `test-logs/archives/walletsync-fat-g0-20260812.tar.gz` + per-run
 `FINDINGS.md`. Mitigations: **Perf.md** §0.14. Queue: **Perf.md** §0.13 G.
 
 `WALLETINFO_TIMEOUT_S` (default 5; `0` skips txcount). `ZEROD_EXTRA_ARGS` for
-lab flags e.g. `-walletwitness=ibd-defer`, `-walletwitnessnoteidx=1`. Note counts
-on `getwalletinfo`: `note_tx_count`, `sprout_note_count`, `sapling_note_count`.
-Witness test/DoS notes: `test-logs/witness-defer-test-plan.md`.
+lab flags:
+- `-walletwitness=ibd-defer` -- skip per-block IBD witness build; rebuild after import
+- `-walletwitness=rebuild` -- force tip rebuild
+- `-walletwitnessnoteidx=1` -- **NOTEIDX** (Verify walks note-bearing txs only)
+
+`getwalletinfo` extras: `note_tx_count`, `sprout_note_count`, `sapling_note_count`.
+Witness RPC lockout / peer comparison / risk: **Perf.md** §0.14.
 
 ## shielded_density.py
 

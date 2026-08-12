@@ -425,5 +425,5 @@ Unmeasured work (Idx1 tip getalldata, mainnet 192,7 solve Instruments, FDCACHE 8
 - Pre-Sap 50k-75k: M-BOOT-PRESAP vs M-RX-PRESAP in the same band; M-RX-UTIL-SMOKE n=1 sits inside.
 - Post-Sap 600k-900k: M-BOOT-POSTSAP vs M-RX-POSTSAP-STOCK -- bootstrap ≈ reindex.
 - Sapling-onset 490k-520k: M-BOOT-ONSET **~130** vs M-RX-ONSET **~140 blk/s** (n=1 each) -- ~parity; both ~2x slower than deep post-Sap ~300; density M-DENS-ONSET shows dual Sprout+Sapling load. Coarse density tip-complete.
-- Wallet tiny reindex: M-WAL-SYNC-P0 (~950 blk/s, empty) vs M-WAL-SYNC-FAT (~19 blk/s, ~800k txs, ~50x) -- not OrderedTxItems; per-block `VerifyAndSetInitialWitness` / full `mapWallet` walk (M-CPU-WAL-FAT).
+- Wallet tiny reindex: M-WAL-SYNC-P0 (~950 blk/s, empty) vs M-WAL-SYNC-FAT (~19 blk/s, ~800k txs, ~50x) -- not OrderedTxItems; per-block Verify (M-CPU-WAL-FAT). Mitigations measured: ibd-defer ~35x (M-WAL-WITNESS-IBD-AB); **NOTEIDX** ~33x (M-WAL-WITNESS-NOTEIDX-AB) at 0.175% note-tx density (M-WAL-NOTE-DENS). RPC `-33` global freeze only on full rebuild -- Perf §0.14.
 - M-RX-TINY-20260811d / M-RX-SHORT-20260811b ran under host contention with long bootstrap; not clean solo baselines.

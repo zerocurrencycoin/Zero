@@ -436,7 +436,7 @@ Commands and inventory: see **§2 Use cases** and **§3 Inventory** above.
 
 Manual check (either mode): regtest **`zerod`** with **`-blocknotify='echo %s >> /tmp/zero-block.log'`**, generate one block -- log appended **only** on opt-in build; default logs **"Block notification skipped"** in **`debug.log`**. See **BUILD_ZERO.md** section **4.6.1** (**OPS-SHELL**).
 
-**Witness rebuild lockout (TST-08):** While **`fBuildingWitnessCache`** is true, wallet RPC dispatch must reject **`z_sendmany`** with **`RPC_BUILDING_WITNESS_CACHE` (-33)**, distinct from **-31** (witnesses never built). **Work item TST-08:** GTest that sets the flag and asserts **-33** on **`z_sendmany`**. Regtest mid-**`BuildWitnessCache`** is optional (harness gap same class as **`CachedWitnessesCleanIndex`**). Status: **TODO**. Reorg-length policy is a separate postponed track.
+**Witness rebuild lockout (TST-08):** While **`fBuildingWitnessCache`** is true, dispatch rejects RPCs with **`RPC_BUILDING_WITNESS_CACHE` (-33)** (Zero/Pirate: **global** freeze, not spend-only). Distinct from **-31** (`RPC_DISABLED_BEFORE_WITNESSES` for `z_sendmany` / `getalldata` when never built). **Status: Done** in Boost -- `rpc_zero_exclusive_tests/rpc_witness_building_cache_blocks_all_rpc` asserts **-33** message on **`z_sendmany`**, **`getsupply`**, **`getalldata`**. Regtest mid-rebuild optional. Peer/risk notes: **Perf.md** §0.14 RPC lockout. Reorg-length policy remains postponed.
 
 **`equihash_tests`** stays in pass-only; interpretation: **Interpreting results -> Equihash**. List suites: **`./src/zero-gtest --gtest_list_tests`**, **`./src/test/test_bitcoin --list_content`**.
 

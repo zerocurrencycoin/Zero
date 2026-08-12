@@ -78,7 +78,7 @@ Replace `assert` on inconsistent witness roots in `GetSproutNoteWitnesses` / `Ge
 | **OPS-AT-HEIGHT** / **AtHeight.md** | Mainnet short/tiny snaps; no `-stopatheight` |
 | **OPS-REINDEX-RESUME** | File-cursor resume (`L`/`H`) -- shipped |
 | **OPS-REINDEX-CONF** | Sticky `reindex=` warn (loud); refuse postponed |
-| **TST-08** / PIR-03 | `-33` while `fBuildingWitnessCache` -- separate |
+| **TST-08** / PIR-03 | `-33` while `fBuildingWitnessCache` -- **done** (global freeze; **Perf.md** §0.14) |
 | **EXT-INSIGHT-FIXTURES** | Insight RPC promote -- orthogonal |
 
 ---

@@ -423,7 +423,7 @@ Doc ownership: **BENCH-/FIX-/IMP-***, **L0-L7**, Stages, **G**/**P1-P4**, lab ma
 | **BENCH-SEG** | M-DENS-* / M-BOOT-ONSET / M-RX-ONSET | Era-bounded throughput + density | Density tip-complete; onset bootstrap+reindex n=1 peers done | Per-era rows in Measures §3.2a / §8 | Density CSV (§0.9) | **Active** (track L3; optional n=4) |
 | **BENCH-UTIL** | M-RX-UTIL-SMOKE | RSS/CPU during import | `SAMPLE_UTIL=1` on short window | util.tsv milestones | Stock binary | Smoke done; keep on postsap runs |
 | **BENCH-MINE** | M-MINE-REGTEST-SMOKE / M-MINE-NEON-PROBE | Solve cost ≠ verify | regtest+probe done; mainnet Instruments opt-in; **NEON A/B parked** (grouped hold) | ms/block + blake2b share | NEON build (parked) | **Active** (solve profile); NEON hold |
-| **BENCH-WAL** | M-WAL-SYNC-P0 / M-WAL-SYNC-FAT / M-CPU-WAL-FAT; getalldata matrix open | Tip RPC + wallet-on sync util | fat done ~19 blk/s (~50x vs P0); CPU = VerifyAndSetInitialWitness; Idx1 tip util open; getalldata matrix (§0.11) open | wall_ms + CPU + wallet_bytes | Disposable copies | Catalogued; Idx1 next |
+| **BENCH-WAL** | M-WAL-SYNC-* / M-CPU-WAL-* / M-WAL-WITNESS-* / M-GAD-FAT-TINY | Tip RPC + wallet-on sync util | fat ~50x catalogued; ibd-defer ~35x; NOTEIDX ~33x; getalldata fat@tiny done; full-mainnet Idx1 + §0.11 matrix open | wall_ms + CPU + wallet_bytes | Disposable copies | Witness flags lab-opt-in; matrix later |
 | **BENCH-FDCACHE** | 4×2 + O1/O2 | Confirm null / compiler | Bundled later; not current mix | A/B ledger | ZERO_FDCACHE build | **Postponed** |
 | **BENCH-WIN-SIG** | Windows stop / Ctrl+C | Document teardown | RPC stop + Ctrl+C; inspect `debug.log` for `Shutdown` / flush | Written expected-behavior note | Win host/VM | **Plan** |
 | **BENCH-LOGROT** | Linux debug.log HUP | Validate `create`+HUP | mv/touch/HUP or logrotate `create`; `-debug=rpc` | New file grows; rotated frozen | Linux host | **Plan** (macOS done) |
@@ -542,7 +542,7 @@ Owner-accepted order (solo host; one long trial at a time):
 | -- | **G7** / **G8** | NEON / Halo-Orchard | **Postpone** |
 | 9 | **G2** then **G3** | Groth decision then implement | Consecutive after G5/G9 slot |
 
-**Next after this batch:** productize `-walletwitness=ibd-defer` (tests/docs) or hold as lab flag; full-mainnet Idx1 getalldata when a full-tip disposable is ready; G5 when resumed.
+**Next after this batch:** productize `-walletwitness=ibd-defer` + `-walletwitnessnoteidx` (defaults + RPC allowlist decision -- §0.14 lockout); full-mainnet Idx1 when ready; G5 when resumed.
 
 **G8 lookup note (postpone body):** Zebro treats Orchard/Halo2 as a gated decision (D2): launch assumption Orchard-only / no Sprout-Sapling residue; blocked on **NU6.2 Halo2 incident review** (emergency Orchard disable, dual verifying keys, proof-length rule -- see Zebro `ROADMAP.md` M4, `ZEBRO.md` D2). No Orchard numbers until that opens. Pirate NU5+ integration attempts: review when G8 resumes; not a ZeroPerf implement track. Zero consensus remains Sprout+Sapling Groth16 only.
 
@@ -593,11 +593,16 @@ Owner-accepted order (solo host; one long trial at a time):
 
 ### 0.14 Wallet-on reindex -- witness bottleneck (G0)
 
-**Settled:** With a large `mapWallet`, IBD/reindex wall is dominated by per-block `BuildWitnessCache(..., witnessOnly=true)` -> `VerifyAndSetInitialWitness` full-wallet walk -- **not** by `OrderedTxItems` (WAL-WTXORDERED already incremental). Evidence: Measures M-WAL-SYNC-FAT / M-CPU-WAL-FAT; package `test-logs/walletsync-fat-cpu-20260812T194107Z/FINDINGS.md`; combined archive `test-logs/archives/walletsync-fat-g0-20260812.tar.gz`.
+**Settled:** With a large `mapWallet`, IBD/reindex wall is dominated by per-block `BuildWitnessCache(..., witnessOnly=true)` -> `VerifyAndSetInitialWitness` -- **not** by `OrderedTxItems` (WAL-WTXORDERED already incremental). Evidence: M-WAL-SYNC-FAT / M-CPU-WAL-FAT; archive `test-logs/archives/walletsync-fat-g0-20260812.tar.gz`.
 
-**Call path:** `CWallet::ChainTip` IBD else-branch (`wallet.cpp` ~628-629) calls `BuildWitnessCache(pindex, true)` every connected block. `VerifyAndSetInitialWitness` loops all `mapWallet` (~1347+).
+**Lab flags (opt-in, not default):**
+- `-walletwitness=ibd-defer` -- skip per-block IBD `BuildWitnessCache`; rebuild once after `ThreadImport` (M-WAL-WITNESS-IBD-AB ~**35x** to h15k).
+- `-walletwitness=rebuild` -- force tip rebuild after import (ungates getalldata).
+- `-walletwitnessnoteidx=1` -- **NOTEIDX**: `VerifyAndSetInitialWitness` iterates note-bearing txs only (M-WAL-NOTE-DENS **0.175%** note txs; M-WAL-WITNESS-NOTEIDX-AB ~**33x** to h8k without defer).
 
-**Util sampler:** `contrib/perf/run_wallet_sync_profile.sh` `sample_row` -> `util.tsv` (ps, height, wallet bytes, `getwalletinfo` txcount). Fat run stalled at h~104k: `getwalletinfo` blocked on `cs_wallet` while loadblk held the lock in Verify. Tip time from `debug.log` `UpdateTip`.
+**Call path (stock):** `ChainTip` IBD branch -> `BuildWitnessCache(pindex, true)` every block -> `VerifyAndSetInitialWitness` over `mapWallet`. With NOTEIDX, Verify walks `vNoteTxHashes` (~1403) after one index build.
+
+**Util sampler:** `run_wallet_sync_profile.sh` -- `WALLETINFO_TIMEOUT_S` (default 5) so fat `cs_wallet` contention cannot stall `util.tsv`.
 
 #### Mitigation assessment
 
@@ -612,43 +617,20 @@ Effort bands: **S** small, **M** medium, **L** large (no calendar estimates). Im
 | **Complexity** | **Low–med**. Policy change in `ChainTip` + ensure `initWitnessesBuilt` / spend RPCs stay gated until rebuild completes (existing `initWitnessesBuilt` already gates some paths). |
 | **Effort** | **S** for flag prototype; **M** to productize (RPC/docs: z_sendmany unavailable until catch-up; tests). |
 | **Risk** | **Med**. Spends/migration during IBD already restricted; must not leave `initWitnessesBuilt` true with empty/wrong witnesses; reorg during deferred rebuild; operators expecting spend-while-syncing. |
-| **Prototype first** | Yes. Behind `-walletwitness=ibd-defer` (name TBD) or compile/env lab flag. |
+| **Status** | **Prototype measured** -- `-walletwitness=ibd-defer` + post-import `RebuildWitnessCacheForChainTip`. |
 
-**Implementation sketch**
-
-1. In `ChainTip` IBD branch: no-op or `if (pindex->nHeight % N == 0)` instead of every-block `BuildWitnessCache(pindex, true)`.
-2. On IBD exit (existing tip/near-tip branch or explicit transition): `BuildWitnessCache(tip, false)` once; set `initWitnessesBuilt` only after success.
-3. Keep `DecrementNoteWitnesses` on disconnect correct if any witnesses were partially built.
-
-**Validation**
-
-1. Fat tiny A/B: stock vs flag; wall tip time / blk/s; xctrace witness bucket % (expect collapse during sync).
-2. After tip: `z_sendmany` / balance / `reindex_shielded.py` still green; optional founders note spend smoke.
-3. Kill mid-sync + restart: witnesses rebuild; no crash; `initWitnessesBuilt` false until ready.
-4. Compare RSS/peak during sync (expect lower lock contention; util sampler should advance).
+**Shipped sketch:** `IsIBDWitnessDeferred()` in `ChainTip`; import-end rebuild in `ThreadImport`. Productize: default-or-opt-in, `reindex_shielded` with flag, kill/restart.
 
 ##### FIX-WAL-WITNESS-NOTEIDX -- note-bearing tx index
 
 | Axis | Assessment |
 |------|------------|
-| **Idea** | Maintain a structure of wallet txs (or note outpoints) that have non-empty Sprout/Sapling note maps. `VerifyAndSetInitialWitness` / `BuildWitnessCache` inner loops iterate that set, not all `mapWallet`. |
-| **Impact** | **High if** most of 801k txs are transparent (top leaves are `map*NoteData::empty` -- strongly suggests this). **Low if** almost every tx has notes. **G0c** measures this before committing. |
-| **Complexity** | **Med**. Insert/erase/load/reorder must keep the index consistent (same discipline as `wtxOrdered`). |
-| **Effort** | **M** (index + Assure-style gtest + fat A/B). |
-| **Risk** | **Low–med**. Missed index update -> skipped witness -> spend failure; over-index -> only perf regression. |
-| **Prototype first** | Count first (G0c). Optional: temporary filter `if (maps empty) continue` already exists -- the cost is the iteration/`empty()` itself; prove with a hack that walks a precomputed `vector<CWalletTx*>` of note txs built once at load. |
-
-**Implementation sketch**
-
-1. `std::unordered_set` / vector of `uint256` (or `CWalletTx*`) with notes; rebuild on load; add/remove in `AddToWallet` / erase / note-map updates.
-2. Replace `for (mapWallet)` in Verify/BuildWitnessCache note loops with iteration over the index.
-3. Gtest: index ≡ `{wtx in mapWallet : has notes}` after load/add/erase.
-
-**Validation**
-
-1. G0c: report `n_note_txs / mapWallet.size()` on golden fat (and Idx1 if different).
-2. Hack prototype: build vector once after load; A/B blk/s on fat tiny window.
-3. Full FIX: Assure gtest + fat A/B + xctrace (expect `__tree_*` / `empty()` leaves drop).
+| **Idea** | Maintain note-bearing txid list; `VerifyAndSetInitialWitness` iterates that set, not all `mapWallet`. |
+| **Impact** | **High** on golden fat: **1403 / 801619 (0.175%)** note txs (M-WAL-NOTE-DENS). A/B ~**33x** (M-WAL-WITNESS-NOTEIDX-AB). |
+| **Complexity** | **Med**. Stale flag on AddToWallet/Erase; Ensure rebuilds vector. |
+| **Effort** | Prototype **done** (S–M). Productize: extend index into full `BuildWitnessCache` height walk (still scans `mapWallet` today when `witnessOnly=false`); Assure gtest. |
+| **Risk** | **Low–med**. Missed invalidate -> skipped note -> spend failure. |
+| **Status** | **Prototype measured** -- `-walletwitnessnoteidx=1`. Complements ibd-defer (defer removes per-block work; NOTEIDX shrinks Verify + shortens rebuild lockout). |
 
 ##### FIX-WAL-WITNESS-DIRTY -- differential initial-witness set
 
@@ -677,23 +659,72 @@ Effort bands: **S** small, **M** medium, **L** large (no calendar estimates). Im
 #### Recommended order
 
 1. **G0b hygiene** -- **done**.
-2. **G0c note density** -- **done** (0.175%).
+2. **G0c / NOTEIDX density + A/B** -- **done** (0.175%; ~33x).
 3. **G0d IBD defer A/B** -- **done** (~35x).
-4. **NOTEIDX prototype A/B** -- **done** (~33x without defer); DIRTY still optional.
-5. **Productize** prefer `ibd-defer` + NOTEIDX on rebuild path (tests in `witness-defer-test-plan.md`); decide defaults.
+4. **DIRTY** -- still optional (tip-rebuild asymptotics).
+5. **Productize** `ibd-defer` + NOTEIDX; decide RPC allowlist vs keep Pirate-style global `-33` (see lockout section).
 6. **G0e** fat@tiny getalldata -- **done** (scoped); full-mainnet Idx1 open.
-7. **G6** FDCACHE 8/16KB -- **hold** (needs `ZERO_FDCACHE` binary; prior null throughput).
+7. **G6** FDCACHE 8/16KB -- **hold**.
 
-#### Tests / DoS (lab)
+#### RPC lockout during witness operations
 
-See `test-logs/witness-defer-test-plan.md`. Automated: RPC freeze while `fBuildingWitnessCache`; witness gates; note inventory fields; `IsIBDWitnessDeferred`; NOTEIDX gtest. **DoS note:** post-import rebuild still freezes **all** RPC until complete -- NOTEIDX shrinks that window; consider allowlisting status RPCs when productizing.
+Two independent mechanisms in `CRPCTable::execute` (`rpc/server.cpp`):
+
+| Gate | When | What is blocked | Error |
+|------|------|-----------------|-------|
+| `!initWitnessesBuilt` | Witnesses never finished / cleared for full rebuild | **`z_sendmany`**, **`getalldata` only** | **-31** `RPC_DISABLED_BEFORE_WITNESSES` |
+| `fBuildingWitnessCache` | Set only in `BuildWitnessCache` **after** Verify, when `witnessOnly=false` (height-walk rebuild) | **All** RPC methods | **-33** `RPC_BUILDING_WITNESS_CACHE` |
+
+**When `-33` actually fires:** not on the per-block IBD `witnessOnly=true` path (Verify returns before `fBuildingWitnessCache=true`). Fires on near-tip full rebuild, `-walletwitness=rebuild`, and post-`ibd-defer` import rebuild. During stock fat IBD the practical stall is **`cs_wallet` held in Verify** (util sampler / wallet RPCs block), not the global `-33` flag.
+
+**Peer comparison**
+
+| Project | Behavior |
+|---------|----------|
+| **Pirate** (current `rpc/server.cpp`) | Same shape: `-31` for `z_sendmany` (+ prepare_offline) until init; **`fBuilingWitnessCache` blocks entire interface** with `-33` (typo in symbol/message upstream). Zero adapted PIR-03 from this. |
+| **UpdateZero PIR-03 prose** | Sometimes summarized as "block `z_sendmany` until complete" -- **narrower than Pirate/Zero code**, which freeze **all** RPC under the building flag. |
+| **zcashd** | No `fBuildingWitnessCache` / `-33` global freeze in modern `execute()`. Uses incremental `IncrementNoteWitnesses` on a wallet notify path; failures historically surface as asserts / rescan, not a deliberate all-RPC lockout. |
+| **Zero today** | Matches Pirate global `-33`; adds Zero `getalldata` to the `-31` pair; lab flags change *when* full rebuild runs. |
+
+**Implications**
+
+1. **Correctness:** Global freeze prevents spends and tip polls with half-built witnesses -- safer than spend-only if any RPC could observe note state.
+2. **Availability / ops:** Fat full rebuild can make the node look "dead" to monitors (`getblockcount`, `getblockchaininfo` also fail). With `ibd-defer`, that window moves to end-of-import instead of continuous IBD.
+3. **NOTEIDX:** Does not remove `-33`, but shortens the height-walk (and Verify) so lockout duration drops when rebuild runs.
+4. **Clients (Zerowallet):** Must treat `-33` as retryable soft-outage; `-31` as “not ready yet.” Confusing if monitors use the same path as spends.
+5. **Self-DoS:** Local `-walletwitness=rebuild` / large rebuild is operator-triggered; remote peers cannot set the flag.
+
+**Risk assessment**
+
+| Risk | Severity | Likelihood | Notes |
+|------|----------|------------|-------|
+| Spend with stale witnesses if freeze removed carelessly | **High** | Low if keep spend gates | Do not drop `-33`/`-31` without a narrower allowlist design |
+| Ops blind during rebuild (all RPC down) | **Med** | **High** on fat rebuild | Prefer allowlist: `getblockcount`, `getblockchaininfo`, `stop`, maybe `getwalletinfo` without note walk |
+| IBD util/RPC stall via `cs_wallet` (no `-33`) | **Med** | **High** on stock fat sync | Mitigated by ibd-defer / NOTEIDX; sampler timeout already shipped |
+| Divergence from "PIR-03 = z_sendmany only" docs | **Low** | Certain | Docs historically underspecified; code == Pirate global freeze |
+| Productizing defer without documenting spend delay | **Med** | Med | `initWitnessesBuilt` false until rebuild finishes |
+
+**Recommended product direction:** keep global `-33` for spend-adjacent safety **or** narrow to wallet/spend RPCs **plus** explicit allowlist for chain status; ship NOTEIDX + ibd-defer to shrink duration. **TST-08 done** (`rpc_witness_building_cache_blocks_all_rpc`).
+
+#### Tests
+
+| Test | Covers |
+|------|--------|
+| `rpc_witness_building_cache_blocks_all_rpc` | `-33` on `z_sendmany`, `getsupply`, `getalldata` (TST-08 + global freeze) |
+| `rpc_getalldata_s5_witness_gate` | `-31` on getalldata/z_sendmany |
+| `rpc_witness_gate_allows_walletinfo_when_unbuilt` | Monitoring while `-31` |
+| `rpc_walletinfo_note_inventory_fields` | NOTEIDX-related counters |
+| `wallet_witness_ibd_defer_arg` | `IsIBDWitnessDeferred()` |
+| `WalletTests.NoteTxIndexTracksNoteBearingTxs` | NOTEIDX stale/rebuild |
+
+Lab notes also under gitignored `test-logs/witness-defer-test-plan.md`.
 
 #### Companion hygiene (not FIX-WAL-WITNESS-*)
 
 | Item | Change | Validation |
 |------|--------|------------|
-| Util sampler | Timeout/`alarm` on `getwalletinfo`; or skip txcount while IBD; never block measure loop | Fat rerun: util.tsv reaches tip |
-| `bucket_profile.py` | Separate buckets: `witness_cache` (`VerifyAndSetInitialWitness`, `BuildWitnessCache`) vs `wallet_add_ordered` (`AddToWallet`, `OrderedTxItems`, …) | Re-bucket M-CPU-WAL-FAT XML; witness ~97%, add/order ~0 |
+| Util sampler | `WALLETINFO_TIMEOUT_S` (default 5) | Fat util.tsv advances |
+| `bucket_profile.py` (local `reindex-profile/tools/`) | `witness_cache` before `wallet_add_ordered` | Rebucket ~97% / ~0.03% |
 
 
 ## 1. Scope, method, and reproduction procedure
