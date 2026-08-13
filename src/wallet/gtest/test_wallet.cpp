@@ -55,6 +55,10 @@ public:
         CWallet::BuildWitnessCache(pindex, witnessOnly, pblockIn);
     }
     void EnsureNoteTxIndexPublic() { EnsureNoteTxIndex(); }
+    void SelectWalletTxsForWitnessScanPublic(
+        std::vector<std::pair<const uint256, CWalletTx>*>& out) {
+        SelectWalletTxsForWitnessScan(out);
+    }
     void DecrementNoteWitnesses(const CBlockIndex* pindex) {
         CWallet::DecrementNoteWitnesses(pindex);
     }
@@ -1521,6 +1525,73 @@ TEST(WalletTests, CachedWitnessesDecrementFirst) {
     mapBlockIndex.erase(block2.GetHash());
 }
 
+// GTest-DEC: witnessHeight above disconnect height must not pop
+// (even when witnesses.size() > 1 would otherwise allow a pop).
+TEST(WalletTests, DecrementNoteWitnessesSkipsAboveHeight) {
+    TestWallet wallet;
+    CBlock block1;
+    CBlockIndex index1(block1);
+    SproutMerkleTree sproutTree;
+    SaplingMerkleTree saplingTree;
+
+    auto sk = libzcash::SproutSpendingKey::random();
+    wallet.AddSproutSpendingKey(sk);
+
+    index1.nHeight = 1;
+    auto outpts = CreateValidBlock(wallet, sk, index1, block1, sproutTree, saplingTree);
+
+    const int above = index1.nHeight + 5;
+    size_t sproutBefore = 0;
+    size_t saplingBefore = 0;
+    {
+        LOCK(wallet.cs_wallet);
+        for (auto& wtxItem : wallet.mapWallet) {
+            for (auto& item : wtxItem.second.mapSproutNoteData) {
+                if (item.first != outpts.first)
+                    continue;
+                ASSERT_FALSE(item.second.witnesses.empty());
+                // Duplicate front so size > 1; height above disconnect skips pop.
+                item.second.witnesses.push_front(item.second.witnesses.front());
+                item.second.witnessHeight = above;
+                sproutBefore = item.second.witnesses.size();
+            }
+            for (auto& item : wtxItem.second.mapSaplingNoteData) {
+                if (item.first != outpts.second)
+                    continue;
+                ASSERT_FALSE(item.second.witnesses.empty());
+                item.second.witnesses.push_front(item.second.witnesses.front());
+                item.second.witnessHeight = above;
+                saplingBefore = item.second.witnesses.size();
+            }
+        }
+    }
+    ASSERT_GT(sproutBefore, 1u);
+    ASSERT_GT(saplingBefore, 1u);
+
+    wallet.DecrementNoteWitnesses(&index1);
+
+    {
+        LOCK(wallet.cs_wallet);
+        for (auto& wtxItem : wallet.mapWallet) {
+            for (auto& item : wtxItem.second.mapSproutNoteData) {
+                if (item.first == outpts.first) {
+                    EXPECT_EQ(item.second.witnesses.size(), sproutBefore);
+                    EXPECT_EQ(item.second.witnessHeight, above);
+                }
+            }
+            for (auto& item : wtxItem.second.mapSaplingNoteData) {
+                if (item.first == outpts.second) {
+                    EXPECT_EQ(item.second.witnesses.size(), saplingBefore);
+                    EXPECT_EQ(item.second.witnessHeight, above);
+                }
+            }
+        }
+    }
+
+    chainActive.SetTip(NULL);
+    mapBlockIndex.erase(block1.GetHash());
+}
+
 TEST(WalletTests, CachedWitnessesCleanIndex) {
     TestWallet wallet;
     std::vector<CBlock> blocks;
@@ -2345,4 +2416,16 @@ TEST(WalletTests, NoteTxIndexTracksNoteBearingTxs) {
     wallet.EnsureNoteTxIndexPublic();
     EXPECT_EQ(wallet.NoteTxIndexSize(), 1u);
     EXPECT_EQ(wallet.mapWallet.size(), 2u);
+
+    // Height-walk + Verify share SelectWalletTxsForWitnessScan.
+    mapArgs["-walletwitnessnote"] = "1";
+    std::vector<std::pair<const uint256, CWalletTx>*> scanNote;
+    wallet.SelectWalletTxsForWitnessScanPublic(scanNote);
+    EXPECT_EQ(scanNote.size(), 1u);
+    EXPECT_EQ(scanNote[0]->first, noteTx.GetHash());
+
+    mapArgs.erase("-walletwitnessnote");
+    std::vector<std::pair<const uint256, CWalletTx>*> scanAll;
+    wallet.SelectWalletTxsForWitnessScanPublic(scanAll);
+    EXPECT_EQ(scanAll.size(), 2u);
 }

@@ -300,7 +300,7 @@ Cross-chain history, commit volume, feature dates, wallet RPC matrices, hex vali
 **Suggested execution order (node repo only):**
 
 1. **PIR-01** -- **shipped**; spec **OPS-SHELL** in **BUILD_ZERO.md** section **4.6.1**; **TST-09** pending.
-2. **PIR-03** -- wallet correctness; **TST-08 done** (`rpc_witness_building_cache_blocks_all_rpc`). Remaining: productize fat-wallet rebuild duration (NOTEIDX / ibd-defer) and optional status-RPC allowlist (**Perf.md** §0.14).
+2. **PIR-03** -- wallet correctness; **TST-08 done** (blocks + status allowlist under `-33`). Opt-in `ibd-defer`+NOTEIDX package ready (**Perf.md** §0.14–§0.16); post-Sap rebuild wall / default-on reorg still open.
 3. **PIR-02** -- coin selection perf; run existing `wallet_tests` knapsack cases unchanged.
 4. **PIR-05** then **PIR-06--08** -- schedule as a P2P modernization epic tied to fixed-seed work (DOC-02 fixed-seed note) and `Comparison.md` gap list.
 
@@ -322,7 +322,7 @@ Files: `src/alert.cpp`, `src/init.cpp`, `src/util.cpp`, `src/util.h`, `src/walle
 
 **Owner:** **BUILD_ZERO.md** section **4.6.1** (flags, opt-in rebuild, distributed-release policy, ZMQ alternatives). **Tests:** **TEST_ZERO.md** **TST-09**. Do not duplicate that spec here.
 
-**PIR-03 Zero-specific note:** `BuildWitnessCache` from `ChainTip` each IBD block (`witnessOnly`); full rebuild sets `fBuildingWitnessCache` and clears `initWitnessesBuilt`. Lab: `-walletwitness=ibd-defer` / `-walletwitnessnoteidx=1` (**Perf.md** §0.14). Pirate also uses a **global** `-33` freeze (symbol typo `fBuilingWitnessCache`); zcashd has no equivalent all-RPC lockout.
+**PIR-03 Zero-specific note:** `BuildWitnessCache` from `ChainTip` each IBD block (`witnessOnly`); full rebuild sets `fBuildingWitnessCache` and clears `initWitnessesBuilt`. Opt-in: `-walletwitness=ibd-defer` / `-walletwitnessnote=1` (**Perf.md** §0.14). Under `-33`, allowlist `stop`/`help`/`getblockcount`/`getblockchaininfo`/`getnetworkinfo` (not Pirate global freeze). zcashd has no equivalent lockout.
 
 ### 3.5 TENT upstream cherry-pick candidates (2018--2021)
 
@@ -889,7 +889,7 @@ Items marked **"contributor-ready"** are self-contained enough to be written up 
 
 **TST-01 -- zero_exclusive / experimental scenario coverage.** High importance. **Contributor-ready.**
 
-**Recheck 2026-07-24:** exclusive suite **PASS** including S4 nCount/datatype/watchonly, S5 (`execute` + warmup finish), S6 time+in-flight, S7 shape (`./src/test/test_bitcoin --run_test=rpc_zero_exclusive_tests`). Remaining gap is **mined-tx scenario** depth (Tier B) for History/balances vs `listtransactions`.
+**Recheck:** exclusive suite **PASS** (46/46) including S4–S7, witness `-31`/`-33` gates, note inventory, ibd-defer arg (`./src/test/test_bitcoin --run_test=rpc_zero_exclusive_tests`). Remaining gap is **mined-tx scenario** depth (Tier B) for History/balances vs `listtransactions`.
 
 *Scope:* Extend the existing Boost.Test files with scenario coverage for each RPC. Each test case should use the `TestingSetup` fixture (wallet + regtest chain) and cover: (a) valid calls with expected return structure, (b) boundary values (empty wallet, zero height, nonexistent address), (c) error paths (invalid address format, out-of-range parameters). RPCs to cover:
 
@@ -1019,7 +1019,7 @@ Zero has no structured fuzzing infrastructure. The only fuzz-related code is `CN
 
 Sapling header root script moved to **TST-SAPLING-ROOT** (`finalsaplingroot.py`, still Bfail) -- see **TODO** Pending.
 
-**TST-08 -- PIR-03 witness lockout (`RPC_BUILDING_WITNESS_CACHE = -33`).** **Done** -- Boost `rpc_zero_exclusive_tests/rpc_witness_building_cache_blocks_all_rpc` (message assert on `z_sendmany` + global freeze samples). Optional: regtest mid-rebuild; status-RPC allowlist product decision (**Perf.md** §0.14).
+**TST-08 -- PIR-03 witness lockout (`RPC_BUILDING_WITNESS_CACHE = -33`).** **Done** -- Boost blocks spend/data/`getwalletinfo`; `rpc_witness_building_cache_allows_status_rpc` allowlists status/ops. Product: **Perf.md** §0.14 / §0.16.
 
 ### Deferred
 
@@ -1184,7 +1184,7 @@ Cross-fork indexing strategies: **`~/Work/ZK/ZKs/Comparison.md`** section **12**
 | **Cleanup / dust modes**           | Aggressive consolidation; dust filter threshold | None                            | **Review** -- useful for spammed wallets; define Zero policy thresholds             |
 | **GetFilteredNotes optimization**  | Large-wallet note selection                     | Older path                      | **Consider** with fat-wallet witness work (**Perf.md** §0.14)                       |
 | `maxprocessingthreads`             | Throttle witness/decrypt threads                | None                            | **Consider** -- ops tuning                                                          |
-| **Witness lockout during rebuild** | Global `-33` while `fBuildingWitnessCache`      | In tree (Pirate-style)          | **Done (PIR-03)** -- TST-08; duration/allowlist open (**Perf.md** §0.14)            |
+| **Witness lockout during rebuild** | `-33` on wallet/spend/data; status allowlist     | In tree (diverged from Pirate)  | **Done (PIR-03)** -- TST-08 + allowlist; opt-in defer/NOTEIDX (**Perf.md** §0.16) |
 | **Knapsack early exit**            | Perf                                            | Missing                         | **Port (PIR-02)**                                                                   |
 
 
@@ -1204,7 +1204,7 @@ Cross-fork indexing strategies: **`~/Work/ZK/ZKs/Comparison.md`** section **12**
 
 ### 5.4 Suggested port order (wallet)
 
-1. **PIR-03** -- **done** (global `-33` + TST-08). Next: productize NOTEIDX / ibd-defer; optional status-RPC allowlist.
+1. **PIR-03** -- **done** (`-33` + status allowlist + TST-08). Opt-in NOTEIDX/`ibd-defer` ready; default-on still gated.
 2. `consolidateaddress` RPC (manual consolidation) reusing `AsyncRPCOperation_saplingconsolidation` building blocks.
 3. `z_getbalances` or document `z_gettotalbalance` + `z_listaddresses` workaround.
 4. Dust filter / cleanup mode -- product decision on default thresholds.

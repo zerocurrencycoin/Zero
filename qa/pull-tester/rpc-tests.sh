@@ -175,6 +175,7 @@ testScriptsTierBPass=(
     'timestampindex.py'
     'walletbackup.py'
     'reindex_shielded.py'  # B1 WitnessReindex -- Sapling spend after -reindex
+    'wallet_witness_defer.py'  # R1/R2/R5a/R5b/R7b defer+NOTEIDX (Perf §0.15/§0.16)
 )
 
 # Tier B fail: known broken; diagnostic only (-Bfail). Subgroups for triage (still one -Bfail run).

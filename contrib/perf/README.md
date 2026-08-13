@@ -124,7 +124,9 @@ contrib/perf/run_mine_bench.sh neon-probe       # arch / NEON / blake2b symbol p
 Env: `MINE_BLOCKS`, `MINE_TIMEOUT_S`, `ZERO_PERF_NEON_ZEROD` (NEON A/B binary;
 **G7 postponed** -- probe-only until a NEON `zerod` exists),
 `CAMPAIGN=mine-equihash-*`. Stock arm64 still links `blake2b_compress_ref`.
-Mainnet (192,7) timed solve stays Instruments / `MINE_MAINNET_SOLVE=1` (**G5**).
+**Done:** regtest smoke (M-MINE-REGTEST-SMOKE), neon probe (M-MINE-NEON-PROBE).
+**Not done:** mainnet (192,7) timed solve -- needs Instruments + `MINE_MAINNET_SOLVE=1` (**G5**);
+`mainnet-template` mode alone only writes an env stub.
 
 KATs: **`kats/`** (`1927EQ.txt`, `1927EQ_h1.hex`; see `kats/README.md`). TST-05 green;
 further test adaptation **postponed (G9)**.
@@ -151,13 +153,35 @@ Archive: `test-logs/archives/walletsync-fat-g0-20260812.tar.gz` + per-run
 `FINDINGS.md`. Mitigations: **Perf.md** §0.14. Queue: **Perf.md** §0.13 G.
 
 `WALLETINFO_TIMEOUT_S` (default 5; `0` skips txcount). `ZEROD_EXTRA_ARGS` for
-lab flags:
+**opt-in** witness flags (defaults off; see `zerod -help`):
 - `-walletwitness=ibd-defer` -- skip per-block IBD witness build; rebuild after import
 - `-walletwitness=rebuild` -- force tip rebuild
-- `-walletwitnessnoteidx=1` -- **NOTEIDX** (Verify walks note-bearing txs only)
+- `-walletwitnessnote=1` -- **NOTEIDX** (note-bearing tx index; Verify + height walk)
 
 `getwalletinfo` extras: `note_tx_count`, `sprout_note_count`, `sapling_note_count`.
-Witness RPC lockout / peer comparison / risk: **Perf.md** §0.14.
+While rebuilding (`-33`): status allowlist `stop`/`help`/`getblockcount`/`getblockchaininfo`/`getnetworkinfo`.
+Witness RPC lockout / peer comparison / risk: **Perf.md** §0.14 / §0.16.
+
+## run_witness_lab.sh (DIRTY-CONT / WIT-REBUILD)
+
+```bash
+ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
+  contrib/perf/run_witness_lab.sh dirty-cont      # stock+NOTEIDX+stats to TARGET_HEIGHT
+ZERO_PERF_WALLET_FILE=... contrib/perf/run_witness_lab.sh rebuild
+ZERO_PERF_WALLET_FILE=... contrib/perf/run_witness_lab.sh rebuild-noteidx
+```
+
+Reusable automation; **one-time** lab samples (not CI). Tiny/short tips are pre-Sapling
+(187417 / 245992) -- DIRTY-CONT `note_visits` and tip height-walk need
+`ZERO_PERF_CHAIN_SNAP=full` (disposable full tip; see Perf.md §0.16). E2E:
+`wallet_witness_defer.py`.
+
+Post-Sap WIT-REBUILD (one trial at a time):
+
+```bash
+ZERO_PERF_CHAIN_SNAP=full ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
+  contrib/perf/run_witness_lab.sh rebuild-noteidx
+```
 
 ## shielded_density.py
 

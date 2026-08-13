@@ -462,8 +462,9 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-wallet=<file>", _("Specify wallet file (within data directory)") + " " + strprintf(_("(default: %s)"), "wallet.zero"));
     strUsage += HelpMessageOpt("-walletbroadcast", _("Make the wallet broadcast transactions") + " " + strprintf(_("(default: %u)"), true));
     strUsage += HelpMessageOpt("-walletnotify=<cmd>", _("Execute command when a wallet transaction changes (%s in cmd is replaced by TxID)"));
-    strUsage += HelpMessageOpt("-walletwitness=<mode>", _("Witness cache policy: default (build during IBD); ibd-defer (skip per-block BuildWitnessCache during IBD/reindex, rebuild once after import); rebuild (force BuildWitnessCache at tip after import/thread start)"));
-    strUsage += HelpMessageOpt("-walletwitnessnoteidx", _("Prototype: VerifyAndSetInitialWitness iterates note-bearing txs only (rebuilds index when wallet txs change)"));
+    strUsage += HelpMessageOpt("-walletwitness=<mode>", _("Opt-in witness cache policy: default (build during IBD); ibd-defer (skip per-block BuildWitnessCache during IBD/reindex, rebuild once after import -- z_sendmany/getalldata unavailable until rebuild finishes); rebuild (force tip rebuild after import)"));
+    strUsage += HelpMessageOpt("-walletwitnessnote", strprintf(_("Opt-in: witness scan uses note-bearing txs only (NOTEIDX; default: %u)"), false));
+    strUsage += HelpMessageOpt("-walletwitnessstats", _("Debug: log per-Verify note visit / early-continue / full-work counts"));
     strUsage += HelpMessageOpt("-zapwallettxes=<mode>", _("Delete all wallet transactions and only recover those parts of the blockchain through -rescan on startup") +
         " " + _("(1 = keep tx meta data e.g. account owner and payment request information, 2 = drop tx meta data)"));
 #endif

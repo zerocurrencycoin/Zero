@@ -280,8 +280,7 @@ BOOST_AUTO_TEST_CASE(rpc_getsupply_param_validation)
 // Witness / IBD-defer corner cases and DoS gates (FIX-WAL-WITNESS-*)
 BOOST_AUTO_TEST_CASE(rpc_witness_building_cache_blocks_all_rpc)
 {
-    // Global DoS surface: while fBuildingWitnessCache, execute() rejects every RPC.
-    // (Checked after the getalldata/z_sendmany initWitnessesBuilt gate.)
+    // While fBuildingWitnessCache: wallet/spend/data blocked (-33); status/ops allowlisted.
     if (RPCIsInWarmup(nullptr))
         SetRPCWarmupFinished();
     const bool savedBuild = fBuildingWitnessCache;
@@ -291,11 +290,34 @@ BOOST_AUTO_TEST_CASE(rpc_witness_building_cache_blocks_all_rpc)
     // TST-08 / PIR-03: spend path must see -33 (message), not only -31.
     CheckRPCExecuteThrows("z_sendmany",
         "RPC interface disabled while building witness cache. Check debug.log for progress.");
-    // Zero matches Pirate: freeze is global, not spend-only.
     CheckRPCExecuteThrows("getsupply 0",
         "RPC interface disabled while building witness cache. Check debug.log for progress.");
     CheckRPCExecuteThrows("getalldata 1",
         "RPC interface disabled while building witness cache. Check debug.log for progress.");
+    CheckRPCExecuteThrows("getwalletinfo",
+        "RPC interface disabled while building witness cache. Check debug.log for progress.");
+    fBuildingWitnessCache = savedBuild;
+    initWitnessesBuilt = savedInit;
+}
+
+BOOST_AUTO_TEST_CASE(rpc_witness_building_cache_allows_status_rpc)
+{
+    if (RPCIsInWarmup(nullptr))
+        SetRPCWarmupFinished();
+    const bool savedBuild = fBuildingWitnessCache;
+    const bool savedInit = initWitnessesBuilt;
+    initWitnessesBuilt = true;
+    fBuildingWitnessCache = true;
+    UniValue r;
+    BOOST_CHECK_NO_THROW(r = CallRPCExecute("getblockcount"));
+    BOOST_CHECK(r.isNum());
+    BOOST_CHECK_NO_THROW(r = CallRPCExecute("getblockchaininfo"));
+    BOOST_CHECK(r.isObject());
+    BOOST_CHECK_NO_THROW(r = CallRPCExecute("getnetworkinfo"));
+    BOOST_CHECK(r.isObject());
+    BOOST_CHECK_NO_THROW(r = CallRPCExecute("help"));
+    // stop is allowlisted at the gate; do not invoke actor (would shut down the process).
+    BOOST_CHECK(tableRPC["stop"] != nullptr);
     fBuildingWitnessCache = savedBuild;
     initWitnessesBuilt = savedInit;
 }
@@ -325,6 +347,17 @@ BOOST_AUTO_TEST_CASE(wallet_witness_ibd_defer_arg)
     mapArgs["-walletwitness"] = "default";
     BOOST_CHECK(!CWallet::IsIBDWitnessDeferred());
     mapArgs.erase("-walletwitness");
+}
+
+BOOST_AUTO_TEST_CASE(wallet_witness_note_arg)
+{
+    mapArgs.erase("-walletwitnessnote");
+    BOOST_CHECK(!CWallet::IsWitnessNoteIndexEnabled());
+    mapArgs["-walletwitnessnote"] = "1";
+    BOOST_CHECK(CWallet::IsWitnessNoteIndexEnabled());
+    mapArgs["-walletwitnessnote"] = "0";
+    BOOST_CHECK(!CWallet::IsWitnessNoteIndexEnabled());
+    mapArgs.erase("-walletwitnessnote");
 }
 
 BOOST_AUTO_TEST_CASE(rpc_witness_gate_allows_walletinfo_when_unbuilt)
