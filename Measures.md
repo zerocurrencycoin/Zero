@@ -22,6 +22,7 @@ Use these terms consistently in logs, JSONL exports, and docs.
 | `init` | Process start through RPC usable / `Done loading` |
 | `ibd` | Initial block download (network) |
 | `reindex` | Local `-reindex` / `-reindex-chainstate` of existing `blocks/` |
+| `rescan` | Wallet `-rescan` / `ScanForWalletTransactions` on an already-indexed chain |
 | `bootstrap` | `-loadblock` / `bootstrap.dat` import |
 | `catchup` | Restart tip catch-up after warmup (not full IBD) |
 | `witness` | Wallet `BuildWitnessCache` / Building Witnesses |
@@ -429,6 +430,7 @@ Shipped filter-then-process path: `contrib/perf/extract_measures.py` (plus `run_
 | `wallet-sync-fat` | reindex + fat wallet | tiny tip | M-WAL-SYNC-FAT, M-CPU-WAL-FAT | Done; FINDINGS + archive `walletsync-fat-g0-20260812.tar.gz`; Perf §0.14 |
 | `witness-tip-rebuild` | tip template + fat wallet | tip 2518018 | M-WAL-WITNESS-TIP-AB | `tip-rebuild` / `tip-rebuild-note`; insight flags required |
 | `wallet-rescan-fat` | `-rescan` + fat wallet | genesis to live tip | M-WAL-RESCAN-FAT, M-WAL-RESCAN-FAT-CPU | **Done** (~11.9 h). Clears witnesses; per-block Verify not ChainTip; NOTEIDX stale storm; end walk 2.0 s |
+| `cycle-1` / `cycle-2` / `cycle-3` | wallet x op rematch | tiny / window / tip | assigned when first measured | `run_cycle_campaign.sh`; collate `collate_cycle.py`; one trial per invocation |
 
 Unmeasured work (Idx1 tip getalldata, mainnet 192,7 solve Instruments **scheduled G5**, FDCACHE 8/16KB, optional onset n=4) gets an `M-*` when first measured. **Postponed:** NEON A/B (G7), Halo/Orchard notes body (G8), KAT adapt tests (G9). Groth G2/G3 consecutive after G5/G9 slot.
 

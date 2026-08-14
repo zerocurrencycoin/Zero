@@ -1165,11 +1165,17 @@ R5a is reorg **before** rebuild (defer window). R5b is reorg **after** `initWitn
 
 Performance first, then crash/reorg hardening. Each cycle is one reviewable PR plus its validation, not a micro-PR per flag or per test ID. Incremental retest of every neighbor is prudent in principle; the cost of that cadence on this tree is months of idle. Bound it: gtest + the one e2e that the cycle changes; rematch the one measure the cycle claims; do not re-run genesis `-rescan` or post-Sap n=4 unless the rematch is ambiguous.
 
+**Cache vs cap (Cycle 3).** Today `WITNESS_CACHE_SIZE = MAX_REORG_LENGTH + 1` (100 slots, apply bound 99). `IncrementNoteWitnesses` caps the per-note deque at that size; `DecrementNoteWitnesses` pops one layer per disconnected block. Cycle 2 **reject-and-stay** never applies past 99, so a 100-slot deque is always enough for an applied reorg. Cycle 3 is the only place the numbers can diverge.
+
+Do **not** choose a cache shorter than the apply cap. If `WITNESS_CACHE_SIZE < MAX_REORG_LENGTH + 1`, an applied reorg of depth D with `cache <= D <= cap` empties the deque while the node still treats the reorg as legal -- spends fail or hit `exit(1)` / forced rebuild. That is the failure mode TNT-03 exists to prevent, not an option. Raising the cap toward maturity 720 or Zebra 1000 means growing the deque (RAM per note) or accepting rebuild-on-deep-reorg; `keeptxfornblocks` is already floored at `MAX_REORG_LENGTH + 1`. Cycle 2 "rebuild if cache short" is recovery after crash or a legal-depth pop that left no layers -- a different sentence.
+
+**Cycle rematch campaign.** Same wallet x op matrix after each cycle, one restartable trial per invocation: `contrib/perf/run_cycle_campaign.sh`. Ops: sync (caught-up start), rescan, reindex, bootstrap. Wallets: none / p0 / p1 / fat. Collate: `contrib/perf/collate_cycle.py`. Do not batch long trials.
+
 | Cycle | Bundle | Deps | Impact | Effort | Risk | Validation |
 |-------|--------|------|--------|--------|------|------------|
-| **1 -- witness perf** | Package A: STALE + R8 both `AddToWallet` flavors. After rematch: flag collapse (NOTEIDX default; drop `-walletwitnessnote`). | NOTEIDX prototype in tree | **High** fat `-rescan`/IBD after 1.6M (M-WAL-RESCAN-FAT) | **S** then **S** for flags | **Med** missed note invalidate | R8 gtest; post-1.6M CPU rematch; optional full `-rescan` if CPU is ambiguous |
-| **2 -- stay up** | Packages C+D: TNT-02 reject-and-stay at 99; drop `StartShutdown`; no `exit(1)` in Decrement; recovery 2/3; R5d | None on A (independent). R5b already covers applied 1/3/10/20 | **High** ops/zeronodes (exit takes the node off relay) | **M** | **Med** (must not apply the fork; headers already in `mapBlockIndex`) | R5d e2e; GTest-DEC follow-on for rebuild-if-short |
-| **3 -- cap sizing** | Packages F then optional G: move 99 only with `WITNESS_CACHE_SIZE` / `keeptxfornblocks` / rewind; optional `-maxreorg` as reject-bound | Cycle 2 proven | **Med** (memory, rebuild cost) | **M-L** | **High** if cache shorter than cap | Memory/rebuild review; not Zebra-1000 by default |
+| **1 -- witness perf** | Package A: STALE + R8 both `AddToWallet` flavors. After rematch: flag collapse (NOTEIDX default; drop `-walletwitnessnote`). | NOTEIDX prototype in tree | **High** fat `-rescan`/IBD after 1.6M (M-WAL-RESCAN-FAT) | **S** then **S** for flags | **Med** missed note invalidate | R8 gtest; campaign `SET=gate` (fat tiny + optional full rescan); post-1.6M CPU if tiny is ambiguous |
+| **2 -- stay up** | Packages C+D: TNT-02 reject-and-stay at 99; drop `StartShutdown`; no `exit(1)` in Decrement; recovery 2/3; R5d | None on A (independent). R5b already covers applied 1/3/10/20 | **High** ops/zeronodes (exit takes the node off relay) | **M** | **Med** (must not apply the fork; headers already in `mapBlockIndex`) | R5d e2e; rematch `SET=gate` vs Cycle 1 ledger; GTest-DEC follow-on for rebuild-if-short |
+| **3 -- cap sizing** | Packages F then optional G: move 99 only with `WITNESS_CACHE_SIZE >= cap+1` / `keeptxfornblocks` / rewind; optional `-maxreorg` as reject-bound | Cycle 2 proven | **Med** (memory, rebuild cost) | **M-L** | **High** if deque shallower than apply bound | Memory/rebuild review; rematch campaign + RSS; not Zebra-1000 by default |
 
 **Parallel tracks** (do not wait on Cycle 1; do not batch into Cycle 2):
 
@@ -1189,7 +1195,7 @@ Package **E** (Decrement uses Select) and incremental `vNoteTxHashes`: after Cyc
 | **C -- reject-and-stay** | TNT-02, DEF-07 (policy half), R5d | Drop live/rewind `StartShutdown`; do not apply; warn; stay up | **2** with D. Not TENT unbounded connect. |
 | **D -- crash-safe witness** | recovery 2/3, GTest-DEC follow-on | No `exit(1)` in Decrement; rebuild if cache short; rely on `Shutdown` flush | **2** with C. |
 | **E -- Decrement NOTEIDX** | later | `DecrementNoteWitnesses` uses `SelectWalletTxsForWitnessScan` | After 1 rematch if still hot. Independent of 2. |
-| **F -- cap vs maturity** | TNT-03, DEF-07 (sizing half) | Change 99 only with `WITNESS_CACHE_SIZE`, `keeptxfornblocks`, rewind | **3**. Not Zebra-1000 unless memory reviewed. |
+| **F -- cap vs maturity** | TNT-03, DEF-07 (sizing half) | Change 99 only with `WITNESS_CACHE_SIZE >= cap+1`, `keeptxfornblocks`, rewind | **3**. Not Zebra-1000 unless memory reviewed. |
 | **G -- optional `-maxreorg`** | Pirate-like | Operator raise **if** C is default reject-and-stay | **3** after F. Not an apply-unbounded escape. |
 
 **Not Cycle 1:** skip `AddToWallet` when `fExisted && fUpdate`; WALK-UNLOCK; raising cap; G5; TNT-12 Phase C.

@@ -255,4 +255,31 @@ python3 contrib/perf/accumulate_bench.py --import-tsv \
   --campaign postsapling-historical
 python3 contrib/perf/accumulate_bench.py --report \
   --md reindex-profile/bench-summaries/REPORT.md
+
+## run_cycle_campaign.sh
+
+Rematch the same wallet x op matrix after each integration cycle (Perf.md §0.16).
+**One trial per invocation.** Do not batch fat/full/long trials.
+
+Catalog: `contrib/perf/cycle_trials.tsv` (`SET=smoke|gate|long`).
+
+```bash
+CYCLE=1 SET=smoke contrib/perf/run_cycle_campaign.sh list
+CYCLE=1 SET=smoke \
+  ZERO_PERF_WALLET_P0=/path/to/wallet.zero0 \
+  contrib/perf/run_cycle_campaign.sh next
+CYCLE=1 contrib/perf/run_cycle_campaign.sh run p0-reindex-tiny
+contrib/perf/run_cycle_campaign.sh report
+```
+
+Ops: `reindex` (`run_wallet_sync_profile.sh` / `run_tiny_baseline.sh`), `rescan` /
+`sync` (`run_witness_lab.sh` rescan*|catchup*), `bootstrap` (`run_postsapling_baseline.sh`
+`MODE=bootstrap N_TRIALS=1`). Wallets: `none` / `p0` / `p1` / `fat`.
+
+Ledger `CAMPAIGN=cycle-1` (then cycle-2, cycle-3). Status:
+`reindex-profile/cycle-campaign/status.jsonl`. Collate:
+`python3 contrib/perf/collate_cycle.py`.
+
+`run_witness_lab.sh` also accepts `rescan`, `rescan-noteidx`, `catchup`,
+`catchup-noteidx`, `tip-catchup`, `tip-catchup-note` as single trials.
 ```

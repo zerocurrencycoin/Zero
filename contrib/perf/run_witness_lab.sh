@@ -10,12 +10,14 @@
 #   ZERO_PERF_WALLET_FILE=... contrib/perf/run_witness_lab.sh rebuild-noteidx
 #   ZERO_PERF_WALLET_FILE=... ZERO_PERF_TIP_TEMPLATE=reindex-profile/fulltip-812-datadir \
 #     contrib/perf/run_witness_lab.sh tip-rebuild-note
+#   ZERO_PERF_WALLET_FILE=... contrib/perf/run_witness_lab.sh rescan-noteidx
+#   ZERO_PERF_WALLET_FILE=... contrib/perf/run_witness_lab.sh catchup-noteidx
 #
 # Env:
 #   ZERO_PERF_WALLET_FILE   required
 #   ZERO_PERF_SRC_DATADIR   blocks source (default Application Support/zero)
-#   ZERO_PERF_CHAIN_SNAP    tiny|short|full (default tiny) -- rebuild* only
-#   ZERO_PERF_TIP_TEMPLATE  tip-rebuild*: datadir with blocks+chainstate at tip
+#   ZERO_PERF_CHAIN_SNAP    tiny|short|full (default tiny) -- rebuild*/rescan/catchup
+#   ZERO_PERF_TIP_TEMPLATE  tip-rebuild* / tip-catchup*: datadir with blocks+chainstate at tip
 #   TARGET_HEIGHT           dirty-cont stop height (default 8000)
 #   ZERO_PERF_RPCPORT       default 23956
 #   ZERO_PERF_SCRATCH_DATADIR  default reindex-profile/witness-lab-datadir
@@ -26,6 +28,7 @@
 #   rebuild*   -- full -reindex + ibd-defer (L wall on full tip).
 #   tip-rebuild* -- copy tip template, inject wallet, -walletwitness=rebuild
 #     without -reindex (preferred post-Sap walk measure). One trial at a time.
+#   rescan* / catchup* -- known-state chain + injected wallet; see run_cycle_campaign.sh.
 
 set -euo pipefail
 
@@ -214,10 +217,9 @@ print("sum_note_visits=%d sum_early_continue=%d sum_full_work=%d" % (visits, ear
 if visits:
     print("early_continue_rate=%.4f" % (early / float(visits)))
     print("full_work_rate=%.4f" % (full / float(visits)))
-else:
-    if n == 0:
+elif n == 0:
     print("early_continue_rate=NA (no WitnessStats lines)")
-elif visits == 0:
+else:
     print("early_continue_rate=NA (note_visits=0 -- typically pre-Sapling tip; notes not yet in chain)")
 print("DIRTY: park if shipping ibd-defer; else re-run CONT on post-Sapling TARGET_HEIGHT.")
 PY
@@ -337,14 +339,130 @@ run_tip_rebuild() {
   log "done OUT_DIR=$OUT_DIR"
 }
 
+wait_done_loading() {
+  local pid="$1"
+  while kill -0 "$pid" 2>/dev/null; do
+    if grep -q "Done loading" "$SCRATCH/debug.log" 2>/dev/null; then
+      log "detected Done loading"
+      sleep 2
+      return 0
+    fi
+    local h
+    h=$(cli getblockcount 2>/dev/null || echo 0)
+    log "waiting Done loading height=$h"
+    sleep 15
+  done
+  return 0
+}
+
+write_scratch_conf() {
+  local insight="${1:-0}"
+  {
+    echo "listen=0"
+    echo "maxconnections=0"
+    echo "server=1"
+    echo "rpcuser=rt"
+    echo "rpcpassword=rt"
+    echo "rpcport=$RPCPORT"
+    if [ "$insight" = "1" ]; then
+      echo "experimentalfeatures=1"
+      echo "insightexplorer=1"
+    fi
+  } > "$SCRATCH/zero.conf"
+}
+
+run_rescan() {
+  local noteidx="$1"
+  prepare_scratch
+  write_scratch_conf 0
+  if [ ! -d "$SCRATCH/chainstate" ]; then
+    echo "ERROR: rescan needs chainstate in the snap (got SNAP=$SNAP)" >&2
+    exit 1
+  fi
+  local extra=(-rescan -connect=0 -listen=0 -rpcport="$RPCPORT")
+  if [ "$noteidx" = "1" ]; then
+    extra+=(-walletwitnessnote=1)
+  fi
+  log "START rescan noteidx=$noteidx extras=${extra[*]}"
+  local t0
+  t0=$(date +%s)
+  "$ZEROD" -datadir="$SCRATCH" "${extra[@]}" >"$OUT_DIR/zerod.stdout" 2>"$OUT_DIR/zerod.stderr" &
+  local pid=$!
+  echo "$pid" >"$OUT_DIR/zerod.pid"
+  for _ in $(seq 1 180); do
+    cli getblockcount >/dev/null 2>&1 && break
+    sleep 2
+  done
+  wait_done_loading "$pid"
+  wait_rebuild_done "$pid"
+  local t1 elapsed tip
+  t1=$(date +%s)
+  elapsed=$((t1 - t0))
+  tip=$(cli getblockcount 2>/dev/null || echo NA)
+  stop_node "$pid"
+  {
+    echo "mode=rescan noteidx=$noteidx wall_s=$elapsed tip=$tip"
+    echo "--- rescan / height-walk ---"
+    grep -E "Rescanning last| rescan +[0-9]+ms|BuildWitnessCache height-walk|Done loading" "$SCRATCH/debug.log" 2>/dev/null | tail -40 || true
+  } | tee "$SUMMARY"
+  log "done OUT_DIR=$OUT_DIR"
+}
+
+run_catchup() {
+  local noteidx="$1"
+  local use_tip="${2:-0}"
+  if [ "$use_tip" = "1" ]; then
+    prepare_tip_scratch
+  else
+    prepare_scratch
+    write_scratch_conf 0
+  fi
+  if [ ! -d "$SCRATCH/chainstate" ]; then
+    echo "ERROR: sync/catchup needs chainstate (SNAP=$SNAP use_tip=$use_tip)" >&2
+    exit 1
+  fi
+  local extra=(-connect=0 -listen=0 -rpcport="$RPCPORT")
+  if [ "$noteidx" = "1" ]; then
+    extra+=(-walletwitnessnote=1)
+  fi
+  log "START catchup noteidx=$noteidx use_tip=$use_tip extras=${extra[*]}"
+  local t0
+  t0=$(date +%s)
+  "$ZEROD" -datadir="$SCRATCH" "${extra[@]}" >"$OUT_DIR/zerod.stdout" 2>"$OUT_DIR/zerod.stderr" &
+  local pid=$!
+  echo "$pid" >"$OUT_DIR/zerod.pid"
+  for _ in $(seq 1 180); do
+    cli getblockcount >/dev/null 2>&1 && break
+    sleep 2
+  done
+  wait_done_loading "$pid"
+  local t1 elapsed tip
+  t1=$(date +%s)
+  elapsed=$((t1 - t0))
+  tip=$(cli getblockcount 2>/dev/null || echo NA)
+  stop_node "$pid"
+  {
+    echo "mode=catchup noteidx=$noteidx wall_s=$elapsed tip=$tip"
+    echo "--- Done loading / height-walk ---"
+    grep -E "Done loading|BuildWitnessCache height-walk|Rescanning last" "$SCRATCH/debug.log" 2>/dev/null | tail -40 || true
+  } | tee "$SUMMARY"
+  log "done OUT_DIR=$OUT_DIR"
+}
+
 case "$MODE" in
   dirty-cont) run_dirty_cont ;;
   rebuild) run_rebuild 0 ;;
   rebuild-noteidx) run_rebuild 1 ;;
   tip-rebuild) run_tip_rebuild 0 ;;
   tip-rebuild-note) run_tip_rebuild 1 ;;
+  rescan) run_rescan 0 ;;
+  rescan-noteidx) run_rescan 1 ;;
+  catchup) run_catchup 0 0 ;;
+  catchup-noteidx) run_catchup 1 0 ;;
+  tip-catchup) run_catchup 0 1 ;;
+  tip-catchup-note) run_catchup 1 1 ;;
   *)
-    echo "Usage: $0 dirty-cont|rebuild|rebuild-noteidx|tip-rebuild|tip-rebuild-note" >&2
+    echo "Usage: $0 dirty-cont|rebuild|rebuild-noteidx|tip-rebuild|tip-rebuild-note|rescan|rescan-noteidx|catchup|catchup-noteidx|tip-catchup|tip-catchup-note" >&2
     exit 1
     ;;
 esac

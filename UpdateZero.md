@@ -389,7 +389,7 @@ Two constants serve different jobs and must not be conflated:
 
 **The operational gap (TNT-02).** Exit takes zeronodes off the network. TENT follow-longest with a 100-slot cache is the other failure. **Reject-and-stay** keeps serving the chain already accepted. Headers of the fork may already be in `mapBlockIndex`; tip, coins, wallet, insight must not move. **Perf.md** §0.16 Cycle 2. Independent of STALE (Cycle 1). Family facts: **`~/Work/ZK/ZKs/Comparison.md` §14.5**.
 
-**The design tension (TNT-03).** Raising `MAX_REORG_LENGTH` toward maturity (or toward Zebra 1000) is a **sizing** change: `WITNESS_CACHE_SIZE`, `keeptxfornblocks` floor, rewind, and rebuild-if-cache-short. Do not fold into TNT-02.
+**The design tension (TNT-03).** Raising `MAX_REORG_LENGTH` toward maturity (or toward Zebra 1000) is a **sizing** change: keep `WITNESS_CACHE_SIZE >= MAX_REORG_LENGTH + 1`, `keeptxfornblocks` floor, rewind, and rebuild-if-cache-short. A deque shallower than the apply bound is the failure mode, not a setting. Do not fold into TNT-02.
 
 **Recommendation (when scheduled):**
 
