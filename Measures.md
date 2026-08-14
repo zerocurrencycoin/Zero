@@ -152,6 +152,7 @@ Use case: gate RPC clients and harnesses; **not** ops-ready.
 | M-RX-FULL-CLASS | full archive class | **~8–10 h** estimate; archive **~8.1 GiB** | `estimate` | `none` | `AtHeight.md` |
 | M-IBD-CLASS | network sync class | **~6–10 h** | `estimate` | `none` | `BUILD_ZERO.md` |
 | M-BOOT-FULL | bootstrap.dat import | **145.7 min**; **2,468,990** blocks; **≈282 blk/s** | `campaign` | `debug_log` (+ profile optional) | `Perf.md` §2 |
+| M-BOOT-NEW-20260813 | new Zero400 `bootstrap.dat` smoke | n=1 window 50k-75k; **1000 blk/s** (25.0 s / 25000); magic `5a45524f`; hashlist **0-2468990** (2468991 hashes); file **5415354491** B. Peer class M-BOOT-PRESAP (~1076 n=4) | `campaign` | `lab_monitor` | `test-logs/postsapling-20260813T220819Z/` |
 | M-BOOT-SMOKE-20260811 | bootstrap window 50k–75k | **862.07 blk/s** (n=1); concurrent with tiny -- **superseded** by M-BOOT-PRESAP | `campaign` | `lab_monitor` | noisy; see M-BOOT-PRESAP |
 | M-BOOT-PRESAP | bootstrap window 50k-75k | **mean 1075.63 blk/s** (n=4, stdev 19.61; min 1041.67 max 1086.96); stock; ledger `CAMPAIGN=bootstrap-presap` | `campaign` | `lab_monitor` | `REPORT-bootstrap-presap.md` |
 | M-RX-PRESAP | reindex window 50k-75k | **mean 1012.12 blk/s** (n=4, stdev 45.97; min 961.54 max 1086.96); stock; ledger `CAMPAIGN=reindex-presap`; peer M-BOOT-PRESAP | `campaign` | `lab_monitor` | `REPORT-reindex-presap.md` |
@@ -164,8 +165,9 @@ Use case: gate RPC clients and harnesses; **not** ops-ready.
 | M-RX-ONSET | stock reindex Sapling-onset | **140.19 blk/s** (n=1); window 490k-520k; ledger `CAMPAIGN=reindex-onset`; peer M-BOOT-ONSET (~parity; both ~2x slower than deep post-Sap ~300) | `campaign` | `lab_monitor` | `REPORT-reindex-onset.md` |
 | M-MINE-REGTEST-SMOKE | regtest `generate` (48,5) | **8** blocks in **1 s** wall (~125 ms/blk wall); util sampled; solve too cheap for Instruments-grade ms -- smoke for BENCH-MINE env | `campaign` | `lab_monitor` | `test-logs/mine-20260812T153357Z/` |
 | M-MINE-NEON-PROBE | arm64 stock binary | `hw.optional.neon=1`; `blake2b_compress_ref` present; `blake2b_compress_neon=0`; `ZERO_PERF_NEON_ZEROD` unset | `spot` | `nm`/`sysctl` | `neon-probe.txt` |
-| *(none yet)* | mainnet (192,7) timed solve | **Not measured** -- G5 / `MINE_MAINNET_SOLVE=1` + Instruments; harness stub only (`run_mine_bench.sh mainnet-template`) | -- | -- | Perf §0.9 |
+| *(none yet)* | mainnet (192,7) timed solve | **Scheduled -- Track M / G5** -- `MINE_MAINNET_SOLVE=1` + Instruments; harness stub only (`run_mine_bench.sh mainnet-template`) | -- | -- | Perf §0.9 / §0.16 |
 | M-WAL-SYNC-P0 | wallet profile0 + tiny `-reindex` | tip **187417** in ~198 s (~**950** blk/s class); RSS **104->408 MiB**; wallet **106496** B flat; txcount **0** | `campaign` | `lab_monitor` | `test-logs/walletsync-20260812T153358Z/util.tsv` |
+| M-WAL-SYNC-P1 | wallet profile1 + tiny `-reindex` | tip **187417** in **~201 s** (~**918** blk/s from h~2.8k); RSS **~103->398 MiB**; wallet **237568** B flat; txcount **133**; note_tx **0** -- near P0; no witness hotspot expected | `campaign` | `lab_monitor` | `test-logs/walletsync-20260813T055703Z/` |
 | M-WAL-SYNC-FAT | fat wallet + tiny `-reindex` | tip **187417** in **~2.75 h** (~**19 blk/s**); wallet **785457152** B flat; txcount **801619**; RSS ~0.7->1.5 GiB -- **~50x** slower than M-WAL-SYNC-P0; util.tsv stalled mid-run (getwalletinfo vs cs_wallet) -- wall from debug.log tip + mid-run captures | `campaign` | `lab_monitor` + `xctrace` | `test-logs/walletsync-20260812T174850Z/`; CPU `test-logs/walletsync-fat-cpu-20260812T194107Z/` + `archives/…tar.gz` |
 | M-CPU-WAL-FAT | fat wallet mid-sync Time Profiler | 5 sync windows h **133k–181k**: loadblk **~99.7%**; after G0b needles `witness_cache` **~97%**, `wallet_add_ordered` **~0.03%**; tip idle. blk/s **~20–21** flat | `campaign` | `xctrace` + `bucket_profile.py` | `test-logs/walletsync-fat-cpu-20260812T194107Z/`; rebucket `capture_005/buckets_ALL_g0b.txt` |
 | M-WAL-NOTE-DENS | fat golden note density | **note_tx 1403 / txcount 801619 (0.175%)**; sprout **0**; sapling **1403** | `spot` | `cli` getwalletinfo | `test-logs/g0c-note-density/` |
@@ -173,6 +175,9 @@ Use case: gate RPC clients and harnesses; **not** ops-ready.
 | M-WAL-WITNESS-NOTEIDX-AB | `-walletwitnessnote=1` A/B | fat tiny to h~8k: stock **14.86** vs noteidx **485.7** blk/s (~**33x**); no ibd-defer | `campaign` | `lab_monitor` | `test-logs/g0-noteidx-ab/SUMMARY.txt` |
 | M-WAL-DIRTY-CONT | INV-DIRTY-CONT stock+NOTEIDX+stats | tiny to h~11k: `scan_txs=1403`/`mapWallet=801619`; **note_visits=0** (all notes Sapling, tiny pre-Sap) -- early_continue **N/A** on this band | `spot` | `lab_monitor` | `test-logs/witness-lab-dirty-cont-20260813T041447Z/` |
 | M-WAL-WITNESS-REBUILD | BENCH-WIT-REBUILD defer ± NOTEIDX | tiny tip **187417**: import+defer wall ~**333 s** either flag; tip `RebuildWitnessCacheForChainTip` runs but **height walk skipped** (no notes at/below tip) -- walk perf needs post-Sap tip; e2e validates walk with notes | `campaign` | `lab_monitor` | `test-logs/witness-lab-rebuild*-20260813T*/` |
+| M-WAL-WITNESS-TIP-AB | tip-only fat WIT height-walk ± NOTEIDX | tip **2518018**; rescan window startHeight **2516577** (~1441 blk): stock `scan_txs=801619` **7659 ms** vs note `scan_txs=1403` **220 ms** (~**35x**); `note_tx_count=1403`. Walk runs at end of wallet Rescan; `-walletwitness=rebuild` hook after. Requires rebuilt binary with `-walletwitnessnote` | `campaign` | `lab_monitor` | `test-logs/witness-lab-tip-rebuild-*-20260813T071*` |
+| M-WAL-RESCAN-FAT | fat wallet `-rescan` from genesis (clears witnesses) | **Done.** `Rescanning last 2518691 blocks` 01:32:18 -> walk begin 13:24:38 UTC (~**11.9 h**, overall **~59 blk/s**). Fast h~98k-1.56M: **~1200-1650 blk/s**. Cliff h~**1601804** (Halving 2 / founders slot): **~19 blk/s** class to tip. End walk `startHeight=2505881` `tip=2518691` (~12.8k blk) `scan_txs=1403` `noteidx=1` **2009 ms**; P2P catch-up 2518692-2518993 **42 ms**; follow-tip **0-1 ms**. `Done loading` 13:24:44. txcount **801619** note_tx **1403**. **Not** ConnectBlock/Groth. Per-block `BuildWitnessCache(., true)` + `AddToWalletIfInvolvingMe`. `ibd-defer` does not apply | `campaign` | `lab_monitor` + `vmmap`/`iostat` | lab `debug.log`; `test-logs/rescan-sys-20260814T014246Z/` |
+| M-WAL-RESCAN-FAT-CPU | Time Profiler during M-WAL-RESCAN-FAT | pre-sap h~288k-378k: `witness_cache` **82.2%**, Select **31%**. post-sap fast h~913k-985k: `witness_cache` **72.3%**, Select **27.5%**, `wallet_add_ordered` **14.1%**. slow h~1.708M and rematch h~1.753M: `witness_cache` **99.3-99.4%**, Select **97.6-97.9%** -- NOTEIDX Ensure after `AddToWallet` invalidate | `campaign` | `xctrace` + `bucket_profile.py` | `test-logs/rescan-xctrace-20260814T013547Z/`; `...-postsap-.../`; `...-slow-20260814T032423Z/`; `...-slow2-20260814T040320Z/` |
 | M-GAD-FAT-TINY | tip-quiet getalldata fat@tiny tip | after `-walletwitness=rebuild`: datatype1 **~0.75 s**; datatype0/7d **~1.2 s**; resp ~3.5 KB -- **not** mainnet Idx1 UTXO load | `spot` | `cli_timer` | `test-logs/g0e-idx1-tip-util/` |
 | M-RX-WINDOW | mid-chain window | e.g. **267.5 blk/s**; **~330 KB/s** (h 610k–626k) | `campaign` | `xctrace` + `debug_log` | `Perf.md` §2 |
 
@@ -410,6 +415,7 @@ Shipped filter-then-process path: `contrib/perf/extract_measures.py` (plus `run_
 | `postsapling` | reindex stock | 600k-900k | M-RX-POSTSAP-STOCK | Primary post-Sap reindex baseline |
 | `postsapling-historical` | reindex FDCACHE-era | 600k-900k | M-RX-POSTSAP-AB | Historical A/B; not current mix |
 | `bootstrap-presap` | bootstrap stock | 50k-75k | M-BOOT-PRESAP | Peer M-RX-PRESAP |
+| `bootstrap-new-20260813` | bootstrap stock | 50k-75k | M-BOOT-NEW-20260813 | Regenerated Zero400 bootstrap.dat smoke |
 | `reindex-presap` | reindex stock | 50k-75k | M-RX-PRESAP | Peer M-BOOT-PRESAP |
 | `bootstrap-postsap` | bootstrap stock | 600k-900k | M-BOOT-POSTSAP | Peer M-RX-POSTSAP-STOCK; **parity** |
 | `bootstrap-smoke` | bootstrap stock | 50k-75k | M-BOOT-SMOKE-20260811 | Superseded; contended |
@@ -419,14 +425,18 @@ Shipped filter-then-process path: `contrib/perf/extract_measures.py` (plus `run_
 | `mine-equihash-regtest` | regtest generate | (48,5) | M-MINE-REGTEST-SMOKE | BENCH-MINE env smoke |
 | `mine-equihash-neon-probe` | probe | arm64 | M-MINE-NEON-PROBE | NEON A/B gated on NEON zerod |
 | `wallet-sync-profile0` | reindex + wallet | tiny tip | M-WAL-SYNC-P0 | Dev wallet profile0; no host paths |
+| `wallet-sync-profile1` | reindex + wallet | tiny tip | M-WAL-SYNC-P1 | Mid-size personal; txcount 133; note_tx 0; near P0 |
 | `wallet-sync-fat` | reindex + fat wallet | tiny tip | M-WAL-SYNC-FAT, M-CPU-WAL-FAT | Done; FINDINGS + archive `walletsync-fat-g0-20260812.tar.gz`; Perf §0.14 |
+| `witness-tip-rebuild` | tip template + fat wallet | tip 2518018 | M-WAL-WITNESS-TIP-AB | `tip-rebuild` / `tip-rebuild-note`; insight flags required |
+| `wallet-rescan-fat` | `-rescan` + fat wallet | genesis to live tip | M-WAL-RESCAN-FAT, M-WAL-RESCAN-FAT-CPU | **Done** (~11.9 h). Clears witnesses; per-block Verify not ChainTip; NOTEIDX stale storm; end walk 2.0 s |
 
-Unmeasured work (Idx1 tip getalldata, mainnet 192,7 solve Instruments, FDCACHE 8/16KB, optional onset n=4) gets an `M-*` when first measured. **Postponed:** NEON A/B (G7), Halo/Orchard notes body (G8), KAT adapt tests (G9). Groth G2/G3 consecutive after G5/G9 slot.
+Unmeasured work (Idx1 tip getalldata, mainnet 192,7 solve Instruments **scheduled G5**, FDCACHE 8/16KB, optional onset n=4) gets an `M-*` when first measured. **Postponed:** NEON A/B (G7), Halo/Orchard notes body (G8), KAT adapt tests (G9). Groth G2/G3 consecutive after G5/G9 slot.
 
 **Cross-campaign notes**
 
 - Pre-Sap 50k-75k: M-BOOT-PRESAP vs M-RX-PRESAP in the same band; M-RX-UTIL-SMOKE n=1 sits inside.
 - Post-Sap 600k-900k: M-BOOT-POSTSAP vs M-RX-POSTSAP-STOCK -- bootstrap ≈ reindex.
 - Sapling-onset 490k-520k: M-BOOT-ONSET **~130** vs M-RX-ONSET **~140 blk/s** (n=1 each) -- ~parity; both ~2x slower than deep post-Sap ~300; density M-DENS-ONSET shows dual Sprout+Sapling load. Coarse density tip-complete.
-- Wallet tiny reindex: M-WAL-SYNC-P0 (~950 blk/s, empty) vs M-WAL-SYNC-FAT (~19 blk/s, ~800k txs, ~50x) -- not OrderedTxItems; per-block Verify (M-CPU-WAL-FAT). Mitigations measured: ibd-defer ~35x (M-WAL-WITNESS-IBD-AB); **NOTEIDX** ~33x (M-WAL-WITNESS-NOTEIDX-AB) at 0.175% note-tx density (M-WAL-NOTE-DENS). RPC `-33` global freeze only on full rebuild -- Perf §0.14.
+- Wallet tiny reindex: M-WAL-SYNC-P0 (~950 blk/s, empty) vs M-WAL-SYNC-P1 (~918 blk/s, txcount 133, note_tx 0) vs M-WAL-SYNC-FAT (~19 blk/s, ~800k txs, ~50x) -- fat hotspot is per-block Verify (M-CPU-WAL-FAT), not OrderedTxItems. Mitigations: ibd-defer ~35x; **NOTEIDX** ~33x at 0.175% note-tx density. RPC `-33` on full rebuild with status allowlist -- Perf §0.14/§0.16.
+- Fat `-rescan` (M-WAL-RESCAN-FAT): **finished** genesis to tip **2518691** in ~**11.9 h** (overall ~**59 blk/s**). Fast ~1.2k-1.6k blk/s to h~1.56M, then **~19 blk/s** from h~1.601M (Select **~98%**, M-WAL-RESCAN-FAT-CPU). End height-walk **2.0 s** (~12.8k blk, NOTEIDX hot); not the wall. Not comparable to ConnectBlock reindex. Cause: NOTEIDX Ensure after unconditional `AddToWallet` invalidate (FIX-WAL-WITNESS-NOTEIDX-STALE). `ibd-defer` does not apply (`ScanForWalletTransactions`, not ChainTip IBD).
 - M-RX-TINY-20260811d / M-RX-SHORT-20260811b ran under host contention with long bootstrap; not clean solo baselines.

@@ -10,7 +10,7 @@
 
 Orientation for the sync/perf lab. Detail lives in subsections and **Measures.md**.
 
-**Where this stands:** Three ConnectBlock-adjacent fixes shipped (§3 fd-cache, §4 root latch, §4 anchor-existence index); two measured **null** throughput wins (useful negatives). Post-Sapling import CPU is still **Groth16-bound** (~48–55% chain-wide, M-CPU-SEQ). Batch verification is the largest open sync win; **Option A vs B is undecided** -- do not start Phase 2 product code until a person chooses. Hand-port Phases 0–1 proved the math on pinned crates (scratchpad only). Fat-wallet witness path is a separate track (§0.14): lab prototypes measured; **productize** still open. Mining: regtest solve smoke + NEON probe done; **mainnet (192,7) timed solve not run** (G5). See §0.0 / §0.1a (Groth review) and §0.15 (backlog).
+**Where this stands:** Three ConnectBlock-adjacent fixes shipped (§3 fd-cache, §4 root latch, §4 anchor-existence index); two measured **null** throughput wins (useful negatives). Post-Sapling import CPU is still **Groth16-bound** (~48–55% chain-wide, M-CPU-SEQ). Batch verification is the largest open sync win; **Option A vs B is undecided** -- do not start Phase 2 product code until a person chooses. Hand-port Phases 0–1 proved the math on pinned crates (scratchpad only). Fat-wallet witness path is a separate track (§0.14): lab prototypes measured; **Cycle 1** STALE next. Mining: regtest solve smoke + NEON probe done; **G5** mainnet (192,7) timed solve **scheduled** (Track M). See §0.0 / §0.1a (Groth review) and §0.15 (backlog).
 
 ### 0.0 Groth16 item -- lead-in and step-by-step
 
@@ -342,11 +342,11 @@ Mining profile and shielded density table.
 | arm64 NEON / blake2b symbol probe | **Done** | M-MINE-NEON-PROBE (`compress_ref` only; no NEON zerod) |
 | Validator KATs (192,7)/(48,5) | **Done** | TST-05; `contrib/perf/kats/` |
 | Reindex **verify** Equihash cost | **Done** | M-CPU-SEQ ~**0.252 ms/blk** (not mining) |
-| Mainnet-template **timed solve** (192,7) + Instruments on `zcash-miner` | **Not run** | G5; `run_mine_bench.sh mainnet-template` only stubs env unless `MINE_MAINNET_SOLVE=1` |
+| Mainnet-template **timed solve** (192,7) + Instruments on `zcash-miner` | **Scheduled -- Track M** | G5; `run_mine_bench.sh mainnet-template` only stubs env unless `MINE_MAINNET_SOLVE=1` |
 | Live mainnet mining / pool / GBT production hash | **Out of lab scope** | Not a ZeroPerf campaign |
 | NEON solve A/B | **Parked** | G7; needs NEON-enabled zerod + ARM fleet mix |
 
-**Procedure when G5 resumes:** `ENABLE_MINING`; disposable isolated mainnet template (never default Application Support); Instruments on **`zcash-miner`** during solve -- not during `-reindex`; record solve ms/block + blake2b share; compare to verify-only ~0.25 ms/blk; campaign `mine-equihash-*`.
+**Procedure for G5 (Track M):** one trial when the Instruments host is free; parallel with Cycle 1, not gated on STALE. `ENABLE_MINING`; disposable isolated mainnet template (never default Application Support); Instruments on **`zcash-miner`** during solve -- not during `-reindex`; record solve ms/block + blake2b share; compare to verify-only ~0.25 ms/blk; campaign `mine-equihash-*`. Do not batch multiple long solves.
 
 **Single shielded density table (drive lookups once):**
 
@@ -426,7 +426,7 @@ Both stay **out of the active sync-lab queue**. No implement / apply recommendat
 | **TST-09** `-blocknotify` / `-walletnotify` | **Done** | `DeprecationTest.BlockNotify*` / `WalletNotify*`; alert half already done |
 | **TST-05** Equihash (192,7)/(48,5) KATs | **Done** (validator + solver cases; `1927EQ.txt` + `1927EQ_h1.hex`) | `equihash_tests` green; pairs BENCH-MINE |
 | **TST-01** `getsupply` / `zs_*` depth | **Implement opportunistically** | Exclusive depth; not gate-blocking; pairs getalldata work |
-| **TST-03** zeronode arg validation | **Postpone unless editing zeronode RPC** | Under-dev; no sync-lab coupling |
+| **TST-03** zeronode arg validation | **Scheduled -- Track Z Phase A** | Expand existing Boost; no sync-lab coupling. Phase C 2-node after A/B (**ZeroNodeDev.md** §9, **UpdateZero** TNT-12) |
 | **CleanIndex ExtTests B2** / witness C | **Postpone** | ExtTests B1 `reindex_shielded` covers reindex witness; B2 high harness cost |
 | **finalsaplingroot** / other Bfail | **Postpone** | Not on measure critical path |
 
@@ -463,8 +463,10 @@ Doc ownership: **BENCH-/FIX-/IMP-***, **L0-L7**, Stages, **G**/**P1-P4**, lab ma
 | **FIX-LOG-DOC** | Ops note: logrotate needs `create`/`touch` before HUP | Prevents silent write-to-renamed-inode | **Done:** `doc/files.md` + Perf §0.8; Linux validate still BENCH-LOGROT | None |
 | **FIX-TST09** | Tests for `-blocknotify` / `-walletnotify` | Alert strip confidence | **Done** -- `DeprecationTest` block+wallet skip markers | Low |
 | **FIX-WAL-WITNESS-IBD** | Skip/throttle `BuildWitnessCache` during IBD; rebuild at tip | Fat-wallet reindex ~50x (M-CPU-WAL-FAT) | **Prototype done** -- `-walletwitness=ibd-defer` (~35x to h15k); Boost coverage green; productize open -- §0.14 | Med (spend UX during sync) |
-| **FIX-WAL-WITNESS-NOTEIDX** | Iterate note-bearing txs only | Same; avoid `empty()` on ~801k maps | **Prototype done** -- `-walletwitnessnote=1` (~33x h8k); productize open -- §0.14 | Low–med |
+| **FIX-WAL-WITNESS-NOTEIDX** | Iterate note-bearing txs only | Same; avoid `empty()` on ~801k maps | **Prototype done** -- `-walletwitnessnote=1` (~33x h8k); walk done; stale narrowing **specified** -- §0.14 | Low–med |
+| **FIX-WAL-WITNESS-NOTEIDX-STALE** | Invalidate NOTEIDX only on note-membership change | Founders-dense `-rescan`/IBD Ensure storm (M-WAL-RESCAN-FAT) | **Specified** -- Cycle 1; §0.14 | Med (missed note insert) |
 | **FIX-WAL-WITNESS-DIRTY** | Dirty set for notes needing initial witness | Differential; skip validated | **Proposed** -- §0.14 | Med (reorg/load) |
+| **FIX-WIT-WALK-UNLOCK** | Drop `cs_main` during full height walk; abort/restart if tip moves | R5c: mid-`-33` reorg is unreachable while the walk holds `cs_main` | **Open** -- product, not a test-only item; §0.16 | Med (reorg during rebuild) |
 
 Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex gating, Accounts, W5, Groth Phase 2 (decision-blocked). FDCACHE buffer A/B (G6) held until wallet-witness triage decides order.
 
@@ -476,7 +478,7 @@ Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex ga
 | **IMP-NEON** | NEON blake2b if ARM mix warrants | Equihash | ARM deployment check |
 | **IMP-GROTH-SPIKE** | Bound Option B migration cost (FFI/`cxx`, `ff`/`group`) | Groth | Person still decides A/B before Phase 2 |
 | **IMP-SHIELDEX-DEAD** | Optional remove dead `nNotarizations` when touching `chain.h` | RSS/cleanup | Opportunistic; full gate set aside |
-| **IMP-WITNESS-B2** | CleanIndex harness | WitnessReindex | Postponed; ExtTests B1 enough |
+| **IMP-WITNESS-B2** | CleanIndex gtest harness | WitnessReindex | **Do not run for confidence** -- always-fail; B1 `reindex_shielded.py` covers the product gap |
 | **IMP-WAL-MATRIX** | Execute §0.11 getalldata matrix | Wallet util | Disposable wallets; Accounts/W5 still pending review |
 
 #### D. Explicit non-goals
@@ -559,12 +561,12 @@ Owner-accepted order (solo host; one long trial at a time):
 | 6 | **G0e** | Tip-quiet getalldata on fat tiny tip | **Done** (scoped) -- ~0.75–1.2 s after rebuild; **not** mainnet Idx1 513k-UTXO; full Idx1 still open |
 | -- | **NOTEIDX** | FIX-WAL-WITNESS-NOTEIDX prototype | **Advanced** -- `-walletwitnessnote=1` ~**33x** to h8k (14.9→486 blk/s); DIRTY still postponed |
 | -- | **G6** | FDCACHE 8/16 KB A/B | **Hold** -- stock binary has no `-perffdcache`; prior 1MB A/B **null** (M-CPU-FD-THR); low priority vs witness ship |
-| 7 | **G5** | Equihash solve Instruments (mainnet template) | After deliberate resume |
+| 7 | **G5** | Equihash solve Instruments (mainnet template) | **Scheduled -- Track M**; parallel with Cycle 1 |
 | 8 | **G9** | KAT adapt/extra validate postponed | Note only |
 | -- | **G7** / **G8** | NEON / Halo-Orchard | **Postpone** |
 | 9 | **G2** then **G3** | Groth decision then implement | Consecutive after G5/G9 slot |
 
-**Next after this batch:** Opt-in ready; reorg R5a/b + R7b + GTest-DEC done; R5c open. Next lab: disposable full tip + post-Sap WIT-REBUILD. Id 1 sync/CPU parallel. Density/L3 + Idx1 **parked**; Groth/G5 separate.
+**Next after this batch:** Opt-in packaging done; Id 1 (M-WAL-SYNC-P1) done; disposable tip **2518018** + post-Sap WIT A/B **done**. P2P follow-tip / full bootstrap later. **FIX-WIT-WALK-UNLOCK** and Idx1 optional. Density/L3 parked. **Cycle 1** STALE next. **G5** Track M parallel. Groth G2/G3 after G5/G9.
 
 **G8 lookup note (postpone body):** Zebro treats Orchard/Halo2 as a gated decision (D2): launch assumption Orchard-only / no Sprout-Sapling residue; blocked on **NU6.2 Halo2 incident review** (emergency Orchard disable, dual verifying keys, proof-length rule -- see Zebro `ROADMAP.md` M4, `ZEBRO.md` D2). No Orchard numbers until that opens. Pirate NU5+ integration attempts: review when G8 resumes; not a ZeroPerf implement track. Zero consensus remains Sprout+Sapling Groth16 only.
 
@@ -615,7 +617,7 @@ Owner-accepted order (solo host; one long trial at a time):
 
 ### 0.14 Wallet-on reindex -- witness bottleneck (G0)
 
-**Settled:** With a large `mapWallet`, IBD/reindex wall is dominated by per-block `BuildWitnessCache(..., witnessOnly=true)` -> `VerifyAndSetInitialWitness` -- **not** by `OrderedTxItems` (WAL-WTXORDERED already incremental). Evidence: M-WAL-SYNC-FAT / M-CPU-WAL-FAT; archive `test-logs/archives/walletsync-fat-g0-20260812.tar.gz`.
+**Settled:** With a large `mapWallet`, IBD/reindex wall is dominated by per-block `BuildWitnessCache(..., witnessOnly=true)` -> `VerifyAndSetInitialWitness` -- **not** by `OrderedTxItems` (WAL-WTXORDERED already incremental). Evidence: M-WAL-SYNC-FAT / M-CPU-WAL-FAT; archive `test-logs/archives/walletsync-fat-g0-20260812.tar.gz`. Genesis `-rescan` on the same Id 3 fat wallet (M-WAL-RESCAN-FAT) is the same Verify path, not ConnectBlock: **finished** 2,518,691 blocks in ~**11.9 h**; cliff at height **1600000** (Halving 2 / founders payee) to ~**19 blk/s** with Select **~98%**; end height-walk **2.0 s**. Next product: **FIX-WAL-WITNESS-NOTEIDX-STALE**.
 
 **Lab flags (opt-in, not default):**
 - `-walletwitness=ibd-defer` -- skip per-block IBD `BuildWitnessCache`; rebuild once after `ThreadImport` (M-WAL-WITNESS-IBD-AB ~**35x** to h15k).
@@ -649,15 +651,15 @@ Effort bands: **S** small, **M** medium, **L** large (no calendar estimates). Im
 |------|------------|
 | **Idea** | Maintain note-bearing txid list; `VerifyAndSetInitialWitness` iterates that set, not all `mapWallet`. |
 | **Impact** | **High** on golden fat: **1403 / 801619 (0.175%)** note txs (M-WAL-NOTE-DENS). A/B ~**33x** (M-WAL-WITNESS-NOTEIDX-AB). |
-| **Complexity** | **Med**. Stale flag on AddToWallet/Erase; Ensure rebuilds vector. |
-| **Effort** | Prototype **done**; height walk **done** (shared `SelectWalletTxsForWitnessScan`). |
+| **Complexity** | **Med**. Stale flag + Ensure rebuild. Remaining: stale is too broad (FIX-WAL-WITNESS-NOTEIDX-STALE). |
+| **Effort** | Prototype **done**; height walk **done** (shared `SelectWalletTxsForWitnessScan`). Stale narrowing **S**. |
 | **Risk** | **Low–med**. Missed invalidate -> skipped note -> spend failure. |
-| **Status** | **Shipped in tree** -- Verify + height walk; e2e `wallet_witness_defer.py` green; gtest Select A/B. |
+| **Status** | **Shipped in tree** -- Verify + height walk; e2e `wallet_witness_defer.py` green; gtest Select A/B. Stale storm on transparent AddToWallet **open**. |
 
 **What NOTEIDX does** (`-walletwitnessnote=1`):
 
 - `vNoteTxHashes` + `fNoteTxIndexStale`; `EnsureNoteTxIndex()` / `SelectWalletTxsForWitnessScan()`.
-- Invalidate on AddToWallet / EraseFromWallet.
+- Invalidate on **note-membership** change only (FIX-WAL-WITNESS-NOTEIDX-STALE). **Today** every `AddToWallet` / `EraseFromWallet` invalidates.
 - Used by **`VerifyAndSetInitialWitness`** and the **`BuildWitnessCache` height walk** (`witnessOnly=false`).
 - Measured IBD: ~33x blk/s (M-WAL-WITNESS-NOTEIDX-AB). Walk logs `BuildWitnessCache height-walk begin/done` with `scan_txs` + `elapsed_ms`.
 
@@ -666,14 +668,152 @@ Effort bands: **S** small, **M** medium, **L** large (no calendar estimates). Im
 | Event | Index behavior |
 |-------|----------------|
 | Process start / new `CWallet` | `fNoteTxIndexStale=true`, `vNoteTxHashes` empty |
-| `LoadWallet` / each `AddToWallet` | Invalidate (stale=true); does **not** rebuild inline |
+| `LoadWallet` | Stale stays true from ctor; invalidate only if the loaded tx has notes (STALE). Today every load Add invalidates. |
 | First `VerifyAndSetInitialWitness` with flag on | `EnsureNoteTxIndex()`: full `mapWallet` scan once -> fill vector |
 | Later Verify while not stale | Walk vector only (O(note_tx)) |
-| `EraseFromWallet` / further Add | Invalidate; next Ensure rebuilds |
+| Transparent `AddToWallet` / `EraseFromWallet` | **STALE:** do not invalidate. Today: invalidate |
+| Note insert / note erase / empty-to-nonempty `UpdatedNoteData` | Invalidate; next Ensure rebuilds |
 | Restart | Not persisted; rebuild on first Ensure after load |
 | Flag off | Vector unused; Verify walks all `mapWallet` |
 
-**Size (RAM, not disk):** `vector<uint256>` ~= `note_tx_count * 32` bytes + vector capacity slack. Golden fat: **1403** note txs -> ~**45 KiB** hashes (negligible vs ~785 MB wallet). `getwalletinfo.note_tx_count` is the live cardinality signal. Cost spike = **one** O(`mapWallet`) Ensure after invalidate storms (e.g. bulk load); steady IBD with hot index is O(note_tx) per Verify.
+**Size (RAM, not disk):** `vector<uint256>` ~= `note_tx_count * 32` bytes + vector capacity slack. Golden fat: **1403** note txs -> ~**45 KiB** hashes (negligible vs ~785 MB wallet). `getwalletinfo.note_tx_count` is the live cardinality signal. Cost spike = **one** O(`mapWallet`) Ensure after a real membership change; steady Verify with a hot index is O(note_tx). Unconditional `AddToWallet` invalidate makes that spike **per involving block** (M-WAL-RESCAN-FAT-CPU). `ibd-defer` skips ChainTip Verify, not `-rescan`.
+
+##### FIX-WAL-WITNESS-NOTEIDX-STALE
+
+Narrow when `InvalidateNoteTxIndex` runs. Ready to implement; do not change Select/Ensure/walk algorithms.
+
+**Yes: skipping transparent txs is most of the work.** NOTEIDX already omits transparent txs from Verify and the height walk. The remaining cost is `EnsureNoteTxIndex` rebuilding `vNoteTxHashes` by scanning all of `mapWallet` whenever `fNoteTxIndexStale` is set. On the Id 3 fat wallet that flag is set on every founders coinbase after height **1600000** (Halving 2 / founders slot rotation): about one `AddToWallet` per block, then per-block Verify. Time Profiler in that band: `SelectWalletTxsForWitnessScan` **~98%**, **~19 blk/s** (M-WAL-RESCAN-FAT). Those coinbases have empty note maps. Not invalidating on transparent Add/Erase removes that Ensure. Remaining invalidates are note-bearing inserts, note-bearing erases, and empty-to-nonempty note-map merges -- **1403 / 801619 (0.175%)** on this golden, not per-block. Incremental `push_back`/`erase` on the vector is optional and not required for the win.
+
+**Defect.** `AddToWallet` calls `InvalidateNoteTxIndex()` before insert/merge, including `fFromLoadWallet`, no-op merges (`fInsertedNew` and `fUpdated` both false), and transparent txs. `EraseFromWallet` invalidates for every erased txid. `EnsureNoteTxIndex` is then O(`mapWallet`) on the next `SelectWalletTxsForWitnessScan`. Callers of Select: `VerifyAndSetInitialWitness` (every `BuildWitnessCache`) and the `witnessOnly=false` height walk (once per rebuild, Select once at walk start).
+
+**Note membership.** A txid is a member of `vNoteTxHashes` iff `mapSproutNoteData` or `mapSaplingNoteData` is nonempty (`EnsureNoteTxIndex` loop). Membership **changes** when a note-bearing tx is inserted, a note-bearing tx is erased, or an existing tx goes empty to nonempty via `UpdatedNoteData`. Membership **does not change** for transparent insert/update/erase, merkle/`hashBlock` merge on an existing tx, or note-field merges that stay nonempty. `UpdatedNoteData` treats incoming empty note maps as unchanged and does not clear existing notes, so nonempty-to-empty via merge is not a current path; still treat `hadNotes != hasNotes` after merge as the update rule.
+
+**How to tell the tx is already in `mapWallet`.** `AddToWalletIfInvolvingMe` already has `fExisted = mapWallet.count(tx.GetHash()) != 0`. `AddToWallet` (non-load) uses `mapWallet.insert` -> `fInsertedNew = ret.second` (`false` means already present). That does not skip Ensure by itself. Ensure returns immediately only when `!fNoteTxIndexStale`. Skipping Ensure means **do not set stale** on that call. Do not skip `AddToWallet` entirely on `fExisted` during `-rescan` (`fUpdate=true`); merkle merge still runs. Optional later: skip AddToWallet when `fExisted && !fUpdate`. Not this patch.
+
+**Proposed rule.** Helper (name flexible): `HasNoteData(const CWalletTx&)` true iff either note map is nonempty. Keep `InvalidateNoteTxIndex()` as `fNoteTxIndexStale = true`.
+
+`AddToWallet` `fFromLoadWallet`: invalidate iff `HasNoteData(wtxIn)`. `CWallet` already starts stale; a transparent-only load leaves stale true until the first Ensure (empty vector). A note tx loaded after an Ensure mid-load still invalidates.
+
+`AddToWallet` live path: compute `hadNotes = !fInsertedNew && HasNoteData(wtx)` **before** merge; run existing insert/merge including `UpdatedNoteData`; then `hasNotes = HasNoteData(wtx)`. Invalidate iff `fInsertedNew ? hasNotes : (hadNotes != hasNotes)`.
+
+`EraseFromWallet`: if `it` found, `bool notes = HasNoteData(it->second)` **before** `mapWallet.erase`; invalidate iff `notes`.
+
+Do not invalidate at the top of `AddToWallet`. Flag off (`-walletwitnessnote` unset): Select ignores the vector; stale writes are harmless. Still apply the rule so a later flag-on restart is not required for correctness of in-process toggle (flag is startup-only today).
+
+**Walk logs.** Per-block rescan/IBD uses `BuildWitnessCache(pindex, true)` and returns after Verify -- **no** walk lines. Walk exists only on `witnessOnly=false`:
+
+- `BuildWitnessCache height-walk begin scan_txs=%d mapWallet=%d noteidx=%d startHeight=%d tip=%d`
+- `Building Witnesses for block %i %.4f complete` every 100 heights until near tip
+- `BuildWitnessCache height-walk done scan_txs=%d elapsed_ms=%d tip=%d`
+
+`-rescan` from genesis calls `BuildWitnessCache(tip, false)` at the **end** of `ScanForWalletTransactions`, still under RPC warmup (`-28 Rescanning...`). Warmup is checked before `fBuildingWitnessCache` (`-33`). Operators will not see `-33` for that inner walk.
+
+`startHeight` is `VerifyAndSetInitialWitness` return + 1. `SaplingWitnessMinimumHeight` only lowers that floor for notes with `GetSaplingSpendDepth <= WITNESS_CACHE_SIZE` (100): unspent (depth 0) or spent in the last 100 blocks. Spent-long-ago notes do not pull the walk, even if they sit in the 1403 note-tx index. Initials are set at birth during the per-block `true` pass; the end walk only increments from that min height to tip.
+
+**Measured (M-WAL-RESCAN-FAT):** end walk `startHeight=2505881` `tip=2518691` (~12.8k blk) `scan_txs=1403` `noteidx=1` **2009 ms**. Not a genesis-to-tip rebuild and not the rescan wall. P2P catch-up `2518692-2518993` **42 ms**. Follow-tip walks **0-1 ms**. `-walletwitness=rebuild` after `Done loading` did not log a second long walk (witnesses already at tip). Contrast M-WAL-WITNESS-TIP-AB (~1441 blk, 220 ms noteidx vs 7659 ms stock). `scan_txs=1403` with `noteidx=1` means the index was hot. `scan_txs=801619` means flag off or Select walked all of `mapWallet`.
+
+**Affected behaviors**
+
+| Path | Today | After patch |
+|------|-------|-------------|
+| `-rescan` + NOTEIDX + Id 3 fat (founders every block after 1.6M) | Ensure O(mapWallet) per involving block; Select ~98% CPU | Transparent AddToWallet does not stale; Select O(note_tx); one Ensure after load |
+| Stock IBD `ChainTip` `witnessOnly=true` + same wallet | Same storm from 1.6M if Verify runs every block | Same win; defer still skips Verify entirely |
+| `ibd-defer` IBD | Verify skipped; stale still set; one Ensure at tip rebuild | Stale less often; tip Ensure still once if any note tx arrived |
+| Near-tip `ChainTip(..., false)` follow-tip | Founders block: AddToWallet stale + Verify + walk; Ensure O(mapWallet) every block if NOTEIDX on | Transparent coinbase does not stale; walk Select stays O(note_tx) |
+| `LoadWallet` | 801k invalidates (already stale) | Invalidate only on the 1403 note txs; first Ensure unchanged |
+| `DeleteWalletTransactions` -> `EraseFromWallet` | Invalidate even for transparent deletes (`fDeleteInterval`) | Invalidate only if the erased tx had notes |
+| New shielded receive / `z_sendmany` result | Invalidate (correct) | Unchanged: insert has notes |
+| `UpdatedNoteData` finds notes on an existing transparent tx | Invalidate already (unconditional) | Invalidate iff empty -> nonempty |
+| Zap / `importwallet` / dump rescan | Storm like `-rescan` | Transparent-heavy wallets cheap; note inserts still stale once each |
+| Flag off | Vector unused | No Select change |
+| Spend / witnesses | Risk = missed stale on a new note tx | Tests below; do not skip invalidate on `HasNoteData` insert |
+
+**Not this patch:** `ibd-defer`; DIRTY; skipping Equihash/`ReadBlockFromDisk` on rescan; clearing witnesses without `-rescan`; RPC `-28` vs `-33` ordering; `FIX-WIT-WALK-UNLOCK`.
+
+**Tests.** Extend `WalletTests.NoteTxIndexTracksNoteBearingTxs` (or a sibling). After a hot index (`Ensure`, stale false, size 0 or 1). **One gtest, both `AddToWallet` flavors** -- do not split STALE and disconnect-style merge into a later PR.
+
+Connect-style (`pblock` set / live insert-or-merge, same as `ConnectTip` `SyncWithWallets(tx, pblock)`):
+
+1. Live `AddToWallet` transparent (`fFromLoadWallet=false`) -> stale stays false, size unchanged.
+2. `EraseFromWallet` that transparent tx -> stale stays false.
+3. Live `AddToWallet` with nonempty `mapSaplingNoteData` -> stale true; Ensure size += 1; Select with flag on returns that txid.
+4. `EraseFromWallet` that note tx -> stale true; Ensure size -= 1.
+5. Existing transparent tx, `AddToWallet` merge with `UpdatedNoteData` adding a Sapling map entry -> stale true.
+6. Existing note tx, merge that keeps maps nonempty (merkle/`hashBlock` only) -> stale stays false.
+
+Disconnect-style (`pblock` null, `fUpdate=true`, same as `DisconnectTip` / conflicted / mempool `SyncWithWallets(tx, NULL)`):
+
+7. Existed transparent, incoming `hashBlock` null -> merge no-ops; stale stays false.
+8. Existed note tx, same NULL merge -> stale stays false (membership unchanged). Decrement is a separate call; this case only covers `AddToWallet`.
+
+Keep: load-path transparent then Ensure size 0; load-path note then Ensure size 1; Select A/B flag on/off.
+
+Do **not** add skip-`AddToWallet` on `fExisted && fUpdate` in this PR. That skip already exists for `!fUpdate` and is unused on `SyncTransaction`. Skipping merge when `fUpdate` is true is a different product change (breaks `-rescan` merkle and disconnect accounting).
+
+**Third skip -- when it would ever be justified.** Two skips already exist or are specified:
+
+1. `AddToWalletIfInvolvingMe`: `fExisted && !fUpdate` returns without `AddToWallet`. Used by `importwallet` (default `fUpdate=false`). Unused on `SyncTransaction` / `-rescan` (both pass `fUpdate=true`).
+2. STALE: do not `InvalidateNoteTxIndex` on transparent Add/Erase. This is the founders-cliff fix (new involving txs still enter `AddToWallet`; they must not rebuild `vNoteTxHashes`).
+
+A third skip -- do not call `AddToWallet` when `fExisted && fUpdate` -- is **almost never justified**. Callers that pass `fUpdate=true` need the merge: `-rescan` merkle/`hashBlock`, `DisconnectTip` `SyncWithWallets(tx, NULL)` (merkle not updated; conflict/depth on the fly), mempool-to-confirm, conflicted. The founders cliff is **first insert** of new transparent involving txs (`fInsertedNew`); skipping existed+update does not touch that path. After STALE, remaining cost inside `AddToWallet` for an already-present transparent tx is `FindMySproutNotes` / `FindMySaplingNotes` (still run when `fUpdate`) plus a no-op merge (`WriteToDisk` only if `fInsertedNew || fUpdated`).
+
+Schedule a third skip **only if** post-STALE Time Profiler in the post-1.6M band still shows `FindMyNotes` / `AddToWallet` as the wall. The candidate then is narrower than "skip AddToWallet": skip repeated `FindMyNotes` on an already-indexed tx when keys have not changed. Do not skip the merge. Do not put either form in Cycle 1.
+
+**Incremental `vNoteTxHashes` -- later.** After STALE, `EnsureNoteTxIndex` runs on real note-membership changes only (insert/erase/empty-to-nonempty), not per founders block. One O(`mapWallet`) scan per new shield is acceptable on this golden (1403 notes over the wallet's life vs millions of Ensures during fat `-rescan`). Incremental `push_back` / erase makes that Ensure O(1) but must stay consistent with load, zap, `EraseFromWallet`, and flag-off. Schedule after Cycle 1 rematch **if** Ensure still appears in follow-tip or `importwallet` profiles. Not required for the 19 blk/s cliff.
+
+Boost/regtest: R8 is this gtest. Fat `-rescan` rematch is a lab measure (M-WAL-RESCAN-FAT), not CI. R5b (1/3/10/20) covers Decrement + spend, not NOTEIDX stale.
+
+**Measure gate.** Repeat M-WAL-RESCAN-FAT-CPU after 1.6M with the patch: Select should fall from ~98% toward the pre-cliff mix (Verify + `GetSaplingSpendDepth` / `GetDepth`, not Ensure). Height rate should leave the ~19 blk/s floor if Ensure was the bound. Do not compare to ConnectBlock ~300 blk/s.
+
+**Campaign conclusions.** M-WAL-RESCAN-FAT, confirmed finished.
+
+- The wall is `ScanForWalletTransactions` (per-block `BuildWitnessCache(pindex, true)` + `AddToWalletIfInvolvingMe`), ~**11.9 h** to height **2518691**. The end `witnessOnly=false` walk is **2.0 s** on this wallet; follow-tip is **0-1 ms**. Do not optimize or productize around a long post-rescan walk for Id 3.
+- NOTEIDX already keeps Verify/walk on **1403** note txs. The ~**19 blk/s** floor after height **1600000** is Ensure rebuilding that index because every founders coinbase `AddToWallet` invalidates it. Those coinbases have empty note maps. **FIX-WAL-WITNESS-NOTEIDX-STALE** is the remaining NOTEIDX completeness item.
+- `ibd-defer` does not apply to `-rescan`. Stock IBD `ChainTip` with the same wallet hits the same storm unless defer skips Verify or STALE lands.
+- `1403` is this wallet's note-bearing txs, not chain-wide Sapling density (M-DENS). Walk `startHeight` is min witness height among unspent/recently-spent notes, not oldest note-tx birth.
+- Lab pid still following tip after `Done loading`. Do not copy `wallet.zero` back to the live datadir; do not `z_sendmany` on the lab copy.
+
+**Recommended actions**
+
+1. **Cycle 1:** FIX-WAL-WITNESS-NOTEIDX-STALE + gtest R8 (connect-style and disconnect-style `AddToWallet` in the same suite). Do not fold in skip-`AddToWallet` on `fUpdate`, WALK-UNLOCK, incremental `vNoteTxHashes` `push_back`, or `ibd-defer`.
+2. Rematch M-WAL-RESCAN-FAT-CPU in the post-1.6M band (measure gate above). Optional: one full `-rescan` after STALE if the CPU rematch is ambiguous. Same cycle, not a separate product PR.
+3. After rematch: flag collapse below (NOTEIDX default; drop `-walletwitnessnote`). Keep `ibd-defer` opt-in until the existing default-on gate.
+4. **Cycle 2:** TNT-02 reject-and-stay at 99 + Decrement no `exit(1)` + R5d. Not TENT follow, not Zebra-1000. Independent of STALE. See §0.16 cycles.
+
+| Axis | Assessment |
+|------|------------|
+| **Idea** | Invalidate NOTEIDX only on note-membership changes. |
+| **Impact** | **High** on founders-dense / any wallet with involving txs in most blocks (M-WAL-RESCAN-FAT). |
+| **Complexity** | **Low**. Two call sites + helper; gtest. |
+| **Effort** | **S**. |
+| **Risk** | **Med** if a note insert path skips invalidate -- spend/witness skip. Gtest required. |
+| **Status** | **Specified** -- Cycle 1. |
+
+#### Flag and RPC collapse
+
+Today the witness surface is three flags, three bools, and four RPC codes. Collapse after Cycle 1 rematch, in the same validation window -- not a year of one-flag PRs.
+
+**Flags now**
+
+| Flag | Role |
+|------|------|
+| `-walletwitness=` empty / `ibd-defer` / `rebuild` | Per-block Verify vs skip-until-tip vs force rebuild |
+| `-walletwitnessnote=0/1` | NOTEIDX on Verify + height walk |
+| `-walletwitnessstats` | Lab-only CONT counters |
+
+**Proposed**
+
+| Surface | After collapse |
+|---------|----------------|
+| One flag | `-walletwitness=` `stock` / `defer` / `rebuild`. `stock` = current default (per-block Verify). `defer` = today's `ibd-defer`. `rebuild` unchanged. |
+| NOTEIDX | Always on once STALE lands. Drop `-walletwitnessnote`. Without STALE, default-on NOTEIDX re-hits the Ensure storm. |
+| Stats | Keep hidden (`-debug=witness` or undocumented). Not a product flag. |
+| Wallet bools | One enum `WitnessReady { NotBuilt, Building, Ready }` instead of `initWitnessesBuilt` + `fBuildingWitnessCache`. `fNoteTxIndexStale` stays private; never an RPC field. |
+| RPC codes | Keep **-28** (warmup), **-31** (unbuilt), **-32** (zeronodes -- do not steal), **-33** (rebuilding). Do not add a code for rejected-reorg; put it on `getblockchaininfo` `errors` / warnings. Status allowlist stays the five names. Do not copy Pirate freeze-all-RPC. |
+
+Clients already retry `-31` and `-33`. Collapsing those two into one `RPC_WALLET_NOT_READY` would save a code and break Zerowallet if it keys on the number. Keep both.
+
+**Not this collapse:** DIRTY flag, `-maxreorg` (Cycle 3), WALK-UNLOCK.
 
 | Axis | NOTEIDX (Verify + walk) |
 |------|-------------------------|
@@ -702,7 +842,7 @@ ChainTip / ThreadImport
 
 | Mechanism | Removes work from | Does not remove |
 |-----------|-------------------|-----------------|
-| **NOTEIDX** | Transparent txs in Verify **and** height walk | Per-block call frequency; already-validated note visits |
+| **NOTEIDX** | Transparent txs in Verify **and** height walk | Per-block Verify frequency; Ensure O(mapWallet) while stale (FIX-WAL-WITNESS-NOTEIDX-STALE); already-validated note visits |
 | **ibd-defer** | Entire per-block Verify during IBD | One tip rebuild (Verify + walk) + `-33` window |
 | **DIRTY** (not built) | Would remove validated-note visits inside Verify | Height-walk appends; useless if defer skips Verify |
 | **Height walk** | Needed once to advance witnesses from initial height to tip | -- |
@@ -739,7 +879,7 @@ ChainTip / ThreadImport
 #### Recommended order
 
 1. **G0b hygiene** -- **done**.
-2. **G0c / NOTEIDX density + A/B** -- **done** (0.175%; ~33x).
+2. **G0c / NOTEIDX density + A/B** -- **done** (0.175%; ~33x). Walk **done**. **FIX-WAL-WITNESS-NOTEIDX-STALE** Cycle 1 (specified).
 3. **G0d IBD defer A/B** -- **done** (~35x).
 4. **DIRTY** -- still optional (tip-rebuild asymptotics).
 5. **Productize** -- decisions in §0.14; execute §0.15 Tier A (docs -> NOTEIDX walk -> RPC allowlist -> rebuild bench -> regtest -> opt-in ship -> default-on gate).
@@ -816,7 +956,7 @@ Zero already occupies **-32** for zeronodes. Remapping witness rebuild onto `-32
 | `rpc_witness_gate_allows_walletinfo_when_unbuilt` | Monitoring while `-31` |
 | `rpc_walletinfo_note_inventory_fields` | NOTEIDX-related counters |
 | `wallet_witness_ibd_defer_arg` | `IsIBDWitnessDeferred()` |
-| `WalletTests.NoteTxIndexTracksNoteBearingTxs` | NOTEIDX stale/rebuild |
+| `WalletTests.NoteTxIndexTracksNoteBearingTxs` | NOTEIDX stale/rebuild; extend for STALE (transparent must not stale) |
 
 Lab notes also under gitignored `test-logs/witness-defer-test-plan.md`.
 
@@ -834,7 +974,7 @@ Lab prototypes prove a speedup under opt-in flags on disposable datadirs. **Prod
 | Layer | Lab today | Productize checklist |
 |-------|-----------|----------------------|
 | **Defaults** | Flags off; stock path still ~50x fat | Choose default on / opt-in / compile-time; document spend-unavailable-until-rebuild |
-| **Completeness** | NOTEIDX covers Verify; full `witnessOnly=false` height walk still scans `mapWallet` | Extend index into rebuild walk, or accept rebuild cost + document |
+| **Completeness** | NOTEIDX Verify + height walk done; **stale too broad** | FIX-WAL-WITNESS-NOTEIDX-STALE before calling NOTEIDX done |
 | **RPC policy** | Pirate-style global `-33` | Keep vs allowlist status RPCs (`getblockcount`, `stop`, …) -- §0.14 lockout |
 | **Tests** | Boost 46/46 exclusive + NOTEIDX gtest | Add regtest: defer through import -> rebuild -> spend; reorg during defer; kill/restart mid-rebuild |
 | **Ops docs** | `contrib/perf/README`, Perf §0.14 | Release notes / help text; Zerowallet retry on `-31`/`-33` |
@@ -850,9 +990,9 @@ Recommended answers (open until you override). Rationale under each.
 | Question | Recommendation | Why |
 |----------|----------------|-----|
 | **Defaults** | **Two-step:** (1) ship **documented opt-in** (`ibd-defer` + `noteidx`); (2) flip **default on** only after regtest + rebuild/tip gate | Spends already `-31` until witnesses built, so defer mostly moves when witnesses appear -- but default-on without tip rebuild wall and kill/restart coverage is the wrong first cut. Empty wallets unchanged either way. |
-| **Completeness** | **Require PROTO-NOTEIDX-WALK** before calling NOTEIDX productized; do **not** "accept rebuild O(mapWallet)" as final | IBD win is Verify; with defer the painful window is tip rebuild + `-33`. Leaving height-walk on full `mapWallet` wastes the NOTEIDX story exactly when ops is blind. |
+| **Completeness** | **Require FIX-WAL-WITNESS-NOTEIDX-STALE** so Ensure is not per transparent AddToWallet; walk already uses Select | IBD/rescan/follow-tip on founders-dense wallets otherwise pay O(mapWallet) Ensure every block (M-WAL-RESCAN-FAT) |
 | **RPC policy** | **Keep `-33` for wallet/spend/data RPCs; allowlist chain/ops:** `stop`, `help`, `getblockcount`, `getblockchaininfo`, `getnetworkinfo`. **Do not** allowlist `getwalletinfo` / `getalldata` / `z_*` during rebuild. Zero has **no** `uptime` RPC. | Matches correctness need (no half-built note reads) and fixes "node looks dead" for monitors. Pirate global freeze is the wrong ops default once defer concentrates rebuild at tip. |
-| **Tests** | Opt-in ship: Boost allowlist + R1/R2/R5a (Tier B). **Default-on:** R5b/R5c/R7b + kill/restart | Flag unit tests do not prove ChainTip/import coupling. |
+| **Tests** | Opt-in ship: Boost allowlist + R1/R2/R5a (Tier B). **Default-on:** R5b/R7b + kill/restart. R5c is **FIX-WIT-WALK-UNLOCK** (product), not a missing e2e. | Flag unit tests do not prove ChainTip/import coupling. |
 | **Ops docs** | **Always with ship** (PROD-WIT-DOCS): help text, `-31`/`-33` retry, "no spend until rebuild finishes" | Cheap; prevents false "node hung" reports. |
 | **Measure gate** | **BENCH-WIT-REBUILD required** before default-on; **BENCH-WIT-TIP optional** (one combined `defer+noteidx` trial, not 4-way) | Rebuild isolates `-33` duration. Partial-height A/Bs already prove IBD; tip is confirmation, not discovery. |
 | **DIRTY** | **Park** while productizing defer; run INV-DIRTY-CONT only if stock per-block Verify stays a supported default | Defer removes DIRTY's payoff surface; see DIRTY section. |
@@ -869,13 +1009,14 @@ Tiered. Effort S/M/L. One long trial at a time.
 
 | Order | ID | Work | Effort | Status |
 |------:|----|------|--------|--------|
-| 1 | PROD-WIT-DOCS | Help strings; `-31`/`-33` retry; defer semantics | S | **done** (help opt-in; Perf/contrib) |
+| 1 | PROD-WIT-DOCS | Help strings; `-31`/`-33` retry; defer semantics | S | **done** (help + release note text §0.16) |
 | 2 | PROTO-NOTEIDX-WALK | NOTEIDX in height walk | S–M | **done** |
+| 2b | FIX-WAL-WITNESS-NOTEIDX-STALE | Invalidate only on note membership | S | **specified** -- Cycle 1; gtest then lab rematch M-WAL-RESCAN-FAT |
 | 3 | PROTO-RPC-ALLOW + PROD-WIT-RPC | Status allowlist + Boost | S | **done** (`server.cpp` + `rpc_witness_building_cache_allows_status_rpc`) |
-| 4 | BENCH-WIT-REBUILD | Tip rebuild wall ± NOTEIDX | M | **done on tiny** (M-WAL-WITNESS-REBUILD): walk noop pre-Sap; post-Sap tip still open |
+| 4 | BENCH-WIT-REBUILD | Tip rebuild wall ± NOTEIDX | M | **done** tiny (M-WAL-WITNESS-REBUILD, walk noop pre-Sap); post-Sap tip M-WAL-WITNESS-TIP-AB; genesis-rescan end walk M-WAL-RESCAN-FAT **2.0 s** |
 | 5 | PROD-WIT-REGTEST R1/R2/R5a | `wallet_witness_defer.py` | M | **done** (Tier B; R5a invalidate at tip-restored) |
-| 6 | PROD-WIT-DEFER + NOTEIDX | Ship **opt-in** package | M | **ready** (defaults off; checklist below) |
-| 7 | *(gate)* | Flip **defaults on** | S | after post-Sap rebuild + R5b/R7b |
+| 6 | PROD-WIT-DEFER + NOTEIDX | Ship **opt-in** package | M | **shipped docs/tests** (defaults off; tag when ready) |
+| 7 | *(gate)* | Flip **defaults on** | S | after post-Sap rebuild + R5b/R7b; **FIX-WIT-WALK-UNLOCK** optional (not opt-in gate) |
 
 #### Tier B -- after A, or deliberate track switch
 
@@ -885,7 +1026,7 @@ Tiered. Effort S/M/L. One long trial at a time.
 | INV-GROTH-CXX | Pirate/zcashd cxx evidence for §0.6a | M | Start of Groth review / G2 |
 | INV-DIRTY-CONT | continue_rate under stock+NOTEIDX | S | Only if stock per-block Verify remains default -- else skip |
 | INV-CS-WALLET | Which RPCs block on `cs_wallet` in fat IBD | S | Doc polish; optional |
-| BENCH-MINE-G5 | Mainnet (192,7) solve Instruments | M | Accepted queue G5; orthogonal to witness |
+| BENCH-MINE-G5 | Mainnet (192,7) solve Instruments | M | **Scheduled -- Track M**; parallel with Cycle 1; orthogonal to witness |
 | BENCH-GAD-IDX1 | Full-tip getalldata Idx1 (~513k UTXO); G0e was fat@tiny only | L | **Parked** until disposable full tip; not witness-blocking |
 
 #### Tier C -- hold / park
@@ -903,7 +1044,7 @@ Tiered. Effort S/M/L. One long trial at a time.
 
 #### Glossary for Tier A items
 
-**NOTEIDX** -- lifecycle/size/axes above; walk gap = PROTO-NOTEIDX-WALK.
+**NOTEIDX** -- lifecycle/size/axes above; walk **done**; remaining = FIX-WAL-WITNESS-NOTEIDX-STALE.
 
 **BENCH-WIT-REBUILD** -- **lab benchmark** via `run_witness_lab.sh rebuild|rebuild-noteidx` (not a unit test). **Functions:** `RebuildWitnessCacheForChainTip` / `BuildWitnessCache(..., false)`. **Flag:** `-walletwitness=rebuild`. **Tiny result (M-WAL-WITNESS-REBUILD):** defer import ~333 s to h187417; tip rebuild called but height walk **skipped** (no Sapling notes at/below tiny tip). **Walk correctness** proven by e2e `wallet_witness_defer.py` (notes in regtest tip). Post-Sapling tip A/B still open for walk **duration**.
 
@@ -934,17 +1075,17 @@ Tiered. Effort S/M/L. One long trial at a time.
 | **R5** Reorg under defer | Correctness | **P1** | Split into R5a/b/c in §0.16. | R5a **done** in e2e |
 | **R6** Kill/restart mid-defer | Ops | **P1** | SIGTERM or `-9` during deferred import; restart without defer or with; must not set `initWitnessesBuilt` with empty witnesses; eventually spend works. | M |
 | **R7** Kill/restart mid-rebuild | Ops | **P2** | Interrupt during full rebuild (`-33` window); restart; rebuild resumes or restarts cleanly; spend works. | M (harder to hit race) |
-| **R8** NOTEIDX invalidate | Index | **P2** | Receive new note tx while index hot; Ensure sees it; spend that note after rebuild. Partly covered by gtest; regtest optional. | S |
+| **R8** NOTEIDX invalidate | Index | **P1** | STALE: transparent Add/Erase must not set stale; note insert/erase and empty-to-nonempty must. **Same gtest:** connect-style (`pblock` set) and disconnect-style (`pblock` null) `AddToWallet`. Implement gate for FIX-WAL-WITNESS-NOTEIDX-STALE. | S |
 
 **Grouping**
 
 1. **Core package (P0):** R1 + R2 + R3 -- **opt-in ship gate** (met).
 2. **Stock regression (P1):** R4 -- already have Ext test.
-3. **Reorg-sharp (P1–P2):** R5a/b/c + GTest decrement -- see §0.16 priority.
-4. **Adversarial ops (P1–P2):** R6–R7 -- gate for **default-on**.
-5. **Index polish (P2):** R8 -- gtest may suffice.
+3. **Reorg-sharp (P1–P2):** R5a/b + GTest decrement **done**. R5c = **FIX-WIT-WALK-UNLOCK** (product).
+4. **Adversarial ops (P1–P2):** R6 open; R7b **done** -- R7b is the default-on kill gate.
+5. **Index (P1):** R8 -- gtest required with FIX-WAL-WITNESS-NOTEIDX-STALE.
 
-**Priority order (remaining):** R5c -> R6 -> R8 (R5a/b, R7b, GTest-DEC done).
+**Priority order (remaining tests):** R6, R8. **FIX-WIT-WALK-UNLOCK** is code, then e2e.
 
 **Harness note:** Boost alone cannot replace R1/R5/R6 (needs `pcoinsTip` + `ReadBlockFromDisk` + real `ThreadImport`). Prefer Python regtest; keep Boost for gate/unit.
 
@@ -954,7 +1095,7 @@ G0–G0e, NOTEIDX A/B, TST-05, TST-08, M-MINE-REGTEST-SMOKE, M-MINE-NEON-PROBE, 
 
 #### Accepted queue vs this menu
 
-Witness **Tier A** is the active productize path. Groth stays on G2/G3 after G5/G9 slot. Do not interleave G6 or DIRTY into Tier A.
+Witness **Tier A** Cycle 1 (STALE) is the active productize path. Groth stays on G2/G3 after G5/G9 slot. G5 is **Track M**, scheduled parallel -- do not interleave G6 or DIRTY into Cycle 1.
 
 ### 0.16 Reorg-sharp, opt-in ship, RPC/load, denser lab
 
@@ -977,28 +1118,81 @@ Witness **Tier A** is the active productize path. Groth stays on G2/G3 after G5/
 | ID | Group | Priority | Spec | Status / gate |
 |----|-------|----------|------|---------------|
 | **R5a** | Reorg @ defer window | **P1** (opt-in validated) | Tip restored after reindex+defer; `invalidateblock` tip; remine; wait witnesses; spend | **done** |
-| **R5b** | Reorg after built | **P1** (default-on) | Built tip; 1- and 3-block invalidate; remine; spend | **done** |
-| **R5c** | Reorg during `-33` | **P2** | Forced rebuild; disconnect tip mid-walk; no spend until rebuild settles; allowlisted status ok | open -- needs **long rebuild window** (below) |
+| **R5b** | Reorg after built | **P1** (default-on) | Built tip; 1-, 3-, 10-, and 20-block invalidate; remine; spend | **done** (10/20 added) |
+| **R5c** | Reorg during `-33` | **P2** | See **FIX-WIT-WALK-UNLOCK** below. Not a reachable e2e on current locks. | **product open** |
+| **R5d** | Excessive reorg | **P1** (Cycle 2) | Fork deeper than `MAX_REORG_LENGTH`; node stays up; `getblockcount` unchanged; no `Shutdown: done`; warning in log | **blocked on Cycle 2** |
 | **R7b** | Kill mid-rebuild | **P2** (default-on) | SIGKILL during `-walletwitness=rebuild`; restart defer+noteidx; eventually spend | **done** (best-effort race on short tip) |
 | **GTest-DEC** | Unit decrement | **P1** | size==1 keep-last (CachedWitnesses*); witnessHeight above disconnect skips pop | **done** (`DecrementNoteWitnessesSkipsAboveHeight`) |
 
 **Groups (reorg-sharp only)**
 
 1. **Defer-window:** R5a -- **done**.
-2. **Post-build soft path:** R5b -- **done**.
-3. **Rebuild-window sharp:** R5c open; R7b **done** (regtest race).
-4. **Unit edges:** GTest-DEC -- **done**.
+2. **Post-build soft path:** R5b -- **done** (1/3/10/20).
+3. **Rebuild-window:** R7b **done** (process death). R5c is not a missing test -- see FIX-WIT-WALK-UNLOCK.
+4. **Excessive (not applied):** R5d -- Cycle 2.
+5. **Unit edges:** GTest-DEC -- **done**.
 
-**Priority remaining:** R5c (lab / long rebuild) only.
+**Do not run for confidence:** Bfail RPC tiers (known-fail inventory) or `CachedWitnessesCleanIndex` (always-fail gtest). Coverage those would have provided for shielded reindex is **B1** `reindex_shielded.py`.
 
-**Long rebuild window:** the wall time while `fBuildingWitnessCache` is true and `-33` is active -- i.e. the full tip `BuildWitnessCache(..., false)` height walk after import/`-walletwitness=rebuild`. On regtest (few notes, short tip) that window is milliseconds, so R5c cannot reliably invalidate mid-walk. A useful R5c needs a fat wallet + tip past Sapling so the walk lasts long enough to race a disconnect (same class as post-Sap WIT-REBUILD). Status allowlist is already covered by Boost without that race.
+#### FIX-WIT-WALK-UNLOCK
+
+**What R5c wanted that other cases do not assert:** a **concurrent** tip change *while* `BuildWitnessCache(..., false)` is mutating note witnesses -- then prove `initWitnessesBuilt` is not set true on a partial walk, spends stay `-31`/`-33`, and the walk aborts or restarts on the new tip.
+
+R5a is reorg **before** rebuild (defer window). R5b is reorg **after** `initWitnessesBuilt`. R7b is **SIGKILL** mid-rebuild (in-memory flags die with the process; wallet.dat may be partial; restart must not spend until rebuild). GTest-DEC is decrement math with no RPC and no `cs_main` walk. Boost allowlist is dispatch policy with the flag forced, no walk. None of those overlap a live walk racing `InvalidateBlock` / P2P `ProcessNewBlock`.
+
+**Why it is not reachable today:** the height walk holds `LOCK2(cs_main, cs_wallet)` for the whole loop (`wallet.cpp` `BuildWitnessCache`). `invalidateblock` is not allowlisted, so it returns `-33` without taking the lock. P2P connect waits on `cs_main` and runs **after** the walk sets `initWitnessesBuilt=true` -- that is R5b, not mid-walk. Measured walk (M-WAL-WITNESS-TIP-AB): stock **7659 ms** / NOTEIDX **220 ms** of held `cs_main`.
+
+**Why it is not the opt-in ship gate:** opt-in defaults off; the lock **serializes** reorgs to after the walk; R7b covers process death; R5a/R5b cover defer-window and post-build reorg. The remaining hazard is **ops latency** (allowlisted `getblockcount` stalls on `cs_main`) and a future walk that **releases** the lock without abort logic.
+
+**Product work (not a longer lab):** periodically drop `cs_main` in the height walk; poll `ShutdownRequested()`; if `chainActive.Tip()` moved or a disconnect landed, abort the walk, leave `initWitnessesBuilt=false`, restart `RebuildWitnessCacheForChainTip` (recovery mode 2) or hard-clear (mode 3). Then an e2e can `invalidateblock` or wait for P2P reorg **during** `-33`. Until that change, a fat-tip soak only shows `-33` on spends and stalled status RPCs.
+
+**Not addressed meanwhile** (do not confuse with R5c): DIRTY re-dirty on pop; default-on of defer; Idx1 getalldata; P2P/DNS follow-tip; full bootstrap ingest; G5 mining (Track M, scheduled); Bfail/CleanIndex.
 
 **Recovery modes (product)**
 
 1. **Soft:** decrement path only (current) when cache depth sufficient.
 2. **Rebuild:** `RebuildWitnessCacheForChainTip` if after reorg any note lacks usable witness (detect: empty witnesses / failed root check).
-3. **Hard clear:** `ClearNoteWitnessCache` + rebuild if inconsistency logged (prefer over assert).
+3. **Hard clear:** `ClearNoteWitnessCache` + rebuild if inconsistency logged (prefer over assert / `exit(1)`).
 4. **RPC:** keep `-31` until rebuilt; `-33` while rebuilding; status allowlist for monitors.
+
+**Crash and flush.** Chainstate (`FlushStateToDisk` in `Shutdown`) and wallet (`pwalletMain->Flush(true)`; periodic `ThreadFlushWalletDB`) are **separate** databases. `SetBestChainINTERNAL` is an atomic BDB txn for **note-bearing** txs + `nWitnessCacheSize` + best-block locator only. Transparent `AddToWallet` uses per-tx `WriteToDisk`. There is no cross-DB commit with `chainstate/`. After a crash, startup uses the wallet locator (`ReadBestBlock`) and rescans; `clearWitnessCaches` / `-rescan` rebuilds witnesses. Orderly `StartShutdown` reaches that flush. `DecrementNoteWitnesses` `exit(1)` on null `pindex` and `AbortNode` both skip a clean wallet+chain flush if they do not return through `Shutdown()`. Replace those `exit(1)` paths with log + recovery mode 2/3, then `StartShutdown` only if disk is unwritable (`AbortNode` already does that for consensus abort). Do not add a third flush mechanism; use existing `Shutdown` and `SetBestChain`.
+
+**SIGKILL cannot be caught.** POSIX `SIGKILL` (signal 9) cannot be caught, blocked, or ignored. Neither can `SIGSTOP`. `zerod` has no handler path, no `Shutdown()`, no wallet/chain flush. Lab **R7b** uses Python `proc.kill()` = SIGKILL; recovery is restart + whatever hit disk. `SIGTERM` (15) *can* be caught -- that is why FIX-LBI / FIX-IMPORT-POLL exist. Do not design crash recovery around intercepting SIGKILL.
+
+**Excessive reorg -- reject before mutate (TNT-02).** Today `ActivateBestChainStep` computes `reorgLength` from `chainActive` vs fork, then on `> MAX_REORG_LENGTH` logs, `StartShutdown()`, `return false` **before** `DisconnectTip`. Invariant to keep: no `DisconnectTip` / `ConnectTip` / `SyncWithWallets` / `ChainTip` / insight reverse / wallet `AddToWallet` on that fork. Headers may already sit in `mapBlockIndex` / `setBlockIndexCandidates` (required to measure depth); that is not a tip switch. Change: drop `StartShutdown()`; keep `return false`; warning not fatal modal; persist current tip (already on disk). Do **not** follow the fork (TENT `6f64bb7` code). Same gate in unintended `RewindBlockIndex`. New e2e **R5d** once implemented.
+
+#### Integration cycles
+
+Performance first, then crash/reorg hardening. Each cycle is one reviewable PR plus its validation, not a micro-PR per flag or per test ID. Incremental retest of every neighbor is prudent in principle; the cost of that cadence on this tree is months of idle. Bound it: gtest + the one e2e that the cycle changes; rematch the one measure the cycle claims; do not re-run genesis `-rescan` or post-Sap n=4 unless the rematch is ambiguous.
+
+| Cycle | Bundle | Deps | Impact | Effort | Risk | Validation |
+|-------|--------|------|--------|--------|------|------------|
+| **1 -- witness perf** | Package A: STALE + R8 both `AddToWallet` flavors. After rematch: flag collapse (NOTEIDX default; drop `-walletwitnessnote`). | NOTEIDX prototype in tree | **High** fat `-rescan`/IBD after 1.6M (M-WAL-RESCAN-FAT) | **S** then **S** for flags | **Med** missed note invalidate | R8 gtest; post-1.6M CPU rematch; optional full `-rescan` if CPU is ambiguous |
+| **2 -- stay up** | Packages C+D: TNT-02 reject-and-stay at 99; drop `StartShutdown`; no `exit(1)` in Decrement; recovery 2/3; R5d | None on A (independent). R5b already covers applied 1/3/10/20 | **High** ops/zeronodes (exit takes the node off relay) | **M** | **Med** (must not apply the fork; headers already in `mapBlockIndex`) | R5d e2e; GTest-DEC follow-on for rebuild-if-short |
+| **3 -- cap sizing** | Packages F then optional G: move 99 only with `WITNESS_CACHE_SIZE` / `keeptxfornblocks` / rewind; optional `-maxreorg` as reject-bound | Cycle 2 proven | **Med** (memory, rebuild cost) | **M-L** | **High** if cache shorter than cap | Memory/rebuild review; not Zebra-1000 by default |
+
+**Parallel tracks** (do not wait on Cycle 1; do not batch into Cycle 2):
+
+| Track | Bundle | When | Impact | Effort | Risk | Validation |
+|-------|--------|------|--------|--------|------|------------|
+| **M -- mining** | **G5** mainnet (192,7) timed solve + Instruments on `zcash-miner` | Scheduled now. One trial; Instruments host when free. Orthogonal to witness. Groth G2/G3 still after G5/G9 | **Med** (solve vs verify; NEON later) | **M** wall for one solve | **Low** (disposable template; never Application Support) | `MINE_MAINNET_SOLVE=1`; campaign `mine-equihash-*`; compare to verify ~0.25 ms/blk |
+| **Z -- zeronode** | **TST-03** / **TNT-12** / **DOC-02** | **A now** (arg validation, existing Boost). **B** founders window with Cycle 1 if the lab node is free. **C** 2-node after A/B. **D** zeronode `invalidateblock` after Cycle 2. Docs steps 1-2 with A | **Med** product (no harness today) | A **S**; C **M** | **Low** A; **Med** C (collateral setup) | Expand `rpc_zeronode_tests`; then scripted `startalias` |
+
+Package **E** (Decrement uses Select) and incremental `vNoteTxHashes`: after Cycle 1 rematch, only if profiles still show those walks. **WALK-UNLOCK** / R5c: after Cycle 2 if mid-rebuild ops latency matters; not a Cycle 1 or 2 gate. Third skip: only if post-STALE `FindMyNotes` is the wall.
+
+#### Work packages vs later items
+
+| Package | IDs | What | Cycle |
+|---------|-----|------|-------|
+| **A -- STALE** | FIX-WAL-WITNESS-NOTEIDX-STALE, R8 | Narrow invalidate; gtest connect + disconnect `AddToWallet` | **1**. Not skip-`AddToWallet`. |
+| **B -- applied reorg depth** | R5b | 1/3/10/20 post-build invalidate+spend | **Done** in `wallet_witness_defer.py`. |
+| **C -- reject-and-stay** | TNT-02, DEF-07 (policy half), R5d | Drop live/rewind `StartShutdown`; do not apply; warn; stay up | **2** with D. Not TENT unbounded connect. |
+| **D -- crash-safe witness** | recovery 2/3, GTest-DEC follow-on | No `exit(1)` in Decrement; rebuild if cache short; rely on `Shutdown` flush | **2** with C. |
+| **E -- Decrement NOTEIDX** | later | `DecrementNoteWitnesses` uses `SelectWalletTxsForWitnessScan` | After 1 rematch if still hot. Independent of 2. |
+| **F -- cap vs maturity** | TNT-03, DEF-07 (sizing half) | Change 99 only with `WITNESS_CACHE_SIZE`, `keeptxfornblocks`, rewind | **3**. Not Zebra-1000 unless memory reviewed. |
+| **G -- optional `-maxreorg`** | Pirate-like | Operator raise **if** C is default reject-and-stay | **3** after F. Not an apply-unbounded escape. |
+
+**Not Cycle 1:** skip `AddToWallet` when `fExisted && fUpdate`; WALK-UNLOCK; raising cap; G5; TNT-12 Phase C.
 
 #### Opt-in ship checklist
 
@@ -1009,20 +1203,50 @@ Ship **`-walletwitness=ibd-defer`** + **`-walletwitnessnote=1`** as documented o
 3. Boost gates in `--strict` (incl. allowlist) -- **done**.
 4. Tier B: R1/R2/R5a/R5b/R7b -- **done** in `wallet_witness_defer.py`.
 5. PROTO-RPC-ALLOW under `-33` -- **done** (`stop`/`help`/`getblockcount`/`getblockchaininfo`/`getnetworkinfo`).
-6. Post-Sap **WIT-REBUILD** with notes in range -- **open** (tiny noop + e2e interim OK for opt-in).
-7. Release note: spends unavailable until post-import rebuild; clients retry `-31`/`-33` -- doc in Perf; changelog at tag.
+6. Post-Sap **WIT-REBUILD** with notes in range -- **done** (M-WAL-WITNESS-TIP-AB).
+7. Release note (paste at tag / GA notes) -- **done** (text below).
 
-**Opt-in package: ready to ship** (defaults remain off). Default-on = above + R5c optional + post-Sap rebuild wall recommended.
+**Opt-in package: ready to ship** (defaults remain off). Default-on = above + R5b/R7b. **FIX-WIT-WALK-UNLOCK** is separate product work (optional before default-on if mid-rebuild reorg must be a live race).
+
+**Release note text (opt-in witness flags):**
+
+```
+Opt-in wallet witness flags (defaults off):
+  -walletwitness=ibd-defer
+      Skip per-block witness build during IBD/reindex; rebuild once after import.
+  -walletwitnessnote=1
+      Witness scan (Verify + height walk) iterates note-bearing txs only.
+
+While witnesses are unbuilt or rebuilding:
+  -31  z_sendmany / getalldata until initial witnesses exist
+  -33  wallet/spend/data RPCs while a full tip rebuild runs
+Status RPCs remain available under -33: stop, help, getblockcount,
+getblockchaininfo, getnetworkinfo.
+
+Clients should retry -31/-33. Do not assume spends work until rebuild finishes.
+Recommended together for fat wallets: ibd-defer + -walletwitnessnote=1.
+```
 
 #### RPC status allowlist + load tests
 
-**Status allowlist (under `-33`, verified Boost):** `stop`, `help`, `getblockcount`, `getblockchaininfo`, `getnetworkinfo`. Never `getwalletinfo` / `getalldata` / `z_*` / spend paths. No `uptime` RPC in Zero.
+**How the list was chosen:** Pirate freezes **all** RPC while rebuilding. Zero keeps `-33` on wallet/spend/data so half-built notes cannot be read or spent, and **allowlists** only methods that do not touch the wallet: `stop` (ops can halt a long rebuild), `help`, `getblockcount`, `getblockchaininfo`, `getnetworkinfo` (monitors / Zerowallet "is the node alive"). Denied by default: any other name, including `getwalletinfo`, `getalldata`, `z_*`, `getsupply`, `invalidateblock`. Zero has no `uptime` RPC. `-32` is zeronodes; do not remap.
+
+**What tests actually prove**
+
+| Test | Proves | Does not prove |
+|------|--------|----------------|
+| `rpc_witness_building_cache_blocks_all_rpc` | `-33` message on `z_sendmany`, `getsupply`, `getalldata`, `getwalletinfo` when flag forced | Exhaustive RPC inventory; real walk |
+| `rpc_witness_building_cache_allows_status_rpc` | `getblockcount` / `getblockchaininfo` / `getnetworkinfo` / `help` execute; `stop` exists at the gate (actor not invoked) | Those calls return **during** a real walk (`getblockcount` takes `cs_main` and **stalls** until the walk drops the lock) |
+| `rpc_getalldata_s5_witness_gate` | `-31` on getalldata/z_sendmany when never built | `-33` window |
+| `wallet_witness_defer.py` R1/R2 | After import+rebuild, spend works | Mid-walk RPC mix |
+
+Safety of "others are not allowed" is the **deny-by-default** name check in `CRPCTable::execute`, not a per-RPC case. Adding a name to the allowlist is the risky change; leaving a method off is safe. Hidden RPCs (`invalidateblock`) are `-33` today -- required so R5c cannot inject via RPC until FIX-WIT-WALK-UNLOCK.
 
 **Load / soak (lab, not CI)**
 
 | Test | How | Metric |
 |------|-----|--------|
-| Status poll under rebuild | Loop `getblockcount` while `-walletwitness=rebuild` on fat tip | Success rate; no hang |
+| Status poll under rebuild | Loop `getblockcount` while `-walletwitness=rebuild` on fat tip | Expect **stall** for walk duration (cs_main), then success; not a hang forever |
 | Spend storm while `-31` | Parallel `z_sendmany` before rebuild done | All `-31`; no crash |
 | getalldata after rebuild | datatype 0/1; day 2 vs omit; nCount 50/200 | wall_ms; RSS; resp bytes |
 | Concurrent status + getalldata at tip-quiet | 1 status/s + 1 gad | No deadlock; gad latency |
@@ -1032,10 +1256,10 @@ Ship **`-walletwitness=ibd-defer`** + **`-walletwitnessnote=1`** as documented o
 | Work | Why |
 |------|-----|
 | R3 allowlist e2e | Optional; Boost already gates allowlist |
-| R5c | Remaining reorg-sharp (mid-`-33` disconnect) |
+| R5c / FIX-WIT-WALK-UNLOCK | Product: drop `cs_main` in the walk, then e2e mid-`-33` disconnect |
 | Promote R1/R2 to pass-tier only after stable wall time / optional shorten maturity | Routine gate later |
 | **WIT-REBUILD post-Sap** | Fat wallet + tip **>492850**; time `height-walk done elapsed_ms` stock vs noteidx | Real `-33` window -- see assess below |
-| WIT-REBUILD + reorg inject | Optional: disconnect during walk | R5c / recovery mode 2/3 |
+| WIT-REBUILD + reorg inject | After FIX-WIT-WALK-UNLOCK | recovery mode 2/3 |
 
 Automation: `ZERO_PERF_CHAIN_SNAP=full` on `run_witness_lab.sh rebuild|rebuild-noteidx` (or tip-only rebuild once a full template exists); one trial at a time.
 
@@ -1045,23 +1269,42 @@ Automation: `ZERO_PERF_CHAIN_SNAP=full` on `run_witness_lab.sh rebuild|rebuild-n
 
 **Why tiny/short fail for post-Sap walk:** tiny tip **187417**, short tip **245992** -- both **pre-Sapling** (activation **492850**). Fat golden notes are Sapling -> height walk **skipped** on those snaps (M-WAL-WITNESS-REBUILD).
 
-**How (witness rebuild A/B):**
+**How (tip transplant -- preferred):**
 
 ```bash
-# SRC = synced mainnet datadir (read-only). Scratch refuses default path.
+# Live datadir stopped. Scratch must not be Application Support/zero.
+PROD="$HOME/Library/Application Support/zero"
+SCRATCH="$PWD/reindex-profile/fulltip-812-datadir"
+rsync -a --delete --exclude='wallet.zero*' --exclude='debug*.log' \
+  --exclude='.lock' --exclude='zero.conf' --exclude='chainblocks*.tgz' \
+  "$PROD/" "$SCRATCH/"
+# REQUIRED if source used Insight indexes (else reindex-from-genesis):
+#   experimentalfeatures=1
+#   insightexplorer=1
+```
+
+Verified: tip **2518018**, no reindex, with those flags. Archive pack: `COPYFILE_DISABLE=1 tar -C "$PROD" -czf chainblocks812-clean.tgz blocks chainstate`.
+
+**How (witness rebuild A/B -- full `-reindex` path):**
+
+```bash
 ZERO_PERF_SRC_DATADIR="$HOME/Library/Application Support/zero" \
 ZERO_PERF_CHAIN_SNAP=full \
 ZERO_PERF_WALLET_FILE=/path/to/golden/fat/wallet.zero \
-ZERO_PERF_SCRATCH_DATADIR="$PWD/reindex-profile/witness-lab-datadir" \
   contrib/perf/run_witness_lab.sh rebuild-noteidx
-# Pair: same with rebuild (noteidx off). One trial at a time.
 ```
 
-`SNAP=full` rsyncs `blocks/` (excludes chainstate/wallet/logs), copies the golden wallet, runs `-reindex` + `ibd-defer` (+ noteidx for that leg). Metric: `BuildWitnessCache height-walk done ... elapsed_ms` in scratch `debug.log`.
+`SNAP=full` rsyncs `blocks/` (drops chainstate), copies wallet, `-reindex` + `ibd-defer` -- **L wall**. Prefer tip-only:
 
-**Faster tip-only variant (recommended once):** build one disposable full tip (empty wallet or discard wallet after reindex), keep as template; for each A/B copy template + inject fat wallet + start with `-walletwitness=rebuild` **without** `-reindex`. Script mode for tip-only still open (S code).
+```bash
+ZERO_PERF_TIP_TEMPLATE=$PWD/reindex-profile/fulltip-812-datadir \
+ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
+  contrib/perf/run_witness_lab.sh tip-rebuild-note   # then tip-rebuild
+```
 
-**Idx1:** same full-tip scratch at quiet tip; run getalldata datatype matrix (BENCH-GAD-IDX1). Do not require fat wallet if measuring UTXO set cost alone.
+**Measured (M-WAL-WITNESS-TIP-AB):** fat @ tip **2518018**; Rescan height-walk (~1441 blk from 2516577): stock **7659 ms** / 801619 txs vs `-walletwitnessnote` **220 ms** / 1403 txs (~**35x**). Rebuild `zerod` after flag renames.
+
+**Idx1:** same full-tip scratch at quiet tip; getalldata datatype matrix (BENCH-GAD-IDX1) still open.
 
 #### Post-Sap WIT-REBUILD -- effort and duration
 
@@ -1088,32 +1331,31 @@ ZERO_PERF_SCRATCH_DATADIR="$PWD/reindex-profile/witness-lab-datadir" \
 | Id | Intent | Prior |
 |----|--------|-------|
 | **0** | Empty / tiny keypool | M-WAL-SYNC-P0 ~950 blk/s |
-| **1** | Non-empty mid-size (Dev personal / extracting) | **Not yet** wallet-on sync CPU catalog |
+| **1** | Non-empty mid-size (Dev personal / extracting) | **M-WAL-SYNC-P1** -- ~918 blk/s; wallet 237568 B; txcount 133; note_tx 0 |
 | **2** | Extracting / intermediate | §0.11 matrix slot |
 | **3** / fat | Golden ~800k tx | G0 / NOTEIDX / defer |
 
-**Id 1 campaign (proposed `M-WAL-SYNC-P1` / `M-CPU-WAL-P1`)**
+**Id 1 (`M-WAL-SYNC-P1`)**
 
-1. Copy Id 1 wallet into disposable scratch; tiny then (optional) short snap; never write production datadir.
-2. Track: `wallet_bytes`, `txcount`, `note_tx_count`, tip wall, blk/s, RSS; util.tsv with `WALLETINFO_TIMEOUT_S`.
-3. CPU: Time Profiler mid-sync; buckets `witness_cache` vs other (G0b needles).
-4. A/B optional: stock vs `defer+noteidx` to h~15k.
-5. Tip-quiet: getalldata datatype 0/1 sample (not full Idx1 unless tip is full).
+1. Tiny `-reindex` on disposable scratch -- **done** (`test-logs/walletsync-20260813T055703Z/`).
+2. Catalog: wallet **237568** B flat; txcount **133**; note_tx **0**; tip **187417** in **~201 s** (~**918** blk/s); RSS **~103->398 MiB**.
+3. CPU Time Profiler -- **skipped**: no notes; throughput in P0 class (witness_cache not the story). Revisit only if a later Id 1 golden gains Sapling notes.
+4. A/B defer+note -- low value here (note_tx 0); keep for fat / Id 2+.
+5. Tip-quiet getalldata -- optional; not Idx1.
 
 **Inflated wallet library (reuse)**
 
 - Keep **read-only golden copies** outside scratch (ops-local; not git): Id 0/1/2/3 (+ fat). After each trial, **discard** scratch; never mutate goldens.
 - Optional: one **pre-inflated scratch template** (chainstate+blocks at tiny/short tip + wallet copy) rsync'd per run to skip tar extract -- still copy wallet from golden each time.
 - Document sizes in Measures when measured (`wallet_bytes`, txcount, note_tx); refresh goldens only on deliberate ops snapshot.
-- Cleanup rule (post-lab): wipe `reindex-profile/*-datadir`; keep `test-logs/*/SUMMARY` + archives.
+- Cleanup rule (post-lab): wipe used scratch datadirs (e.g. `witness-tip-rebuild-datadir`); keep one full-tip **template** (`fulltip-812-datadir`) until P2P/bootstrap labs finish; keep `test-logs/*/SUMMARY` + archives. Never touch Application Support `zero/` or Zero400 trees.
 
 #### Proposed next execution order
 
-1. Opt-in ship packaging (tag/release note when ready) -- code+tests **ready**; defaults off.  
-2. Reorg-sharp: R5c only (optional before default-on).  
-3. Disposable full tip + post-Sap WIT-REBUILD A/B (one trial at a time).  
-4. Id 1 tiny sync + CPU (parallel).  
-5. Idx1 / L3 n=4 -- **parked** until deliberate track switch.
+1. Opt-in ship -- packaging **done** (tag when maintainer cuts release); defaults off.
+2. P2P follow-tip from archive template (DNS, distinct rpcport); full bootstrap ingest later.
+3. **FIX-WIT-WALK-UNLOCK** -- product; then mid-`-33` e2e.
+4. Idx1 / L3 n=4 -- **parked** until deliberate track switch.
 
 
 ## 1. Scope, method, and reproduction procedure
@@ -1180,10 +1422,11 @@ Canonical home for lab inputs and scratch locations (not duplicated in Measures)
 
 | Role | Location | Notes |
 |------|----------|-------|
-| Original `bootstrap.dat` | Zero400 `contrib/linearize/bootstrap.dat` (~5.0G) | Read-only / copy only. Lab softlink: `reindex-profile/bootstrap-src/bootstrap.dat` |
+| Original `bootstrap.dat` | Zero400 `contrib/linearize/bootstrap.dat` | Regenerated **2026-08-13** (~5.04 GiB); hashlist heights **0-2468990**; magic ZERO `5a45524f`. Live tip ~2518018 is ahead. Lab softlink: `reindex-profile/bootstrap-src/bootstrap.dat`. Smoke: **M-BOOT-NEW-20260813**. Read-only / copy only. |
 | Older bootstrap | `OLD/ZeroMac/contrib/linearize/bootstrap.dat` (~4.8G) | Different generation; not the Zero400 original |
-| Full chain snap | macOS Application Support `zero/` | `chainblocks.tgz` ~8.1G; live `blocks/` ~10G tip ~2.516M; `chainstate` ~624M |
+| Full chain snap | macOS Application Support `zero/` | Live tip **2518018** (verified); `blocks/` ~10G + `chainstate` ~619M + `blocks/index` ~4.7G. Live tree may have **xattrs** (`com.apple.provenance`) with **no** on-disk `._*` (`find . -name '._*'` empty) -- macOS `tar` still emits AppleDouble into archives unless `COPYFILE_DISABLE=1`. Prefer **`chainblocks812-clean.tgz`** (~8.5G) or rsync. Older `chainblocks812.tgz` may include `._*`. Tip transplant needs `insightexplorer=1`. |
 | Short / tiny snaps | same datadir | `chainblocks-short.tgz` ~342M; `chainblocks-tiny.tgz` ~228M; sha256 sidecar |
+| Disposable full tip scratch | `reindex-profile/fulltip-812-datadir` | rsync from live (or clean archive); `zero.conf` must include `experimentalfeatures=1` + `insightexplorer=1` or node **reindexes from genesis** |
 | Bench ledger / reports | `reindex-profile/bench-summaries/` | `ledger.*` via `accumulate_bench.py`; historical TSV / memprofile |
 | Post-Sapling scratch | `reindex-profile/postsapling-datadir` | From `run_postsapling_baseline.sh` |
 | DevFee ops wallets | out-of-tree DevFeeWallets | Fat-address getalldata; not ConnectBlock CPU |

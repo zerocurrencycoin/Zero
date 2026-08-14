@@ -80,7 +80,9 @@ Tables: **`ZERO_COIN.md`** (emission totals and `contrib/stats/` tooling).
 
 ## 8. Testing
 
-Regtest: **`TEST_ZERO.md`**. Node test phases: **`ZeroNodeDev.md`** section **9**. Live-chain stats: **`ZERO_COIN.md`**.
+Regtest: **`TEST_ZERO.md`**. Node test phases: **`ZeroNodeDev.md`** section **9**.
+
+**Scheduled (Track Z):** Phase A RPC argument validation **now** (TST-03 / TNT-12). Phase B founders/zeronode coinbase next. Phase C two-node `startalias` after A/B. Phase D reorg after Cycle 2 reject-and-stay. Live-chain stats: **`ZERO_COIN.md`**. Execution: **`UpdateZero.md`** §3.5 / DOC-02.
 
 ---
 

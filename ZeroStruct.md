@@ -539,7 +539,7 @@ Shielded entries in the same map need a parallel typed key or tagged binary id (
 
 Task id: **WAL-GETALLDATA-ADDRKEY** -- **Zerowallet / out of Zero400 scope** (finding only here; 2026-07-24).
 
-**Dispatch gates (server):** warmup; `!initWitnessesBuilt` -> **-31** on `getalldata`/`z_sendmany`; `fBuildingWitnessCache` -> **-33** on **all** RPC (Pirate-style; only during full `witnessOnly=false` rebuild). Fat-wallet lab flags: **Perf.md** §0.14. Tests: **TEST_ZERO** TST-08 **done**.
+**Dispatch gates (server):** warmup; `!initWitnessesBuilt` -> **-31** on `getalldata`/`z_sendmany`; `fBuildingWitnessCache` -> **-33** on wallet/spend/data RPCs, with status allowlist (`stop`, `help`, `getblockcount`, `getblockchaininfo`, `getnetworkinfo`). Fat-wallet lab flags and STALE: **Perf.md** §0.14 / §0.16. Tests: **TEST_ZERO** TST-08 **done**.
 
 **Impl refs:** `src/wallet/rpczerowallet.cpp`; client convert `src/rpc/client.cpp`; shared emit helpers `getRpcArcTx*` (also `zs_*`).
 
@@ -606,18 +606,24 @@ On `ConnectBlock` with `-insightexplorer`:
 2. Update `chainstate/`.
 3. Write address/spent keys to `blocks/index/` when `fAddressIndex` / `fSpentIndex`.
 4. Record tx location when `fTxIndex`.
-5. Wallet: `ChainTip`, witness cache, optional consolidation async op (**section 8**).
+5. Wallet: `SyncWithWallets` then `ChainTip` (witness cache, optional consolidation) -- **section 8**.
 6. Update mempool address index for unconfirmed txs when `fAddressIndex`.
 
-On reorg, insight code disconnects blocks and reverses index entries (covered by **`addressindex.py`** / **`TEST_ZERO.md`**).
+On an **applied** reorg (`reorgLength <= MAX_REORG_LENGTH` = 99): `DisconnectTip` reverses insight keys, `SyncWithWallets(tx, NULL)`, `ChainTip(..., added=false)` -> `DecrementNoteWitnesses`. On an **excessive** reorg (`> 99`): `ActivateBestChainStep` returns **before** disconnect; headers may already be in `mapBlockIndex`. Today the node then `StartShutdown()` (**UpdateZero** TNT-02 / DEF-07; intended: reject-and-stay, **Perf.md** §0.16 Cycle 2). Family comparison: **`~/Work/ZK/ZKs/Comparison.md` §14.5**.
 
-Same connect-order heritage as zcashd; Zero adds coinbase split and zeronode hooks in validation.
+Same connect-order heritage as zcashd; Zero adds coinbase split and zeronode hooks in validation. Applied-reorg insight reverse: **`addressindex.py`** / **`TEST_ZERO.md`**.
 
 ---
 
 ## 8. Wallet operations that touch the chain
 
 These run during or from **`ConnectBlock`** / wallet **`ChainTip`** handling (**section 7**), not as separate daemons.
+
+### Witness cache and NOTEIDX
+
+Per-note state (zcashd 2016): `witnesses` deque, `witnessHeight`, `witnessRootValidated`, nullifier. Cache depth **`WITNESS_CACHE_SIZE = MAX_REORG_LENGTH + 1`** (100). Wallet-wide: `initWitnessesBuilt`, `fBuildingWitnessCache` (RPC `-31`/`-33`; proposed collapse to one `WitnessReady` enum, **Perf.md** §0.14). NOTEIDX (opt-in `-walletwitnessnote=1`; drop that flag after Cycle 1 rematch): `vNoteTxHashes` + `fNoteTxIndexStale` -- a scan list, not a second witness store. **FIX-WAL-WITNESS-NOTEIDX-STALE** (Perf §0.14 Cycle 1) stops invalidating that list on transparent `AddToWallet` / `EraseFromWallet`. `DecrementNoteWitnesses` still walks all of `mapWallet` (package E, after rematch). Incremental `vNoteTxHashes` is later, only if Ensure still profiles hot. SIGKILL (9) cannot be caught; recovery is restart + disk (**Perf.md** §0.16).
+
+`AddToWalletIfInvolvingMe`: `SyncTransaction` always `fUpdate=true` (connect: `pblock` set; disconnect/mempool/conflict: `pblock` NULL). `ScanForWalletTransactions` passes caller `fUpdate` (`-rescan` true; `importwallet` default false). Crash recovery: wallet locator vs chainstate are separate; startup rescan. Detail: **Perf.md** §0.16.
 
 ### `z_mergetoaddress`
 
@@ -1016,7 +1022,7 @@ Canonical node work, consensus, and release gates stay in **Zero400**.
 **Set (Zero, new insert path):** in [`AddToWallet`](src/wallet/wallet.cpp) (~2034–2072):
 
 1. Default `nTimeSmart = nTimeReceived` (wall clock when first seen).
-2. If the tx has a known `hashBlock`, walk **`OrderedTxItems()`** (full `mapWallet` rebuild) newest-first; take latest prior smart/received time within +5 minutes of now; then  
+2. If the tx has a known `hashBlock`, walk **`wtxOrdered`** newest-first (not a full `OrderedTxItems()` rebuild); take latest prior smart/received time within +5 minutes of now; then  
    `nTimeSmart = max(latestEntry, min(blocktime, latestNow))`.
 
 **Pirate shortcut:** skip the OrderedTxItems walk; set `nTimeSmart` (and often `nTimeReceived`) to **block time** only ([`pirate/.../wallet.cpp`](https://github.com/PirateNetwork/pirate/blob/master/src/wallet/wallet.cpp) ~3464; commit above).
@@ -1031,7 +1037,7 @@ Canonical node work, consensus, and release gates stay in **Zero400**.
 | Wallet JSON (`listtransactions`, etc.) | `"time"` ← `GetTxTime()`; `"timereceived"` ← `nTimeReceived` ([`rpcwallet.cpp`](src/wallet/rpcwallet.cpp) ~104–105) |
 | Direct | No separate RPC field named `timesmart` in normal list output (value is folded into `"time"`) |
 
-So UI/RPC "transaction time" is the smart time when present; the expensive Zero path exists only to compute that field on insert.
+So UI/RPC "transaction time" is the smart time when present; the insert path walks **`wtxOrdered`**, not a full `OrderedTxItems()` rebuild (WAL-WTXORDERED).
 
 #### 13.4.2 `wtxOrdered` evolution (Bitcoin / Zcash) and Zero delta
 
@@ -1186,7 +1192,7 @@ rsync -aH --delete "$SRC/chainstate/" "$DST/chainstate/"
 # Do NOT copy wallet.zero unless intentional
 ```
 
-Start destination **without** `-reindex`. Verify `getblockchaininfo` / `gettxoutsetinfo` against source tip. No unsigned public snapshots for end users.
+Start destination **without** `-reindex`. Destination `zero.conf` must keep the same **`insightexplorer` / `experimentalfeatures` / `txindex`** as the source -- Insight-built `blocks/index` with flags off triggers **reindex from genesis**. When packing tarballs on macOS use **`COPYFILE_DISABLE=1`** so `._*` AppleDouble members do not pollute LevelDB dirs. Verify `getblockchaininfo` against source tip. No unsigned public snapshots for end users.
 
 **OPS-BOOTSTRAP-DOC (done):** this section + `contrib/linearize` README.
 

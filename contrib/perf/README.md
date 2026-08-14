@@ -41,6 +41,30 @@ python3 contrib/perf/extract_measures.py \
 python3 contrib/perf/extract_measures.py --elapsed-heights "$LAB/debug.log" 50000 350000
 ```
 
+## prep_lab_datadir.sh
+
+Create a disposable lab datadir and unroll only `blocks/` + `chainstate/`
+(includes `blocks/index/` and `rev*`). Does **not** write `zero.conf` or start
+`zerod`. Refuses the default Application Support datadir and Zero400 as **LAB**.
+Default archive is read-only (no writes there).
+
+```bash
+contrib/perf/prep_lab_datadir.sh          # create + unroll
+contrib/perf/prep_lab_datadir.sh create
+contrib/perf/prep_lab_datadir.sh unroll
+```
+
+Defaults: `LAB=reindex-profile/mainnet-p2p-23911`,
+`ARCHIVE=$HOME/Library/Application Support/zero/chainblocks812-clean.tgz`.
+`ARCHIVE=` (empty) unrolls from `SRC=reindex-profile/fulltip-812-datadir` instead.
+Then write `LAB/zero.conf` by hand (`rpcport=23911`, `port=23901`, Insight flags
+if the copied index was built with Insight).
+
+Opt-in witness flags (defaults off; wallet required -- do not combine with
+`-disablewallet`): `-walletwitness=ibd-defer` `-walletwitnessnote=1`.
+Caught-up follow-tip: `ibd-defer` applies on the next IBD/reindex; to rebuild
+now add `-walletwitness=rebuild` for that start only. See **Perf.md** §0.14.
+
 ## run_tiny_baseline.sh
 
 Unpack tiny (or short) snap into `$TMPDIR`, `-reindex -disablewallet`, then
@@ -125,8 +149,8 @@ Env: `MINE_BLOCKS`, `MINE_TIMEOUT_S`, `ZERO_PERF_NEON_ZEROD` (NEON A/B binary;
 **G7 postponed** -- probe-only until a NEON `zerod` exists),
 `CAMPAIGN=mine-equihash-*`. Stock arm64 still links `blake2b_compress_ref`.
 **Done:** regtest smoke (M-MINE-REGTEST-SMOKE), neon probe (M-MINE-NEON-PROBE).
-**Not done:** mainnet (192,7) timed solve -- needs Instruments + `MINE_MAINNET_SOLVE=1` (**G5**);
-`mainnet-template` mode alone only writes an env stub.
+**Scheduled (Track M / G5):** mainnet (192,7) timed solve -- Instruments + `MINE_MAINNET_SOLVE=1`;
+`mainnet-template` mode alone only writes an env stub. Parallel with witness Cycle 1; one trial.
 
 KATs: **`kats/`** (`1927EQ.txt`, `1927EQ_h1.hex`; see `kats/README.md`). TST-05 green;
 further test adaptation **postponed (G9)**.
@@ -144,10 +168,10 @@ ZERO_PERF_CHAIN_SNAP=tiny \
 ```
 
 `ZERO_PERF_CHAIN_SNAP=tiny|short|full`. `RESUME=1` keeps scratch. Samples ->
-`test-logs/walletsync-*/util.tsv`. Bound `M-*`: M-WAL-SYNC-P0, M-WAL-SYNC-FAT,
-M-CPU-WAL-FAT (done). **Caveat:** `getwalletinfo` in `sample_row` can block under
-fat-wallet `cs_wallet` contention -- tip time then from `debug.log`; hygiene
-timeout is queue **G0b**.
+`test-logs/walletsync-*/util.tsv` (includes `note_tx_count`). Bound `M-*`:
+M-WAL-SYNC-P0, M-WAL-SYNC-P1, M-WAL-SYNC-FAT, M-CPU-WAL-FAT. **Caveat:**
+`getwalletinfo` in `sample_row` can block under fat-wallet `cs_wallet` contention
+-- tip time then from `debug.log`; hygiene timeout is queue **G0b**.
 
 Archive: `test-logs/archives/walletsync-fat-g0-20260812.tar.gz` + per-run
 `FINDINGS.md`. Mitigations: **Perf.md** §0.14. Queue: **Perf.md** §0.13 G.
@@ -159,7 +183,10 @@ Archive: `test-logs/archives/walletsync-fat-g0-20260812.tar.gz` + per-run
 - `-walletwitnessnote=1` -- **NOTEIDX** (note-bearing tx index; Verify + height walk)
 
 `getwalletinfo` extras: `note_tx_count`, `sprout_note_count`, `sapling_note_count`.
-While rebuilding (`-33`): status allowlist `stop`/`help`/`getblockcount`/`getblockchaininfo`/`getnetworkinfo`.
+While rebuilding (`-33`): status allowlist `stop`/`help`/`getblockcount`/`getblockchaininfo`/`getnetworkinfo`
+(deny-by-default; `getblockcount` still stalls on `cs_main` until the walk ends).
+R5c / **FIX-WIT-WALK-UNLOCK**: product, not a lab e2e -- **Perf.md** §0.16.
+Do not run Bfail or `CachedWitnessesCleanIndex` for witness confidence (B1 `reindex_shielded.py` covers reindex spend).
 Witness RPC lockout / peer comparison / risk: **Perf.md** §0.14 / §0.16.
 
 ## run_witness_lab.sh (DIRTY-CONT / WIT-REBUILD)
@@ -182,6 +209,19 @@ Post-Sap WIT-REBUILD (one trial at a time):
 ZERO_PERF_CHAIN_SNAP=full ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
   contrib/perf/run_witness_lab.sh rebuild-noteidx
 ```
+
+Disposable full tip: `reindex-profile/fulltip-812-datadir` (or `chainblocks812-clean.tgz`).
+Scratch `zero.conf` needs `experimentalfeatures=1` + `insightexplorer=1`.
+
+```bash
+ZERO_PERF_TIP_TEMPLATE=$PWD/reindex-profile/fulltip-812-datadir \
+ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
+  contrib/perf/run_witness_lab.sh tip-rebuild-note
+# pair: tip-rebuild (note off). One trial at a time.
+```
+
+Live datadir may show `find . -name '._*'` empty while files still have xattrs;
+`COPYFILE_DISABLE=1` when packing. After renaming CLI flags, rebuild `zerod`.
 
 ## shielded_density.py
 

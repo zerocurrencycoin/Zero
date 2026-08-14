@@ -7,7 +7,7 @@ PROD-WIT-REGTEST: opt-in ibd-defer + NOTEIDX after -reindex.
 
 R1/R2: Sapling spend after deferred rebuild.
 R5a: invalidate tip once chain tip restored (around rebuild window), then recover+spend.
-R5b: 1- and 3-block invalidate after witnesses built; remine; spend still works.
+R5b: 1-, 3-, 10-, and 20-block invalidate after witnesses built; remine; spend still works.
 R7b: SIGKILL during -walletwitness=rebuild; restart; eventually spend.
 
 Tier: B pass. See Perf.md §0.15 / §0.16.
@@ -29,6 +29,18 @@ from test_framework.util import (
     wait_and_assert_operationid_status,
     wait_bitcoinds,
 )
+
+
+def reorg_n_blocks(node, n):
+    """Disconnect n blocks via invalidateblock, remine n. Requires tip >= n."""
+    tip = node.getblockcount()
+    assert_greater_than(tip, n - 1)
+    deep_hash = node.getblockhash(tip - n + 1)
+    print("R5b-%d: invalidate height %d (%s) then remine %d" % (n, tip - n + 1, deep_hash, n))
+    node.invalidateblock(deep_hash)
+    assert_equal(node.getblockcount(), tip - n)
+    node.generate(n)
+    assert_equal(node.getblockcount(), tip)
 
 
 def wait_until_witnesses_ready(node, zaddr, timeout=900):
@@ -143,22 +155,16 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
         assert_equal(Decimal(node.z_getbalance(zaddr)), expected_change)
         print("Success: R1/R2/R5a defer+NOTEIDX shielded spend after -reindex")
 
-        # R5b: 1-block then 3-block reorg after witnesses built.
-        tip2 = node.getblockcount()
-        tip2_hash = node.getbestblockhash()
-        print("R5b-1: invalidate tip %s then remine" % tip2_hash)
-        node.invalidateblock(tip2_hash)
-        node.generate(1)
-        assert_equal(node.getblockcount(), tip2)
-
+        # R5b: post-build reorgs inside WITNESS_CACHE_SIZE (100) / MAX_REORG (99).
+        # 1 and 3 are tip-poke / short multi-pop. 10 and 20 exercise deeper Decrement
+        # still well below the 99 policy cap (excessive reject is TNT-02 / R5d).
+        reorg_n_blocks(node, 1)
         node.generate(3)
-        tip3 = node.getblockcount()
-        deep_hash = node.getblockhash(tip3 - 2)
-        print("R5b-3: invalidate height %d (%s) then remine 3" % (tip3 - 2, deep_hash))
-        node.invalidateblock(deep_hash)
-        assert_equal(node.getblockcount(), tip3 - 3)
-        node.generate(3)
-        assert_equal(node.getblockcount(), tip3)
+        reorg_n_blocks(node, 3)
+        node.generate(10)
+        reorg_n_blocks(node, 10)
+        node.generate(20)
+        reorg_n_blocks(node, 20)
 
         zaddr3 = node.z_getnewaddress("sapling")
         send2 = Decimal("0.1")
@@ -168,7 +174,7 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
         wait_and_assert_operationid_status(node, opid3)
         node.generate(1)
         assert_equal(Decimal(node.z_getbalance(zaddr3)), send2)
-        print("Success: R5b 1- and 3-block spend after post-build reorg")
+        print("Success: R5b 1/3/10/20-block spend after post-build reorg")
 
         # R7b: SIGKILL during forced tip rebuild; restart and spend.
         print("R7b: restart with -walletwitness=rebuild then SIGKILL")

@@ -69,7 +69,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | **ZeroStruct.md**               | **zerod** structure and options by use case           | Datadir, `-dbcache`, flags per workload, `ConnectBlock`, wallet chain ops; **section 11** client integration contract; **INT-NN** concerns (**11.7**); brief zeronode cache | Ecosystem/indexer compare (**Comparison.md**); Blockbook port (**4**); zeronode setup (**ZeroNodes**) |
 | **ZeroNodes.md**                | Run a **zeronode** (operator)                         | Collateral, conf, RPC, sporks, coinbase summary, P2P, economics pointers                                                                    | ZND table (**ZeroNodeDev** section **9**); TNT order (**3.5**); insight flags (**ZeroStruct**)         |
 | **ZeroNodeDev.md**              | **Zeronode source** (wallet boundary, TENT, tests)    | `CZeronodeWalletInterface`; library split; **ZND anchors** (section **9**); test phases                                                     | Operator workflow (**ZeroNodes**); TNT order (**3.5**)                                                 |
-| **~/Work/ZK/ZKs/Comparison.md** | Clone **source** diffs + ecosystem services           | PoW, wallet, P2P, toolchain; **section 12** indexers/explorers/notifications (absorbs former **ZKNodes.md**)                              | Org audit (**Repos/ZeroC**); local paths (**ZKRepos**); zerod how-to (**ZeroStruct**)                   |
+| **~/Work/ZK/ZKs/Comparison.md** | Clone **source** diffs + ecosystem services           | PoW, wallet, P2P, toolchain; **section 12** indexers/explorers/notifications; **§14.5** node reorg policy | Org audit (**Repos/ZeroC**); local paths (**ZKRepos**); zerod how-to (**ZeroStruct**)                   |
 | **~/Work/ZK/ZKs/ZKRepos.md**    | **Local clone paths** under `ZKs/`                    | Path index, `git pull` loop, Zero400 working copies                                                                                         | Ecosystem compare, org audit, zerod flags                                                                |
 | **~/Work/ZK/Repos/ZeroC.md**    | **zerocurrencycoin** org GitHub audit                 | All org repos, mobile/light stack inventory, archive tiers, **`ZeroC.csv`**                                                                 | Local paths (**ZKRepos**); cross-fork indexer compare (**Comparison** section **12**)                   |
 | **ZebraZero.md**                | zebrad / YEC / CipherScan reference                   | Sidecar validation, Orchard lessons, YEC fork notes                                                                                         | zerod how-to (**ZeroStruct**)                                                                          |
@@ -300,7 +300,7 @@ Cross-chain history, commit volume, feature dates, wallet RPC matrices, hex vali
 **Suggested execution order (node repo only):**
 
 1. **PIR-01** -- **shipped**; spec **OPS-SHELL** in **BUILD_ZERO.md** section **4.6.1**; **TST-09** pending.
-2. **PIR-03** -- wallet correctness; **TST-08 done** (blocks + status allowlist under `-33`). Opt-in `ibd-defer`+NOTEIDX package ready (**Perf.md** §0.14–§0.16); post-Sap rebuild wall / default-on reorg still open.
+2. **PIR-03** -- wallet correctness; **TST-08 done** (blocks + status allowlist under `-33`). Opt-in ship package ready: `-walletwitness=ibd-defer` + `-walletwitnessnote=1` (defaults off; release note text in **Perf.md** §0.16). **FIX-WIT-WALK-UNLOCK** (R5c): height walk holds `cs_main`, so mid-rebuild reorg is not a test gap -- product work to drop the lock and abort/restart; **Perf.md** §0.16.
 3. **PIR-02** -- coin selection perf; run existing `wallet_tests` knapsack cases unchanged.
 4. **PIR-05** then **PIR-06--08** -- schedule as a P2P modernization epic tied to fixed-seed work (DOC-02 fixed-seed note) and `Comparison.md` gap list.
 
@@ -338,7 +338,7 @@ Files: `src/alert.cpp`, `src/init.cpp`, `src/util.cpp`, `src/util.h`, `src/walle
 | ID         | Area                    | TENT ref                                                                                                                                                  | Zero status                                                                                                                         | Recommendation                                                                                                   | Priority |
 | ---------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------- |
 | **TNT-01** | P2P / logging           | `main.cpp` else branch: extension dispatch **without** trailing `Unknown command` log                                                                     | Zero logs after `znodeman` / budget / payments / SwiftTX / spork / sync dispatch (`main.cpp` ~7033)                                 | **Port** -- match TENT; detail **ZeroNodeDev.md** section **9**                                                  | High     |
-| **TNT-02** | Chain / reorg           | `6f64bb7` (2021-07) removed `ActivateBestChainStep` shutdown on `reorgLength > MAX_REORG_LENGTH` (masternode comment: MN path must not die on deep reorg) | Zero **still** shuts down at `MAX_REORG_LENGTH` (99) with modal + `StartShutdown()` (`main.cpp` ~3678)                              | **Port (adapted)** -- remove or relax shutdown for zeronode operators; pair with TNT-03 review                   | High     |
+| **TNT-02** | Chain / reorg           | `6f64bb7` (2021-07-21) deleted live `ActivateBestChainStep` depth check (code **applies** unbounded reorg; comment said display error / no shutdown) | Zero **exits** at depth **> 99** (`StartShutdown()` before `DisconnectTip`) | **Port (adapted)** -- **reject-and-stay** (keep `return false`, drop shutdown). Not TENT follow. Pair sizing with TNT-03. **Perf.md** §0.16 Cycle 2 | High     |
 | **TNT-03** | Chain / reorg           | TENT `main.h`: `MAX_REORG_LENGTH = COINBASE_MATURITY - 1`; later dropped shutdown only                                                                    | Zero: `MAX_REORG_LENGTH = 100 - 1` with comment that maturity **720** is too large (`main.h` ~69); witness cache uses same constant | **Review** -- reconcile 99-block cap with `COINBASE_MATURITY = 720` and wallet witness rewind (`main.cpp` ~5244) | Medium   |
 | **TNT-04** | Zeronode / payments     | `74bbde2` (2019-09) payee validation uses `out.nValue >= requiredMasternodePayment`                                                                       | Zero requires exact match `out.nValue == requiredZeronodePayment` (`zeronode/payments.cpp` ~555)                                    | **Port (review)** -- allow >= minimum when drift/spork logic intends tolerance                                   | Medium   |
 | **TNT-05** | Wallet / coin selection | `3915ac3` (2021-05) `GetCoinbaseProtected(chainActive.Height() + 1)` in `SelectCoins`                                                                     | Zero uses static `Params().GetConsensus().fCoinbaseMustBeProtected` (`wallet.cpp` ~4333)                                            | **Skip unless** Zero adds height-gated coinbase shielding like TENT Atlantis fork                                | Low      |
@@ -348,7 +348,7 @@ Files: `src/alert.cpp`, `src/init.cpp`, `src/util.cpp`, `src/util.h`, `src/walle
 | **TNT-09** | Consensus / PoW         | TENT LWMA3 after DIFA height                                                                                                                              | Zero: Zcash 17-block window                                                                                                         | **Defer** -- **ZeroNodeDev.md** section **9**                                                                    | Low      |
 | **TNT-10** | Tokenomics              | Treasury coinbase, `GetTreasuryRewardScriptAtHeight`                                                                                                      | **Removed** on Zero                                                                                                                 | **Reject** -- **ZeroNodeDev.md** section **9**                                                                   | N/A      |
 | **TNT-11** | Tokenomics              | Founders % by upgrade (5 / 7.5 / 15)                                                                                                                      | Zero fixed **7.5%** after fee-start                                                                                                 | **Reject** -- **ZeroNodeDev.md** section **9**                                                                   | N/A      |
-| **TNT-12** | Testing                 | No masternode integration tests in TENT either                                                                                                            | Zero: no regtest zeronode harness                                                                                                   | **Implement** on Zero first; **ZeroNodeDev.md** section **9** test roadmap                                       | Medium   |
+| **TNT-12** | Testing                 | No masternode integration tests in TENT either                                                                                                            | Zero: no regtest zeronode harness                                                                                                   | **Implement** on Zero first; **Track Z** Phase A now (**ZeroNodeDev.md** section **9**)                            | Medium   |
 | **TNT-13** | Docs / ops              | External MN setup scripts (obsolete in the wild)                                                                                                          | Same gap on Zero                                                                                                                    | **Doc** -- **ZeroNodes.md** / BUILD_ZERO when scripted                                                           | Medium   |
 | **TNT-14** | Build                   | `db81202` (2021-01) libsnark `-march` via `ax_gcc_archflag` for cross-compile                                                                             | Not in Zero `configure.ac` / `build-aux/m4/`                                                                                        | **Review** -- port if cross-build libsnark failures recur                                                        | Low      |
 | **TNT-15** | Consensus               | `cb0284e` minimum block time after UPGRADE_WAKANDA                                                                                                        | TENT-only upgrade name                                                                                                              | **Skip** -- no Zero equivalent fork                                                                              | N/A      |
@@ -360,39 +360,44 @@ Port/reject **detail** and source **anchors**: `ZeroNodeDev.md` section **9**. T
 
 **Suggested execution order (zeronode / chain ops):**
 
-1. **TNT-01** -- one-line logging fix; unblocks `-debug=net` triage (catalog only while **3.3a** postponed).
-2. **TNT-02** + **TNT-03** -- single PR: reorg policy aligned with `COINBASE_MATURITY` 720 and zeronode survival on deep reorg (follow TENT `6f64bb7` intent, not literal re-enable of 719-block shutdown).
-3. **TNT-04** -- payment validation only if mainnet coinbase rejects valid winner payouts today.
-4. **TNT-12** -- regtest coinbase + two-node script (DOC-02 phase B/C) before more TENT code ports.
+Witness Cycle 1 (STALE) is **Perf.md**, not TNT. Zeronode work is Track Z, parallel.
+
+1. **TNT-01** -- one-line logging fix; unblocks `-debug=net` triage (catalog only while **3.3a** postponed). Anytime.
+2. **TNT-12 Phase A** / **TST-03** -- RPC argument validation on existing Boost suites. **Now** (S). DOC-02 docs steps 1-2 with this.
+3. **TNT-12 Phase B** -- regtest founders/zeronode coinbase. Parallel with Cycle 1 if the lab node is free.
+4. **Cycle 2:** **TNT-02** then recovery no-`exit(1)` -- reject-and-stay at 99 (**Perf.md** Cycle 2, R5d). **TNT-03** is Cycle 3, not this PR. Do not follow TENT unbounded connect.
+5. **TNT-12 Phase C** -- two-node `startalias` after A/B. Not gated on TNT-02. Phase D (`GetZeronodeInputAge` / invalidate) after Cycle 2.
+6. **TNT-04** -- payment validation only if mainnet coinbase rejects valid winner payouts today.
+7. **TNT-03** -- Cycle 3, after Cycle 2 proven. Cache/memory review if the cap moves.
 
 **TNT-01 patch shape (reference):**
 
 TENT ends the `else` branch after extension handlers with no log. Zero should drop line ~7033 or guard it so handled `zn*` / spork / SwiftTX commands do not emit `Unknown command` (keep the `notfound` exception already present).
 
-**TNT-02 context:** TENT removed shutdown because masternode operators could not recover from a 100+ block reorg during network churn. Zero kept Zcash-era shutdown but capped at **99** while maturity is **720** -- an intentional mismatch documented in `main.h`, still painful for zeronode collateral UTXOs tied to long reorgs.
+**TNT-02 context:** TENT `6f64bb7` (2021-07-21) deleted the live `reorgLength` check, so the node **applies** unbounded reorgs (comment said "display error, do not shutdown"). Zero still **exits**. Desired policy is neither: **reject-and-stay** (Flux/Zebra) -- do not apply, do not `StartShutdown()`, keep relaying the current tip. Cap stays 99 until TNT-03.
 
-#### 3.5.1 TNT-02 / TNT-03 reorg policy (postponed)
+#### 3.5.1 TNT-02 / TNT-03 reorg policy
 
 Two constants serve different jobs and must not be conflated:
 
 | Constant | Value | Role |
 | -------- | ----- | ---- |
 | **`COINBASE_MATURITY`** | **720** blocks | Consensus: coinbase outputs are unspendable until 720 confirmations (`consensus.h`). |
-| **`MAX_REORG_LENGTH`** | **`100 - 1` = 99** | Node policy: if a reorg or rewind would roll back **more than 99 blocks**, the node shows a modal and **`StartShutdown()`** (`main.cpp` ~3678, ~5253). Witness cache size is **`MAX_REORG_LENGTH + 1`** (`wallet.h`). |
+| **`MAX_REORG_LENGTH`** | **`100 - 1` = 99** | Node policy: do not **apply** a reorg/rewind deeper than 99. Today: modal + **`StartShutdown()`** before `DisconnectTip` (`main.cpp` `ActivateBestChainStep`, `RewindBlockIndex`). Witness cache size is **`MAX_REORG_LENGTH + 1`** (`wallet.h`). |
 
-**Why Zero uses 99, not 719.** Upstream Zcash set `MAX_REORG_LENGTH = COINBASE_MATURITY - 1` so the node could always reorg far enough to undo immature coinbases. Zero's comment in `main.h` rejects 719 as **too much** for witness-cache memory and rebuild cost. The cap is a **practical safety bound**, not a consensus rule.
+**Why Zero uses 99, not 719.** Upstream Zcash set `MAX_REORG_LENGTH = COINBASE_MATURITY - 1` so the node could always reorg far enough to undo immature coinbases. Zero's comment in `main.h` rejects 719 as **too much** for witness-cache memory and rebuild cost. The cap is a **practical safety bound**, not a consensus rule. Zebra raised its *non-finalized* window to 1000 without coupling maturity; Zero cannot copy that number onto a 100-slot witness deque without a memory review (**TNT-03**).
 
-**The operational gap (TNT-02).** TENT removed the deep-reorg shutdown so masternode/zeronode operators stay up through network churn. Zero **still exits** on reorg depth **> 99**, which can strand zeronode collateral when a reorg is deeper than 99 but shallower than 720.
+**The operational gap (TNT-02).** Exit takes zeronodes off the network. TENT follow-longest with a 100-slot cache is the other failure. **Reject-and-stay** keeps serving the chain already accepted. Headers of the fork may already be in `mapBlockIndex`; tip, coins, wallet, insight must not move. **Perf.md** §0.16 Cycle 2. Independent of STALE (Cycle 1). Family facts: **`~/Work/ZK/ZKs/Comparison.md` §14.5**.
 
-**The design tension (TNT-03).** Raising `MAX_REORG_LENGTH` toward maturity improves zeronode survivability but increases witness-cache work on large rewinds. Lowering it further would worsen operator pain. Any change must update **`WITNESS_CACHE_SIZE`**, **`init.cpp`** `keeptxfornblocks` floor (`MAX_REORG_LENGTH + 1`), and the unintended-rewind path in **`RewindBlockIndex`** together.
+**The design tension (TNT-03).** Raising `MAX_REORG_LENGTH` toward maturity (or toward Zebra 1000) is a **sizing** change: `WITNESS_CACHE_SIZE`, `keeptxfornblocks` floor, rewind, and rebuild-if-cache-short. Do not fold into TNT-02.
 
-**Recommendation (single PR when scheduled, not now):**
+**Recommendation (when scheduled):**
 
-1. **TNT-02:** Remove or relax **`StartShutdown()`** on `reorgLength > MAX_REORG_LENGTH` in **`ActivateBestChainStep`** and on unintended rewind (~5253). Prefer **log + alert + continue on longest chain** over process exit. Follow TENT **`6f64bb7` intent**, not a blind restore of 719-block shutdown.
-2. **TNT-03:** Pick a new **`MAX_REORG_LENGTH`** with explicit tradeoff (keep 99, moderate raise, or staged policy). Document zeronode operator expectations. Regtest or two-node reorg script before mainnet.
-3. **Do not** set `MAX_REORG_LENGTH = COINBASE_MATURITY - 1` without a witness-cache and memory review.
+1. **TNT-02:** Drop `StartShutdown()` on `reorgLength > MAX_REORG_LENGTH`; keep `return false` **before** any `DisconnectTip` / wallet / insight reverse. Warning log + `getblockchaininfo`/`errors`, not fatal modal. E2e **R5d**. Replace Decrement `exit(1)` with rebuild (Cycle 2 package D). **Do not** follow TENT unbounded connect.
+2. **TNT-03:** Separate PR. Keep 99 until cache/memory reviewed. Optional Pirate-style `-maxreorg` only as a reject-bound override, not an apply-unbounded escape.
+3. **Do not** set `MAX_REORG_LENGTH = COINBASE_MATURITY - 1` without that review.
 
-**Status:** **Postponed** -- tracked as **DEF-07** (§4). Depends on zeronode operator input and regtest coverage (**TNT-12**). **PIR-03** (witness RPC lockout during rebuild) is a separate wallet fix and does not resolve reorg shutdown policy.
+**Status:** **Scheduled Cycle 2** as **DEF-07** / TNT-02 with R5d. **TNT-12** Phase A is now (Track Z); not a gate for TNT-02. **PIR-03** and STALE do not resolve this.
 
 ---
 
@@ -916,7 +921,7 @@ Items marked **"contributor-ready"** are self-contained enough to be written up 
 
 **TST-02 -- Parallel Tier A RPC.** Deprioritized. `paymentdisclosure` hang under `--jobs>1`. Serial gate is sufficient.
 
-**TST-03 -- Zeronode / budget subcmd validation.** P1 priority. Write Boost.Test or GTest cases for `zeronodecurrent`, `getzeronodeoutputs`, `startzeronode`, and `znbudget` subcommands. Focus on argument validation and error returns; full integration requires zeronode collateral setup.
+**TST-03 -- Zeronode / budget subcmd validation.** **Scheduled -- Track Z Phase A.** Write Boost.Test or GTest cases for `zeronodecurrent`, `getzeronodeoutputs`, `startzeronode`, and `znbudget` subcommands. Focus on argument validation and error returns; full integration is Phase C (collateral). Does not wait on Cycle 1 STALE. See **ZeroNodeDev.md** §9 and DOC-02.
 
 **TST-09 -- Shell notify disabled (default build, PIR-01).**
 
@@ -1033,7 +1038,7 @@ Sapling header root script moved to **TST-SAPLING-ROOT** (`finalsaplingroot.py`,
 
 **DEF-06 -- SwiftTX removal.** Zeronode instant-confirmation quorum (see Reference below). Not implemented on the Zero network; `SPORK_2_SWIFTTX` never activated. Plan: remove `src/zeronode/swifttx.cpp`, `swifttx.h`, hidden CLI options (`-enableswifttx`, `-swifttxdepth`), P2P messages (`ix`, `txlvote`), lock-conflict checks in `main.cpp`. Keep `-deleteconflicttx` (serves `-deletetx` pruning for reorgs/double-spends independent of SwiftTX). Remove `Options.csv` SwiftTX hidden entries. Blocked on: confirming no mainnet spork activation history.
 
-**DEF-07 -- TNT-02 / TNT-03 deep reorg policy.** **Postponed.** Zero shuts down when reorg or rewind depth exceeds **`MAX_REORG_LENGTH` (99)** while **`COINBASE_MATURITY` is 720**. Zeronode operators can be forced offline on reorgs between 100 and 719 blocks. TENT removed this shutdown for masternode survival; Zero has not. **Recommendation:** one adapted PR -- relax shutdown (**TNT-02**), pick a justified new cap and witness-cache sizing (**TNT-03**), regtest before mainnet. Full logic: **§3.5.1**. Not scheduled until **TNT-12** harness exists. Independent of **PIR-03** and Insight work.
+**DEF-07 -- TNT-02 / TNT-03 deep reorg policy.** **Scheduled Cycle 2 / Cycle 3.** Today: exit when reorg/rewind **> 99**. Desired **TNT-02:** reject-and-stay (no apply, no `StartShutdown`). **TNT-03:** cap vs `WITNESS_CACHE_SIZE` / maturity 720 / Zebra 1000 -- separate, memory-gated. TENT code follows unbounded live reorgs; do not copy that. E2e **R5d**. Full logic: **§3.5.1**, **Perf.md** §0.16 Cycles 2-3. Independent of STALE (Cycle 1) and **PIR-03**. Family: **`~/Work/ZK/ZKs/Comparison.md` §14.5**.
 
 **DEF-08 -- macOS `MACOSX_DEPLOYMENT_TARGET` / libtool `-bind_at_load`.** **Postponed.** Manual **`make`** or **`make check-symbols`** on Darwin without **`MACOSX_DEPLOYMENT_TARGET`** can emit **`ld: warning: -bind_at_load is deprecated on macOS`**. GNU libtool (**`build-aux/ltmain.sh`**) adds **`-Wl,-bind_at_load`** for C++ executable links when **`${MACOSX_DEPLOYMENT_TARGET-10.0}`** matches **`10.[0123]`**; when the env var is unset, the default **`10.0`** incorrectly matches on modern macOS. **`./zcutil/build.sh`** already exports **`MACOSX_DEPLOYMENT_TARGET=15.0`** (same as **`depends/hosts/darwin.mk`** **`OSX_MIN_VERSION=15.0`** and **`-mmacosx-version-min=15.0`** on the compiler). **Workaround:** **`export MACOSX_DEPLOYMENT_TARGET=15.0`** before manual make. **Fix (deferred):** set and export **`MACOSX_DEPLOYMENT_TARGET`** from **`configure.ac`** / top-level **`Makefile.am`** on Darwin so all make invocations inherit it without operator env. Harmless for release; cosmetic linker warning only.
 
@@ -1467,23 +1472,22 @@ Outline for closing gaps from zeronode gap analysis and mainnet coinbase verific
 
 ### Functional test roadmap (TST-03 extension)
 
-
-| Phase | Test                          | Harness                                                        | Pass criteria                                                              |
-| ----- | ----------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| **A** | RPC argument validation       | Existing `rpc_zeronode_tests`, `rpc_zeronode_budget_tests`     | Expand budget subcmds per TST-03                                           |
-| **B** | Founders window               | `qa/rpc-tests/founders_window.py` (Tier B)                     | START/STOP shape + Insight founders balance; zeronode when spork on                  | `qa/rpc-tests/founders_window.py` (Tier B) or gtest           | At fee-start **1000** / off **1500**: founders vout 7.5%; zeronode when spork on |
-| **C** | Regtest 2-node zeronode       | Manual -> scripted                                             | Collateral UTXO, `startalias`, payment in coinbase within N blocks         |
-| **D** | Reorg / `GetZeronodeInputAge` | Regtest `invalidateblock`                                      | Steps in DOC-02 subsection (already written); automate when harness allows |
-| **E** | Mock wallet                   | Inject `CZeronodeWalletInterface` test double                  | Ping/payment paths without full wallet                                     |
-| **F** | Mainnet decode regression     | `decode_coinbase.py` optional CI fixtures (see `ZERO_COIN.md`) | Requires archived block hash fixtures or mocked RPC                        |
-
+| Phase | Test | Harness | Pass criteria | Schedule |
+| ----- | ---- | ------- | ------------- | -------- |
+| **A** | RPC argument validation | Existing `rpc_zeronode_tests`, `rpc_zeronode_budget_tests` | Expand budget subcmds per TST-03 | **Now** -- Track Z |
+| **B** | Founders window | `qa/rpc-tests/founders_window.py` (Tier B) | At fee-start **1000** / off **1500**: founders vout 7.5%; zeronode when spork on | Parallel with Cycle 1 if lab free |
+| **C** | Regtest 2-node zeronode | Manual -> scripted | Collateral UTXO, `startalias`, payment in coinbase within N blocks | After A/B; not gated on TNT-02 |
+| **D** | Reorg / `GetZeronodeInputAge` | Regtest `invalidateblock` | Steps in DOC-02 subsection; automate when harness allows | After Cycle 2 (applied + excessive policy) |
+| **E** | Mock wallet | Inject `CZeronodeWalletInterface` test double | Ping/payment paths without full wallet | After C |
+| **F** | Mainnet decode regression | `decode_coinbase.py` optional CI fixtures (see **`ZERO_COIN.md`**) | Archived block hash fixtures or mocked RPC | Optional |
 
 ### Priority order
 
-1. Phase A (low cost, extend existing Boost suites).
-2. Phase B (consensus-critical coinbase + founders alignment with `test_foundersreward.cpp`).
-3. DOC steps 1-2 (retire broken external install docs).
+1. Phase A (low cost, extend existing Boost suites) -- **now**.
+2. DOC steps 1-2 (retire broken external install docs) -- with A.
+3. Phase B (consensus-critical coinbase + founders alignment with `test_foundersreward.cpp`).
 4. Phase C (multi-node -- highest value, highest setup cost).
+5. Phase D after Cycle 2 reject-and-stay.
 
 ---
 

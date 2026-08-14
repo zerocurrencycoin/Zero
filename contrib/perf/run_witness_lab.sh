@@ -8,11 +8,14 @@
 #   ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
 #     contrib/perf/run_witness_lab.sh rebuild
 #   ZERO_PERF_WALLET_FILE=... contrib/perf/run_witness_lab.sh rebuild-noteidx
+#   ZERO_PERF_WALLET_FILE=... ZERO_PERF_TIP_TEMPLATE=reindex-profile/fulltip-812-datadir \
+#     contrib/perf/run_witness_lab.sh tip-rebuild-note
 #
 # Env:
 #   ZERO_PERF_WALLET_FILE   required
 #   ZERO_PERF_SRC_DATADIR   blocks source (default Application Support/zero)
-#   ZERO_PERF_CHAIN_SNAP    tiny|short|full (default tiny)
+#   ZERO_PERF_CHAIN_SNAP    tiny|short|full (default tiny) -- rebuild* only
+#   ZERO_PERF_TIP_TEMPLATE  tip-rebuild*: datadir with blocks+chainstate at tip
 #   TARGET_HEIGHT           dirty-cont stop height (default 8000)
 #   ZERO_PERF_RPCPORT       default 23956
 #   ZERO_PERF_SCRATCH_DATADIR  default reindex-profile/witness-lab-datadir
@@ -20,8 +23,9 @@
 # Automation vs one-time:
 #   dirty-cont -- one-time decision sample is enough (continue_rate); re-run only
 #     if stock per-block Verify stays a product default. Not a CI gate.
-#   rebuild*   -- one A/B pair (stock walk vs noteidx) before default-on; script
-#     is reusable when wallet/flags change. Not a CI gate (fat wall time).
+#   rebuild*   -- full -reindex + ibd-defer (L wall on full tip).
+#   tip-rebuild* -- copy tip template, inject wallet, -walletwitness=rebuild
+#     without -reindex (preferred post-Sap walk measure). One trial at a time.
 
 set -euo pipefail
 
@@ -34,6 +38,7 @@ SCRATCH="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/witness-lab-dat
 OUT_ROOT="${ZERO_PERF_OUT_DIR:-$REPO_ROOT/test-logs}"
 WALLET_FILE="${ZERO_PERF_WALLET_FILE:-}"
 SNAP="${ZERO_PERF_CHAIN_SNAP:-tiny}"
+TIP_TEMPLATE="${ZERO_PERF_TIP_TEMPLATE:-$REPO_ROOT/reindex-profile/fulltip-812-datadir}"
 TARGET_HEIGHT="${TARGET_HEIGHT:-8000}"
 RPCPORT="${ZERO_PERF_RPCPORT:-23956}"
 
@@ -51,7 +56,7 @@ refuse_default() {
 refuse_default "$SCRATCH"
 
 if [ -z "$MODE" ]; then
-  echo "Usage: $0 dirty-cont|rebuild|rebuild-noteidx" >&2
+  echo "Usage: $0 dirty-cont|rebuild|rebuild-noteidx|tip-rebuild|tip-rebuild-note" >&2
   exit 1
 fi
 if [ -z "$WALLET_FILE" ] || [ ! -f "$WALLET_FILE" ]; then
@@ -101,8 +106,43 @@ prepare_scratch() {
     echo "rpcuser=rt"
     echo "rpcpassword=rt"
     echo "rpcport=$RPCPORT"
+    # Match Insight-built blocks/index (tip templates / full rsync).
+    echo "experimentalfeatures=1"
+    echo "insightexplorer=1"
   } > "$SCRATCH/zero.conf"
   log "scratch ready SNAP=$SNAP wallet=$(basename "$WALLET_FILE")"
+}
+
+prepare_tip_scratch() {
+  # Copy a verified tip template (blocks+chainstate+index); inject wallet; no -reindex.
+  if [ ! -d "$TIP_TEMPLATE/blocks" ] || [ ! -d "$TIP_TEMPLATE/chainstate" ]; then
+    echo "ERROR: ZERO_PERF_TIP_TEMPLATE missing blocks/ or chainstate/: $TIP_TEMPLATE" >&2
+    exit 1
+  fi
+  refuse_default "$TIP_TEMPLATE"
+  if [ "$(cd "$TIP_TEMPLATE" 2>/dev/null && pwd -P)" = "$(cd "$SCRATCH" 2>/dev/null && pwd -P)" ]; then
+    echo "ERROR: scratch must differ from TIP_TEMPLATE (refusing to clobber template)" >&2
+    exit 1
+  fi
+  log "prepare tip template=$TIP_TEMPLATE -> scratch"
+  rm -rf "$SCRATCH"
+  mkdir -p "$SCRATCH"
+  rsync -a --delete \
+    --exclude='wallet.zero' --exclude='wallet.zero*' \
+    --exclude='debug*.log' --exclude='.lock' --exclude='zero.conf' \
+    "$TIP_TEMPLATE/" "$SCRATCH/"
+  cp -p "$WALLET_FILE" "$SCRATCH/wallet.zero"
+  {
+    echo "listen=0"
+    echo "maxconnections=0"
+    echo "server=1"
+    echo "rpcuser=rt"
+    echo "rpcpassword=rt"
+    echo "rpcport=$RPCPORT"
+    echo "experimentalfeatures=1"
+    echo "insightexplorer=1"
+  } > "$SCRATCH/zero.conf"
+  log "tip scratch ready wallet=$(basename "$WALLET_FILE") bytes=$(stat -f%z "$SCRATCH/wallet.zero" 2>/dev/null || stat -c%s "$SCRATCH/wallet.zero")"
 }
 
 stop_node() {
@@ -185,6 +225,39 @@ PY
   cat "$SUMMARY"
 }
 
+wait_rebuild_done() {
+  local pid="$1"
+  local last=-1 stable=0
+  while kill -0 "$pid" 2>/dev/null; do
+    local h
+    h=$(cli getblockcount 2>/dev/null || echo 0)
+    if [ "$h" = "$last" ] && [ "$h" -gt 0 ]; then
+      stable=$((stable + 1))
+    else
+      stable=0
+      last=$h
+    fi
+    log "height=$h stable_ticks=$stable"
+    if grep -q "BuildWitnessCache height-walk done" "$SCRATCH/debug.log" 2>/dev/null; then
+      log "detected height-walk done"
+      break
+    fi
+    if grep -q "RebuildWitnessCacheForChainTip" "$SCRATCH/debug.log" 2>/dev/null \
+      && grep -q "height-walk done" "$SCRATCH/debug.log" 2>/dev/null; then
+      log "detected tip rebuild walk done"
+      break
+    fi
+    # Allowlisted status should work under -33; walletinfo should not until done.
+    if [ "$stable" -ge 8 ]; then
+      if cli getwalletinfo >/dev/null 2>&1; then
+        log "height stable; getwalletinfo ok (rebuild finished or skipped)"
+        break
+      fi
+    fi
+    sleep 15
+  done
+}
+
 run_rebuild() {
   local noteidx="$1"
   prepare_scratch
@@ -202,32 +275,7 @@ run_rebuild() {
     cli getblockcount >/dev/null 2>&1 && break
     sleep 2
   done
-  # Wait until tip of snap (no TARGET) -- poll until height stable 60s or rebuild logs done
-  local last=-1 stable=0
-  while true; do
-    local h
-    h=$(cli getblockcount 2>/dev/null || echo 0)
-    if [ "$h" = "$last" ] && [ "$h" -gt 0 ]; then
-      stable=$((stable + 1))
-    else
-      stable=0
-      last=$h
-    fi
-    log "height=$h stable_ticks=$stable"
-    # Tip rebuild: look for height-walk done after import
-    if grep -q "BuildWitnessCache height-walk done" "$SCRATCH/debug.log" 2>/dev/null; then
-      log "detected height-walk done"
-      break
-    fi
-    # Also accept walletwitness rebuild log + initWitnesses via successful getwalletinfo note fields
-    if [ "$stable" -ge 8 ]; then
-      log "height stable; checking walletinfo"
-      if cli getwalletinfo >/dev/null 2>&1; then
-        break
-      fi
-    fi
-    sleep 15
-  done
+  wait_rebuild_done "$pid"
   local t1 elapsed
   t1=$(date +%s)
   elapsed=$((t1 - t0))
@@ -242,12 +290,61 @@ run_rebuild() {
   log "done OUT_DIR=$OUT_DIR"
 }
 
+run_tip_rebuild() {
+  local noteidx="$1"
+  prepare_tip_scratch
+  local extra=(-connect=0 -listen=0 -rpcport="$RPCPORT" -walletwitness=rebuild)
+  if [ "$noteidx" = "1" ]; then
+    extra+=(-walletwitnessnote=1)
+  fi
+  log "START tip-rebuild noteidx=$noteidx extras=${extra[*]}"
+  # Status allowlist smoke under -33 (best-effort; rebuild may finish fast)
+  local t0
+  t0=$(date +%s)
+  "$ZEROD" -datadir="$SCRATCH" "${extra[@]}" >"$OUT_DIR/zerod.stdout" 2>"$OUT_DIR/zerod.stderr" &
+  local pid=$!
+  echo "$pid" >"$OUT_DIR/zerod.pid"
+  for _ in $(seq 1 180); do
+    cli getblockcount >/dev/null 2>&1 && break
+    sleep 2
+  done
+  # Early status RPC check (allowlist) -- may already be past -33.
+  if cli getblockcount >/dev/null 2>&1; then
+    log "status_rpc getblockcount=ok"
+  fi
+  if cli getblockchaininfo >/dev/null 2>&1; then
+    log "status_rpc getblockchaininfo=ok"
+  fi
+  wait_rebuild_done "$pid"
+  local t1 elapsed
+  t1=$(date +%s)
+  elapsed=$((t1 - t0))
+  local tip wi
+  tip=$(cli getblockcount 2>/dev/null || echo NA)
+  wi=$(cli getwalletinfo 2>/dev/null || echo '{}')
+  stop_node "$pid"
+  {
+    echo "mode=tip-rebuild noteidx=$noteidx wall_s=$elapsed tip=$tip"
+    echo "walletinfo=$wi"
+    echo "--- height-walk log lines ---"
+    grep -E "BuildWitnessCache height-walk|walletwitness=.*RebuildWitnessCache|Reindexing block file" "$SCRATCH/debug.log" 2>/dev/null | tail -60 || true
+    echo "--- extract elapsed_ms from height-walk done ---"
+    grep "BuildWitnessCache height-walk done" "$SCRATCH/debug.log" 2>/dev/null | tail -5 || true
+    if grep -q "Reindexing block file" "$SCRATCH/debug.log" 2>/dev/null; then
+      echo "WARN: unexpected reindex started (insight flags / template mismatch?)"
+    fi
+  } | tee "$SUMMARY"
+  log "done OUT_DIR=$OUT_DIR"
+}
+
 case "$MODE" in
   dirty-cont) run_dirty_cont ;;
   rebuild) run_rebuild 0 ;;
   rebuild-noteidx) run_rebuild 1 ;;
+  tip-rebuild) run_tip_rebuild 0 ;;
+  tip-rebuild-note) run_tip_rebuild 1 ;;
   *)
-    echo "Usage: $0 dirty-cont|rebuild|rebuild-noteidx" >&2
+    echo "Usage: $0 dirty-cont|rebuild|rebuild-noteidx|tip-rebuild|tip-rebuild-note" >&2
     exit 1
     ;;
 esac

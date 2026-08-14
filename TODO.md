@@ -32,12 +32,16 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 
 1. ~~**WAL-WTXORDERED** (+ Assure-4)~~ -- **done** (incremental `wtxOrdered`, keep accounts/`TxPair`). Line-by-line Zcash type match **deprioritized** (see **WAL-RPC-ACCOUNTS**, postponed).
 2. ~~**Stable subsidy arithmetic**~~ -- **done** in-tree (`GetFoundersRewardAmount` / integer `GetBlockSubsidy`); naming later (**DOC-FR-NAMING**).
-3. **WAL-GETALLDATA-W5** -- **revisit soon** (stashed on Zerowallet; pro/con below).
-4. **TST-01** remainder / **TST-05** / **TST-03** -- harness gaps. **TST-09** alert half done; block/wallet notify open. **getalldata_scenario** Ext-validated (2026-07-24).
-5. Postponed bucket (see Pending): **WAL-LOCKEDPOOL**, **OPS-CACHE-METRICS**, **OPS-TXINDEX-DEFAULT**, **OPS-AT-HEIGHT**, **TST-WITNESS-REINDEX**, **OPS-REINDEX** remainder, **OPS-ALERT-STRIP**, **DOC-FR-NAMING**, other getalldata W-items / ARG2 / UI window.
-6. **FR-ROTATE / FR-TADDR / FR-Z** -- product/consensus. Not scheduled.
-7. **WAL-RPC-ACCOUNTS** -- **postponed**; business decision + code-risk analysis. Not a gate for continuing const / getalldata work.
-8. Release / docs track -- README merge, signing, macOS notarization, Linux RC, supply review.
+3. **Cycle 1** -- **FIX-WAL-WITNESS-NOTEIDX-STALE** + R8 (**Perf.md** §0.14 / §0.16). Fat-wallet perf. Then flag collapse after rematch.
+4. **Track M** -- **G5** mainnet (192,7) timed solve + Instruments. Parallel with Cycle 1. Groth G2/G3 still after G5/G9.
+5. **Track Z Phase A** -- **TST-03** / **TNT-12** zeronode RPC arg validation + DOC-02 docs steps 1-2. Parallel. Phase C 2-node after A/B.
+6. **Cycle 2** -- TNT-02 reject-and-stay + Decrement no `exit(1)` + R5d. After Cycle 1 or overlapping if STALE is merged.
+7. **WAL-GETALLDATA-W5** -- **revisit soon** (stashed on Zerowallet; pro/con below).
+8. **TST-01** remainder / **TST-05** -- harness gaps. **TST-09** done. **getalldata_scenario** Ext-validated (2026-07-24).
+9. Postponed bucket (see Pending): **WAL-LOCKEDPOOL**, **OPS-CACHE-METRICS**, **OPS-TXINDEX-DEFAULT**, **OPS-AT-HEIGHT**, **TST-WITNESS-REINDEX**, **OPS-REINDEX** remainder, **OPS-ALERT-STRIP**, **DOC-FR-NAMING**, other getalldata W-items / ARG2 / UI window.
+10. **FR-ROTATE / FR-TADDR / FR-Z** -- product/consensus. Not scheduled.
+11. **WAL-RPC-ACCOUNTS** -- **postponed**; business decision + code-risk analysis. Not a gate for continuing const / getalldata work.
+12. Release / docs track -- README merge, signing, macOS notarization, Linux RC, supply review.
 
 ---
 
@@ -52,7 +56,7 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 - ~~**Stable subsidy arithmetic**~~ -- **done** (helper + tests); keep ZERO_COIN as normative description
 - RPC coverage matrix: `RPCs.csv` (`zero=y`) vs harness depth + client grep -> `RPCs_extended.csv` / `RPC_coverage.csv`
 - **TST-01** -- exclusive getalldata gates and Ext `getalldata_scenario` are **working**; under development: `getsupply` / `zs_*` / sapling depth. Run: `./src/test/test_bitcoin --run_test=rpc_zero_exclusive_tests` ; `./qa/pull-tester/rpc-tests.sh getalldata_scenario`
-- **TST-03** -- `zeronodestats` + zeronode/budget subcmds; arg validation first (under development)
+- **TST-03** -- `zeronodestats` + zeronode/budget subcmds; arg validation **scheduled Track Z Phase A** (under development)
 - **TST-05** -- wire genesis (192,7) indices from `1927EQ.txt` + (48,5) KATs (under development)
 - **TST-09** -- **done** (alert + block + wallet notify default-build skip markers in `DeprecationTest`)
 - **WAL-GETALLDATA-W5** -- **revisit soon** (see Full descriptions)

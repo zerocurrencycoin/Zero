@@ -159,6 +159,7 @@ reset_scratch() {
     rsync -a --exclude='blocks' --exclude='chainstate' --exclude='wallet.zero' \
       --exclude='wallet.zero*' --exclude='debug*.log' --exclude='.lock' \
       --exclude='bootstrap.dat' --exclude='bootstrap.dat.old' \
+      --exclude='chainblocks*.tgz' --exclude='chainblocks*.sha256' \
       "$SRC_DATADIR/" "$SCRATCH/" 2>/dev/null || true
   else
     log "reset scratch (rsync blocks, exclude chainstate; source read-only)"

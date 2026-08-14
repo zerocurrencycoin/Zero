@@ -71,7 +71,7 @@ DRIVER="$OUT_DIR/driver.log"
 UTIL_TSV="$OUT_DIR/util.tsv"
 log() { echo "$(date -u '+%Y-%m-%d %H:%M:%S UTC') $*" | tee -a "$DRIVER"; }
 
-printf "utc\tphase\theight\tpct_cpu\tpct_mem\trss_kb\tphys_footprint_mb\twallet_bytes\ttxcount\tpid\n" > "$UTIL_TSV"
+printf "utc\tphase\theight\tpct_cpu\tpct_mem\trss_kb\tphys_footprint_mb\twallet_bytes\ttxcount\tnote_tx_count\tpid\n" > "$UTIL_TSV"
 
 cli() { "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" "$@"; }
 
@@ -96,10 +96,14 @@ sample_row() {
   # getwalletinfo can block for minutes under fat-wallet cs_wallet (VerifyAndSetInitialWitness).
   # Timeout keeps util.tsv advancing; empty txcount means skip/timeout.
   txcount=""
+  note_tx_count=""
   if [ "${WALLETINFO_TIMEOUT_S}" != "0" ]; then
-    txcount=$(perl -e "alarm $WALLETINFO_TIMEOUT_S; exec @ARGV" \
-      "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" getwalletinfo 2>/dev/null \
-      | python3 -c 'import sys,json; print(json.load(sys.stdin).get("txcount",""))' 2>/dev/null || true)
+    wi_json=$(perl -e "alarm $WALLETINFO_TIMEOUT_S; exec @ARGV" \
+      "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" getwalletinfo 2>/dev/null || true)
+    if [ -n "$wi_json" ]; then
+      txcount=$(printf '%s' "$wi_json" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("txcount",""))' 2>/dev/null || true)
+      note_tx_count=$(printf '%s' "$wi_json" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("note_tx_count",""))' 2>/dev/null || true)
+    fi
     if [ -z "$txcount" ]; then
       txcount="TIMEOUT"
     fi
@@ -107,10 +111,10 @@ sample_row() {
   if [ -f "$SCRATCH/wallet.zero" ]; then
     wbytes=$(stat -f%z "$SCRATCH/wallet.zero" 2>/dev/null || stat -c%s "$SCRATCH/wallet.zero" 2>/dev/null || echo 0)
   fi
-  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
     "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$phase" "${height:-}" \
-    "$pct_cpu" "$pct_mem" "$rss_kb" "${phys_mb:-}" "$wbytes" "${txcount:-}" "$pid" >> "$UTIL_TSV"
-  log "util phase=$phase h=${height:-NA} cpu%=$pct_cpu rss_kb=$rss_kb wallet_B=$wbytes txcount=${txcount:-NA}"
+    "$pct_cpu" "$pct_mem" "$rss_kb" "${phys_mb:-}" "$wbytes" "${txcount:-}" "${note_tx_count:-}" "$pid" >> "$UTIL_TSV"
+  log "util phase=$phase h=${height:-NA} cpu%=$pct_cpu rss_kb=$rss_kb wallet_B=$wbytes txcount=${txcount:-NA} note_tx=${note_tx_count:-NA}"
 }
 
 prepare_scratch() {

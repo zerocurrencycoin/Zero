@@ -202,14 +202,16 @@ Zero `src/zeronode/*` maps from TENT `src/masternode/*` (**`ZeroNodes.md`** sect
 
 ### Functional test roadmap (from DOC-02)
 
-| Phase | Test | Pass criteria |
-|-------|------|---------------|
-| **A** | RPC argument validation | Extend `rpc_zeronode_tests`, `rpc_zeronode_budget_tests` |
-| **B** | Regtest coinbase split | Founders 7.5%, zeronode vout when spork on (height > 5000) |
-| **C** | Regtest 2-node zeronode | `startalias`, payment in coinbase within N blocks |
-| **D** | Reorg / `GetZeronodeInputAge` | `invalidateblock` steps; automate when harness allows |
-| **E** | Mock wallet | Test double for `CZeronodeWalletInterface` |
-| **F** | Mainnet decode regression | optional CI fixtures (see **`ZERO_COIN.md`**) |
+Schedule: **Perf.md** §0.16 Track Z. Does not wait on Cycle 1 STALE.
 
-Priority: A -> B -> C. See **`UpdateZero.md`** DOC-02 for doc deliverables.
+| Phase | Test | Pass criteria | When |
+|-------|------|---------------|------|
+| **A** | RPC argument validation | Extend `rpc_zeronode_tests`, `rpc_zeronode_budget_tests` | **Now** |
+| **B** | Regtest coinbase split | Founders 7.5%, zeronode vout when spork on (height > 5000) | Parallel with Cycle 1 if lab free |
+| **C** | Regtest 2-node zeronode | `startalias`, payment in coinbase within N blocks | After A/B |
+| **D** | Reorg / `GetZeronodeInputAge` | `invalidateblock` steps; automate when harness allows | After Cycle 2 |
+| **E** | Mock wallet | Test double for `CZeronodeWalletInterface` | After C |
+| **F** | Mainnet decode regression | optional CI fixtures (see **`ZERO_COIN.md`**) | Optional |
+
+Priority: A -> B -> C. See **`UpdateZero.md`** DOC-02 for doc deliverables. Operator setup: **`ZeroNodes.md`**.
 
