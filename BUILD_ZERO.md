@@ -4,7 +4,7 @@ Build guide for the Zero full node binary `zerod`.
 
 **Quick Start:** §2 -- clone, install packages, build (Linux, macOS, Windows cross-compile, packaging).
 **Data directory:** §3. **Developer / depends:** §4. **Per-platform:** §5. **Troubleshooting:** §6.
-**Testing:** [TEST_ZERO.md -- Use cases](TEST_ZERO.md#2-use-cases).
+**Testing:** [TEST_ZERO.md](TEST_ZERO.md) -- merge gate, platform evidence, operational soaks.
 
 ---
 
@@ -163,6 +163,8 @@ Tag `vMAJOR.MINOR.PATCH` from the release line after a clean build and contribut
 Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`. On failure: [TEST_ZERO.md](TEST_ZERO.md).
 
 **Package.** `zcutil/release-linux.sh` stages stripped binaries into tarball and .deb. `contrib/devtools/split-debug.sh` exists for separate debuginfo but is not wired in.
+
+**Checksum and sign.** Do this during release prep (same sitting as tag + package), not after the GitHub Release is published. Unsigned CI artifacts are not releases. Until the procedure is written: `SHA256SUMS` for every artifact; detached GPG over the sums file for Linux; macOS Developer ID + notarization (stapler) for shipped binaries; Authenticode if a Windows PE ships. Operator verify steps belong in this section when ready. RC recording (present vs explicitly missing): [TEST_ZERO.md](TEST_ZERO.md) §8.
 
 ### 2.7 Compiler and release flags
 

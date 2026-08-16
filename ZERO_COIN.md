@@ -181,7 +181,7 @@ Total supply is targeted at some **20M ZER**. **`MAX_MONEY`** in **`src/amount.h
 
 ### Stable arithmetic (why integer)
 
-Subsidy and founders amounts must match in miner, `ConnectBlock`, GBT, and RPC. Mixing `double` with `CAmount` (`10.8 * COIN`, `* 0.075`, `* 7.5 / 100`) can diverge by path after many halvings. **Target:** one integer rule -- base subsidy in zats; founders **`subsidy * 75 / 1000`** (trunc toward 0); same helper everywhere. Zeronode share already uses integer percent (`blockValue * N / 100`). Implementation tracking: **TODO.md**.
+Subsidy and founders amounts must match in miner, `ConnectBlock`, GBT, and RPC. Mixing `double` with `CAmount` (`10.8 * COIN`, `* 0.075`, `* 7.5 / 100`) can diverge by path after many halvings. **Target:** one integer rule -- base subsidy in zats; founders **`subsidy * 75 / 1000`** (trunc toward 0); same helper everywhere. Zeronode share already uses integer percent (`blockValue * N / 100`). **In tree:** `GetFoundersRewardAmount` / integer `GetBlockSubsidy`. Remaining naming: **DOC-FR-NAMING** (TODO). Supply vs ~20M target: TODO, not this helper.
 
 ---
 

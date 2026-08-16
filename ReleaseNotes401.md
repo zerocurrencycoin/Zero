@@ -46,7 +46,8 @@ One-paragraph summary (what this release is).
 - Honest, short; link TODO only for contributor follow-ups.
 
 ## Verify download (when signing ships)
-- Placeholder until REL-SIGNING lands; omit section until then.
+
+RC still records hashes/signatures as present or **explicitly missing** (TEST_ZERO §8). Omit this section from the GitHub paste until REL-SIGNING lands; do not ship without recording the gap.
 ```
 
 **Style:** Factual, dated only for the **release day**. No emoji requirement; match README tone if pasted to GitHub. ASCII punctuation per AGENTS for in-tree copy.
@@ -138,7 +139,7 @@ Point at the ship-set table in README (do not paste ZERO_COIN tables).
 
 ### Known limitations
 
-- Release signing / notarization procedure not published yet *(internal REL-SIGNING)*.
+- Release signing / notarization procedure not published yet *(internal REL-SIGNING)*. Produce checksums/signatures during release prep; unsigned CI is not a release.
 - *(Pull 2–4 items from TODO that affect operators; no Zerowallet / Insight host.)*
 
 ---

@@ -17,6 +17,8 @@ Use a small set of entry points to validate the node: the contributor merge gate
 3. **Maturity / clean chain.** Regtest `COINBASE_MATURITY = 720`. Prefer `initialize_chain_clean` + explicit mine helpers when porting.
 4. **Depth by layer.** Exclusive Boost for empty-wallet RPC gates; Ext/B scenarios for populated wallets; GTest for wallet units.
 5. **Verify then promote.** When a basename run succeeds, update arrays and §3 in the same change set.
+6. **Platform + ops.** `--strict` is not a full-node soak. Re-run the gate on each OS you ship; add operational checks in §8 (startup, reindex, bootstrap, sync, attach). Checksums and signatures during release prep. One long trial per invocation.
+
 Language: describe harness areas as **working** or **under development**. Reserve **pass** / **fail** for the outcome of a specific test run or case.
 
 ---
@@ -181,6 +183,125 @@ GTest: **`[  PASSED  ] N tests.`** means all ran passed; **`FAILED`** or non-zer
 - **Zero-specific cases** exercise **(192,7)** mainnet genesis (valid + corrupt **`nSolution`**) and **(48,5)** regtest genesis.
 
 Failures in the Zero-specific cases usually mean **`chainparams.cpp`** / **`pow.cpp`** / **`CheckEquihashSolution`** drift. Verbose: **`--log_level=test_suite`** or **`message`**.
+
+---
+
+## 8. Platform evidence and operational checks
+
+`--strict` proves the contributor gate on **one** OS. v4.0.1 needs an honest matrix plus a few node-lifecycle soaks. Do not treat a green macOS gate as Linux ELF, Windows, mining, or Zerowallet coverage.
+
+Lab soaks reuse the same fixture rules that the maintainer perf tree already uses: a disposable scratch datadir, packed chain snaps outside git, wallet copies injected by env, and one long trial per invocation. Do **not** copy that perf campaign set into this product tree. A later `contrib/ops-validate.sh` (or equivalent) should implement only the catalog below.
+
+### 8.1 What has actually been run
+
+| Layer | macOS ARM64 | Linux x86_64 (Ubuntu 24.04 class) | Windows |
+|-------|-------------|-----------------------------------|---------|
+| Build | **Done** (`./zcutil/build.sh`) | **Partial** -- rebuild at the release tip is still the recommended next gate | **Not run.** MXE cross from Linux is documented in BUILD_ZERO; this program has never produced or executed `zerod.exe` |
+| `./contrib/run-tests.sh --strict` | **Done** on an earlier 4.0.1-line tip (2026-06). **Re-run on the tag commit** | **Not run at current tip.** Recommended before tag; maintainer may ship without it | No native or WSL2 `--strict` |
+| `--suite` (ELF `check-security` / `no-dot-so`, full `rpcbind`) | **N/A** -- Darwin skips ELF stages | **Not run at current tip.** Recommended | N/A for PE |
+| `--all --strict` (Tier A+B+E) | Optional; re-run after tier moves | Optional after `--strict` | Not run |
+| Packaging | N/A | `release-linux.sh` not a `--strict` substitute | No signed installer |
+| Checksums / signatures | **Missing.** Produce during release prep, not after the GitHub Release is live | Same; GPG over `SHA256SUMS` when Linux artifacts ship | Authenticode if a PE ships |
+| Isolated mining RPC (OPS-GBT / Tier B `getblocktemplate`) | Tier B exists in the harness; isolated mainnet template not recorded | Same | Not run |
+| Live mining (timed mainnet (192,7) solve, pool, production hash) | **Not confirmed** -- optional observation, not the definition of mining | **Not confirmed** | **Not confirmed** |
+| Zerowallet | **Manual only** -- start or attach, watch addresses / History load, spinner, error dialogs. No automated UI. No send/receive, bulk, or mixed-type tx in this program | Same if used | Same if used |
+
+**RC bar:** macOS `--strict` on the **tag commit**; Linux `--strict` + `--suite` strongly recommended; Windows = first successful MXE build at minimum, then `--strict` when a Win/WSL2 runner exists. **Signing:** `SHA256SUMS` plus platform signatures (BUILD_ZERO §2.6) on every shipped artifact; unsigned CI output is not a release. Record hashes/signatures as present or **explicitly missing**. Maintainer decides which OS gates are hard blocks. Darwin also skips full `rpcbind`; keep serial `--strict` (`--jobs>1` can hang `paymentdisclosure`).
+
+### 8.2 Automating beyond the harness
+
+Four layers. Implement layer 2 as a later `contrib/ops-validate.sh` that **runs one catalog id per invocation** and appends a JSONL ledger. Do not wrap all scenarios in one overnight script unless each trial can restart alone (separate datadir, append-only status, resume from the next unfinished id).
+
+| Layer | What | Exists |
+|-------|------|--------|
+| **0 -- merge gate** | `--strict` (C++ working filters + Tier A RPC) | `contrib/run-tests.sh` |
+| **1 -- widen** | `--all`, Linux `--suite`, `release-linux.sh` smoke | Same runner; platform-gated |
+| **2 -- node lifecycle** | Disposable datadir; start / stop / restart / attach; `-reindex`; `-loadblock`; `-rescan`; P2P catch-up; `-disablewallet`; Insight-flagged copy | **Catalog below.** Driver not in tree yet. Record: scenario id, OS, binary hash, tip height, `wall_s`, exit, last `debug.log` error, conf digest |
+| **3 -- clients / mining** | Zerowallet attach + visual; isolated Equihash **solve**; live hash optional | GUI clicks stay in the wallet repo. Node-side attach/reporting is in scope for the layer-2 driver. Mining solve is opt-in (not `--strict`). `z_sendmany` / mixed tx stay out |
+
+**Scratch contract** (same rules whether the driver lives here or in a lab tree):
+
+- Never use the default user datadir as a writable lab (`~/Library/Application Support/zero`, `Application Support/Zero`, `~/.zero`, `%APPDATA%\zero`). Refuse that path. Do not write lab scratch into this product tree.
+- Packed snaps (`tiny` / `short` / `full` chain copies) live **outside git**. Unroll only `blocks/` + `chainstate/` (includes `blocks/index/`). Do not disturb the archive original.
+- Wallet files enter by env (copy `wallet.zero` in). Profiles: empty, known-small (p0), mid (p1), fat. Same Berkeley DB generation as the binary under test. Never copy a lab wallet back onto a live datadir.
+- `bootstrap.dat` / `-loadblock=` uses a copy or softlink. Never mutate the original. Bootstrap mode wipes `chainstate/` (and usually `blocks/`) so the import is the chain, not a leftover index.
+- Write a scratch `zero.conf`: `rpcuser` / `rpcpassword` / `rpcport`, `listen=0` for isolated soaks. Never leave sticky `reindex=1` in conf (that forces a reindex on every start). Insight flags in conf must match how `blocks/index/` was built, or `-reindex` fires.
+- Params stay in the platform ZcashParams path (`./zcutil/fetch-params.sh`). `-datadir` does not relocate them.
+- One trial per invocation for anything expected to exceed ~20 minutes. Append-only ledger; resume by id.
+
+### 8.3 Operational catalog
+
+Run against a **copy** of a known-good datadir (or a short packed snap). Pass: process reaches RPC, `getblockchaininfo` `blocks` matches expectation, `debug.log` has `Done loading` / `Reindexing finished` as applicable, clean `stop`. Fail: hang past the scenario bound, `AbortNode`, unexpected `-reindex` from sticky `reindex=1` in conf, datadir mismatch, Insight flags that do not match the copied index.
+
+| Id | Scenario | Typical bound | Notes |
+|----|----------|---------------|-------|
+| **OPS-START-COLD** | Fresh `-datadir=SCRATCH` (empty or params-only), `-listen=0 -connect=0`, wait RPC, `stop` | Minutes | Confirms init, params, RPC creds. Not sync. |
+| **OPS-START-WARM** | Copy chain+wallet to scratch, start **without** `-reindex`, wait `Done loading`, `getblockcount` | Minutes if already at tip; hours if the copy is behind and P2P is on | Default-off P2P (`-connect=0`) for a bounded load test |
+| **OPS-RESTART** | `stop`, start again on the same scratch, tip unchanged | Minutes | Flush / lock / wallet reopen |
+| **OPS-NOWALLET** | `-disablewallet` on a chain copy | Minutes | Explorer-style. Pair with Insight flags only when the copied index was built with them |
+| **OPS-REINDEX** | `-reindex` on a chain copy (no sticky `reindex=` in conf) | **Long** -- tiny snap is the smoke; full tip is a solo trial | Resume markers `L`/`H`/`R` if interrupted. On this 4.0.1 line, a multi-million-block `LoadBlockIndexDB` may ignore `SIGTERM` until RPC is up -- prefer a height-bounded snap for smoke |
+| **OPS-BOOTSTRAP** | Empty chainstate, `-loadblock=` / `bootstrap.dat` copy (never mutate the original) | **Long**; windowed height cap if the importer supports stop-at-height | One file / one trial |
+| **OPS-RESCAN** | Indexed chain + existing `wallet.zero`, `-rescan`, no `-reindex` | **Long** on fat wallets | Genesis-to-tip fat rescan is a solo trial |
+| **OPS-P2P-CATCHUP** | Chain copy behind live tip, P2P on, wait `blocks` to move | **Long** / unbounded | Separate from `-connect=0` soaks |
+| **OPS-GBT** | `getblocktemplate` on regtest or an isolated mainnet template **without** submitting work | Minutes | Proves the mining **RPC**, not a timed Equihash solve |
+| **OPS-ATTACH** | Do not spawn `zerod`; poll RPC on an already-running node using that datadir's `zero.conf` | Minutes | Shared by Zerowallet attach and explorer consumers. Record pid, `rpcport`, warmup, `getblockchaininfo` / `getwalletinfo` or the nowallet error |
+
+**When to run** (macOS first; Linux after a rebuild at the tag). Do not batch the long column.
+
+| Band | Ids | Role |
+|------|-----|------|
+| **Smoke (first session)** | START-COLD, START-WARM, RESTART, NOWALLET, GBT, ATTACH | Minutes each; proves init, conf, RPC, restart, explorer-style start |
+| **Same-week bounded** | REINDEX on a **tiny** snap; BOOTSTRAP on a **windowed** `bootstrap.dat` if a copy exists | One id per invocation |
+| **Scheduled solo** | REINDEX full tip; RESCAN fat; P2P-CATCHUP; isolated mainnet solve | Not RC-blocking unless the maintainer says so |
+| **RC bar** | Layers 0-1 + smoke band + checksums/signatures + wallet visual + explorer RPC smoke | Long soaks remain evidence, not an automatic hard block |
+
+**Not in this catalog:** sending or receiving coins (transparent, Sprout, Sapling, mixed, bulk); pool/GBT production hash; Zerowallet History correctness beyond "did the UI load."
+
+### 8.4 Zerowallet soak
+
+Zerowallet has **no** automated UI tests in this node tree. The wallet repo owns GUI clicks. This catalog covers **node-side** launch, attach, conf alignment, lifetime, and state reporting so the GUI is not the only sensor.
+
+**Conf and datadir.** Canonical macOS folder is `Application Support/zero`; some wallet builds still open `Application Support/Zero` (case collision on APFS). Mainnet RPC default is **23811** (`rpcport` in `zero.conf`). The wallet must use the same `rpcuser` / `rpcpassword` / `rpcport` / datadir as the node it talks to. Wallet-only extras (`txindex`, `deletetx*`, `consolidation*`) are wallet policy, not required for bare `zerod`.
+
+**Modes:**
+
+1. **Launch** -- start `zerod` on a chosen datadir, wait RPC, then start the GUI.
+2. **Attach** -- GUI (or a later script) reads `zero.conf` from that datadir and talks to an already-running `zerod` (OPS-ATTACH).
+3. **Wallet-spawned** -- GUI starts embedded `zerod`; still poll the same RPC and `debug.log`.
+
+**Track (JSONL, append-only):** pid, start time, `Done loading`, RPC warmup (`-31` / `-33` if used), `getblockchaininfo` (`blocks`, `headers`, `verificationprogress`, `connections`), `getwalletinfo` (`txcount`, and note counts if this binary exposes them), log path, conf digest (rpcport + flags, not the password). Expand later with RSS and wallet file size. Do **not** call send RPCs.
+
+Until a wallet-repo driver exists, 4.0.1 client evidence is still a **manual** pass on macOS:
+
+1. Choose a **non-lab** datadir you accept; resolve `zero` vs `Zero`.
+2. Use one of the three modes above.
+3. Watch: RPC connect, address list, transaction History populate, spinner stop, error dialogs if any.
+4. Do **not** treat spinner-then-idle as a sync or reindex proof -- that is `zerod` logs / `getblockchaininfo`.
+5. Do **not** generate, send, or receive transactions for this soak.
+
+Record OS, wallet build, node tag, attach vs launch, and whether History populated without a dialog. That is observation, not a merge gate.
+
+### 8.5 Mining
+
+Mining is a ladder. Live hash is one way to see that a template can become a block; it is **not** the definition of "mining works" and it is not representative of pool or isolated solve time.
+
+| Step | What | Status |
+|------|------|--------|
+| **A** | Tier B `getblocktemplate` (regtest RPC) | In the harness |
+| **B** | OPS-GBT on a disposable node (regtest or isolated mainnet template, no submit) | Catalog; not yet a checked-in driver |
+| **C** | Regtest `generate` / (48,5) solve | Lab opt-in; not `--strict` |
+| **D** | Isolated mainnet-template **solve** (192,7), no pool, no `submitblock` to public peers unless that is a separate named trial | Not confirmed; the step that would let 4.0.1 claim "mining works" |
+| **E** | Live generation | Optional observation only |
+
+Do not list mining as validated for v4.0.1 until step D is recorded. `contrib/zero.conf` `gen=0` stays the operator default.
+
+### 8.6 Explorer consumer
+
+Insight-style soaks are the same layer-2 driver with a different conf profile, not a second harness. Typical flags: `-experimentalfeatures -insightexplorer -txindex`, often `-disablewallet`. The copied `blocks/index/` must have been built with those flags; a stock index plus Insight conf triggers `-reindex`.
+
+Smoke on a disposable copy: RPC alive, `getaddressbalance` / `getaddresstxids` on a known transparent address, clean `stop`. ZMQ and the HTTP Insight API are wiring checks after deploy, not this catalog. Host libc/ABI floors are a packaging concern (BUILD_ZERO: build OS sets the binary floor), not a TEST_ZERO matrix.
+
+OPS-NOWALLET plus OPS-ATTACH covers "zerod already running, explorer talks RPC." Do not put `reindex=1` in the explorer `zero.conf`.
 
 ---
 

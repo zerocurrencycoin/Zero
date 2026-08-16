@@ -728,6 +728,8 @@ Wallet-critical RPCs include **`getalldata`** (primary UI refresh), chain info R
 
 Release couples embedded **`zerod`** binary to wallet tag; exercise **`getalldata`** on release smoke.
 
+**Attach vs launch.** The wallet may spawn `zerod`, attach to an already-running node, or the operator starts `zerod` first. RPC creds and `rpcport` must match that datadir's `zero.conf` (mainnet default **23811**). Path case: **INT-01**. Node-side lifetime and RPC state: **TEST_ZERO.md** §8. GUI clicks stay in the wallet repo.
+
 ### 11.6 RPC / REST / ZMQ
 
 | Surface | Enabled by | Insight | zerowallet |
@@ -775,6 +777,8 @@ Node-repo validation: **`TEST_ZERO.md`** -- **`--strict`** strongly recommended 
 | ZMQ | Port **28332** listening or subscribe test | Events after block/tx |
 | Insight API | `curl .../insight-api-zero/sync` | `status` synced |
 | Wallet RPC | `getalldata` via wallet or CLI | Non-error JSON object |
+| Wallet attach | GUI or CLI against an already-running `zerod` using that datadir `zero.conf` | Same RPC; **TEST_ZERO.md** §8 OPS-ATTACH |
+| Release artifact | `sha256` (+ signature when REL-01/02 exist) of the binary under test | Unsigned CI is not a release |
 | Testnet | `-testnet`, RPC **23812** | P2P + RPC up |
 
 Optional: zerod REST (`-rest=1`) -- not used by Insight or zerowallet.

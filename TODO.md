@@ -18,11 +18,10 @@ Open follow-ups for the Zero **full node** (`zerod`). Commands and inventory: **
 
 ## Ordered next
 
-1. **Stable subsidy arithmetic** -- integer founders helper (`subsidy * 75 / 1000`); see Full descriptions and **ZERO_COIN.md**.
-2. **WAL-GETALLDATA-W5** -- tip poll split (balances vs History); revisit after current getalldata soak.
-3. **TST-01** remainder / **TST-05** / **TST-03** / **TST-09** notify half -- harness gaps in Full descriptions.
-4. Release / docs track -- Linux release validation, supply review (~20M ZER target).
-5. Postponed bucket: see **Pending** (not scheduled).
+1. **WAL-GETALLDATA-W5** -- tip poll split (balances vs History); revisit after current getalldata soak.
+2. **TST-01** remainder / **TST-05** / **TST-03** / **TST-09** notify half -- harness gaps in Full descriptions.
+3. Release / docs track -- Linux `--strict` + `--suite`; Windows MXE **never executed** in this program; supply review (~20M ZER target). **Signing / checksums during release prep** (REL-01/02), not after the GitHub Release. Platform, ops catalog, mining ladder, wallet attach: **TEST_ZERO.md** §8.
+4. Postponed bucket: see **Pending** (not scheduled).
 
 ---
 
@@ -31,7 +30,6 @@ Open follow-ups for the Zero **full node** (`zerod`). Commands and inventory: **
 - Node setup and maintenance docs: keep user-facing instructions accurate
 - Chain bootstrap: end-user import path (`-loadblock` / auto-import); linearize in `contrib/linearize/`
 - Total supply discrepancy: arithmetic vs ~20M ZER target
-- **Stable subsidy arithmetic** (implementation)
 - RPC coverage matrix: `RPCs.csv` vs harness depth
 - **TST-01** -- exclusive getalldata + Ext `getalldata_scenario` working; under development: `getsupply` / `zs_*` / sapling depth
 - **TST-03** -- `zeronodestats` + zeronode/budget subcmds; arg validation
@@ -70,6 +68,7 @@ Open follow-ups for the Zero **full node** (`zerod`). Commands and inventory: **
 
 - WAL-WTXORDERED + Assure-4; getalldata S4--S8 + W2/W3 exclusive; `getalldata_scenario` Ext
 - Founders regtest window + `founders_window.py`; Tier B wallet Sapling port
+- Integer subsidy: `GetBlockSubsidy` in zats; founders **`GetFoundersRewardAmount` = `subsidy * 75 / 1000`** (miner, `ConnectBlock`, GBT, metrics). Naming (`developmentfee` vs founders) still **DOC-FR-NAMING**. Supply vs ~20M target still open.
 - ZERO_COIN consolidation; shell-notify compile gate; LevelDB `max_open_files`; reindex markers/resume
 - Insight-oriented Tier B scripts promoted when green; longpoll funded-node pin; workqueue 503 + once-per-episode WARNING
 - Harness exit-code / getchaintips / zeronode null guards
@@ -80,7 +79,7 @@ Open follow-ups for the Zero **full node** (`zerod`). Commands and inventory: **
 
 ### Stable subsidy arithmetic
 
-Replace `double`×`COIN` and `* 0.075` / `* 7.5 / 100` mixes with integer zats: base **10.8 ZER** as integer zats; founders **`subsidy * 75 / 1000`** via one helper used by miner, validate, GBT, and metrics. Schedule: **ZERO_COIN.md**. Touch sites include `GetBlockSubsidy`, founders checks in `main.cpp` / zeronode payments / budget / `getblocksubsidy` / metrics, and matching tests.
+**Done in tree.** `GetBlockSubsidy` uses integer zats (10 ZER pre fee-start; `108 * COIN / 10` after). Founders **`GetFoundersRewardAmount(subsidy)` = `subsidy * 75 / 1000`** (trunc toward 0), used by miner, `ConnectBlock`, GBT, zeronode payments/budget, and metrics. Tests: `main_tests.cpp`, `test_foundersreward.cpp`. Schedule text: **ZERO_COIN.md**. Remaining: **DOC-FR-NAMING**; supply-target review (not the helper).
 
 ### WAL-WTXORDERED / const policy
 

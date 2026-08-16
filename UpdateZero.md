@@ -570,12 +570,12 @@ Zero **`depends/packages/rust.mk`**:
 | **1** | **Decide timeline vs v4.0.1 GA** for Insight host / 18 special path (keep internal until then; no public BUILD/TEST matrix) | Scope |
 | **2** | **Decide** Insight track: keep 18-built artifacts **or** upgrade VPS to **22.04+** | Ops |
 | **3** | **Validate 20.04 / 22.04** build+run (currently **TBD**) before declaring a minimum runtime OS | Expectations |
-| **4** | **v4.0.1:** Linux rebuild on lazu **recommended**; **`--strict`** strongly suggested -- **maintainer decides** tag/merge (**TEST_ZERO.md** 4.0.1). Public docs merge at GA; **internal docs held back** (separate branch later) | RC |
+| **4** | **v4.0.1:** Linux rebuild on lazu **recommended**; **`--strict`** strongly suggested -- **maintainer decides** tag/merge (**TEST_ZERO.md** §8). Public docs merge at GA; **internal docs held back** (separate branch later) | RC |
 | **5** | Optional later: **`ubuntu:22.04` CI** + retarget **`symbol-check.py`** if 22 becomes the floor | Regressions |
 | **6** | **Defer Guix** unless dedicated REL item | Wide binaries |
 | **7** | BUILD_ZERO keeps a **one-line pointer** to this section; avoid duplicating tables | Single owner |
 
-**Tracked elsewhere:** Insight **18 vs 24** host survey (**InsightInternal.md** B.2); **`dbcache`** on 4 GiB (**ZeroStruct.md** section 4); Linux RC (**TEST_ZERO.md** 4.0.1 handoff).
+**Tracked elsewhere:** Insight **18 vs 24** host survey (**InsightInternal.md** B.2); **`dbcache`** on 4 GiB (**ZeroStruct.md** section 4); Linux RC and ops soaks (**TEST_ZERO.md** §8).
 
 ---
 
@@ -833,19 +833,19 @@ Recommendation: retire the wiki page (or add a deprecation banner). Replace with
 
 **Supply target vs model:** Product target **some 20M ZER**; piecewise mint can model higher long-run. User-facing schedule and issued totals: **ZERO_COIN.md**. Open review stays on **TODO** (supply discrepancy).
 
-**Stable subsidy arithmetic (accepted):** Integer zats only on consensus paths; founders **`subsidy * 75 / 1000`** trunc toward 0 via one helper; integerize **10.8 ZER** base. Reasoning: **ZERO_COIN.md** (Stable arithmetic). Touch list + current `double` sites: **BUILD_ZERO.md** §4.8. Status: **TODO.md**. Naming (`developmentfee` vs founders): **DOC-FR-NAMING** postponed.
+**Stable subsidy arithmetic (accepted):** Integer zats on consensus paths; founders **`subsidy * 75 / 1000`** trunc toward 0 via `GetFoundersRewardAmount`; integer **10.8 ZER** base. **In tree** (not an open implement item). Remaining: **DOC-FR-NAMING**; supply-target review on **TODO**. Reasoning: **ZERO_COIN.md**. Touch list: **BUILD_ZERO.md** §4.8.
 
 **Branch id posture:** Sapling and Cosmos share `0x7361707a`. No planned fork to split. Optional: CI guard for duplicate `nBranchId`.
 
 ### Release and infrastructure
 
-**REL-01 -- Release signing.** No checksum or signing procedure. See BUILD_ZERO §2.6.
+**REL-01 -- Release signing.** No checksum or signing procedure yet. **When:** during release prep (tag + package + hash + sign), not after the GitHub Release is live. Unsigned CI artifacts are not releases. Public owner: BUILD_ZERO §2.6. RC recording: TEST_ZERO §8.
 
-**REL-02 -- macOS developer signing.** Apple Developer Program, `codesign` + `xcrun notarytool`. Without it, Gatekeeper quarantine.
+**REL-02 -- macOS developer signing.** Apple Developer Program, `codesign` + `xcrun notarytool`. Without it, Gatekeeper quarantine. Same sitting as REL-01 for any macOS artifact that ships.
 
 **REL-03 -- Params archival.** `fetch-params.sh` references upstream Zcash names/mirrors. Audit file names vs `zerod` startup, verify URLs.
 
-**REL-04 -- Chain bootstrap.** Document snapshot sourcing, verification, datadir placement. Currently undocumented.
+**REL-04 -- Chain bootstrap.** Document snapshot sourcing, verification, datadir placement. Currently undocumented. Ops soak (copy / `-loadblock`, never mutate the original): TEST_ZERO §8 OPS-BOOTSTRAP. Packed snaps stay outside git.
 
 **REL-05 -- Debian packaging.** `build-debian-package.sh` (zcash naming) likely superseded by `release-linux.sh`. Confirm and deprecate.
 
@@ -1675,7 +1675,9 @@ Product / naming options -- not scheduled on the public checklist:
 
 ### REL-SIGNING (moved from public TODO)
 
-**Status:** Active maintainer work. Public **BUILD_ZERO** only states that no procedure is published yet.
+**Status:** Active maintainer work. Public **BUILD_ZERO** §2.6 now requires checksums/signatures during release prep; the operator verify procedure is still unpublished.
+
+**When:** during release prep, before publishing the GitHub Release. TEST_ZERO §8 RC bar records hashes/signatures as present or explicitly missing.
 
 **Minimum viable (all platforms):**
 
