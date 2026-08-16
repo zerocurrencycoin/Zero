@@ -20,7 +20,7 @@ Open follow-ups for the Zero **full node** (`zerod`). Commands and inventory: **
 
 1. **WAL-GETALLDATA-W5** -- tip poll split (balances vs History); revisit after current getalldata soak.
 2. **TST-01** remainder / **TST-05** / **TST-03** / **TST-09** notify half -- harness gaps in Full descriptions.
-3. Release / docs track -- Linux `--strict` + `--suite`; Windows MXE **never executed** in this program; supply review (~20M ZER target). **Signing / checksums during release prep** (REL-01/02), not after the GitHub Release. Platform, ops catalog, mining ladder, wallet attach: **TEST_ZERO.md** §8.
+3. Release / docs track -- Linux `--strict` + `--suite`; Windows MXE **never executed** in this program; supply review (~20M ZER target). **Signing / checksums during release prep** (REL-01/02). Receipts: **`.build/`** via `zcutil/check-setup.sh` and `zcutil/check-release.sh`. Python floor remains **3.10+** (not 3.11). Ops smoke and ZeroPerf pull-in (one or two increments): **TEST_ZERO.md** §8.
 4. Postponed bucket: see **Pending** (not scheduled).
 
 ---

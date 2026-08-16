@@ -21,12 +21,14 @@ if [ -z "${BASH_VERSION:-}" ]; then
     echo "run-tests.sh requires bash (use ./contrib/run-tests.sh or bash contrib/run-tests.sh)" >&2
     exit 2
 fi
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ME="run-tests"
+# shellcheck disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/../zcutil/fzero.sh"
 cd "$REPO_ROOT"
 export BUILDDIR="${BUILDDIR:-$REPO_ROOT}"
 export ZERO_RPC_CACHE_DIR="${ZERO_RPC_CACHE_DIR:-$REPO_ROOT/cache}"
 
-LOG_DIR="${LOG_DIR:-$REPO_ROOT/test-logs}"
+LOG_DIR="${LOG_DIR:-$ZERO_BUILD_DIR/test-logs}"
 mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
@@ -46,13 +48,6 @@ PYTHON_PASSING=(
 echo "Zero test validation - $TIMESTAMP"
 echo "Logs: $LOG_DIR"
 echo ""
-
-find_python3() {
-    if [ -n "$PYTHON" ]; then echo "$PYTHON"; return; fi
-    if command -v python3 &>/dev/null && python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' 2>/dev/null; then echo "python3"; return; fi
-    if command -v python &>/dev/null && python -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' 2>/dev/null; then echo "python"; return; fi
-    echo ""
-}
 
 MODE=passing
 QUICK=0
@@ -96,6 +91,10 @@ for arg in "$@"; do
     esac
 done
 
+if [ "$NO_PYTHON" -eq 0 ]; then
+    run_check_setup --levels=toolchain || exit 1
+fi
+
 
 bump_fail() {
     OVERALL_FAIL=1
@@ -131,15 +130,13 @@ run_bg() {
 
 if [ "$BUILD_CHECKS" -eq 1 ]; then
     echo "--- Build checks ---"
-    PY_DIR=""
-    if [ -n "$PYTHON" ] && [ -x "$PYTHON" ]; then
-        PY_DIR="$(dirname "$PYTHON")"
-    elif command -v python3 &>/dev/null; then
-        PY_DIR="$(dirname "$(command -v python3)")"
-    elif command -v python &>/dev/null; then
-        PY_DIR="$(dirname "$(command -v python)")"
-    fi
-    if [ -n "$PY_DIR" ]; then
+    PY3="$(find_python3 || true)"
+    if [ -n "$PY3" ]; then
+        if [[ "$PY3" == /* ]]; then
+            PY_DIR="$(dirname "$PY3")"
+        else
+            PY_DIR="$(dirname "$(command -v "$PY3")")"
+        fi
         run_cmd "check-security" env PATH="$PY_DIR:$PATH" make -C src check-security || true
     else
         echo "Skipping check-security: no python in PATH (set PYTHON or use python3)"
@@ -148,7 +145,7 @@ if [ "$BUILD_CHECKS" -eq 1 ]; then
 fi
 
 if [ "$FULL_SUITE" -eq 1 ]; then
-    PY3=$(find_python3)
+    PY3="$(find_python3 || true)"
     if [ -z "$PY3" ]; then
         echo "FAIL: Python 3.10+ required for full_test_suite"
         exit 1
@@ -169,7 +166,7 @@ fi
 # Single RPC script by name: only that test (no util / C++ / Tier A).
 if [ -n "$RPC_SINGLE" ]; then
     echo "--- Single RPC: qa/rpc-tests/${RPC_SINGLE}.py ---"
-    PY3=$(find_python3)
+    PY3="$(find_python3 || true)"
     if [ -z "$PY3" ]; then
         echo "FAIL: Python 3.10+ required for RPC tests"
         exit 1
@@ -202,7 +199,7 @@ fi
 # --rpcfail: RPC known-fail tiers only (-Bfail -Efail).
 if [ "$MODE" = "rpcfail" ]; then
     echo "--- --rpcfail: RPC -Bfail -Efail (diagnostic; no util, no C++) ---"
-    PY3=$(find_python3)
+    PY3="$(find_python3 || true)"
     if [ -n "$PY3" ]; then
         export PYTHON="$PY3"
         if ! run_cmd "rpc-rpcfail" \
@@ -332,7 +329,7 @@ if [ "$NO_PYTHON" -eq 0 ]; then
             pkill -f "zerod -datadir=/var/folders" 2>/dev/null || true
         fi
     fi
-    PY3=$(find_python3)
+    PY3="$(find_python3 || true)"
     if [ -n "$PY3" ]; then
         export PYTHON="$PY3"
         if [ "$MODE" = "all" ]; then

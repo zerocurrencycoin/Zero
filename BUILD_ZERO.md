@@ -38,7 +38,41 @@ cd Zero
 ./zcutil/build.sh -j4
 ```
 
+`fetch-params.sh` is **system setup** (once per machine, before first `zerod` start). Confirm with `zcutil/check-setup.sh`. It is not a step in `zcutil/check-release.sh` / `zcutil/build.sh`. Later rebuilds: `./zcutil/build.sh` only.
+
 Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. The Qt desktop wallet is a separate application (not built from this tree).
+
+**Receipts.** Gitignored **`.build/`** holds identity and command logs (`ready-*.txt`, `build-native-*.log`, `test-logs/`). Autotools `config.log` / `config.status` stay at the repo root (also gitignored) and are not the validation pin. Older **`logs/`** and **`test-logs/`** paths remain gitignored if present.
+
+**Rebuild stages** (`./zcutil/build.sh` runs these in order). Sapling params (`./zcutil/fetch-params.sh`) are **system setup** (before first `zerod` start, §3). They are not part of this cycle.
+
+| Stage | What `build.sh` runs | When it is cheap | When it is expensive |
+|-------|----------------------|------------------|----------------------|
+| **depends** | `make -C depends` (always invoked) | Cached tarballs in `depends/built/$HOST/` match recipe hashes: checksum check, restamp `depends/$HOST/`, no package compile | Missing sources, checksum mismatch, recipe/`.mk` change, new `HOST`, wiped `depends/built` or `depends/$HOST/` -- **fetch and/or rebuild that package** (see below) |
+| **autogen** | `./autogen.sh` | Always seconds-class: regenerates `configure` via autoreconf. Does **not** fetch or compile Boost, Rust, or BDB | Missing automake/libtool (fails, does not hang on a download) |
+| **configure** | `./configure` with `CONFIG_SITE=depends/$HOST/share/config.site` | Seconds to a couple of minutes: compiler/header probes, writes `config.status` | Does **not** rebuild depends. Slow or wrong if `config.site` is missing (depends not installed for this `HOST`) |
+| **compile** | `make` | Incremental objects already built | Full tree compile after clean / first configure |
+
+`make -C depends` is **not** a no-op invocation -- it always runs `check-sources` / `check-packages` -- but a warm cache does not recompile Boost.
+
+**Depends packages that can fetch or rebuild** (`depends/packages/packages.mk`; default `NO_PROTON=1` omits Proton):
+
+| Package | Role | Fetch (first time / cache miss) | Rebuild compile |
+|---------|------|---------------------------------|-----------------|
+| **boost** | C++ (chrono, filesystem, program_options, system, thread, test) | Large 1.88 source tarball (`archives.boost.io` or depends-sources mirror) | **The usual long one.** `b2` is hardcoded `-j2` in `boost.mk` |
+| **rust** | cargo/rustc for librustzcash | **macOS:** default is **system** rust (symlink; no 1.32 tarball) unless `FORCE_DEPENDS_RUST=1`. **Linux:** pinned **1.32.0** dist tarball unless `RUST_USE_SYSTEM=1` | Tarball extract + stage, or symlink; not a Boost-class compile by itself |
+| **librustzcash** + **crates** | Sapling/Rust FFI | GitHub tarball + many crate tarballs on first miss | **`cargo --release --frozen`** -- long on a cold cache; follows rust |
+| **openssl** | TLS | Dist tarball | Moderate compile |
+| **bdb** | Wallet (`wallet_packages`; default on) | Dist tarball | Moderate; skipped only if `NO_WALLET` |
+| **libevent**, **zeromq**, **libsodium**, **utfcpp**, **googletest** | Event, ZMQ, crypto, tests | Smaller tarballs | Shorter than Boost / librustzcash |
+| **native_ccache** | Native helper | Small | Small |
+| **proton** | AMQP | Off unless `--enable-proton` | Not in the default cycle |
+
+A recipe hash includes `packages/<name>.mk` and patches. Editing those, changing `HOST`, `DEBUG`, or `NO_WALLET`, or deleting `depends/built/$HOST/<pkg>/` forces that package. Autogen and configure never kick Boost or Rust compiles.
+
+There is **no** flag on `build.sh` to skip depends, autogen, or configure. Incremental object rebuild: `make -j` in an already-configured tree. Warm `depends/built/$HOST/` means `make -C depends` still runs but does not recompile Boost. Host/setup: `zcutil/check-setup.sh` (toolchain, params). Product/tree: `zcutil/check-release.sh` (tree / depends / configure / **build**). Compile wrapper: `zcutil/build-release.sh` (setup + receipt then `build.sh`). Tests: `contrib/run-tests.sh --strict`.
+
+**Python:** **3.10+** (harness floor). Not 3.11. `hashlib.blake2b` is stdlib; maintainer validation uses 3.12.
 
 ### 2.2 Linux x86_64
 
@@ -154,13 +188,13 @@ Default builds are **not** stripped. `release-linux.sh` strips unless you pass `
 
 Tag `vMAJOR.MINOR.PATCH` from the release line after a clean build and contributor gate. Archives: `Zero-<ver>-<target>-<triplet>.<ext>`.
 
-**Build and test.** Build per §2. Then:
+**Build and test.** Build per §2. Confirm the machine with `zcutil/check-setup.sh` and identity with `zcutil/check-release.sh --exact` when tagging (clean tree; HEAD must equal `--release`, default **v4.0.1**). Then `zcutil/build-release.sh` if you still need a compile, and:
 
 ```bash
 ./contrib/run-tests.sh --strict
 ```
 
-Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`. On failure: [TEST_ZERO.md](TEST_ZERO.md).
+Or `./contrib/run-tests.sh --strict` if a receipt already exists. Logs: `.build/test-logs/`. Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`. On failure: [TEST_ZERO.md](TEST_ZERO.md).
 
 **Package.** `zcutil/release-linux.sh` stages stripped binaries into tarball and .deb. `contrib/devtools/split-debug.sh` exists for separate debuginfo but is not wired in.
 
@@ -241,7 +275,7 @@ See [doc/files.md](doc/files.md) for details.
 
 ### 3.4 Zcash Params
 
-Run `./zcutil/fetch-params.sh` before first start. Zero fetches Sapling params only (~800 MB). Sprout params are not used. Source: `https://download.z.cash/downloads`. If present and checksum-valid, no download occurs.
+**System setup**, not the build/validate cycle. Run `./zcutil/fetch-params.sh` once per machine before first `zerod` start. Zero fetches Sapling params only (~800 MB). Sprout params are not used. Source: `https://download.z.cash/downloads`. If present and checksum-valid, no download occurs.
 
 **Params mirror:** still planned.
 

@@ -9,7 +9,7 @@ ME="build-native"
 cd "$REPO_ROOT"
 
 show_build_help() {
-  local log="${1:-logs/build-native.log}"
+  local log="${1:-.build/build-native.log}"
   cat <<EOF
 Usage: $ME [ -L | --log PATH ] [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon ] [ MAKEARGS... ]
   Build Zero and its dependencies from source.
@@ -29,7 +29,7 @@ EOF
 
 # shellcheck disable=SC2034
 parse_build_args() {
-  local default_log="${1:-logs/build-native.log}"
+  local default_log="${1:-.build/build-native.log}"
   shift
   parse_log_opts "$default_log" "$@"
   if [[ ${#REMAINING_ARGS[@]} -gt 0 ]] && { [[ "x${REMAINING_ARGS[0]}" == "x--help" ]] || [[ "x${REMAINING_ARGS[0]}" == "x-h" ]]; }; then
@@ -63,10 +63,9 @@ resolve_host_native() {
   if [[ -z "${CXX:-}" ]]; then CXX=g++; fi
   export CC CXX
   if [[ -z "${MAKE:-}" ]]; then MAKE=make; fi
-  if [[ -z "${BUILD:-}" ]]; then BUILD="$(./depends/config.guess)"; fi
-  if [[ -z "${HOST:-}" ]]; then HOST="$BUILD"; fi
+  guess_build_host
   if [[ -z "${CONFIGURE_FLAGS:-}" ]]; then CONFIGURE_FLAGS=""; fi
-  if [[ "$(uname -s)" == "Darwin" ]]; then export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-15.0}"; fi
+  ensure_darwin_deployment_target
 }
 
 build_depends_native() {
@@ -89,7 +88,7 @@ run_make_native() {
   "$MAKE" "${MAKEARGS[@]}" V=1
 }
 
-parse_build_args "logs/build-native.log" "$@"
+parse_build_args ".build/build-native.log" "$@"
 init_logging
 resolve_host_native
 trap 'build_fail "build failed"' ERR

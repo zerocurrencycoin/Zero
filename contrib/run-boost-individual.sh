@@ -4,12 +4,14 @@
 # --exclude: comma-separated suite names to skip.
 
 set -e
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ME="run-boost-individual"
+# shellcheck disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/../zcutil/fzero.sh"
 cd "$REPO_ROOT"
 
 DEFAULT_EXCLUDE="miner_tests,Checkpoints_tests"
 
-LOG_DIR="${LOG_DIR:-$REPO_ROOT/test-logs}"
+LOG_DIR="${LOG_DIR:-$ZERO_BUILD_DIR/test-logs}"
 mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG="$LOG_DIR/${TIMESTAMP}-boost-individual.log"

@@ -1,11 +1,10 @@
 #!/bin/bash
 set -eu
+ME="fetch-params"
+# shellcheck disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/fzero.sh"
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    PARAMS_DIR="$HOME/Library/Application Support/ZcashParams"
-else
-    PARAMS_DIR="$HOME/.zcash-params"
-fi
+PARAMS_DIR="$(zero_params_dir)"
 
 SPROUT_PKEY_NAME='sprout-proving.key'
 SPROUT_VKEY_NAME='sprout-verifying.key'
