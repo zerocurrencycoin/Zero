@@ -74,6 +74,8 @@ testScripts=(
     'reorg_limit.py'
     'getblocktemplate.py'
     'founders_window.py'
+    'zeronode_coinbase.py'
+    'zeronode_startalias.py'
     'bip65-cltv-p2p.py'
     'bipdersig-p2p.py'
     'p2p_nu_peer_management.py'
@@ -165,6 +167,8 @@ testScriptsTierBPass=(
     'rescan_startup.py'
     'getblocktemplate.py'
     'founders_window.py'
+    'zeronode_coinbase.py'
+    'zeronode_startalias.py'
     'p2p_txexpiry_dos.py'
     'p2p_txexpiringsoon.py'
     'p2p_node_bloom.py'
@@ -174,6 +178,8 @@ testScriptsTierBPass=(
     'spentindex.py'
     'timestampindex.py'
     'walletbackup.py'
+    'reindex_shielded.py'  # Sapling spend after -reindex
+    'wallet_witness_defer.py'  # opt-in ibd-defer + NOTEIDX
 )
 
 # Tier B fail: known broken; diagnostic only (-Bfail). Subgroups for triage (still one -Bfail run).

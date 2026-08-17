@@ -74,4 +74,20 @@ BOOST_AUTO_TEST_CASE(rpc_znbudget_super_param_validation)
     BOOST_CHECK_THROW(CallRPC("znbudget unknown"), runtime_error);
 }
 
+BOOST_AUTO_TEST_CASE(rpc_znbudgetrawvote_param_validation)
+{
+    BOOST_CHECK_THROW(CallRPC("znbudgetrawvote"), runtime_error);
+}
+
+BOOST_AUTO_TEST_CASE(rpc_znbudget_getvotes_param_validation)
+{
+    BOOST_CHECK_THROW(CallRPC("znbudget getvotes"), runtime_error);
+}
+
+BOOST_AUTO_TEST_CASE(rpc_checkbudgets)
+{
+    BOOST_CHECK_THROW(CallRPC("checkbudgets extra"), runtime_error);
+    BOOST_CHECK_NO_THROW(CallRPC("checkbudgets"));
+}
+
 BOOST_AUTO_TEST_SUITE_END()

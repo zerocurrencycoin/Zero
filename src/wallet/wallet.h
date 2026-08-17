@@ -899,6 +899,22 @@ public:
     std::map<uint256, SaplingOutPoint> mapArcSaplingOutPoints;
     void AddToArcSaplingOutPoints(const uint256& nullifier, const SaplingOutPoint& op);
 
+    /** Full witness rebuild at chainActive.Tip() (used by -walletwitness=ibd-defer after import). */
+    void RebuildWitnessCacheForChainTip();
+
+    /** Opt-in note-bearing tx index (NOTEIDX): Verify + height walk. */
+    void InvalidateNoteTxIndex();
+    void EnsureNoteTxIndex(); // requires cs_wallet
+    size_t NoteTxIndexSize() const { return vNoteTxHashes.size(); }
+    bool NoteTxIndexStale() const { return fNoteTxIndexStale; }
+    /** Fill scan list: note-bearing txs when note-index enabled, else all mapWallet. Requires cs_wallet. */
+    void SelectWalletTxsForWitnessScan(std::vector<std::pair<const uint256, CWalletTx>*>& out);
+
+    /** True when -walletwitness=ibd-defer (skip per-block BuildWitnessCache during IBD). */
+    static bool IsIBDWitnessDeferred();
+    /** True when -walletwitnessnote=1 (NOTEIDX). */
+    static bool IsWitnessNoteIndexEnabled();
+
 protected:
 
     int SproutWitnessMinimumHeight(const uint256& nullifier, int nWitnessHeight, int nMinimumHeight);
@@ -1255,6 +1271,10 @@ public:
 
     /** Incremental activity order (WAL-WTXORDERED). Tx side only; lacentries merged in OrderedTxItems. */
     TxItems wtxOrdered;
+
+    /** Note-bearing txids for NOTEIDX (-walletwitnessnote). */
+    std::vector<uint256> vNoteTxHashes;
+    bool fNoteTxIndexStale = true;
 
     /**
      * Get the wallet's activity log
@@ -1706,5 +1726,6 @@ public:
     KeyAddResult operator()(const libzcash::InvalidEncoding& no) const;
 };
 
+void RunWalletNotifyCommand(const uint256& hash);
 
 #endif // BITCOIN_WALLET_WALLET_H

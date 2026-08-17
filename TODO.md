@@ -59,7 +59,7 @@ Open follow-ups for the Zero **full node** (`zerod`). Commands and inventory: **
 - OPS-DEBUGLOG-TIMING -- filter/process `debug.log` timing tooling
 - EXT-INSIGHT-SUPERSET -- postponed
 - `txindex.py` -- promote after green
-- P2P logging after zn dispatch -- postponed
+- P2P logging after zn dispatch -- **done** (TNT-01)
 - Params archival / Windows hardening / branch-id CI / OpenSSL 3 / SwiftTX strip / Debian packaging
 
 ---

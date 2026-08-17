@@ -46,6 +46,7 @@ Language: describe harness areas as **working** or **under development**. Reserv
 | **Release-tree receipt** | `./zcutil/check-release.sh` (**READY** only on a clean tree; `--allow-dirty` is identity-only; `-v` for full dump) |
 | **Receipt + `build.sh`** | `./zcutil/build-release.sh` (setup check, then tree receipt, then `build.sh`; not a test runner) |
 | **Ops smoke** (COLD / RESTART / ATTACH) | `./contrib/ops-smoke.sh cold` (then `restart`; `start` then `attach`) |
+| **Ops validate** (live / reindex / bootstrap / copy) | `./contrib/ops-validate.sh cold` (then `live` if SRC `zerod` is up) |
 
 Tier B scripts (`getblocktemplate`, `disablewallet`, `addressindex`, ...) run as part of `-B` / `--all`. Do not run them one-by-one unless isolating a fail.
 
@@ -78,7 +79,7 @@ blockchain, disablewallet, httpbasics, reindex, decodescript, keypool, paymentdi
 
 ### Tier B pass (`testScriptsTierBPass`) -- working
 
-wallet_anchorfork, wallet_changeindicator, wallet_import_export, wallet_protectcoinbase, wallet_shieldcoinbase_sapling, wallet_nullifiers, wallet_1941, listtransactions, mempool_resurrect_test, mempool_spendcoinbase, mempool_limit, txn_doublespend, txn_doublespend --mineblock, zapwallettxes, proxy_test, signrawtransactions, nodehandling, rescan_startup, zkey_import_export, getblocktemplate, p2p_txexpiry_dos, p2p_txexpiringsoon, p2p_node_bloom, getrawtransaction_insight, rest, addressindex, spentindex, timestampindex, walletbackup
+wallet_anchorfork, wallet_changeindicator, wallet_import_export, wallet_protectcoinbase, wallet_shieldcoinbase_sapling, wallet_nullifiers, wallet_1941, listtransactions, mempool_resurrect_test, mempool_spendcoinbase, mempool_limit, txn_doublespend, txn_doublespend --mineblock, zapwallettxes, proxy_test, signrawtransactions, nodehandling, rescan_startup, zkey_import_export, getblocktemplate, p2p_txexpiry_dos, p2p_txexpiringsoon, p2p_node_bloom, getrawtransaction_insight, rest, addressindex, spentindex, timestampindex, walletbackup, reindex_shielded, wallet_witness_defer
 
 ### Ext pass (`testScriptsExtPass`) -- working
 
@@ -220,26 +221,31 @@ Do **not** copy the ZeroPerf campaign set into this tree. Receipts live in gitig
 |-------|------|--------|
 | **0 -- merge gate** | `--strict` | `contrib/run-tests.sh` |
 | **1 -- widen** | `--all`, Linux `--suite`, `release-linux.sh` smoke | Same runner |
-| **2 -- node lifecycle** | COLD / RESTART / ATTACH on a scratch datadir | `contrib/ops-smoke.sh` |
+| **2 -- node lifecycle** | COLD / RESTART / ATTACH on a scratch datadir | `contrib/ops-smoke.sh` (`restart`); `contrib/ops-validate.sh` (loads) |
 | **3 -- clients / mining** | Zerowallet visual; Equihash **solve** | GUI in the wallet repo. Mining prototype in ZeroPerf |
 
 Receipts: **`.build/`** (`ready-*.txt`, `ready-latest.txt`, build logs, `test-logs/`, `ops-status.jsonl`). Scratch chain data: **`ZERO_OPS_LAB`** (default `$TMPDIR/zero400-ops`), never the default user datadir, never this tree. Conf: `contrib/zero-conf.sh` (default template **prod**, default file `/tmp/zero.conf`). Never sticky `reindex=1`. Sapling params are system setup (`BUILD_ZERO` §3), not this cycle.
 
 ### 8.3 Operational catalog
 
-**Zero400 now** (`contrib/ops-smoke.sh`):
+`contrib/ops-validate.sh` is the product soak (isolated LAB, never the default datadir, never this tree). `contrib/ops-smoke.sh restart` remains for tip-unchanged restart after `cold`. One trial per invocation. Default load stop is height 100000 and `-disablewallet`. Packed snaps and `bootstrap.dat` stay outside git.
 
 | Id | Command | Pass |
 |----|---------|------|
 | **OPS-START-COLD** | `cold` | RPC up on empty scratch, clean `stop` |
-| **OPS-RESTART** | `restart` after `cold` | Tip unchanged |
-| **OPS-ATTACH** | `start` then `attach` | `getblockchaininfo` on a running node |
+| **OPS-RESTART** | `ops-smoke.sh restart` after `cold` | Tip unchanged |
+| **OPS-ATTACH** | `keep` on a start cmd, then `attach` | `getblockchaininfo` on LAB |
+| **OPS-LIVE** | `live` | RPC to SRC (operator datadir); does not start or stop |
+| **OPS-REINDEX** | `reindex` / `reindex all` | `-reindex` from snap; `all` = snap tip |
+| **OPS-BOOTSTRAP** | `bootstrap` | `-loadblock` to 100000 (`all` = end of file) |
+| **OPS-RESCAN** | `rescan` | keep indexes, `-rescan`, wait Done loading (needs chainstate in snap) |
+| **OPS-COPY** | `copy` | rsync SRC blocks+chainstate into LAB, wait stable tip. Stop every `zerod` first |
 
-**Not in the Zero400 smoke menu** (ZeroPerf / later, one trial per invocation): START-WARM, NOWALLET+Insight, REINDEX, BOOTSTRAP, RESCAN, P2P-CATCHUP. There is no calendar "same-week" band.
+Wallet ids: `p0` / `p1` / `fat` / `none` or `--wallet=PATH` (`wallets` lists paths). `keep` leaves LAB `zerod` up. `stop` always stops LAB.
 
-GBT is Tier B `getblocktemplate` (`-B` / `--all`), not a separate OPS id. Mining solve prototypes in ZeroPerf first.
+P2P-CATCHUP is not in this menu. GBT is Tier B `getblocktemplate` (`-B` / `--all`). Mining solve prototypes stay in ZeroPerf.
 
-**RC bar:** layer 0 + Zero400 ops smoke + checksums/signatures + wallet visual.
+**RC bar:** layer 0 + ops-validate `cold` + `live` when SRC is up + checksums/signatures + wallet visual.
 
 ### 8.4 Zerowallet soak
 
@@ -255,14 +261,11 @@ Template `insight`. Flags must match the copied index. Optional `getaddressbalan
 
 ### 8.7 Pull from ZeroPerf
 
-Do not merge `perf-401`. One dedicated branch (for example `from-perf-401`) and **one or two increments**, then a full receipt + `--strict` + ops smoke.
+Do not merge `perf-401`. Path-limited bring-up lives on `from-perf-401`: FIX-LBI / FIX-IMPORT-POLL, PIR-03 status allowlist, `reindex_shielded.py`, `ops-validate.sh`, root latch, `shielded_survive_dummy`, TST-05 Equihash KATs under `src/test/data/`, witness flags **defaults off**.
 
-| Increment | Take | Leave |
-|-----------|------|-------|
-| **1 -- product fixes** | FIX-LBI / FIX-IMPORT-POLL, PIR-03 status allowlist, `reindex_shielded.py` + tier line; keep Zero400 `ClearNoteWitnessCache` two-outpoint gtest | `contrib/perf/`, witness default-on, `ZERO_FDCACHE`, STALE, TNT-02/03, Groth poc |
-| **2 -- optional** | root latch, anchor Exists, TST-05 if still missing; witness flags **defaults off** only if chosen | Same leave list |
+Leave in ZeroPerf: `contrib/perf/`, `ZERO_FDCACHE`, Groth poc, STALE, TNT-02/03, witness default-on. Keep Zero400 `ClearNoteWitnessCache` two-outpoint gtest. Do not copy ZeroPerf `contrib/run-tests.sh`.
 
-`git fetch <ZeroPerf> perf-401`, path-limited cherry-pick, then `zcutil/check-setup.sh`, `zcutil/check-release.sh`, and `contrib/run-tests.sh --strict`. Compare `.build/setup-latest.txt` and `.build/ready-latest.txt` to copies of the pre-pull receipts (latest is overwritten each run).
+`ops-smoke.sh restart` stays until folded into `ops-validate`. After this branch: `zcutil/check-setup.sh`, `zcutil/check-release.sh`, and `contrib/run-tests.sh --strict`. Compare `.build/setup-latest.txt` and `.build/ready-latest.txt` to copies of the pre-pull receipts (latest is overwritten each run).
 
 ---
 

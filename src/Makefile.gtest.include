@@ -42,7 +42,8 @@ zero_gtest_SOURCES += \
 	gtest/test_libzcash_utils.cpp \
 	gtest/test_pedersen_hash.cpp \
 	gtest/test_checkblock.cpp \
-	gtest/test_zip32.cpp
+	gtest/test_zip32.cpp \
+	gtest/test_zeronode_wallet_mock.cpp
 if ENABLE_MINING
 zero_gtest_SOURCES += gtest/test_miner.cpp
 endif

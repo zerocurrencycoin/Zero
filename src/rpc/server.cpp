@@ -448,8 +448,19 @@ UniValue CRPCTable::execute(const std::string &strMethod, const UniValue &params
     if (!initWitnessesBuilt && (pcmd->name == "z_sendmany" || pcmd->name == "getalldata"))
         throw JSONRPCError(RPC_DISABLED_BEFORE_WITNESSES, "RPC Command disabled until witnesses are built.");
 
-    if (fBuildingWitnessCache)
-        throw JSONRPCError(RPC_BUILDING_WITNESS_CACHE, "RPC interface disabled while building witness cache. Check debug.log for progress.");
+    // While rebuilding witnesses, block wallet/spend/data RPCs but allow chain/ops
+    // status so monitors and `stop` still work.
+    if (fBuildingWitnessCache) {
+        const std::string& name = pcmd->name;
+        const bool allowed =
+            name == "stop" ||
+            name == "help" ||
+            name == "getblockcount" ||
+            name == "getblockchaininfo" ||
+            name == "getnetworkinfo";
+        if (!allowed)
+            throw JSONRPCError(RPC_BUILDING_WITNESS_CACHE, "RPC interface disabled while building witness cache. Check debug.log for progress.");
+    }
 
     g_rpcSignals.PreCommand(*pcmd);
 

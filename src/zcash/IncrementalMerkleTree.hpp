@@ -96,8 +96,13 @@ public:
     size_t size() const;
 
     void append(Hash obj);
+    // The root only depends on left, right, and parents, which otherwise
+    // change only in append() and deserialization -- both invalidate the latch.
     Hash root() const {
-        return root(Depth, std::deque<Hash>());
+        if (!cached_root) {
+            cached_root = root(Depth, std::deque<Hash>());
+        }
+        return *cached_root;
     }
     Hash last() const;
 
@@ -114,6 +119,7 @@ public:
         READWRITE(parents);
 
         wfcheck();
+        cached_root = boost::none;
     }
 
     static Hash empty_root() {
@@ -131,6 +137,8 @@ private:
 
     // Collapsed "left" subtrees ordered toward the root of the tree.
     std::vector<boost::optional<Hash>> parents;
+    // Lazily computed by root(); cleared by append() and deserialization.
+    mutable boost::optional<Hash> cached_root;
     MerklePath path(std::deque<Hash> filler_hashes = std::deque<Hash>()) const;
     Hash root(size_t depth, std::deque<Hash> filler_hashes = std::deque<Hash>()) const;
     bool is_complete(size_t depth = Depth) const;

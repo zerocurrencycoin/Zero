@@ -13,20 +13,84 @@
 #include "crypto/equihash.h"
 #include "pow.h"
 #include "primitives/block.h"
+#include "streams.h"
 #include "test/test_bitcoin.h"
 #include "uint256.h"
 #include "utilstrencodings.h"
+#include "version.h"
 
 #include "sodium.h"
 
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <set>
+#include <string>
 #include <vector>
 
 #include <boost/test/unit_test.hpp>
 
 BOOST_FIXTURE_TEST_SUITE(equihash_tests, BasicTestingSetup)
+
+/** Open a KAT file from repo root or src/test/data/ (cwd: root, src/, src/test/). */
+static bool OpenKatFile(const char* basename, std::ifstream& in)
+{
+    const std::string candidates[] = {
+        basename,
+        std::string("src/test/data/") + basename,
+        std::string("../src/test/data/") + basename,
+        std::string("../../src/test/data/") + basename,
+        std::string("../") + basename,
+        std::string("../../") + basename,
+    };
+    for (const std::string& p : candidates) {
+        in.close();
+        in.clear();
+        in.open(p.c_str());
+        if (in.good()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static std::vector<uint32_t> ParseIndicesBlock(std::istream& in)
+{
+    std::vector<uint32_t> idx;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.find("indices:") != std::string::npos) {
+            break;
+        }
+    }
+    while (std::getline(in, line)) {
+        if (line.find('}') != std::string::npos) {
+            // may still have numbers before }
+            for (char& c : line) {
+                if (c == '{' || c == '}' || c == ',') {
+                    c = ' ';
+                }
+            }
+            std::istringstream ls(line);
+            uint32_t v;
+            while (ls >> v) {
+                idx.push_back(v);
+            }
+            break;
+        }
+        for (char& c : line) {
+            if (c == '{' || c == '}' || c == ',') {
+                c = ' ';
+            }
+        }
+        std::istringstream ls(line);
+        uint32_t v;
+        while (ls >> v) {
+            idx.push_back(v);
+        }
+    }
+    return idx;
+}
 
 void PrintSolution(std::stringstream &strm, std::vector<uint32_t> soln) {
     strm << "  {";
@@ -288,5 +352,134 @@ BOOST_AUTO_TEST_CASE(zero_regtest_genesis_equihash_48_5_valid) {
     BOOST_CHECK(CheckEquihashSolution(&hdr, consensus));
     SelectParams(CBaseChainParams::MAIN);
 }
+
+// TST-05: wire 1927EQ.txt indices <-> genesis nSolution (header form, not string-I).
+BOOST_AUTO_TEST_CASE(validator_testvectors_192_7) {
+    SelectParams(CBaseChainParams::MAIN);
+    const Consensus::Params& consensus = Params().GetConsensus();
+    BOOST_REQUIRE_EQUAL(consensus.nEquihashN, 192u);
+    BOOST_REQUIRE_EQUAL(consensus.nEquihashK, 7u);
+    const size_t cBitLen = consensus.nEquihashN / (consensus.nEquihashK + 1);
+
+    std::ifstream in;
+    BOOST_REQUIRE_MESSAGE(OpenKatFile("1927EQ.txt", in),
+                          "1927EQ.txt not found (run from repo root or src/)");
+    std::vector<uint32_t> idx = ParseIndicesBlock(in);
+    BOOST_REQUIRE_EQUAL(idx.size(), 128u);
+
+    const CBlock& genesis = Params().GenesisBlock();
+    std::vector<unsigned char> minimal = GetMinimalFromIndices(idx, cBitLen);
+    BOOST_CHECK(minimal == genesis.nSolution);
+
+    CBlockHeader hdr = genesis.GetBlockHeader();
+    hdr.nSolution = minimal;
+    BOOST_CHECK(CheckEquihashSolution(&hdr, consensus));
+
+    // Negative: swap first pair -> invalid
+    std::swap(idx[0], idx[1]);
+    hdr.nSolution = GetMinimalFromIndices(idx, cBitLen);
+    BOOST_CHECK(!CheckEquihashSolution(&hdr, consensus));
+}
+
+// TST-05: second mainnet (192,7) header vector -- height 1 block bytes.
+BOOST_AUTO_TEST_CASE(validator_testvectors_192_7_h1) {
+    SelectParams(CBaseChainParams::MAIN);
+    const Consensus::Params& consensus = Params().GetConsensus();
+    std::ifstream in;
+    BOOST_REQUIRE_MESSAGE(OpenKatFile("1927EQ_h1.hex", in),
+                          "1927EQ_h1.hex not found");
+    std::string hex;
+    std::getline(in, hex);
+    while (!hex.empty() && (hex.back() == '\n' || hex.back() == '\r' || hex.back() == ' ')) {
+        hex.pop_back();
+    }
+    std::vector<unsigned char> raw = ParseHex(hex);
+    BOOST_REQUIRE(!raw.empty());
+    CDataStream ss(raw, SER_NETWORK, PROTOCOL_VERSION);
+    CBlock block;
+    ss >> block;
+    CBlockHeader hdr = block.GetBlockHeader();
+    BOOST_CHECK(CheckEquihashSolution(&hdr, consensus));
+
+    const size_t cBitLen = consensus.nEquihashN / (consensus.nEquihashK + 1);
+    std::vector<eh_index> idx = GetIndicesFromMinimal(hdr.nSolution, cBitLen);
+    BOOST_REQUIRE_EQUAL(idx.size(), 128u);
+    BOOST_CHECK(GetMinimalFromIndices(idx, cBitLen) == hdr.nSolution);
+}
+
+// TST-05: regtest (48,5) genesis index round-trip (validator always on).
+BOOST_AUTO_TEST_CASE(validator_testvectors_48_5) {
+    SelectParams(CBaseChainParams::REGTEST);
+    const Consensus::Params& consensus = Params().GetConsensus();
+    BOOST_REQUIRE_EQUAL(consensus.nEquihashN, 48u);
+    BOOST_REQUIRE_EQUAL(consensus.nEquihashK, 5u);
+    const size_t cBitLen = consensus.nEquihashN / (consensus.nEquihashK + 1);
+    CBlockHeader hdr = Params().GenesisBlock().GetBlockHeader();
+    BOOST_REQUIRE(CheckEquihashSolution(&hdr, consensus));
+    std::vector<eh_index> idx = GetIndicesFromMinimal(hdr.nSolution, cBitLen);
+    BOOST_REQUIRE_EQUAL(idx.size(), 32u);
+    BOOST_CHECK(GetMinimalFromIndices(idx, cBitLen) == hdr.nSolution);
+    std::swap(idx[0], idx[1]);
+    hdr.nSolution = GetMinimalFromIndices(idx, cBitLen);
+    BOOST_CHECK(!CheckEquihashSolution(&hdr, consensus));
+    SelectParams(CBaseChainParams::MAIN);
+}
+
+#ifdef ENABLE_MINING
+// TST-05: (48,5) solver on regtest genesis header state -- finds >=1 valid solution;
+// BasicSolve and OptimisedSolve agree.
+BOOST_AUTO_TEST_CASE(solver_testvectors_48_5) {
+    SelectParams(CBaseChainParams::REGTEST);
+    const Consensus::Params& consensus = Params().GetConsensus();
+    const unsigned int n = consensus.nEquihashN;
+    const unsigned int k = consensus.nEquihashK;
+    BOOST_REQUIRE_EQUAL(n, 48u);
+    BOOST_REQUIRE_EQUAL(k, 5u);
+    const size_t cBitLen = n / (k + 1);
+    CBlockHeader hdr = Params().GenesisBlock().GetBlockHeader();
+
+    auto init_state = [&](crypto_generichash_blake2b_state& state) {
+        EhInitialiseState(n, k, state);
+        CEquihashInput I{hdr};
+        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+        ss << I;
+        ss << hdr.nNonce;
+        crypto_generichash_blake2b_update(&state, (unsigned char*)&ss[0], ss.size());
+    };
+
+    crypto_generichash_blake2b_state state_basic;
+    init_state(state_basic);
+    std::set<std::vector<uint32_t>> basic;
+    EhBasicSolveUncancellable(n, k, state_basic, [&](std::vector<unsigned char> soln) {
+        basic.insert(GetIndicesFromMinimal(soln, cBitLen));
+        return false;
+    });
+    BOOST_REQUIRE_MESSAGE(!basic.empty(), "BasicSolve found no (48,5) solutions on regtest genesis");
+
+    crypto_generichash_blake2b_state state_opt;
+    init_state(state_opt);
+    std::set<std::vector<uint32_t>> opt;
+    EhOptimisedSolveUncancellable(n, k, state_opt, [&](std::vector<unsigned char> soln) {
+        opt.insert(GetIndicesFromMinimal(soln, cBitLen));
+        return false;
+    });
+    BOOST_CHECK(basic == opt);
+
+    // Genesis solution must be among solver outputs
+    std::vector<eh_index> genesis_idx = GetIndicesFromMinimal(hdr.nSolution, cBitLen);
+    std::vector<uint32_t> genesis_u(genesis_idx.begin(), genesis_idx.end());
+    BOOST_CHECK(basic.count(genesis_u) == 1);
+
+    crypto_generichash_blake2b_state state_v;
+    init_state(state_v);
+    for (const auto& idx : basic) {
+        BOOST_REQUIRE_EQUAL(idx.size(), 32u);
+        bool isValid = false;
+        EhIsValidSolution(n, k, state_v, GetMinimalFromIndices(idx, cBitLen), isValid);
+        BOOST_CHECK(isValid);
+    }
+    SelectParams(CBaseChainParams::MAIN);
+}
+#endif
 
 BOOST_AUTO_TEST_SUITE_END()

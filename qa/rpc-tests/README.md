@@ -43,7 +43,7 @@ Add `--nocleanup` to keep the temp datadir after a standalone run.
 
 See `TEST_ZERO.md`. Script names are authoritative in `qa/pull-tester/rpc-tests.sh` arrays only.
 
-Pass-tier counts (regenerate via **`-list-csv`**): **A=10**, **B pass=29** (28 unique; `txn_doublespend` x2), **E pass=8** (**`-all`** = **47** invocations). **Bfail Debug=25** (includes `txindex.py`), **Bfail Retired=6**, **Efail=5**. Exact lists: **TEST_ZERO.md** §3.
+Pass-tier counts (regenerate via **`-list-csv`**): **A=10**, **B pass=29** (28 unique; `txn_doublespend` x2), **E pass=8** (**`-all`** = **47** invocations). **Bfail Debug=25** (includes `txindex.py`), **Bfail Retired=6**, **Efail=5**. Exact lists: **TEST_ZERO.md** §3. B pass includes `reindex_shielded.py` and `wallet_witness_defer.py`.
 
 - `qa/pull-tester/rpc-tests.sh -A` -- Tier A gate
 - `qa/pull-tester/rpc-tests.sh -B` -- Tier B pass
