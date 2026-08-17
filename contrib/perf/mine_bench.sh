@@ -3,9 +3,9 @@
 # Does not replace ConnectBlock rematch. Assign M-* via accumulate_bench when measured.
 #
 # Usage (repo root):
-#   contrib/perf/run_mine_bench.sh regtest
-#   contrib/perf/run_mine_bench.sh mainnet-template
-#   contrib/perf/run_mine_bench.sh neon-probe
+#   contrib/perf/mine_bench.sh regtest
+#   contrib/perf/mine_bench.sh mainnet-template
+#   contrib/perf/mine_bench.sh neon-probe
 #
 # Env:
 #   ZERO_PERF_SCRATCH_DATADIR  disposable (refuses default Application Support/zero)

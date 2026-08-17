@@ -166,7 +166,7 @@ Use case: gate RPC clients and harnesses; **not** ops-ready.
 | M-RX-ONSET | stock reindex Sapling-onset | **140.19 blk/s** (n=1); window 490k-520k; ledger `CAMPAIGN=reindex-onset`; peer M-BOOT-ONSET (~parity; both ~2x slower than deep post-Sap ~300) | `campaign` | `lab_monitor` | `REPORT-reindex-onset.md` |
 | M-MINE-REGTEST-SMOKE | regtest `generate` (48,5) | **8** blocks in **1 s** wall (~125 ms/blk wall); util sampled; solve too cheap for Instruments-grade ms -- smoke for BENCH-MINE env | `campaign` | `lab_monitor` | `test-logs/mine-20260812T153357Z/` |
 | M-MINE-NEON-PROBE | arm64 stock binary | `hw.optional.neon=1`; `blake2b_compress_ref` present; `blake2b_compress_neon=0`; `ZERO_PERF_NEON_ZEROD` unset | `spot` | `nm`/`sysctl` | `neon-probe.txt` |
-| *(none yet)* | mainnet (192,7) timed solve | **Scheduled -- Track M / G5** -- `MINE_MAINNET_SOLVE=1` + Instruments; harness stub only (`run_mine_bench.sh mainnet-template`) | -- | -- | Perf §0.9 / §0.16 |
+| *(none yet)* | mainnet (192,7) timed solve | **Scheduled -- Track M / G5** -- `MINE_MAINNET_SOLVE=1` + Instruments; harness stub only (`mine_bench.sh mainnet-template`) | -- | -- | Perf §0.9 / §0.16 |
 | M-WAL-SYNC-P0 | wallet profile0 + tiny `-reindex` | tip **187417** in ~198 s (~**950** blk/s class); RSS **104->408 MiB**; wallet **106496** B flat; txcount **0** | `campaign` | `lab_monitor` | `test-logs/walletsync-20260812T153358Z/util.tsv` |
 | M-WAL-SYNC-P1 | wallet profile1 + tiny `-reindex` | tip **187417** in **~201 s** (~**918** blk/s from h~2.8k); RSS **~103->398 MiB**; wallet **237568** B flat; txcount **133**; note_tx **0** -- near P0; no witness hotspot expected | `campaign` | `lab_monitor` | `test-logs/walletsync-20260813T055703Z/` |
 | M-WAL-SYNC-FAT | fat wallet + tiny `-reindex` | tip **187417** in **~2.75 h** (~**19 blk/s**); wallet **785457152** B flat; txcount **801619**; RSS ~0.7->1.5 GiB -- **~50x** slower than M-WAL-SYNC-P0; util.tsv stalled mid-run (getwalletinfo vs cs_wallet) -- wall from debug.log tip + mid-run captures | `campaign` | `lab_monitor` + `xctrace` | `test-logs/walletsync-20260812T174850Z/`; CPU `test-logs/walletsync-fat-cpu-20260812T194107Z/` + `archives/…tar.gz` |
@@ -367,7 +367,7 @@ Correctness vs throughput are separate questions: fd-cache **99.9%** hits (latch
 
 ## 7. Duration extraction
 
-Shipped filter-then-process path: `contrib/perf/extract_measures.py` (plus `run_tiny_baseline.sh`, `run_postsapling_baseline.sh`, `accumulate_bench.py`). Outputs under `test-logs/` / `reindex-profile/bench-summaries/` (gitignored). Launch recipes: **contrib/perf/README.md**. Non-blocking extractor extensions: **Perf.md** §0.13 harness notes.
+Shipped filter-then-process path: `contrib/perf/extract_measures.py` (plus `tiny_baseline.sh`, `postsapling_reindex.sh`, `accumulate_bench.py`). Outputs under `test-logs/` / `reindex-profile/bench-summaries/` (gitignored). Launch recipes: **contrib/perf/README.md**. Non-blocking extractor extensions: **Perf.md** §0.13 harness notes.
 
 ### 7.1 Pipeline
 
@@ -430,7 +430,7 @@ Shipped filter-then-process path: `contrib/perf/extract_measures.py` (plus `run_
 | `wallet-sync-fat` | reindex + fat wallet | tiny tip | M-WAL-SYNC-FAT, M-CPU-WAL-FAT | Done; FINDINGS + archive `walletsync-fat-g0-20260812.tar.gz`; Perf §0.14 |
 | `witness-tip-rebuild` | tip template + fat wallet | tip 2518018 | M-WAL-WITNESS-TIP-AB | `tip-rebuild` / `tip-rebuild-note`; insight flags required |
 | `wallet-rescan-fat` | `-rescan` + fat wallet | genesis to live tip | M-WAL-RESCAN-FAT, M-WAL-RESCAN-FAT-CPU | **Done** (~11.9 h). Clears witnesses; per-block Verify not ChainTip; NOTEIDX stale storm; end walk 2.0 s |
-| `cycle-1` / `cycle-2` / `cycle-3` | wallet x op rematch | tiny / window / tip | assigned when first measured | `run_cycle_campaign.sh`; collate `collate_cycle.py`; one trial per invocation |
+| `cycle-1` / `cycle-2` / `cycle-3` | wallet x op rematch | tiny / window / tip | assigned when first measured | `ops-campaign.sh`; collate `collate_cycle.py`; one trial per invocation |
 
 Unmeasured work (Idx1 tip getalldata, mainnet 192,7 solve Instruments **scheduled G5**, FDCACHE 8/16KB, optional onset n=4) gets an `M-*` when first measured. **Postponed:** NEON A/B (G7), Halo/Orchard notes body (G8), KAT adapt tests (G9). Groth G2/G3 consecutive after G5/G9 slot.
 

@@ -4,8 +4,8 @@
 # read-only archive source.
 #
 # Usage (from repo root):
-#   contrib/perf/run_tiny_baseline.sh
-#   LAB=/tmp/my-lab ZERO_PERF_ARCHIVE_DIR="..." contrib/perf/run_tiny_baseline.sh short
+#   contrib/perf/tiny_baseline.sh
+#   LAB=/tmp/my-lab ZERO_PERF_ARCHIVE_DIR="..." contrib/perf/tiny_baseline.sh short
 #
 # Args: [tiny|short]  (default tiny)
 

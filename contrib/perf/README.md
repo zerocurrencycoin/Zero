@@ -14,14 +14,28 @@ these scripts.
 **Datadir rule:** never use the default `~/Library/Application Support/zero`
 (or `~/.zero`) as a writable lab datadir. Scripts refuse that path.
 Archives may be read-only sources via `ZERO_PERF_SRC_DATADIR` /
-`ZERO_PERF_ARCHIVE_DIR`.
+`ZERO_PERF_ARCHIVE_DIR`. Also refuse writing **LAB** under the Zero400
+product tree.
+
+**Reuse outside this tree:** the fixture contract is the reusable part --
+refuse protected datadirs, inject wallets by env, packed snaps outside git,
+`bootstrap.dat` copies only, scratch `zero.conf` with no sticky `reindex=`,
+Insight flags matching the copied index, one long trial per invocation,
+append-only ledger. Product runtime check (RPC before sync, then warm snap):
+`contrib/ops-validate.sh` -- copy to Zero400 as the same path. Long import
+(`bootstrap`, `reindex`) defaults to height **100000** and `-disablewallet`.
+`reindex all` goes to snap tip (tiny 187417). `rescan` keeps indexes and waits
+for Done loading. Wallet: `p0` / `p1` / `fat` / `none` or `--wallet=PATH`
+(`contrib/ops-validate.sh wallets` lists paths). Product ops
+catalog and conf templates: Zero400 **TEST_ZERO.md** §8 and
+`contrib/conf-templates/`. Do not copy this campaign set into a GA ship tree.
 
 **Long trials:** do not batch runs where each trial is expected to exceed
 ~20 minutes unless each trial can be restarted individually (separate
 invocation or resume-from-trial). See `AGENTS.md` and `Perf.md` §0.13.
 **ConnectBlock vs wallet-on:** `capture_sequence` / `bench_matrix` target import
 CPU on `zcash-loadblk`. Wallet-on fat reindex is a separate track
-(`run_wallet_sync_profile.sh`, M-WAL-SYNC-FAT / M-CPU-WAL-FAT) -- bottleneck is
+(`wallet_sync_profile.sh`, M-WAL-SYNC-FAT / M-CPU-WAL-FAT) -- bottleneck is
 `VerifyAndSetInitialWitness`, not `OrderedTxItems` (see **Perf.md** §0.14).
 
 ## extract_measures.py
@@ -65,14 +79,14 @@ Opt-in witness flags (defaults off; wallet required -- do not combine with
 Caught-up follow-tip: `ibd-defer` applies on the next IBD/reindex; to rebuild
 now add `-walletwitness=rebuild` for that start only. See **Perf.md** §0.14.
 
-## run_tiny_baseline.sh
+## tiny_baseline.sh
 
 Unpack tiny (or short) snap into `$TMPDIR`, `-reindex -disablewallet`, then
 run `extract_measures.py`. Writes `test-logs/<run_id>.*`.
 
 ```bash
-contrib/perf/run_tiny_baseline.sh        # tiny -> tip ~187417
-contrib/perf/run_tiny_baseline.sh short  # tip ~245992
+contrib/perf/tiny_baseline.sh        # tiny -> tip ~187417
+contrib/perf/tiny_baseline.sh short  # tip ~245992
 ```
 
 ## capture_sequence.sh
@@ -99,50 +113,52 @@ python3 contrib/perf/decode_captures.py reindex-profile/captures --json reindex-
 
 ## bench_matrix.sh
 
-Repeated-trial A/B for `ZERO_FDCACHE` flags. Tip timing delegates to
-`extract_measures.py --elapsed-heights`.
+Historical `ZERO_FDCACHE` A/B (`-perffdcache` / `-perfbufsize`) against a
+fixed height window. **ZeroPerf only** -- do not copy into a GA Zero400 tree.
+Stock ConnectBlock rematch moved to `postsapling_reindex.sh`; product
+bootstrap is `contrib/ops-validate.sh bootstrap`. Keep this file for FDCACHE
+re-measure if that flag returns to the mix.
 
 ```bash
+contrib/perf/bench_matrix.sh reindex-profile/bench
 contrib/perf/bench_matrix.sh reindex-profile/bench 50000 300000 4
+contrib/perf/bench_matrix.sh reindex-profile/bench all 1 /path/to/bootstrap.dat
 ```
+
+Default stop is height **100000**. `all` imports to end of file.
 
 Env: `ZERO_PERF_SRC_DATADIR` (read-only rsync source), `ZERO_PERF_SCRATCH_DATADIR`
 (must not be the default user datadir; default `reindex-profile/datadir`).
 
-## run_postsapling_baseline.sh
+## postsapling_reindex.sh
 
 Post-Sapling window rematch (default warmup 600000, measure 300000).
-**Current mix:** stock `-reindex` only (`CONDITIONS=stock`, `N_TRIALS=4`).
-FDCACHE A/B is optional later, not the default. Each trial appends to the
-durable ledger.
+**Current mix:** stock `-reindex` only (`CONDITIONS=stock`, `N_TRIALS=4`),
+`-disablewallet`. FDCACHE A/B is optional later, not the default. Each trial
+appends to the durable ledger.
 
-`MODE=reindex` (default) or `MODE=bootstrap` with `LOADBLOCK=/path/to/bootstrap.dat`
-(use a copy or softlink; do not modify the Zero400 original). Bootstrap reset
-excludes `blocks/` so `-loadblock` starts on an empty chain.
+Bootstrap `-loadblock` is not this script (it is not a post-Sapling window).
+Use `contrib/ops-validate.sh bootstrap`.
 
 ```bash
 ZERO_PERF_SRC_DATADIR="$HOME/Library/Application Support/zero" \
-  contrib/perf/run_postsapling_baseline.sh
+  contrib/perf/postsapling_reindex.sh
 # override: N_TRIALS=4 CONDITIONS=stock CAMPAIGN=postsapling
 # util samples (default on): SAMPLE_UTIL=1 UTIL_PERIOD_S=30
 #   -> per-trial util.tsv (ps %cpu/%mem/rss + vmmap Physical footprint at milestones)
-# bootstrap smoke (example):
-#   MODE=bootstrap LOADBLOCK=reindex-profile/bootstrap-src/bootstrap.dat \
-#   CAMPAIGN=bootstrap-smoke WARMUP_HEIGHT=50000 MEASURE_BLOCKS=25000 N_TRIALS=1 \
-#   contrib/perf/run_postsapling_baseline.sh
 ```
 
 Plans/specs: **Perf.md** §0.13 (BENCH-BOOT / FIX-*).
 Lab materials / density banding: **Perf.md** §0.9 / §1.
 
-## run_mine_bench.sh (BENCH-MINE)
+## mine_bench.sh
 
-Equihash **solve** lab env (not ConnectBlock rematch). Modes:
+BENCH-MINE. Equihash **solve** lab env (not ConnectBlock rematch). Modes:
 
 ```bash
-contrib/perf/run_mine_bench.sh regtest          # generate N blocks (48,5); util.tsv
-contrib/perf/run_mine_bench.sh mainnet-template # (192,7) env + notes; opt-in solve
-contrib/perf/run_mine_bench.sh neon-probe       # arch / NEON / blake2b symbol probe
+contrib/perf/mine_bench.sh regtest          # generate N blocks (48,5); util.tsv
+contrib/perf/mine_bench.sh mainnet-template # (192,7) env + notes; opt-in solve
+contrib/perf/mine_bench.sh neon-probe       # arch / NEON / blake2b symbol probe
 ```
 
 Env: `MINE_BLOCKS`, `MINE_TIMEOUT_S`, `ZERO_PERF_NEON_ZEROD` (NEON A/B binary;
@@ -155,7 +171,7 @@ Env: `MINE_BLOCKS`, `MINE_TIMEOUT_S`, `ZERO_PERF_NEON_ZEROD` (NEON A/B binary;
 KATs: **`kats/`** (`1927EQ.txt`, `1927EQ_h1.hex`; see `kats/README.md`). TST-05 green;
 further test adaptation **postponed (G9)**.
 
-## run_wallet_sync_profile.sh
+## wallet_sync_profile.sh
 
 Wallet-on `-reindex` util (CPU / RSS / `wallet.zero` bytes / `txcount`). Pass the
 wallet file via env (no ops paths in Measures):
@@ -163,7 +179,7 @@ wallet file via env (no ops paths in Measures):
 ```bash
 ZERO_PERF_WALLET_FILE="$HOME/Library/Application Support/zero/wallet.zero0" \
 ZERO_PERF_CHAIN_SNAP=tiny \
-  contrib/perf/run_wallet_sync_profile.sh
+  contrib/perf/wallet_sync_profile.sh
 # fat compare (G0): point ZERO_PERF_WALLET_FILE at golden fat wallet.zero
 ```
 
@@ -189,13 +205,15 @@ R5c / **FIX-WIT-WALK-UNLOCK**: product, not a lab e2e -- **Perf.md** §0.16.
 Do not run Bfail or `CachedWitnessesCleanIndex` for witness confidence (B1 `reindex_shielded.py` covers reindex spend).
 Witness RPC lockout / peer comparison / risk: **Perf.md** §0.14 / §0.16.
 
-## run_witness_lab.sh (DIRTY-CONT / WIT-REBUILD)
+## witness_lab.sh
+
+DIRTY-CONT / WIT-REBUILD.
 
 ```bash
 ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
-  contrib/perf/run_witness_lab.sh dirty-cont      # stock+NOTEIDX+stats to TARGET_HEIGHT
-ZERO_PERF_WALLET_FILE=... contrib/perf/run_witness_lab.sh rebuild
-ZERO_PERF_WALLET_FILE=... contrib/perf/run_witness_lab.sh rebuild-noteidx
+  contrib/perf/witness_lab.sh dirty-cont      # stock+NOTEIDX+stats to TARGET_HEIGHT
+ZERO_PERF_WALLET_FILE=... contrib/perf/witness_lab.sh rebuild
+ZERO_PERF_WALLET_FILE=... contrib/perf/witness_lab.sh rebuild-noteidx
 ```
 
 Reusable automation; **one-time** lab samples (not CI). Tiny/short tips are pre-Sapling
@@ -207,7 +225,7 @@ Post-Sap WIT-REBUILD (one trial at a time):
 
 ```bash
 ZERO_PERF_CHAIN_SNAP=full ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
-  contrib/perf/run_witness_lab.sh rebuild-noteidx
+  contrib/perf/witness_lab.sh rebuild-noteidx
 ```
 
 Disposable full tip: `reindex-profile/fulltip-812-datadir` (or `chainblocks812-clean.tgz`).
@@ -216,7 +234,7 @@ Scratch `zero.conf` needs `experimentalfeatures=1` + `insightexplorer=1`.
 ```bash
 ZERO_PERF_TIP_TEMPLATE=$PWD/reindex-profile/fulltip-812-datadir \
 ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
-  contrib/perf/run_witness_lab.sh tip-rebuild-note
+  contrib/perf/witness_lab.sh tip-rebuild-note
 # pair: tip-rebuild (note off). One trial at a time.
 ```
 
@@ -256,30 +274,41 @@ python3 contrib/perf/accumulate_bench.py --import-tsv \
 python3 contrib/perf/accumulate_bench.py --report \
   --md reindex-profile/bench-summaries/REPORT.md
 
-## run_cycle_campaign.sh
+## ops-campaign.sh
 
 Rematch the same wallet x op matrix after each integration cycle (Perf.md §0.16).
-**One trial per invocation.** Do not batch fat/full/long trials.
+**ZeroPerf only.** **One trial per invocation.** Do not batch fat/full/long trials.
 
 Catalog: `contrib/perf/cycle_trials.tsv` (`SET=smoke|gate|long`).
 
 ```bash
-CYCLE=1 SET=smoke contrib/perf/run_cycle_campaign.sh list
+CYCLE=1 SET=smoke contrib/perf/ops-campaign.sh list
 CYCLE=1 SET=smoke \
   ZERO_PERF_WALLET_P0=/path/to/wallet.zero0 \
-  contrib/perf/run_cycle_campaign.sh next
-CYCLE=1 contrib/perf/run_cycle_campaign.sh run p0-reindex-tiny
-contrib/perf/run_cycle_campaign.sh report
+  contrib/perf/ops-campaign.sh next
+CYCLE=1 contrib/perf/ops-campaign.sh run p0-reindex-tiny
+contrib/perf/ops-campaign.sh report
 ```
-
-Ops: `reindex` (`run_wallet_sync_profile.sh` / `run_tiny_baseline.sh`), `rescan` /
-`sync` (`run_witness_lab.sh` rescan*|catchup*), `bootstrap` (`run_postsapling_baseline.sh`
-`MODE=bootstrap N_TRIALS=1`). Wallets: `none` / `p0` / `p1` / `fat`.
 
 Ledger `CAMPAIGN=cycle-1` (then cycle-2, cycle-3). Status:
 `reindex-profile/cycle-campaign/status.jsonl`. Collate:
 `python3 contrib/perf/collate_cycle.py`.
 
-`run_witness_lab.sh` also accepts `rescan`, `rescan-noteidx`, `catchup`,
+### Callee rework
+
+| Script | Campaign role | Plan |
+|---|---|---|
+| `ops-validate.sh` | product ops | `reindex` / `reindex all` / `rescan p0` / `bootstrap` / wallet ids. Copy to Zero400. |
+| `tiny_baseline.sh` | `none` + reindex + tiny/short | Fold: `ZERO_OPS_SNAP=tiny contrib/ops-validate.sh reindex all` plus extract_measures. Then delete or make a one-line wrapper. |
+| `wallet_sync_profile.sh` | p0/p1/fat reindex | Keep until ops-validate grows `ZERO_OPS_WALLET` + util.tsv (`WALLETINFO_TIMEOUT_S`). Then dispatch to ops-validate reindex. |
+| `witness_lab.sh` | rescan / sync / flag A/B | Split: stock rescan/catchup -> ops-validate rescan (keep chainstate). Remain standalone: `dirty-cont`, `rebuild`, `*-noteidx`, `ibd-defer`, tip-rebuild. Those flags are the witness lab, not product ops. |
+| `postsapling_reindex.sh` | not in cycle catalog | Remain standalone. n=4, window 600k-900k, ledger. Not an ops-validate option. |
+| `mine_bench.sh` | not in cycle catalog | Remain standalone. Equihash solve, not sync. |
+| `bench_matrix.sh` | not in cycle catalog | Remain standalone, historical FDCACHE. ZeroPerf only. |
+| `capture_sequence.sh` / `prep_lab_datadir.sh` | Instruments / snap unroll | Remain standalone. |
+
+Do not merge callees into `ops-campaign.sh` itself. It stays a catalog + resume ledger. Do not copy the campaign set into GA Zero400.
+
+`witness_lab.sh` also accepts `rescan`, `rescan-noteidx`, `catchup`,
 `catchup-noteidx`, `tip-catchup`, `tip-catchup-note` as single trials.
 ```

@@ -1,4 +1,8 @@
 #!/bin/bash
+# Historical ZERO_FDCACHE A/B. ZeroPerf-only; do not copy into a GA Zero400 tree.
+# Product bootstrap: contrib/ops-validate.sh bootstrap.
+# Stock post-Sapling rematch: contrib/perf/postsapling_reindex.sh.
+#
 # Repeated-trial A/B benchmark for ZERO_FDCACHE's -perfbufsize (and,
 # incidentally, -perffdcache) against -reindex and, if a bootstrap.dat is
 # provided, bootstrap.dat import. Fixes the two problems in an earlier
@@ -28,11 +32,13 @@
 #     instead of trusting a single sample.
 #
 # Usage:
-#   contrib/perf/bench_matrix.sh <out_dir> [warmup_height] [measure_blocks] [n_trials] [bootstrap_dat_path]
+#   contrib/perf/bench_matrix.sh <out_dir> [warmup_height|all] [measure_blocks|all] [n_trials] [bootstrap_dat_path]
+# Default stop is height 100000 (warmup 0, measure 100000). `all` = import to end.
 #
 # Example:
+#   contrib/perf/bench_matrix.sh reindex-profile/bench
 #   contrib/perf/bench_matrix.sh reindex-profile/bench 50000 300000 4
-#   contrib/perf/bench_matrix.sh reindex-profile/bench 50000 300000 4 /path/to/bootstrap.dat
+#   contrib/perf/bench_matrix.sh reindex-profile/bench all 1 /path/to/bootstrap.dat
 #
 # Conditions run per mode (reindex, and bootstrap if a .dat path is given):
 #   default buffer  (-perffdcache=1, no -perfbufsize)
@@ -43,11 +49,22 @@
 
 set -u
 
-OUT_DIR="${1:?usage: bench_matrix.sh <out_dir> [warmup_height] [measure_blocks] [n_trials] [bootstrap_dat_path]}"
-WARMUP_HEIGHT="${2:-50000}"
-MEASURE_BLOCKS="${3:-300000}"
-N_TRIALS="${4:-4}"
-BOOTSTRAP_DAT="${5:-}"
+OUT_DIR="${1:?usage: bench_matrix.sh <out_dir> [warmup_height|all] [measure_blocks|all] [n_trials] [bootstrap_dat_path]}"
+if [ "${2:-}" = "all" ]; then
+    WARMUP_HEIGHT=0
+    MEASURE_BLOCKS=0
+    N_TRIALS="${3:-4}"
+    BOOTSTRAP_DAT="${4:-}"
+else
+    WARMUP_HEIGHT="${2:-0}"
+    if [ "${3:-}" = "all" ]; then
+        MEASURE_BLOCKS=0
+    else
+        MEASURE_BLOCKS="${3:-100000}"
+    fi
+    N_TRIALS="${4:-4}"
+    BOOTSTRAP_DAT="${5:-}"
+fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ZEROD="$REPO_ROOT/src/zerod"
@@ -166,8 +183,14 @@ run_trial() {
 
     reset_scratch_datadir "$mode"
 
-    local target_end=$(( WARMUP_HEIGHT + MEASURE_BLOCKS ))
-    log "trial start: mode=$mode condition=$condition trial=$trial warmup=$WARMUP_HEIGHT target_end=$target_end args=${extra_args[*]:-none}"
+    local target_end nblocks
+    nblocks="$MEASURE_BLOCKS"
+    if [ "$MEASURE_BLOCKS" -eq 0 ]; then
+        target_end=0
+    else
+        target_end=$(( WARMUP_HEIGHT + MEASURE_BLOCKS ))
+    fi
+    log "trial start: mode=$mode condition=$condition trial=$trial warmup=$WARMUP_HEIGHT target_end=$([ "$target_end" -eq 0 ] && echo all || echo "$target_end") args=${extra_args[*]:-none}"
 
     "$ZEROD" -datadir="$SCRATCH_DATADIR" -connect=0 -listen=0 -rpcport=$RPCPORT \
         "${extra_args[@]}" > "$trial_dir/zerod_stdout.log" 2>&1 &
@@ -224,22 +247,57 @@ run_trial() {
     done
     log "warmup reached (height=$h)"
 
-    local measure_wait_s=$(( MEASURE_BLOCKS / 200 + 600 ))
+    local measure_wait_s
+    if [ "$nblocks" -eq 0 ]; then
+        measure_wait_s=10800
+    else
+        measure_wait_s=$(( nblocks / 200 + 600 ))
+    fi
     waited=0
-    until h=$(height_of) && [ "$h" -ge "$target_end" ]; do
-        if ! kill -0 "$pid" 2>/dev/null; then
-            log "ERROR: zerod exited before target_end at height=$h (trial $trial) -- source data may not reach target height, or import finished early"
-            cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
-            return 1
-        fi
+    if [ "$target_end" -eq 0 ]; then
+        local last="" same=0
+        while [ "$waited" -lt "$measure_wait_s" ]; do
+            h=$(height_of) || true
+            if ! kill -0 "$pid" 2>/dev/null; then
+                log "ERROR: zerod exited before target_end at height=$h (trial $trial) -- source data may not reach target height, or import finished early"
+                cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
+                return 1
+            fi
+            if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" = "$last" ]; then
+                same=$((same + 1))
+                if [ "$same" -ge 3 ] && [ "$h" -gt 0 ]; then
+                    break
+                fi
+            else
+                same=0
+                last="$h"
+            fi
+            sleep 2; waited=$((waited + 2))
+        done
         if [ "$waited" -ge "$measure_wait_s" ]; then
-            log "ERROR: target_end not reached within ${measure_wait_s}s (trial $trial, height=$h) -- killing and failing this trial"
+            log "ERROR: height not stable within ${measure_wait_s}s (trial $trial, height=$h) -- killing and failing this trial"
             cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
             kill_pid_hard "$pid"
             return 1
         fi
-        sleep 2; waited=$((waited + 2))
-    done
+        target_end="$h"
+        nblocks=$((target_end - WARMUP_HEIGHT))
+    else
+        until h=$(height_of) && [ "$h" -ge "$target_end" ]; do
+            if ! kill -0 "$pid" 2>/dev/null; then
+                log "ERROR: zerod exited before target_end at height=$h (trial $trial) -- source data may not reach target height, or import finished early"
+                cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
+                return 1
+            fi
+            if [ "$waited" -ge "$measure_wait_s" ]; then
+                log "ERROR: target_end not reached within ${measure_wait_s}s (trial $trial, height=$h) -- killing and failing this trial"
+                cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
+                kill_pid_hard "$pid"
+                return 1
+            fi
+            sleep 2; waited=$((waited + 2))
+        done
+    fi
     log "target_end reached (height=$h)"
 
     cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot"
@@ -258,14 +316,14 @@ run_trial() {
     local elapsed=$(elapsed_between_heights "$trial_dir/debug.log.snapshot" "$WARMUP_HEIGHT" "$target_end")
     if [ "$elapsed" = "NA" ] || [ -z "$elapsed" ]; then
         log "WARNING: could not determine elapsed time for trial $trial (heights not found in log)"
-        printf "%s\t%s\t%s\t%s\t%s\t%s\tNA\tNA\n" "$mode" "$condition" "$trial" "$WARMUP_HEIGHT" "$h" "$MEASURE_BLOCKS" >> "$RESULTS_TSV"
+        printf "%s\t%s\t%s\t%s\t%s\t%s\tNA\tNA\n" "$mode" "$condition" "$trial" "$WARMUP_HEIGHT" "$h" "$nblocks" >> "$RESULTS_TSV"
         return 1
     fi
 
     local bps
-    bps=$(python3 -c "print(f'{$MEASURE_BLOCKS / $elapsed:.2f}')" 2>/dev/null || echo "NA")
+    bps=$(python3 -c "print(f'{$nblocks / $elapsed:.2f}')" 2>/dev/null || echo "NA")
     log "trial done: mode=$mode condition=$condition trial=$trial elapsed=${elapsed}s blocks_per_sec=$bps"
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$mode" "$condition" "$trial" "$WARMUP_HEIGHT" "$target_end" "$MEASURE_BLOCKS" "$elapsed" "$bps" >> "$RESULTS_TSV"
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" "$mode" "$condition" "$trial" "$WARMUP_HEIGHT" "$target_end" "$nblocks" "$elapsed" "$bps" >> "$RESULTS_TSV"
     return 0
 }
 

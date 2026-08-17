@@ -4,14 +4,14 @@
 #
 # Usage (repo root):
 #   ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
-#     contrib/perf/run_witness_lab.sh dirty-cont
+#     contrib/perf/witness_lab.sh dirty-cont
 #   ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
-#     contrib/perf/run_witness_lab.sh rebuild
-#   ZERO_PERF_WALLET_FILE=... contrib/perf/run_witness_lab.sh rebuild-noteidx
+#     contrib/perf/witness_lab.sh rebuild
+#   ZERO_PERF_WALLET_FILE=... contrib/perf/witness_lab.sh rebuild-noteidx
 #   ZERO_PERF_WALLET_FILE=... ZERO_PERF_TIP_TEMPLATE=reindex-profile/fulltip-812-datadir \
-#     contrib/perf/run_witness_lab.sh tip-rebuild-note
-#   ZERO_PERF_WALLET_FILE=... contrib/perf/run_witness_lab.sh rescan-noteidx
-#   ZERO_PERF_WALLET_FILE=... contrib/perf/run_witness_lab.sh catchup-noteidx
+#     contrib/perf/witness_lab.sh tip-rebuild-note
+#   ZERO_PERF_WALLET_FILE=... contrib/perf/witness_lab.sh rescan-noteidx
+#   ZERO_PERF_WALLET_FILE=... contrib/perf/witness_lab.sh catchup-noteidx
 #
 # Env:
 #   ZERO_PERF_WALLET_FILE   required
@@ -28,7 +28,7 @@
 #   rebuild*   -- full -reindex + ibd-defer (L wall on full tip).
 #   tip-rebuild* -- copy tip template, inject wallet, -walletwitness=rebuild
 #     without -reindex (preferred post-Sap walk measure). One trial at a time.
-#   rescan* / catchup* -- known-state chain + injected wallet; see run_cycle_campaign.sh.
+#   rescan* / catchup* -- known-state chain + injected wallet; see ops-campaign.sh.
 
 set -euo pipefail
 

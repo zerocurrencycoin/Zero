@@ -2,6 +2,11 @@
 # Post-Sapling ConnectBlock rematch -- overall throughput measures (stock -reindex).
 # FDCACHE A/B is out of the current mix; optional CONDITIONS remain for later.
 #
+# Bootstrap import is not this script: use contrib/ops-validate.sh bootstrap
+# (MODE=bootstrap used to live here only to reuse the warmup/measure/ledger
+# loop; that path is product ops now, and the default bootstrap window is
+# pre-Sapling 0-100000, not this 600k-900k rematch).
+#
 # Default: CONDITIONS=stock, N_TRIALS=4. Each trial appends to
 # reindex-profile/bench-summaries/ledger.{jsonl,tsv}.
 #
@@ -12,7 +17,7 @@
 #
 # Usage (repo root):
 #   ZERO_PERF_SRC_DATADIR="$HOME/Library/Application Support/zero" \
-#     contrib/perf/run_postsapling_baseline.sh
+#     contrib/perf/postsapling_reindex.sh
 #   N_TRIALS=4 CONDITIONS=stock CAMPAIGN=postsapling
 #
 # Per-run artifacts: test-logs/postsapling-<UTC>/
@@ -28,15 +33,12 @@ SRC_DATADIR="${ZERO_PERF_SRC_DATADIR:-$HOME/Library/Application Support/zero}"
 SCRATCH="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/postsapling-datadir}"
 OUT_ROOT="${ZERO_PERF_OUT_DIR:-$REPO_ROOT/test-logs}"
 STORE_DIR="${ZERO_PERF_STORE_DIR:-$REPO_ROOT/reindex-profile/bench-summaries}"
-WARMUP_HEIGHT="${WARMUP_HEIGHT:-600000}"
-MEASURE_BLOCKS="${MEASURE_BLOCKS:-300000}"
 N_TRIALS="${N_TRIALS:-4}"
 CONDITIONS="${CONDITIONS:-stock}"
 CAMPAIGN="${CAMPAIGN:-postsapling}"
-# MODE=reindex (default) or bootstrap (-loadblock). Bootstrap excludes blocks/
-# from the scratch reset and requires LOADBLOCK / BOOTSTRAP_DAT.
-MODE="${MODE:-reindex}"
-LOADBLOCK="${LOADBLOCK:-${BOOTSTRAP_DAT:-}}"
+MODE=reindex
+WARMUP_HEIGHT="${WARMUP_HEIGHT:-600000}"
+MEASURE_BLOCKS="${MEASURE_BLOCKS:-300000}"
 RPCPORT="${ZERO_PERF_RPCPORT:-23926}"
 # System utilization samples (ps + optional vmmap). Default on; SAMPLE_UTIL=0 to disable.
 SAMPLE_UTIL="${SAMPLE_UTIL:-1}"
@@ -63,19 +65,6 @@ if [ ! -x "$ZEROD" ]; then
   echo "ERROR: missing $ZEROD" >&2
   exit 1
 fi
-case "$MODE" in
-  reindex) ;;
-  bootstrap)
-    if [ -z "$LOADBLOCK" ] || [ ! -f "$LOADBLOCK" ]; then
-      echo "ERROR: MODE=bootstrap requires LOADBLOCK=/path/to/bootstrap.dat (copy or softlink; do not modify original)" >&2
-      exit 1
-    fi
-    ;;
-  *)
-    echo "ERROR: MODE must be reindex or bootstrap (got '$MODE')" >&2
-    exit 1
-    ;;
-esac
 
 FDCACHE_BUILT=0
 if "$ZEROD" -help 2>&1 | grep -qi 'perffdcache\|perfbufsize'; then
@@ -102,14 +91,17 @@ printf "mode\tcondition\ttrial\twarmup_height\tend_height\tblocks\telapsed_s\tbl
 DRIVER="$OUT_DIR/driver.log"
 log() { echo "$(date -u '+%Y-%m-%d %H:%M:%S UTC') $*" | tee -a "$DRIVER"; }
 
-TARGET_END=$((WARMUP_HEIGHT + MEASURE_BLOCKS))
+if [ "$MEASURE_BLOCKS" -eq 0 ]; then
+  TARGET_END=0
+else
+  TARGET_END=$((WARMUP_HEIGHT + MEASURE_BLOCKS))
+fi
 IFS=',' read -r -a COND_ARR <<< "$CONDITIONS"
 
 log "RUN_ID=$RUN_ID campaign=$CAMPAIGN mode=$MODE SRC=$SRC_DATADIR SCRATCH=$SCRATCH"
-log "window warmup=$WARMUP_HEIGHT end=$TARGET_END N_TRIALS=$N_TRIALS CONDITIONS=$CONDITIONS"
-if [ "$MODE" = "bootstrap" ]; then
-  log "LOADBLOCK=$LOADBLOCK"
-fi
+end_label="$TARGET_END"
+[ "$TARGET_END" -eq 0 ] && end_label=all
+log "window warmup=$WARMUP_HEIGHT end=$end_label N_TRIALS=$N_TRIALS CONDITIONS=$CONDITIONS"
 log "ZERO_FDCACHE_built=$FDCACHE_BUILT (0 => A/B flags ignored by binary)"
 log "SAMPLE_UTIL=$SAMPLE_UTIL UTIL_PERIOD_S=$UTIL_PERIOD_S"
 
@@ -151,24 +143,12 @@ kill_pid_hard() {
 }
 
 reset_scratch() {
-  if [ "$MODE" = "bootstrap" ]; then
-    log "reset scratch bootstrap (exclude blocks/ + chainstate; empty chain for -loadblock)"
-    rm -rf "$SCRATCH"
-    mkdir -p "$SCRATCH"
-    # Keep conf/params-adjacent files if present; never copy blocks or chainstate.
-    rsync -a --exclude='blocks' --exclude='chainstate' --exclude='wallet.zero' \
-      --exclude='wallet.zero*' --exclude='debug*.log' --exclude='.lock' \
-      --exclude='bootstrap.dat' --exclude='bootstrap.dat.old' \
-      --exclude='chainblocks*.tgz' --exclude='chainblocks*.sha256' \
-      "$SRC_DATADIR/" "$SCRATCH/" 2>/dev/null || true
-  else
-    log "reset scratch (rsync blocks, exclude chainstate; source read-only)"
-    rm -rf "$SCRATCH"
-    mkdir -p "$SCRATCH"
-    rsync -a --exclude='chainstate' --exclude='wallet.zero' --exclude='wallet.zero*' \
-      --exclude='debug*.log' --exclude='.lock' \
-      "$SRC_DATADIR/" "$SCRATCH/"
-  fi
+  log "reset scratch (rsync blocks, exclude chainstate; source read-only)"
+  rm -rf "$SCRATCH"
+  mkdir -p "$SCRATCH"
+  rsync -a --exclude='chainstate' --exclude='wallet.zero' --exclude='wallet.zero*' \
+    --exclude='debug*.log' --exclude='.lock' \
+    "$SRC_DATADIR/" "$SCRATCH/"
   {
     echo "listen=0"
     echo "maxconnections=0"
@@ -196,24 +176,24 @@ run_one() {
   local extra_arr=($extra)
 
   log "trial start mode=$MODE condition=$condition trial=$trial args=${extra:-none}"
-  if [ "$MODE" = "bootstrap" ]; then
-    "$ZEROD" -datadir="$SCRATCH" -disablewallet -connect=0 -listen=0 \
-      -loadblock="$LOADBLOCK" \
-      -rpcport="$RPCPORT" ${extra_arr[@]+"${extra_arr[@]}"} \
-      >"$trial_dir/zerod_stdout.log" 2>&1 &
-  else
-    "$ZEROD" -datadir="$SCRATCH" -disablewallet -reindex -connect=0 -listen=0 \
-      -rpcport="$RPCPORT" ${extra_arr[@]+"${extra_arr[@]}"} \
-      >"$trial_dir/zerod_stdout.log" 2>&1 &
-  fi
+  "$ZEROD" -datadir="$SCRATCH" -disablewallet -reindex -connect=0 -listen=0 \
+    -rpcport="$RPCPORT" ${extra_arr[@]+"${extra_arr[@]}"} \
+    >"$trial_dir/zerod_stdout.log" 2>&1 &
   local pid=$!
   log "zerod pid=$pid"
   sample_util start "$pid" 0
 
   local warmup_wait_s=$(( WARMUP_HEIGHT / 200 + 600 ))
-  local measure_wait_s=$(( MEASURE_BLOCKS / 200 + 600 ))
+  local measure_wait_s
+  if [ "$MEASURE_BLOCKS" -eq 0 ]; then
+    measure_wait_s=10800
+  else
+    measure_wait_s=$(( MEASURE_BLOCKS / 200 + 600 ))
+  fi
   local waited=0 h
   local last_util=0
+  local end_h="$TARGET_END"
+  local nblocks="$MEASURE_BLOCKS"
 
   until h=$(height_of); [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -ge 0 ]; do
     kill -0 "$pid" 2>/dev/null || { log "ERROR: exited before RPC"; return 1; }
@@ -238,30 +218,59 @@ run_one() {
 
   waited=0
   last_util=0
-  until h=$(height_of); [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -ge "$TARGET_END" ]; do
-    kill -0 "$pid" 2>/dev/null || { log "ERROR: exited in measure h=$h"; return 1; }
-    [ "$waited" -ge "$measure_wait_s" ] && { kill_pid_hard "$pid"; log "ERROR: measure timeout h=$h"; return 1; }
-    if [ "$SAMPLE_UTIL" = "1" ] && [ $((waited - last_util)) -ge "$UTIL_PERIOD_S" ]; then
-      sample_util measure "$pid" "$h"
-      last_util=$waited
+  if [ "$end_h" -eq 0 ]; then
+    local last="" same=0
+    while [ "$waited" -lt "$measure_wait_s" ]; do
+      h=$(height_of)
+      kill -0 "$pid" 2>/dev/null || { log "ERROR: exited in measure h=$h"; return 1; }
+      if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" = "$last" ]; then
+        same=$((same + 1))
+        if [ "$same" -ge 3 ] && [ "$h" -gt 0 ]; then
+          break
+        fi
+      else
+        same=0
+        last="$h"
+      fi
+      if [ "$SAMPLE_UTIL" = "1" ] && [ $((waited - last_util)) -ge "$UTIL_PERIOD_S" ]; then
+        sample_util measure "$pid" "${h:-0}"
+        last_util=$waited
+      fi
+      sleep 2; waited=$((waited + 2))
+    done
+    if [ "$waited" -ge "$measure_wait_s" ]; then
+      kill_pid_hard "$pid"
+      log "ERROR: height not stable in ${measure_wait_s}s h=$h"
+      return 1
     fi
-    sleep 2; waited=$((waited + 2))
-  done
+    end_h="$h"
+    nblocks=$((end_h - WARMUP_HEIGHT))
+  else
+    until h=$(height_of); [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -ge "$end_h" ]; do
+      kill -0 "$pid" 2>/dev/null || { log "ERROR: exited in measure h=$h"; return 1; }
+      [ "$waited" -ge "$measure_wait_s" ] && { kill_pid_hard "$pid"; log "ERROR: measure timeout h=$h"; return 1; }
+      if [ "$SAMPLE_UTIL" = "1" ] && [ $((waited - last_util)) -ge "$UTIL_PERIOD_S" ]; then
+        sample_util measure "$pid" "$h"
+        last_util=$waited
+      fi
+      sleep 2; waited=$((waited + 2))
+    done
+  fi
   log "measure end condition=$condition h=$h"
   sample_util measure_done "$pid" "$h"
 
   cp "$SCRATCH/debug.log" "$trial_dir/debug.log" 2>/dev/null || true
   local elapsed bps
   elapsed=$(python3 "$REPO_ROOT/contrib/perf/extract_measures.py" \
-    --elapsed-heights "$trial_dir/debug.log" "$WARMUP_HEIGHT" "$TARGET_END")
+    --elapsed-heights "$trial_dir/debug.log" "$WARMUP_HEIGHT" "$end_h")
   if [ "$elapsed" = "NA" ] || [ -z "$elapsed" ]; then
     log "ERROR: elapsed NA condition=$condition trial=$trial"
     "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" stop >/dev/null 2>&1 || kill_pid_hard "$pid"
     return 1
   fi
-  bps=$(python3 -c "print(round($MEASURE_BLOCKS / float('$elapsed'), 4))")
+  bps=$(python3 -c "print(round($nblocks / float('$elapsed'), 4))")
   printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
-    "$MODE" "$condition" "$trial" "$WARMUP_HEIGHT" "$TARGET_END" "$MEASURE_BLOCKS" "$elapsed" "$bps" "$RUN_ID" \
+    "$MODE" "$condition" "$trial" "$WARMUP_HEIGHT" "$end_h" "$nblocks" "$elapsed" "$bps" "$RUN_ID" \
     >> "$RESULTS"
   log "result mode=$MODE condition=$condition trial=$trial elapsed_s=$elapsed blk/s=$bps"
 
@@ -278,8 +287,8 @@ run_one() {
     --condition "$condition" \
     --trial "$trial" \
     --warmup-height "$WARMUP_HEIGHT" \
-    --end-height "$TARGET_END" \
-    --blocks "$MEASURE_BLOCKS" \
+    --end-height "$end_h" \
+    --blocks "$nblocks" \
     --elapsed-s "$elapsed" \
     --blocks-per-sec "$bps" \
     --binary "$ZEROD" \

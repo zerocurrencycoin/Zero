@@ -3,7 +3,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 """
-Accumulate bench_matrix / postsapling trial rows and collate A/B reports.
+Accumulate bench_matrix / postsapling-reindex trial rows and collate A/B reports.
 
 Durable store (append-only):
   reindex-profile/bench-summaries/ledger.jsonl

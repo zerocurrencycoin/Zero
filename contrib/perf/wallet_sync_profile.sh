@@ -9,7 +9,7 @@
 #   ZERO_PERF_WALLET_FILE=/path/to/wallet.zero0 \
 #   ZERO_PERF_SRC_DATADIR="$HOME/Library/Application Support/zero" \
 #   ZERO_PERF_CHAIN_SNAP=tiny \
-#     contrib/perf/run_wallet_sync_profile.sh
+#     contrib/perf/wallet_sync_profile.sh
 #
 # Env:
 #   ZERO_PERF_WALLET_FILE   required -- source wallet.zero (copied in)

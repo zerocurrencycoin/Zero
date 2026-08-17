@@ -1,11 +1,33 @@
 #!/bin/bash
-# One restartable cycle-campaign trial. Does not batch long runs.
+# ZeroPerf cycle rematch dispatcher. Not a product ops check (that is
+# contrib/ops-validate.sh). ZeroPerf-only; do not copy into a GA Zero400 tree.
+#
+# One restartable trial per invocation. Does not batch long runs.
+#
+# Dispatch today:
+#   none+reindex+tiny|short  -> contrib/ops-validate.sh reindex all
+#   none+bootstrap+window    -> contrib/ops-validate.sh bootstrap (100000)
+#   *+reindex                -> wallet_sync_profile.sh (util.tsv; fold later)
+#   *+rescan stock           -> contrib/ops-validate.sh rescan p0|p1|fat
+#   *+rescan noteidx         -> witness_lab.sh rescan-noteidx
+#   *+sync                   -> witness_lab.sh catchup* / tip-catchup*
+#
+# Callee rework (not done this pass):
+#   Fold into ops-validate: tiny_baseline (reindex all + SNAP), nowallet
+#     bootstrap (already), wallet-on reindex/rescan once SAMPLE_UTIL and
+#     ZERO_OPS_WALLET exist on ops-validate.
+#   Keep standalone: postsapling_reindex (n=4 window 600k-900k ledger),
+#     mine_bench (Equihash, not sync), bench_matrix (historical FDCACHE),
+#     capture_sequence / prep_lab_datadir, witness_lab flag A/B
+#     (dirty-cont, rebuild, noteidx, ibd-defer, tip-rebuild).
+#   Merge into ops-campaign only if the body is a thin wrapper (no).
+#   Do not copy any of this set into GA Zero400 except ops-validate.sh.
 #
 # Usage (repo root):
-#   contrib/perf/run_cycle_campaign.sh list
-#   CYCLE=1 SET=smoke contrib/perf/run_cycle_campaign.sh next
-#   CYCLE=1 contrib/perf/run_cycle_campaign.sh run p0-reindex-tiny
-#   contrib/perf/run_cycle_campaign.sh report
+#   contrib/perf/ops-campaign.sh list
+#   CYCLE=1 SET=smoke contrib/perf/ops-campaign.sh next
+#   CYCLE=1 contrib/perf/ops-campaign.sh run p0-reindex-tiny
+#   contrib/perf/ops-campaign.sh report
 #
 # Env:
 #   CYCLE                 1|2|3 (default 1) -- ledger campaign cycle-N
@@ -13,7 +35,7 @@
 #   ZERO_PERF_WALLET_P0   wallet.zero for p0 trials
 #   ZERO_PERF_WALLET_P1   wallet.zero for p1 trials
 #   ZERO_PERF_WALLET_FAT  golden fat wallet.zero
-#   LOADBLOCK             bootstrap.dat copy (nowallet-bootstrap-presap)
+#   LOADBLOCK / ZERO_OPS_BOOTSTRAP  bootstrap.dat copy (nowallet-bootstrap-presap)
 #   ZERO_PERF_TIP_TEMPLATE  tip datadir (fat-sync-tip-noteidx)
 #   ZERO_PERF_SRC_DATADIR   blocks/snap archives
 #
@@ -132,7 +154,7 @@ snap_heights() {
   case "$1" in
     tiny) echo "0 187417" ;;
     short) echo "0 245992" ;;
-    window) echo "50000 75000" ;;
+    window) echo "0 100000" ;;
     full|tip) echo "0 0" ;;
     *) echo "0 0" ;;
   esac
@@ -225,32 +247,30 @@ PY
   local rc=0
   case "$wallet:$op:$snap" in
     none:reindex:tiny|none:reindex:short)
-      export LAB="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}"
-      mkdir -p "$LAB"
-      contrib/perf/run_tiny_baseline.sh "$snap" || rc=$?
-      if [ -f "$LAB/debug.log" ]; then
+      export ZERO_OPS_LAB="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}"
+      contrib/ops-validate.sh reindex all "snap=$snap" || rc=$?
+      if [ -f "$ZERO_OPS_LAB/debug.log" ]; then
         local el
-        el=$(elapsed_from_log "$LAB/debug.log" "$h0" "$h1")
+        el=$(elapsed_from_log "$ZERO_OPS_LAB/debug.log" "$h0" "$h1")
         ledger_append "$run_id" reindex "$id" "$h0" "$h1" "$el"
       fi
       ;;
     none:bootstrap:window)
-      if [ -z "${LOADBLOCK:-}" ] || [ ! -f "$LOADBLOCK" ]; then
+      if [ -z "${LOADBLOCK:-${ZERO_OPS_BOOTSTRAP:-}}" ] || [ ! -f "${LOADBLOCK:-${ZERO_OPS_BOOTSTRAP:-}}" ]; then
         echo "ERROR: nowallet-bootstrap-presap needs LOADBLOCK=/path/to/bootstrap.dat copy" >&2
         return 1
       fi
-      N_TRIALS=1 MODE=bootstrap LOADBLOCK="$LOADBLOCK" \
-        WARMUP_HEIGHT=50000 MEASURE_BLOCKS=25000 \
-        CAMPAIGN="cycle-${CYCLE}" \
-        ZERO_PERF_SCRATCH_DATADIR="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}" \
-        contrib/perf/run_postsapling_baseline.sh || rc=$?
+      ZERO_OPS_BOOTSTRAP="${LOADBLOCK:-$ZERO_OPS_BOOTSTRAP}" \
+        ZERO_OPS_LAB="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}" \
+        ZERO_OPS_LEDGER="${ZERO_OPS_LEDGER:-$STORE_DIR/ops-campaign-ops.jsonl}" \
+        contrib/ops-validate.sh bootstrap || rc=$?
       ;;
     *:reindex:tiny|*:reindex:short|*:reindex:full)
       wf=$(wallet_file_for "$wallet")
       ZERO_PERF_WALLET_FILE="$wf" ZERO_PERF_CHAIN_SNAP="$snap" \
         ZEROD_EXTRA_ARGS="$extra" \
         ZERO_PERF_SCRATCH_DATADIR="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}" \
-        contrib/perf/run_wallet_sync_profile.sh || rc=$?
+        contrib/perf/wallet_sync_profile.sh || rc=$?
       local scratch="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}"
       if [ -f "$scratch/debug.log" ] && [ "$h1" -gt 0 ]; then
         local el
@@ -259,15 +279,20 @@ PY
       fi
       ;;
     *:rescan:tiny|*:rescan:short|*:rescan:full)
-      wf=$(wallet_file_for "$wallet")
-      local wmode=rescan
-      case "$flags" in
-        noteidx|noteidx+defer) wmode=rescan-noteidx ;;
-      esac
-      ZERO_PERF_WALLET_FILE="$wf" ZERO_PERF_CHAIN_SNAP="$snap" \
-        ZERO_PERF_SCRATCH_DATADIR="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}" \
-        contrib/perf/run_witness_lab.sh "$wmode" || rc=$?
       local scratch="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}"
+      case "$flags" in
+        noteidx|noteidx+defer)
+          wf=$(wallet_file_for "$wallet")
+          local wmode=rescan-noteidx
+          ZERO_PERF_WALLET_FILE="$wf" ZERO_PERF_CHAIN_SNAP="$snap" \
+            ZERO_PERF_SCRATCH_DATADIR="$scratch" \
+            contrib/perf/witness_lab.sh "$wmode" || rc=$?
+          ;;
+        *)
+          ZERO_OPS_LAB="$scratch" \
+            contrib/ops-validate.sh rescan "$wallet" "snap=$snap" || rc=$?
+          ;;
+      esac
       if [ -f "$scratch/debug.log" ]; then
         local el
         if [ "$h1" -gt 0 ]; then
@@ -286,7 +311,7 @@ PY
       esac
       ZERO_PERF_WALLET_FILE="$wf" ZERO_PERF_CHAIN_SNAP="$snap" \
         ZERO_PERF_SCRATCH_DATADIR="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}" \
-        contrib/perf/run_witness_lab.sh "$wmode" || rc=$?
+        contrib/perf/witness_lab.sh "$wmode" || rc=$?
       local el
       el=$(python3 - "$REPO_ROOT/test-logs" "$wmode" <<'PY'
 import glob, os, re, sys
@@ -310,7 +335,7 @@ PY
       esac
       ZERO_PERF_WALLET_FILE="$wf" \
         ZERO_PERF_SCRATCH_DATADIR="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}" \
-        contrib/perf/run_witness_lab.sh "$wmode" || rc=$?
+        contrib/perf/witness_lab.sh "$wmode" || rc=$?
       ledger_append "$run_id" catchup "$id" 0 0 0
       ;;
     *)

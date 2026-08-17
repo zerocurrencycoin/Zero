@@ -172,7 +172,7 @@ Do not confuse with product TODO on Zero400. Numbers: **Measures.md** only.
 - Integer founders helper **`GetFoundersRewardAmount` = `subsidy * 75 / 1000`** and integer `GetBlockSubsidy` base are **present in this tree and Zero400** (tests in `main_tests` / founders gtest). Treat checklist "implement subsidy" lines as **status-lag** until Zero400 TODO is updated on merge -- not as missing code here.
 - Reindex **resume** (`L`/`H`/`R`, conf loud warn): **shipped**; interrupt/resume lab in AtHeight. Refuse/`-reindexforce` and skip-wallet: **not** shipped.
 - **FIX-LBI / FIX-IMPORT-POLL:** `LoadBlockIndexDB` and `ThreadImport` honor `ShutdownRequested()`; mid-file interrupt does not advance `L`.
-- Baseline campaigns done: **M-RX-POSTSAP-STOCK**, **M-BOOT-PRESAP**, **M-RX-PRESAP**, **M-BOOT-POSTSAP** (parity note in Measures §8). Util sampling on by default in `run_postsapling_baseline.sh`. Contended tiny/short: **M-RX-TINY-20260811d** / **M-RX-SHORT-20260811b**.
+- Baseline campaigns done: **M-RX-POSTSAP-STOCK**, **M-BOOT-PRESAP**, **M-RX-PRESAP**, **M-BOOT-POSTSAP** (parity note in Measures §8). Util sampling on by default in `postsapling_reindex.sh`. Contended tiny/short: **M-RX-TINY-20260811d** / **M-RX-SHORT-20260811b**.
 
 ### 0.3 What's actually been built and tested
 
@@ -342,7 +342,7 @@ Mining profile and shielded density table.
 | arm64 NEON / blake2b symbol probe | **Done** | M-MINE-NEON-PROBE (`compress_ref` only; no NEON zerod) |
 | Validator KATs (192,7)/(48,5) | **Done** | TST-05; `contrib/perf/kats/` |
 | Reindex **verify** Equihash cost | **Done** | M-CPU-SEQ ~**0.252 ms/blk** (not mining) |
-| Mainnet-template **timed solve** (192,7) + Instruments on `zcash-miner` | **Scheduled -- Track M** | G5; `run_mine_bench.sh mainnet-template` only stubs env unless `MINE_MAINNET_SOLVE=1` |
+| Mainnet-template **timed solve** (192,7) + Instruments on `zcash-miner` | **Scheduled -- Track M** | G5; `mine_bench.sh mainnet-template` only stubs env unless `MINE_MAINNET_SOLVE=1` |
 | Live mainnet mining / pool / GBT production hash | **Out of lab scope** | Not a ZeroPerf campaign |
 | NEON solve A/B | **Parked** | G7; needs NEON-enabled zerod + ARM fleet mix |
 
@@ -440,7 +440,7 @@ Doc ownership: **BENCH-/FIX-/IMP-***, **L0-L7**, Stages, **G**/**P1-P4**, lab ma
 
 | Spec ID | Campaign / measure | Goal | Method | Pass / deliverable | Deps | Status |
 |---------|-------------------|------|--------|-------------------|------|--------|
-| **BENCH-STOCK** | M-RX-POSTSAP-STOCK | Stock ConnectBlock baseline | `run_postsapling_baseline.sh` n=4, window 600k-900k, `-disablewallet`, ledger | Mean/stdev in Measures | Full/short source datadir | **Done** |
+| **BENCH-STOCK** | M-RX-POSTSAP-STOCK | Stock ConnectBlock baseline | `postsapling_reindex.sh` n=4, window 600k-900k, `-disablewallet`, ledger | Mean/stdev in Measures | Full/short source datadir | **Done** |
 | **BENCH-BOOT** | M-BOOT-PRESAP / M-BOOT-POSTSAP | Bootstrap import vs reindex | `MODE=bootstrap`; reset excludes `blocks/`; n>=1 then n=4 | Comparable height_per_s; no -28 stuck | Original `bootstrap.dat` copy-only | **Done** (pre-Sap + post-Sap; post-Sap parity in Measures) |
 | **BENCH-SEG** | M-DENS-* / M-BOOT-ONSET / M-RX-ONSET | Era-bounded throughput + density | Density tip-complete; onset bootstrap+reindex n=1 peers done | Per-era rows in Measures §3.2a / §8 | Density CSV (§0.9) | **Parked** vs witness (L3 n=4 optional on track switch) |
 | **BENCH-UTIL** | M-RX-UTIL-SMOKE | RSS/CPU during import | `SAMPLE_UTIL=1` on short window | util.tsv milestones | Stock binary | Smoke done; keep on postsap runs |
@@ -595,7 +595,7 @@ Owner-accepted order (solo host; one long trial at a time):
 
 **Stage 4 -- Equihash solve profile (NEON postponed)**
 
-- BENCH-MINE tools: `contrib/perf/run_mine_bench.sh` (regtest / mainnet-template / neon-probe).
+- BENCH-MINE tools: `contrib/perf/mine_bench.sh` (regtest / mainnet-template / neon-probe).
 - Regtest smoke + NEON probe measured (M-MINE-*); TST-05 **done** (kats in `contrib/perf/kats/`).
 - Mainnet (192,7) timed solve: Instruments / opt-in -- **G5** in accepted queue.
 - **G7 NEON postponed** (grouped hold above). Stock arm64 remains `compress_ref`-only.
@@ -626,7 +626,7 @@ Owner-accepted order (solo host; one long trial at a time):
 
 **Call path (stock):** `ChainTip` IBD branch -> `BuildWitnessCache(pindex, true)` every block -> `VerifyAndSetInitialWitness` over `mapWallet`. With NOTEIDX, Verify walks `vNoteTxHashes` (~1403) after one index build.
 
-**Util sampler:** `run_wallet_sync_profile.sh` -- `WALLETINFO_TIMEOUT_S` (default 5) so fat `cs_wallet` contention cannot stall `util.tsv`.
+**Util sampler:** `wallet_sync_profile.sh` -- `WALLETINFO_TIMEOUT_S` (default 5) so fat `cs_wallet` contention cannot stall `util.tsv`.
 
 #### Mitigation assessment
 
@@ -862,7 +862,7 @@ ChainTip / ThreadImport
 
 **What DIRTY means:** NOTEIDX skips *transparent* txs; DIRTY would skip *already-validated notes* too.
 
-**INV-DIRTY-CONT** (`-walletwitnessstats=1`): logs `WitnessStats ... note_visits= early_continue= full_work=` per Verify. Runner: `contrib/perf/run_witness_lab.sh dirty-cont`.
+**INV-DIRTY-CONT** (`-walletwitnessstats=1`): logs `WitnessStats ... note_visits= early_continue= full_work=` per Verify. Runner: `contrib/perf/witness_lab.sh dirty-cont`.
 
 **Lab result (tiny, stock+NOTEIDX, to h~11k):** `scan_txs=1403` / `mapWallet=801619` (NOTEIDX live). **`note_visits=0`** -- all golden notes are Sapling (activation 492850); tiny tip 187417 is pre-Sapling, so `GetDepthInMainChain()==0` for every note tx during this band. Early-continue rate **not measurable** on tiny. Meaningful CONT needs a **post-Sapling** height window (full/short past 492850) -- L wall; only if stock per-block Verify remains a product default.
 
@@ -872,8 +872,8 @@ ChainTip / ThreadImport
 
 | Lab | Automation | Cadence |
 |-----|------------|---------|
-| INV-DIRTY-CONT | `run_witness_lab.sh dirty-cont` (reusable) | **One-time** decision sample per chain band; not CI |
-| BENCH-WIT-REBUILD | `run_witness_lab.sh rebuild` / `rebuild-noteidx` | **One A/B pair** before default-on; re-run when walk/flags change; not CI |
+| INV-DIRTY-CONT | `witness_lab.sh dirty-cont` (reusable) | **One-time** decision sample per chain band; not CI |
+| BENCH-WIT-REBUILD | `witness_lab.sh rebuild` / `rebuild-noteidx` | **One A/B pair** before default-on; re-run when walk/flags change; not CI |
 | e2e R1/R2 | `wallet_witness_defer.py` (Tier B) | **Every** relevant change / Tier B |
 
 #### Recommended order
@@ -1046,7 +1046,7 @@ Tiered. Effort S/M/L. One long trial at a time.
 
 **NOTEIDX** -- lifecycle/size/axes above; walk **done**; remaining = FIX-WAL-WITNESS-NOTEIDX-STALE.
 
-**BENCH-WIT-REBUILD** -- **lab benchmark** via `run_witness_lab.sh rebuild|rebuild-noteidx` (not a unit test). **Functions:** `RebuildWitnessCacheForChainTip` / `BuildWitnessCache(..., false)`. **Flag:** `-walletwitness=rebuild`. **Tiny result (M-WAL-WITNESS-REBUILD):** defer import ~333 s to h187417; tip rebuild called but height walk **skipped** (no Sapling notes at/below tiny tip). **Walk correctness** proven by e2e `wallet_witness_defer.py` (notes in regtest tip). Post-Sapling tip A/B still open for walk **duration**.
+**BENCH-WIT-REBUILD** -- **lab benchmark** via `witness_lab.sh rebuild|rebuild-noteidx` (not a unit test). **Functions:** `RebuildWitnessCacheForChainTip` / `BuildWitnessCache(..., false)`. **Flag:** `-walletwitness=rebuild`. **Tiny result (M-WAL-WITNESS-REBUILD):** defer import ~333 s to h187417; tip rebuild called but height walk **skipped** (no Sapling notes at/below tiny tip). **Walk correctness** proven by e2e `wallet_witness_defer.py` (notes in regtest tip). Post-Sapling tip A/B still open for walk **duration**.
 
 **DIRTY / INV-DIRTY-CONT** -- see DIRTY section; park with defer-default plan.
 
@@ -1169,7 +1169,7 @@ Performance first, then crash/reorg hardening. Each cycle is one reviewable PR p
 
 Do **not** choose a cache shorter than the apply cap. If `WITNESS_CACHE_SIZE < MAX_REORG_LENGTH + 1`, an applied reorg of depth D with `cache <= D <= cap` empties the deque while the node still treats the reorg as legal -- spends fail or hit `exit(1)` / forced rebuild. That is the failure mode TNT-03 exists to prevent, not an option. Raising the cap toward maturity 720 or Zebra 1000 means growing the deque (RAM per note) or accepting rebuild-on-deep-reorg; `keeptxfornblocks` is already floored at `MAX_REORG_LENGTH + 1`. Cycle 2 "rebuild if cache short" is recovery after crash or a legal-depth pop that left no layers -- a different sentence.
 
-**Cycle rematch campaign.** Same wallet x op matrix after each cycle, one restartable trial per invocation: `contrib/perf/run_cycle_campaign.sh`. Ops: sync (caught-up start), rescan, reindex, bootstrap. Wallets: none / p0 / p1 / fat. Collate: `contrib/perf/collate_cycle.py`. Do not batch long trials.
+**Cycle rematch campaign.** Same wallet x op matrix after each cycle, one restartable trial per invocation: `contrib/perf/ops-campaign.sh`. Ops: sync (caught-up start), rescan, reindex, bootstrap. Wallets: none / p0 / p1 / fat. Collate: `contrib/perf/collate_cycle.py`. Do not batch long trials.
 
 | Cycle | Bundle | Deps | Impact | Effort | Risk | Validation |
 |-------|--------|------|--------|--------|------|------------|
@@ -1267,7 +1267,7 @@ Safety of "others are not allowed" is the **deny-by-default** name check in `CRP
 | **WIT-REBUILD post-Sap** | Fat wallet + tip **>492850**; time `height-walk done elapsed_ms` stock vs noteidx | Real `-33` window -- see assess below |
 | WIT-REBUILD + reorg inject | After FIX-WIT-WALK-UNLOCK | recovery mode 2/3 |
 
-Automation: `ZERO_PERF_CHAIN_SNAP=full` on `run_witness_lab.sh rebuild|rebuild-noteidx` (or tip-only rebuild once a full template exists); one trial at a time.
+Automation: `ZERO_PERF_CHAIN_SNAP=full` on `witness_lab.sh rebuild|rebuild-noteidx` (or tip-only rebuild once a full template exists); one trial at a time.
 
 #### Disposable full tip -- what and how
 
@@ -1297,7 +1297,7 @@ Verified: tip **2518018**, no reindex, with those flags. Archive pack: `COPYFILE
 ZERO_PERF_SRC_DATADIR="$HOME/Library/Application Support/zero" \
 ZERO_PERF_CHAIN_SNAP=full \
 ZERO_PERF_WALLET_FILE=/path/to/golden/fat/wallet.zero \
-  contrib/perf/run_witness_lab.sh rebuild-noteidx
+  contrib/perf/witness_lab.sh rebuild-noteidx
 ```
 
 `SNAP=full` rsyncs `blocks/` (drops chainstate), copies wallet, `-reindex` + `ibd-defer` -- **L wall**. Prefer tip-only:
@@ -1305,7 +1305,7 @@ ZERO_PERF_WALLET_FILE=/path/to/golden/fat/wallet.zero \
 ```bash
 ZERO_PERF_TIP_TEMPLATE=$PWD/reindex-profile/fulltip-812-datadir \
 ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
-  contrib/perf/run_witness_lab.sh tip-rebuild-note   # then tip-rebuild
+  contrib/perf/witness_lab.sh tip-rebuild-note   # then tip-rebuild
 ```
 
 **Measured (M-WAL-WITNESS-TIP-AB):** fat @ tip **2518018**; Rescan height-walk (~1441 blk from 2516577): stock **7659 ms** / 801619 txs vs `-walletwitnessnote` **220 ms** / 1403 txs (~**35x**). Rebuild `zerod` after flag renames.
@@ -1316,7 +1316,7 @@ ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
 
 | Piece | Effort | Duration band | Evidence / bound |
 |-------|--------|---------------|------------------|
-| Script/docs for `SNAP=full` (exists) or tip-only mode | **S** | -- | `run_witness_lab.sh` already has `full` |
+| Script/docs for `SNAP=full` (exists) or tip-only mode | **S** | -- | `witness_lab.sh` already has `full` |
 | Prep disposable full tip (rsync ~10G blocks + `-reindex`) | **M** ops | **L wall** once | Empty full-chain import historically ~**145 min** (bootstrap); wallet-off reindex same class |
 | Fat + defer import to full tip (if not tip-only) | **M** ops | **L wall** per trial | Defer IBD ~ConnectBlock-only; tiny defer import ~**333 s** to h187417 (M-WAL-WITNESS-REBUILD) -- full tip scales with chain length, not note walk |
 | Tip height-walk A/B (the measurement) | **S** once tip ready | **unknown** until run | Tiny walk **skipped**; NOTEIDX scans **1403** txs; stock would scan **~801k** -- expect large NOTEIDX win; do **not** invent wall_ms |
@@ -1434,7 +1434,7 @@ Canonical home for lab inputs and scratch locations (not duplicated in Measures)
 | Short / tiny snaps | same datadir | `chainblocks-short.tgz` ~342M; `chainblocks-tiny.tgz` ~228M; sha256 sidecar |
 | Disposable full tip scratch | `reindex-profile/fulltip-812-datadir` | rsync from live (or clean archive); `zero.conf` must include `experimentalfeatures=1` + `insightexplorer=1` or node **reindexes from genesis** |
 | Bench ledger / reports | `reindex-profile/bench-summaries/` | `ledger.*` via `accumulate_bench.py`; historical TSV / memprofile |
-| Post-Sapling scratch | `reindex-profile/postsapling-datadir` | From `run_postsapling_baseline.sh` |
+| Post-Sapling scratch | `reindex-profile/postsapling-datadir` | From `postsapling_reindex.sh` |
 | DevFee ops wallets | out-of-tree DevFeeWallets | Fat-address getalldata; not ConnectBlock CPU |
 
 Bootstrap-mode datadir reset must exclude `blocks/` (M-INIT-03 / §3). Current stock campaigns use `-reindex` / `-loadblock` without FDCACHE 4x2. Script usage: **contrib/perf/README.md**. Bound ledger campaigns: **Measures.md** §8.
