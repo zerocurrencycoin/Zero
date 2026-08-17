@@ -33,6 +33,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck disable=SC1091
+. "$REPO_ROOT/contrib/perf/datadir_guard.sh"
 MODE="${1:-}"
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
 ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
@@ -45,18 +47,7 @@ TIP_TEMPLATE="${ZERO_PERF_TIP_TEMPLATE:-$REPO_ROOT/reindex-profile/fulltip-812-d
 TARGET_HEIGHT="${TARGET_HEIGHT:-8000}"
 RPCPORT="${ZERO_PERF_RPCPORT:-23956}"
 
-default_zero="$HOME/Library/Application Support/zero"
-refuse_default() {
-  local d
-  d="$(cd "$1" 2>/dev/null && pwd -P)" || d="$1"
-  case "$d" in
-    "$default_zero"|"$HOME/Library/Application Support/Zero"|"$HOME/.zero")
-      echo "ERROR: scratch must not be default user datadir: $d" >&2
-      exit 1
-      ;;
-  esac
-}
-refuse_default "$SCRATCH"
+refuse_live_datadir SCRATCH "$SCRATCH"
 
 if [ -z "$MODE" ]; then
   echo "Usage: $0 dirty-cont|rebuild|rebuild-noteidx|tip-rebuild|tip-rebuild-note" >&2
@@ -122,7 +113,7 @@ prepare_tip_scratch() {
     echo "ERROR: ZERO_PERF_TIP_TEMPLATE missing blocks/ or chainstate/: $TIP_TEMPLATE" >&2
     exit 1
   fi
-  refuse_default "$TIP_TEMPLATE"
+  refuse_live_datadir TIP_TEMPLATE "$TIP_TEMPLATE"
   if [ "$(cd "$TIP_TEMPLATE" 2>/dev/null && pwd -P)" = "$(cd "$SCRATCH" 2>/dev/null && pwd -P)" ]; then
     echo "ERROR: scratch must differ from TIP_TEMPLATE (refusing to clobber template)" >&2
     exit 1

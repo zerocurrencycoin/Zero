@@ -67,6 +67,8 @@ else
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck disable=SC1091
+. "$REPO_ROOT/contrib/perf/datadir_guard.sh"
 ZEROD="$REPO_ROOT/src/zerod"
 ZERO_CLI="$REPO_ROOT/src/zero-cli"
 # Read-only source for rsync resets. Override with ZERO_PERF_SRC_DATADIR.
@@ -75,20 +77,7 @@ SRC_DATADIR="${ZERO_PERF_SRC_DATADIR:-$HOME/Library/Application Support/zero}"
 SCRATCH_DATADIR="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/datadir}"
 RPCPORT=23921   # distinct from capture_sequence.sh's 23920, in case both run near each other
 
-default_datadir_mac="$HOME/Library/Application Support/zero"
-default_datadir_mac_alt="$HOME/Library/Application Support/Zero"
-refuse_default_datadir() {
-    local label="$1" d
-    d="$(cd "$2" 2>/dev/null && pwd -P)" || d="$2"
-    case "$d" in
-        "$default_datadir_mac"|"$default_datadir_mac_alt"|"$HOME/.zero")
-            echo "ERROR: $label must not be the default user datadir: $d" >&2
-            echo "Set ZERO_PERF_SCRATCH_DATADIR to a disposable path under the repo or \$TMPDIR." >&2
-            exit 1
-            ;;
-    esac
-}
-refuse_default_datadir "scratch datadir" "$SCRATCH_DATADIR"
+refuse_live_datadir SCRATCH "$SCRATCH_DATADIR"
 if [ "$(cd "$SRC_DATADIR" 2>/dev/null && pwd -P)" = "$(cd "$SCRATCH_DATADIR" 2>/dev/null && pwd -P)" ]; then
     echo "ERROR: SRC_DATADIR and SCRATCH_DATADIR must differ (source is read-only)." >&2
     exit 1

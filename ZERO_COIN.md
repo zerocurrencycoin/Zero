@@ -258,6 +258,7 @@ Consensus-model totals from `GetBlockSubsidy` + 7.5% dev + tiered nodes share (s
 ./contrib/stats/decode_coinbase.py --heights 2400000
 ./contrib/stats/decode_coinbase.py --start 2471200 --count 200 --summary
 ./contrib/stats/chain_stats.py --scan 2471200 200
+./contrib/stats/chain_stats.py --zn-pay 2400000 200   # TNT-04: zn amount vs model
 ```
 
 | Flag | Default | Purpose |
@@ -268,6 +269,7 @@ Consensus-model totals from `GetBlockSubsidy` + 7.5% dev + tiered nodes share (s
 | `--cli PATH` | `src/zero-cli` | RPC client |
 | `--verify` | off | Model subsidy sum vs live tip |
 | `--scan START COUNT` | off | Coinbase vout histogram |
+| `--zn-pay START COUNT` | off | Zeronode vout vs model amount (TNT-04; synced node) |
 
 Split totals (through height 2,400,000):
 

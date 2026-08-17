@@ -330,6 +330,8 @@ cd ~/Work/ZK/Zero400
 | `getpeerinfo` | Live connections, ping, bytes, sync state | Connected peers only; no addrman |
 | `getnetworkinfo` | Connection counts, network active, relay fee | No per-address geography |
 | `debug.log` + `logips=1` | Handshake IPs, DNS load, dial failures | No structured metrics; verbose |
+| `contrib/perf/stall_check.py` | UpdateTip gaps, timeout bursts, clock warn | `--datadir` / `--log` / `--rotated` (debuglog.py) |
+| `contrib/perf/extract_measures.py` | Marker durations / height_per_s | Same path spec; `--env insight\|wallet` to cite |
 | `debug=net` | Addr add/select detail (`LogPrint addrman`) | Very noisy; not for production |
 | `peers.dat` size + mtime | Persistence health | Opaque binary; no field visibility |
 

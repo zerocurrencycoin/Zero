@@ -778,7 +778,7 @@ Boost/regtest: R8 is this gtest. Fat `-rescan` rematch is a lab measure (M-WAL-R
 1. **Cycle 1:** FIX-WAL-WITNESS-NOTEIDX-STALE + gtest R8 (connect-style and disconnect-style `AddToWallet` in the same suite). Do not fold in skip-`AddToWallet` on `fUpdate`, WALK-UNLOCK, incremental `vNoteTxHashes` `push_back`, or `ibd-defer`.
 2. Rematch M-WAL-RESCAN-FAT-CPU in the post-1.6M band (measure gate above). Optional: one full `-rescan` after STALE if the CPU rematch is ambiguous. Same cycle, not a separate product PR.
 3. After rematch: flag collapse below (NOTEIDX default; drop `-walletwitnessnote`). Keep `ibd-defer` opt-in until the existing default-on gate.
-4. **Cycle 2:** TNT-02 reject-and-stay at 99 + Decrement no `exit(1)` + R5d. Not TENT follow, not Zebra-1000. Independent of STALE. See §0.16 cycles.
+4. **Cycle 2:** Decrement no `exit(1)` + recovery. **TNT-02** reject-and-stay is not scheduled (keep 99 + exit). Not TENT follow, not Zebra-1000. See §0.16 cycles.
 
 | Axis | Assessment |
 |------|------------|
@@ -1174,7 +1174,7 @@ Do **not** choose a cache shorter than the apply cap. If `WITNESS_CACHE_SIZE < M
 | Cycle | Bundle | Deps | Impact | Effort | Risk | Validation |
 |-------|--------|------|--------|--------|------|------------|
 | **1 -- witness perf** | Package A: STALE + R8 both `AddToWallet` flavors. After rematch: flag collapse (NOTEIDX default; drop `-walletwitnessnote`). | NOTEIDX prototype in tree | **High** fat `-rescan`/IBD after 1.6M (M-WAL-RESCAN-FAT) | **S** then **S** for flags | **Med** missed note invalidate | R8 gtest; campaign `SET=gate` (fat tiny + optional full rescan); post-1.6M CPU if tiny is ambiguous |
-| **2 -- stay up** | Packages C+D: TNT-02 reject-and-stay at 99; drop `StartShutdown`; no `exit(1)` in Decrement; recovery 2/3; R5d | None on A (independent). R5b already covers applied 1/3/10/20 | **High** ops/zeronodes (exit takes the node off relay) | **M** | **Med** (must not apply the fork; headers already in `mapBlockIndex`) | R5d e2e; rematch `SET=gate` vs Cycle 1 ledger; GTest-DEC follow-on for rebuild-if-short |
+| **2 -- stay up** | Decrement no `exit(1)`; recovery 2/3. **TNT-02** reject-and-stay is **not scheduled** (keep 99 + exit). | None on A | **Med** (crash recovery) | **M** | **Med** | GTest-DEC follow-on for rebuild-if-short |
 | **3 -- cap sizing** | Packages F then optional G: move 99 only with `WITNESS_CACHE_SIZE >= cap+1` / `keeptxfornblocks` / rewind; optional `-maxreorg` as reject-bound | Cycle 2 proven | **Med** (memory, rebuild cost) | **M-L** | **High** if deque shallower than apply bound | Memory/rebuild review; rematch campaign + RSS; not Zebra-1000 by default |
 
 **Parallel tracks** (do not wait on Cycle 1; do not batch into Cycle 2):
@@ -1428,8 +1428,7 @@ Canonical home for lab inputs and scratch locations (not duplicated in Measures)
 
 | Role | Location | Notes |
 |------|----------|-------|
-| Original `bootstrap.dat` | Zero400 `contrib/linearize/bootstrap.dat` | Regenerated **2026-08-13** (~5.04 GiB); hashlist heights **0-2468990**; magic ZERO `5a45524f`. Live tip ~2518018 is ahead. Lab softlink: `reindex-profile/bootstrap-src/bootstrap.dat`. Smoke: **M-BOOT-NEW-20260813**. Read-only / copy only. |
-| Older bootstrap | `OLD/ZeroMac/contrib/linearize/bootstrap.dat` (~4.8G) | Different generation; not the Zero400 original |
+| Original `bootstrap.dat` | Out-of-tree `~/Work/ZK/linearize/bootstrap.dat` | Regenerated **2026-08-13** (~5.04 GiB); hashlist heights **0-2468990**; magic ZERO `5a45524f`. Live tip ~2518018 is ahead. Moved out of `Zero400/contrib/linearize/` **2026-08-16** (repo tree keeps only `hashlist.txt` + the `linearize-*.py` scripts). Lab softlink: `reindex-profile/bootstrap-src/bootstrap.dat`. Smoke: **M-BOOT-NEW-20260813**. Read-only / copy only. |
 | Full chain snap | macOS Application Support `zero/` | Live tip **2518018** (verified); `blocks/` ~10G + `chainstate` ~619M + `blocks/index` ~4.7G. Live tree may have **xattrs** (`com.apple.provenance`) with **no** on-disk `._*` (`find . -name '._*'` empty) -- macOS `tar` still emits AppleDouble into archives unless `COPYFILE_DISABLE=1`. Prefer **`chainblocks812-clean.tgz`** (~8.5G) or rsync. Older `chainblocks812.tgz` may include `._*`. Tip transplant needs `insightexplorer=1`. |
 | Short / tiny snaps | same datadir | `chainblocks-short.tgz` ~342M; `chainblocks-tiny.tgz` ~228M; sha256 sidecar |
 | Disposable full tip scratch | `reindex-profile/fulltip-812-datadir` | rsync from live (or clean archive); `zero.conf` must include `experimentalfeatures=1` + `insightexplorer=1` or node **reindexes from genesis** |

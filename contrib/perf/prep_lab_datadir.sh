@@ -18,6 +18,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck disable=SC1091
+. "$REPO_ROOT/contrib/perf/datadir_guard.sh"
 CMD="${1:-all}"
 LAB="${LAB:-$REPO_ROOT/reindex-profile/mainnet-p2p-23911}"
 SRC="${SRC:-$REPO_ROOT/reindex-profile/fulltip-812-datadir}"
@@ -27,28 +29,12 @@ if [ "${ARCHIVE+set}" != "set" ]; then
   ARCHIVE="$DEFAULT_ARCHIVE"
 fi
 
-default_zero="$HOME/Library/Application Support/zero"
-zero400="$HOME/Work/ZK/Zero400"
-
 resolve() {
   (cd "$1" 2>/dev/null && pwd -P) || echo "$1"
 }
 
 refuse_protected() {
-  local d label="$1"
-  d="$(resolve "$2")"
-  case "$d" in
-    "$default_zero"|"$HOME/Library/Application Support/Zero"|"$HOME/.zero")
-      echo "ERROR: $label must not be the default user datadir: $d" >&2
-      exit 1
-      ;;
-  esac
-  case "$d" in
-    "$zero400"|"$zero400"/*)
-      echo "ERROR: $label must not be under Zero400: $d" >&2
-      exit 1
-      ;;
-  esac
+  refuse_live_datadir "$1" "$2"
 }
 
 usage() {

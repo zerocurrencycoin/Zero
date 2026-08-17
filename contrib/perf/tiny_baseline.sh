@@ -13,6 +13,8 @@ set -euo pipefail
 
 SNAP="${1:-tiny}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck disable=SC1091
+. "$REPO_ROOT/contrib/perf/datadir_guard.sh"
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
 ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
 ZERO_HOME="${ZERO_PERF_ARCHIVE_DIR:-$HOME/Library/Application Support/zero}"
@@ -26,15 +28,7 @@ case "$SNAP" in
 esac
 
 LAB="${LAB:-${TMPDIR:-/tmp}/zero-lab-${SNAP}-baseline-$$}"
-default_zero="$HOME/Library/Application Support/zero"
-default_zero_alt="$HOME/Library/Application Support/Zero"
-lab_res="$(cd "$LAB" 2>/dev/null && pwd -P || echo "$LAB")"
-case "$lab_res" in
-  "$default_zero"|"$default_zero_alt"|"$HOME/.zero")
-    echo "ERROR: LAB must not be the default user datadir: $lab_res" >&2
-    exit 1
-    ;;
-esac
+refuse_live_datadir LAB "$LAB"
 
 if [ ! -x "$ZEROD" ]; then
   echo "ERROR: missing $ZEROD" >&2

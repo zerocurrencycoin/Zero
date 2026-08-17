@@ -205,6 +205,75 @@ def resolve_through(cli, thru_arg):
         return HALVING_4_START
 
 
+def vout_zat(vout):
+    if "valueSat" in vout:
+        return int(vout["valueSat"])
+    return int(round(float(vout["value"]) * COIN))
+
+
+def scan_zn_pay(cli, start, count, examples=8):
+    """Compare coinbase non-founders vouts to model GetZeronodePayment (sporks on).
+
+    Classifies each height:
+      exact  -- some non-founders vout equals model zn amount
+      over   -- closest non-founders vout is above model (candidate overpay)
+      under  -- closest is below model
+      missing -- no non-founders vout, or closest off by more than 1% of model
+    """
+    n_exact = n_over = n_under = n_missing = n_err = 0
+    samples = []
+    for h in range(start, start + count):
+        expected = nodes_zat(h)
+        try:
+            bh = rpc(cli, "getblockhash", str(h))
+            block = rpc(cli, "getblock", bh, "2")
+        except subprocess.CalledProcessError as e:
+            print("RPC error height {}: {}".format(h, e), file=sys.stderr)
+            n_err += 1
+            continue
+        non_dev = []
+        for v in block["tx"][0]["vout"]:
+            spk = v.get("scriptPubKey", {})
+            addrs = spk.get("addresses") or []
+            if addrs and addrs[0] in DEV_ADDRS:
+                continue
+            non_dev.append(vout_zat(v))
+        if expected <= 0 or not non_dev:
+            n_missing += 1
+            if len(samples) < examples:
+                samples.append((h, "missing", 0, expected))
+            continue
+        best = min(non_dev, key=lambda z: abs(z - expected))
+        delta = best - expected
+        if delta == 0:
+            n_exact += 1
+            kind = "exact"
+        elif abs(delta) * 100 > expected:
+            n_missing += 1
+            kind = "missing"
+        elif delta > 0:
+            n_over += 1
+            kind = "over"
+        else:
+            n_under += 1
+            kind = "under"
+        if kind != "exact" and len(samples) < examples:
+            samples.append((h, kind, best, expected))
+
+    scanned = n_exact + n_over + n_under + n_missing
+    print("=== Zeronode payee amount vs model (TNT-04) ===")
+    print("heights {:,}-{:,}  scanned {}  rpc_errors {}".format(
+        start, start + count - 1, scanned, n_err))
+    print("exact {}  over {}  under {}  missing/off-model {}".format(
+        n_exact, n_over, n_under, n_missing))
+    print("model assumes SPORK_7+SPORK_6 on; founders vouts excluded by address.")
+    print("`==` rejects overpay only when winner votes exist and SPORK_8 is on.")
+    if samples:
+        print("non-exact samples (height kind paid_zat model_zat):")
+        for h, kind, paid, exp in samples:
+            print("  {} {} {} {}".format(h, kind, paid, exp))
+
+
 def scan_coinbases(cli, start, count):
     hist = {}
     dual_miner = {}
@@ -269,6 +338,7 @@ Examples (run from repo root; src/zerod must be running for RPC modes):
   %(prog)s --cons --dev
   %(prog)s --verify
   %(prog)s --scan 2471200 200
+  %(prog)s --zn-pay 2400000 200
 
 Default CLI: {cli}
 """.format(cli=DEFAULT_CLI)
@@ -279,7 +349,7 @@ Default CLI: {cli}
     p.add_argument(
         "--cons", action="store_true",
         help="Print consensus emission report from the subsidy model "
-             "(default when neither --verify nor --scan is given).")
+             "(default when neither --verify, --scan, nor --zn-pay is given).")
     p.add_argument(
         "--thru", type=int, nargs="?", const=-1, default=-1, metavar="HEIGHT",
         help="Cumulative through chain tip (default). "
@@ -299,9 +369,12 @@ Default CLI: {cli}
     p.add_argument(
         "--scan", nargs=2, type=int, metavar=("START", "COUNT"),
         help="Scan coinbase vout layout over START .. START+COUNT-1 via RPC.")
+    p.add_argument(
+        "--zn-pay", nargs=2, type=int, metavar=("START", "COUNT"),
+        help="Scan coinbase zeronode amounts vs model (TNT-04). Requires RPC.")
     args = p.parse_args()
 
-    run_cons = args.cons or (not args.verify and not args.scan)
+    run_cons = args.cons or (not args.verify and not args.scan and not args.zn_pay)
     if run_cons:
         if args.thru == -1:
             through = resolve_through(args.cli, None)
@@ -312,6 +385,8 @@ Default CLI: {cli}
         verify_tip(args.cli)
     if args.scan:
         scan_coinbases(args.cli, args.scan[0], args.scan[1])
+    if args.zn_pay:
+        scan_zn_pay(args.cli, args.zn_pay[0], args.zn_pay[1])
     return 0
 
 

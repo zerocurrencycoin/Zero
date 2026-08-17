@@ -27,6 +27,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck disable=SC1091
+. "$REPO_ROOT/contrib/perf/datadir_guard.sh"
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
 ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
 SRC_DATADIR="${ZERO_PERF_SRC_DATADIR:-$HOME/Library/Application Support/zero}"
@@ -42,18 +44,7 @@ RESUME="${RESUME:-0}"
 TARGET_HEIGHT="${TARGET_HEIGHT:-}"
 ZEROD_EXTRA_ARGS="${ZEROD_EXTRA_ARGS:-}"
 
-default_zero="$HOME/Library/Application Support/zero"
-refuse_default() {
-  local d
-  d="$(cd "$1" 2>/dev/null && pwd -P)" || d="$1"
-  case "$d" in
-    "$default_zero"|"$HOME/Library/Application Support/Zero"|"$HOME/.zero")
-      echo "ERROR: scratch must not be default user datadir: $d" >&2
-      exit 1
-      ;;
-  esac
-}
-refuse_default "$SCRATCH"
+refuse_live_datadir SCRATCH "$SCRATCH"
 
 if [ -z "$WALLET_FILE" ] || [ ! -f "$WALLET_FILE" ]; then
   echo "ERROR: set ZERO_PERF_WALLET_FILE to an existing wallet.zero*" >&2

@@ -35,7 +35,7 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 3. **Cycle 1** -- **FIX-WAL-WITNESS-NOTEIDX-STALE** + R8 (**Perf.md** §0.14 / §0.16). Fat-wallet perf. Then flag collapse after rematch.
 4. **Track M** -- **G5** mainnet (192,7) timed solve + Instruments. Parallel with Cycle 1. Groth G2/G3 still after G5/G9.
 5. **Track Z Phase A** -- **TST-03** / **TNT-12** zeronode RPC arg validation + DOC-02 docs steps 1-2. Parallel. Phase C 2-node after A/B.
-6. **Cycle 2** -- TNT-02 reject-and-stay + Decrement no `exit(1)` + R5d. After Cycle 1 or overlapping if STALE is merged.
+6. **Cycle 2** -- Decrement no `exit(1)` + recovery (**Perf.md**). **TNT-02** reject-and-stay is **not scheduled** (keep 99 + exit).
 7. **WAL-GETALLDATA-W5** -- **revisit soon** (stashed on Zerowallet; pro/con below).
 8. **TST-01** remainder / **TST-05** -- harness gaps. **TST-09** done. **getalldata_scenario** Ext-validated (2026-07-24).
 9. Postponed bucket (see Pending): **WAL-LOCKEDPOOL**, **OPS-CACHE-METRICS**, **OPS-TXINDEX-DEFAULT**, **OPS-AT-HEIGHT**, **TST-WITNESS-REINDEX**, **OPS-REINDEX** remainder, **OPS-ALERT-STRIP**, **DOC-FR-NAMING**, other getalldata W-items / ARG2 / UI window.
@@ -56,7 +56,7 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 - ~~**Stable subsidy arithmetic**~~ -- **done** (helper + tests); keep ZERO_COIN as normative description
 - RPC coverage matrix: `RPCs.csv` (`zero=y`) vs harness depth + client grep -> `RPCs_extended.csv` / `RPC_coverage.csv`
 - **TST-01** -- exclusive getalldata gates and Ext `getalldata_scenario` are **working**; under development: `getsupply` / `zs_*` / sapling depth. Run: `./src/test/test_bitcoin --run_test=rpc_zero_exclusive_tests` ; `./qa/pull-tester/rpc-tests.sh getalldata_scenario`
-- **TST-03** -- `zeronodestats` + zeronode/budget subcmds; arg validation **scheduled Track Z Phase A** (under development)
+- **TST-03** -- `zeronodestats` + zeronode/budget subcmds; Boost **A** in `rpc_zeronode_tests` / `rpc_zeronode_budget_tests`; Python **B/C** `zeronode_coinbase.py` / `zeronode_startalias.py` (Tier B)
 - **TST-05** -- wire genesis (192,7) indices from `1927EQ.txt` + (48,5) KATs (under development)
 - **TST-09** -- **done** (alert + block + wallet notify default-build skip markers in `DeprecationTest`)
 - **WAL-GETALLDATA-W5** -- **revisit soon** (see Full descriptions)
@@ -86,7 +86,7 @@ Public docs (README, BUILD_ZERO, TEST_ZERO, ZERO_COIN, this file, CONTRIBUTING, 
 - `txindex.py` -- Bfail Debug; promote after green
 - FR-ROTATE / FR-TADDR / FR-Z -- postponed
 - v4.0.1 Linux RC (lazu) -- see TEST_ZERO 4.0.1 handoff
-- P2P logging (`Unknown command` after zn dispatch) -- postponed (zeronode extension path)
+- P2P logging after zn dispatch -- **done** (TNT-01; else-branch has no `Unknown command`)
 - macOS libtool `-bind_at_load` -- export `MACOSX_DEPLOYMENT_TARGET=15.0` from build system
 - Params archival / Windows hardening / branch-id CI / OpenSSL 3 / SwiftTX strip / release branch cleanup / Debian packaging / GitHub org cleanup
 

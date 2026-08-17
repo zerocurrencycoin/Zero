@@ -27,6 +27,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck disable=SC1091
+. "$REPO_ROOT/contrib/perf/datadir_guard.sh"
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
 ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
 SRC_DATADIR="${ZERO_PERF_SRC_DATADIR:-$HOME/Library/Application Support/zero}"
@@ -44,19 +46,7 @@ RPCPORT="${ZERO_PERF_RPCPORT:-23926}"
 SAMPLE_UTIL="${SAMPLE_UTIL:-1}"
 UTIL_PERIOD_S="${UTIL_PERIOD_S:-30}"
 
-default_zero="$HOME/Library/Application Support/zero"
-default_zero_alt="$HOME/Library/Application Support/Zero"
-refuse_default() {
-  local d
-  d="$(cd "$1" 2>/dev/null && pwd -P)" || d="$1"
-  case "$d" in
-    "$default_zero"|"$default_zero_alt"|"$HOME/.zero")
-      echo "ERROR: scratch must not be default user datadir: $d" >&2
-      exit 1
-      ;;
-  esac
-}
-refuse_default "$SCRATCH"
+refuse_live_datadir SCRATCH "$SCRATCH"
 if [ ! -d "$SRC_DATADIR/blocks" ]; then
   echo "ERROR: SRC_DATADIR lacks blocks/: $SRC_DATADIR" >&2
   exit 1

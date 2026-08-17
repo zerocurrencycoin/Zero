@@ -609,7 +609,7 @@ On `ConnectBlock` with `-insightexplorer`:
 5. Wallet: `SyncWithWallets` then `ChainTip` (witness cache, optional consolidation) -- **section 8**.
 6. Update mempool address index for unconfirmed txs when `fAddressIndex`.
 
-On an **applied** reorg (`reorgLength <= MAX_REORG_LENGTH` = 99): `DisconnectTip` reverses insight keys, `SyncWithWallets(tx, NULL)`, `ChainTip(..., added=false)` -> `DecrementNoteWitnesses`. On an **excessive** reorg (`> 99`): `ActivateBestChainStep` returns **before** disconnect; headers may already be in `mapBlockIndex`. Today the node then `StartShutdown()` (**UpdateZero** TNT-02 / DEF-07; intended: reject-and-stay, **Perf.md** §0.16 Cycle 2). Family comparison: **`~/Work/ZK/ZKs/Comparison.md` §14.5**.
+On an **applied** reorg (`reorgLength <= MAX_REORG_LENGTH` = 99): `DisconnectTip` reverses insight keys, `SyncWithWallets(tx, NULL)`, `ChainTip(..., added=false)` -> `DecrementNoteWitnesses`. On an **excessive** reorg (`> 99`): `ActivateBestChainStep` returns **before** disconnect; headers may already be in `mapBlockIndex`. The node then `StartShutdown()` (**UpdateZero** DEF-07; keep 99 + exit). Family comparison: **`~/Work/ZK/ZKs/Comparison.md` §14.5**.
 
 Same connect-order heritage as zcashd; Zero adds coinbase split and zeronode hooks in validation. Applied-reorg insight reverse: **`addressindex.py`** / **`TEST_ZERO.md`**.
 

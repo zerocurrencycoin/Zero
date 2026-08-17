@@ -28,7 +28,7 @@ Clone paths: `~/Work/ZK/ZKs/zebra`, `~/Work/ZK/ZKs/ycash-zebra`. Index: **`ZKRep
 
 Zebra is an alternate **full-node validator**, not a drop-in replacement for `zerod` + wallet + zeronode RPC.
 
-**Reorg policy (fact, not a Zero port).** Zebra PR #10650 (v5.2.0, 2026-06) raised the non-finalized window 100 -> 1000 without changing coinbase maturity (100). Past that height the fork is refused; RocksDB finality holds; the process stays up. Family table: **`~/Work/ZK/ZKs/Comparison.md` §14.5**. Zero Cycle 2 is reject-and-stay at **99**, not a copy of 1000 (**Perf.md** §0.16 / **UpdateZero** TNT-03).
+**Reorg policy (fact, not a Zero port).** Zebra PR #10650 (v5.2.0, 2026-06) raised the non-finalized window 100 -> 1000 without changing coinbase maturity (100). Past that height the fork is refused; RocksDB finality holds; and the process stays up. Family table: **`~/Work/ZK/ZKs/Comparison.md` §14.5**. Zero keeps **99 + exit**; that is not a copy of Zebra 1000 (**UpdateZero** 3.5.1).
 
 ---
 

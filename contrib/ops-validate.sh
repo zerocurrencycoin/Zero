@@ -28,24 +28,29 @@
 #   ZERO_OPS_WALLET_P0 / P1 / FAT   catalog paths (default SRC/wallet.zero0, personalbak, wallet.zero)
 #   ZERO_OPS_SNAP      tiny|short|full  (reindex/rescan chain; default tiny). also snap=tiny
 #   ZERO_OPS_TARGET    stop height (default 100000). all = to end / snap tip
-#   ZERO_OPS_BOOTSTRAP / LOADBLOCK   bootstrap.dat copy (not the Zero400 original)
+#   ZERO_OPS_BOOTSTRAP / LOADBLOCK   bootstrap.dat copy (not the lab original)
 #   ZERO_OPS_KEEP      1 = do not stop LAB zerod (then attach / stop)
 #   ZERO_RPCPORT       LAB rpcport (default 23941). live uses SRC conf rpcport.
 #   ZERO_OPS_WAIT      seconds to wait (default 1800)
 #   ZERO_OPS_LEDGER    append-only JSONL
 #   ZERO400            extra refuse path for LAB
+#   LINEARIZE_DIR      out-of-tree linearize dir holding the original bootstrap.dat
+#                      (default ~/Work/ZK/linearize)
 set -euo pipefail
 ME="ops-validate"
 # shellcheck disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/../zcutil/fzero.sh"
 cd "$REPO_ROOT"
+# shellcheck disable=SC1091
+. "$REPO_ROOT/contrib/perf/datadir_guard.sh"
 
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
 ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
 LAB="${ZERO_OPS_LAB:-${TMPDIR:-/tmp}/zero-ops-validate}"
 RPCPORT="${ZERO_RPCPORT:-23941}"
 WAIT_S="${ZERO_OPS_WAIT:-1800}"
-ZERO400="${ZERO400:-$HOME/Work/ZK/Zero400}"
+export ZERO400="${ZERO400:-$HOME/Work/ZK/Zero400}"
+LINEARIZE_DIR="${LINEARIZE_DIR:-$HOME/Work/ZK/linearize}"
 SRC="${ZERO_OPS_SRC:-$HOME/Library/Application Support/zero}"
 SNAP="${ZERO_OPS_SNAP:-tiny}"
 WALLET_FILE="${ZERO_OPS_WALLET:-${ZERO_PERF_WALLET_FILE:-}}"
@@ -105,38 +110,7 @@ usage() {
 
 resolve() { (cd "$1" 2>/dev/null && pwd -P) || echo "$1"; }
 
-is_default_datadir() {
-  local d x
-  d="$(resolve "$1")"
-  for x in \
-    "$HOME/Library/Application Support/zero" \
-    "$HOME/Library/Application Support/Zero" \
-    "$HOME/.zero"
-  do
-    [[ -e "$x" ]] || continue
-    [[ "$d" == "$(resolve "$x")" ]] && return 0
-  done
-  return 1
-}
-
-refuse_lab() {
-  local d
-  d="$(resolve "$1")"
-  if is_default_datadir "$d"; then
-    echo "ERROR: LAB must not be the default user datadir: $d" >&2
-    exit 1
-  fi
-  if [[ -d "$ZERO400" ]]; then
-    local z4
-    z4="$(resolve "$ZERO400")"
-    case "$d" in
-      "$z4"|"$z4"/*)
-        echo "ERROR: LAB must not be under Zero400: $d" >&2
-        exit 1
-        ;;
-    esac
-  fi
-}
+refuse_lab() { refuse_live_datadir LAB "$1"; }
 
 src_rpcport() {
   local conf="$1/zero.conf" p=""
@@ -522,8 +496,8 @@ case "$CMD" in
       echo "ERROR: set ZERO_OPS_BOOTSTRAP or LOADBLOCK to a bootstrap.dat copy" >&2
       exit 1
     }
-    if [[ "$(resolve "$BOOTSTRAP")" == "$(resolve "$ZERO400/contrib/linearize/bootstrap.dat" 2>/dev/null || echo "")" ]]; then
-      echo "ERROR: pass a copy of bootstrap.dat, not the Zero400 original" >&2
+    if [[ "$(resolve "$BOOTSTRAP")" == "$(resolve "$LINEARIZE_DIR/bootstrap.dat" 2>/dev/null || echo "")" ]]; then
+      echo "ERROR: pass a copy of bootstrap.dat, not the lab original" >&2
       exit 1
     fi
     if pgrep -x zerod >/dev/null 2>&1; then

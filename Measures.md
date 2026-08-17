@@ -384,7 +384,7 @@ Shipped filter-then-process path: `contrib/perf/extract_measures.py` (plus `tiny
 ### 7.2 Accuracy
 
 - Timestamps: parse debug.log clock; for xctrace, correlate `--toc` start-date to UTC UpdateTip (**Perf.md** §1).
-- Rates: `(h1-h0)/(t1-t0)` from first/last UpdateTip in window; reject clock skew or tip stalls.
+- Rates: `(h1-h0)/(t1-t0)` from first/last UpdateTip in window; reject clock skew or tip stalls. Log path spec: `contrib/perf/debuglog.py`. Write to live/Zero400: refused unless `ZERO_PERF_ALLOW_LIVE_DATADIR=1`. Operator stall scan is not a Measures campaign.
 - Always record: wallet on/off, `dbcache`, `height_start/end`, host OS/CPU, binary version; tag `env=insight` when that deployment is in use.
 - Soft RPC ages (drain) are not ConnectBlock rates -- keep `op_class` distinct.
 - Prefer stock markers for cross-host tooling; gate `zero_perf` / xctrace as optional enrichments.

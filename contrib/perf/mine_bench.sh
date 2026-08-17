@@ -19,6 +19,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck disable=SC1091
+. "$REPO_ROOT/contrib/perf/datadir_guard.sh"
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
 ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
 MODE="${1:-regtest}"
@@ -32,18 +34,7 @@ SAMPLE_UTIL="${SAMPLE_UTIL:-1}"
 CAMPAIGN="${CAMPAIGN:-mine-equihash-${MODE}}"
 NEON_ZEROD="${ZERO_PERF_NEON_ZEROD:-}"
 
-default_zero="$HOME/Library/Application Support/zero"
-refuse_default() {
-  local d
-  d="$(cd "$1" 2>/dev/null && pwd -P)" || d="$1"
-  case "$d" in
-    "$default_zero"|"$HOME/Library/Application Support/Zero"|"$HOME/.zero")
-      echo "ERROR: scratch must not be default user datadir: $d" >&2
-      exit 1
-      ;;
-  esac
-}
-refuse_default "$SCRATCH"
+refuse_live_datadir SCRATCH "$SCRATCH"
 
 if [ ! -x "$ZEROD" ]; then
   echo "ERROR: missing $ZEROD" >&2

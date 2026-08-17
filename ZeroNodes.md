@@ -2,57 +2,55 @@
 
 ## 1. Purpose and role
 
-**Purpose:** Run a **zeronode** on mainnet or testnet -- collateral, config, RPC, sporks, and pointers to economics docs.
+**Purpose:** Run a **zeronode** on mainnet or testnet -- collateral, config, RPC, sporks, and what the node does on a deep reorg.
 
-**Include:** Operator setup, spork effects, coinbase order summary, P2P/discovery, testing pointers.
+**Include:** Operator setup, spork effects, coinbase order summary, P2P/discovery, operator-visible reorg policy.
 
-**Exclude:** `CZeronodeWalletInterface` and `--disable-wallet` (**`ZeroNodeDev.md`**); TNT execution (**`UpdateZero.md`** section **3.5**); port/reject anchors (**`ZeroNodeDev.md`** section **9**); insight/explorer flags (**`Runtime.md`**).
+**Exclude:** `CZeronodeWalletInterface` and `--disable-wallet` (**`ZeroNodeDev.md`**); TNT execution catalog (**`UpdateZero.md`** section **3.5**); ZND anchors (**`ZeroNodeDev.md`** section **4**); test phases (**`ZeroNodeDev.md`** section **5**); file map (**`TENTZero.md`**); emission tables (**`ZERO_COIN.md`**); family reorg compare (**`~/Work/ZK/ZKs/Comparison.md`** section **14.5**); insight/explorer flags (**`ZeroStruct.md`**).
 
-Developer documents in **UpdateZero.md** section **1**, **Documentation map**. **Developers:** **`ZeroNodeDev.md`**.
-
-Last updated: Jun 2026.
+Developer documents in **UpdateZero.md** section **1**. **Developers:** **`ZeroNodeDev.md`**.
 
 ---
 
-## 2. TENT relationship
+## 2. What a zeronode is
 
-Zero's zeronode layer is a port of **TENT** (`ZKs/TENT`) masternode code into `src/zeronode/` (wire commands renamed `mn*` -> `zn*`). TENT kept a treasury coinbase output and direct `pwalletMain` access; Zero removed the treasury and added **`CZeronodeWalletInterface`**. File map: **`TENTZero.md`**. Port/reject detail: **`ZeroNodeDev.md`** section **9**; execution order: **`UpdateZero.md`** section **3.5**.
+Zero's zeronode layer is a renamed port of frozen TENT masternode code. File map: **`TENTZero.md`**.
 
----
-
-## 3. What a zeronode is
-
-- **Collateral:** 10,000 ZER locked UTXO
-- **Payment:** 20% -> 40% of block subsidy by 800k tiers (spork-gated)
-- **Services:** SwiftTX, budget/superblocks, P2P extensions
+- **Collateral:** 10,000 ZER locked UTXO (exact amount)
+- **Payment:** 20% -> 40% of block subsidy by 800k tiers, spork-gated
+- **Services:** SwiftTX (`SPORK_2` / `SPORK_3` **on** mainnet since 1558907000; do not strip -- **DEF-06**), budget/superblocks (those sporks remain off), P2P extensions
 
 Code: **`src/zeronode/`**.
 
 ---
 
-## 4. Coinbase order
+## 3. Coinbase order
 
 1. `GetBlockSubsidy(height)`
 2. Founders **7.5%** (mainnet heights 412300-7999999)
 3. Zeronode payee (`GetZeronodePayment` or budget)
 4. Miner + fees
 
-Tables: **`ZERO_COIN.md`** (emission totals and `contrib/stats/` tooling).
+Amounts and `contrib/stats/` commands: **`ZERO_COIN.md`**.
 
 ---
 
-## 5. Sporks
+## 4. Sporks
+
+Unsigned default for these IDs is **off** (timestamp `4070908800`). Mainnet uses signed sporks. Regtest tests that need payees must activate the relevant sporks with `createsporkkeys` / `spork`.
 
 | Spork | Effect |
 |-------|--------|
 | `SPORK_7_ZERONODE_PAYMENT_ENABLED` | Master zeronode pay switch |
 | `SPORK_6_ZERONODE_FULL_PAYMENT_ENABLED` | Tier schedule vs 100000 zat fixed |
+| `SPORK_8_ZERONODE_PAYMENT_ENFORCEMENT` | Reject blocks that fail payee checks |
 | `SPORK_13_ENABLE_SUPERBLOCKS` | Budget payee path |
-| `SPORK_3_SWIFTTX_BLOCK_FILTERING` | SwiftTX in blocks |
+| `SPORK_2_SWIFTTX` | SwiftTX instant-lock (mainnet **on**) |
+| `SPORK_3_SWIFTTX_BLOCK_FILTERING` | SwiftTX in blocks (mainnet **on**) |
 
 ---
 
-## 6. Operator setup
+## 5. Operator setup
 
 ```bash
 ./zcutil/fetch-params.sh
@@ -68,21 +66,29 @@ Tables: **`ZERO_COIN.md`** (emission totals and `contrib/stats/` tooling).
 
 ---
 
+## 6. Deep reorg
+
+Settled policy: **do not apply** a reorg or unintended rewind deeper than **99** blocks (`MAX_REORG_LENGTH = 100 - 1` in `main.h`). Coinbase **maturity** is **720** (when a coinbase UTXO may be spent). Those numbers are not interchangeable.
+
+If a most-work fork would disconnect **more than 99** blocks, this node logs, shows a modal, and **`StartShutdown()`**. The fork is **not** connected. The same bound applies to an unintended rewind at startup.
+
+A reorg of **100--719** blocks therefore takes this process **off relay** while collateral can still be immature. That is accepted operator behavior, not a pending cap change. Do not raise 99 toward 720 (witness cache is `WITNESS_CACHE_SIZE = MAX_REORG_LENGTH + 1` = 100 slots). Do not copy TENT unbounded follow.
+
+Family compare: **`~/Work/ZK/ZKs/Comparison.md`** section **14.5**. Catalog IDs **TNT-02** / **TNT-03**: **`UpdateZero.md`** section **3.5.1** (keep 99; no scheduled policy change).
+
+---
+
 ## 7. P2P
 
 **Discovery:** ten DNS seeds (`seed0`..`seed9`.zerocurrency.io); `peers.dat` via `CAddrDB`. No fixed IP seeds in `chainparamsseeds.h` today.
 
-**Zeronode extensions:** `spork`, `zn winner`, `zn announce`, `zn ping`, budget messages, SwiftTX locks. Dispatch: `src/main.cpp` -> `znodeman`, `budget`, `zeronodePayments`, `zeronodeSync`.
-
-**Known issue:** spurious `Unknown command` log for handled extensions when `-debug=net` -- **`ZeroNodeDev.md`** section **9**; **`TODO.md`**.
+**Zeronode extensions:** `spork`, `zn winner`, `zn announce`, `zn ping`, budget messages, SwiftTX locks. Dispatch: `src/main.cpp` else-branch after `notfound` -> `znodeman`, `budget`, `zeronodePayments`, SwiftTX, spork, `zeronodeSync`. Handled commands do not emit `Unknown command` (**TNT-01** done in tree).
 
 ---
 
 ## 8. Testing
 
-Regtest: **`TEST_ZERO.md`**. Node test phases: **`ZeroNodeDev.md`** section **9**.
-
-**Scheduled (Track Z):** Phase A RPC argument validation **now** (TST-03 / TNT-12). Phase B founders/zeronode coinbase next. Phase C two-node `startalias` after A/B. Phase D reorg after Cycle 2 reject-and-stay. Live-chain stats: **`ZERO_COIN.md`**. Execution: **`UpdateZero.md`** §3.5 / DOC-02.
+Regtest runner: **`TEST_ZERO.md`**. Zeronode phases A-F: **`ZeroNodeDev.md`** section **5**. Live coinbase checks: **`ZERO_COIN.md`** (`chain_stats.py`).
 
 ---
 
@@ -90,7 +96,10 @@ Regtest: **`TEST_ZERO.md`**. Node test phases: **`ZeroNodeDev.md`** section **9*
 
 | Topic | Doc |
 |-------|-----|
-| Dev / TENT ports | **`ZeroNodeDev.md`** |
+| Wallet interface / tests | **`ZeroNodeDev.md`** |
+| File map | **`TENTZero.md`** |
+| TNT catalog | **`UpdateZero.md`** section **3.5** |
 | Economics | **`ZERO_COIN.md`** |
+| Reorg family | **`~/Work/ZK/ZKs/Comparison.md`** section **14.5** |
 | CVE posture | **`ZcashFixes.md`** |
 | Maintainer map | **`UpdateZero.md`** section **1** |

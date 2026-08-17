@@ -1,14 +1,14 @@
 # UpdateZero
 
-Maintainer **execution hub**. Developer documents in **UpdateZero.md** section **1**, **Documentation map**.
+Maintainer **execution map**. Developer documents in **UpdateZero.md** section **1**, **Documentation map**.
 
 ---
 
 ## 1. Documentation map
 
-**Purpose (this file):** Maintainer **execution hub** -- fork rules, cherry-pick **decisions and order**, port plans, audits, public-doc drafts pending copy.
+**Purpose (this file):** Maintainer **execution map** -- fork rules, cherry-pick **decisions and order**, port plans, audits, public-doc drafts pending copy.
 
-**Include:** CON-* rules; Pirate/TENT postponed hub + catalogs (**3.3a**, **3.4**, **3.5**, **5**); Linux binary compatibility (**3.6**); Blockbook (**4**); Proton (**6**); drafts (**7**); CSV (**8**); DOC-* audits; RPC test prescriptions. Pointers only to backlog IDs owned elsewhere.
+**Include:** CON-* rules; Pirate catalog (**3.4**, **5**); TENT catalog (**3.5**); how to pull from those tables (**3.3a**); Linux binary compatibility (**3.6**); Blockbook (**4**); Proton (**6**); drafts (**7**); CSV (**8**); DOC-* audits; RPC test prescriptions. Pointers only to backlog IDs owned elsewhere.
 
 **Exclude:** **checklist / ordered backlog status** (**TODO.md** owns Active / Pending / Ordered next); zerod structure and deep task semantics (**ZeroStruct**); zeronode operator/dev detail (**ZeroNodes**, **ZeroNodeDev**); clone/ecosystem compare (**Comparison.md**); clone paths (**ZKRepos.md**); full org repo audit (**`~/Work/ZK/Repos/ZeroC.md`**); Zebra research (**ZebraZero**).
 
@@ -65,10 +65,11 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 
 | File                            | Purpose                                               | Include                                                                                                                                     | Exclude                                                                                                |
 | ------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **UpdateZero.md**               | Decisions and execution order                         | This map; **3.3a** Pirate/TENT hub; **3.4** PIR; **3.5** TNT; **3.6** Linux compatibility; **4**--**8**                                                                 | Content owned by other rows                                                                            |
+| **UpdateZero.md**               | Decisions and execution order                         | This map; **3.3a** catalog use; **3.4** PIR; **3.5** TNT; **3.6** Linux compatibility; **4**--**8**                                          | Content owned by other rows                                                                            |
 | **ZeroStruct.md**               | **zerod** structure and options by use case           | Datadir, `-dbcache`, flags per workload, `ConnectBlock`, wallet chain ops; **section 11** client integration contract; **INT-NN** concerns (**11.7**); brief zeronode cache | Ecosystem/indexer compare (**Comparison.md**); Blockbook port (**4**); zeronode setup (**ZeroNodes**) |
-| **ZeroNodes.md**                | Run a **zeronode** (operator)                         | Collateral, conf, RPC, sporks, coinbase summary, P2P, economics pointers                                                                    | ZND table (**ZeroNodeDev** section **9**); TNT order (**3.5**); insight flags (**ZeroStruct**)         |
-| **ZeroNodeDev.md**              | **Zeronode source** (wallet boundary, TENT, tests)    | `CZeronodeWalletInterface`; library split; **ZND anchors** (section **9**); test phases                                                     | Operator workflow (**ZeroNodes**); TNT order (**3.5**)                                                 |
+| **ZeroNodes.md**                | Run a **zeronode** (operator)                         | Collateral, conf, RPC, sporks, coinbase summary, P2P, **operator-visible reorg**                                                            | ZND / TNT-12 (**ZeroNodeDev** sections **4**--**5**); TNT catalog (**3.5**); family reorg (**Comparison** §14.5) |
+| **ZeroNodeDev.md**              | **Zeronode source**                                   | `CZeronodeWalletInterface`; remaining call sites; **ZND** path anchors; **TNT-12** phases                                                   | Operator workflow / operator reorg (**ZeroNodes**); TNT catalog (**3.5**); file map (**TENTZero**)     |
+| **TENTZero.md**                 | TENT <-> Zero **file map**                            | Frozen TENT SHA; `src/masternode*` -> `src/zeronode/`                                                                                       | Port/reject table (**3.5**); tests (**ZeroNodeDev** **5**); economics (**ZERO_COIN**)                  |
 | **~/Work/ZK/ZKs/Comparison.md** | Clone **source** diffs + ecosystem services           | PoW, wallet, P2P, toolchain; **section 12** indexers/explorers/notifications; **§14.5** node reorg policy | Org audit (**Repos/ZeroC**); local paths (**ZKRepos**); zerod how-to (**ZeroStruct**)                   |
 | **~/Work/ZK/ZKs/ZKRepos.md**    | **Local clone paths** under `ZKs/`                    | Path index, `git pull` loop, Zero400 working copies                                                                                         | Ecosystem compare, org audit, zerod flags                                                                |
 | **~/Work/ZK/Repos/ZeroC.md**    | **zerocurrencycoin** org GitHub audit                 | All org repos, mobile/light stack inventory, archive tiers, **`ZeroC.csv`**                                                                 | Local paths (**ZKRepos**); cross-fork indexer compare (**Comparison** section **12**)                   |
@@ -84,8 +85,9 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 
 | File               | Audience                                                                 |
 | ------------------ | ------------------------------------------------------------------------ |
-| **ZeroNodes.md**   | Operators: `zeronode.conf`, `startalias`, sporks, collateral             |
-| **ZeroNodeDev.md** | Developers: TENT port map, wallet interface, ZND anchors (section **9**) |
+| **ZeroNodes.md**   | Operators: `zeronode.conf`, `startalias`, sporks, collateral, deep-reorg exit |
+| **ZeroNodeDev.md** | Developers: wallet interface, ZND path anchors (section **4**), TNT-12 phases (section **5**) |
+| **TENTZero.md**    | File map only (this tree)                                                |
 
 
 
@@ -95,15 +97,13 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 
 | Prefix  | Section               | Meaning                                                    | Cited in                            |
 | ------- | --------------------- | ---------------------------------------------------------- | ----------------------------------- |
-| **PIR** | **3.3a**, **3.4**, **5** | **P**irate upstream cherry-pick / review candidate      | **UpdateZero** postponed hub + tables |
-| **TNT** | **3.3a**, **3.5**     | **T**ENT upstream cherry-pick candidate                    | **UpdateZero** postponed hub + table |
-| **ZND** | **ZeroNodeDev** **9** | **Z**ero**N**ode **D**ev anchor (port/reject + file paths) | **ZeroNode** files only             |
+| **PIR** | **3.4**, **5** | **P**irate upstream cherry-pick / review candidate      | **UpdateZero** Pirate table |
+| **TNT** | **3.5**     | **T**ENT upstream cherry-pick candidate                    | **UpdateZero** TENT table |
+| **ZND** | **ZeroNodeDev** **4** | **Z**ero**N**ode **D**ev source-path anchor                | **ZeroNode** files only             |
 | **CON** | **2**                 | Zero **consensus** / engineering invariant                 | **UpdateZero** fork rules           |
 
 
-**TNT** and **ZND** cover overlapping TENT topics: **TNT** = priority and execution order here; **ZND** = technical detail in **ZeroNodeDev** section **9**. Do not cite **ZND-NN** outside **ZeroNode** files.
-
-**ZND anchors** (defined only in **ZeroNodeDev.md** section **9**): stable IDs tying each TENT-vs-Zero zeronode topic to **source paths** and a port/reject recommendation.
+**TNT** = execution catalog here (section **3.5**). **ZND** = source-path anchors in **ZeroNodeDev** section **4**. Do not cite **ZND-NN** outside **ZeroNode** files. Do not duplicate TNT recommendation rows in ZeroNodeDev or TENTZero.
 
 ### Cross-link rules
 
@@ -116,7 +116,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | Maintainer -> maintainer | One-line pointer when another file **owns** the topic |
 
 
-**Redundancy:** One owner per table or procedure. TNT execution order only here (**3.5**). ZND detail only **ZeroNodeDev** section **9**. Ecosystem/indexer compare only **Comparison.md** (section **12**). Clone paths only **ZKRepos.md**. Org repo audit only **`Repos/ZeroC.md`**. **zerod** internals and per-client requirement matrices only **ZeroStruct.md** (sections **5**, **11**). Blockbook port and Insight **execution status** only here (**section 4**); do not duplicate full `zero.conf` or RPC catalogs in **4.3** -- pointer only.
+**Redundancy:** One owner per table or procedure. TNT execution order only here (**3.5**). Reorg **product** decision only **3.5.1**. Reorg **operator** text only **ZeroNodes** section **6**. Reorg **family** table only **Comparison.md** section **14.5**. ZND paths only **ZeroNodeDev** section **4**. TNT-12 phases only **ZeroNodeDev** section **5**. File map only **TENTZero.md**. Ecosystem/indexer compare only **Comparison.md** (section **12**). Clone paths only **ZKRepos.md**. Org repo audit only **`Repos/ZeroC.md`**. **zerod** internals and per-client requirement matrices only **ZeroStruct.md** (sections **5**, **11**). Blockbook port and Insight **execution status** only here (**section 4**); do not duplicate full `zero.conf` or RPC catalogs in **4.3** -- pointer only.
 
 **ID namespaces (do not mix):**
 
@@ -124,7 +124,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 |--------|-------|---------|
 | **INT-NN** | **ZeroStruct.md** section **11.7** | Client integration concern (Insight, zerowallet, paths) |
 | **C-NN** | **UpdateZero.md** section **8** Completed | Maintainer audit log (fixed items); not **INT-NN** |
-| **PIR-NN** / **TNT-NN** | **UpdateZero.md** sections **3.3a**, **3.4**, **3.5**, **5** | Cherry-pick candidate or status (not in public TODO) |
+| **PIR-NN** / **TNT-NN** | **UpdateZero.md** sections **3.4**, **3.5**, **5** | Cherry-pick candidate or status (not in public TODO) |
 | **TST-NN** | **TEST_ZERO.md** | Test task or gate |
 | **CON-NN** | **UpdateZero.md** section **2** | Consensus / engineering invariant |
 
@@ -144,7 +144,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | **INT-*** | **ZeroStruct.md** section **11.7** |
 | **Clone wallet / P2P / shielding history** | **`ZKs/Comparison.md`** sections **3**, **4** |
 | **Indexer / explorer across coins** | **`ZKs/Comparison.md`** section **12** |
-| **PIR / TNT execution** | **UpdateZero.md** sections **3.3a**, **3.4**, **3.5** (postponed hub + tables). Not tracked in public **TODO.md**. |
+| **PIR / TNT execution** | **UpdateZero.md** **3.4** (Pirate) and **3.5** (TENT). How to pull: **3.3a**. Not a separate public TODO list. |
 
 ---
 
@@ -242,31 +242,21 @@ Verified from `depends/packages/*.mk` in each repo.
 
 
 
-### 3.3a Pirate + TENT postponed hub (UPSTREAM-PIR-TENT)
+### 3.3a Upstream catalogs
 
-**Decision (2026-07-24):** Group **all** open Pirate (**PIR-*** , section **3.4**, section **5**) and TENT (**TNT-*** , section **3.5**) cherry-pick / PR / review work into this single postponed hub. Do not schedule individual open PIR/TNT ports into public Ordered next until this hub is reopened.
+Pirate (**3.4**, **5**) and TENT (**3.5**) are separate lists. A row sitting in a table is not frozen. **Reject**, **Skip**, and **Keep current** are nos. **Port**, **Review**, **Hold**, **Defer**, and **Implement** compete with Zcash/Bitcoin ports and Zero-local work for the next **TODO.md** Ordered next slot. You pick. Insight/bitcore PRs stay in **`~/Work/ZK/insight/`**, not the node merge set.
 
-**Skip:** Insight / bitcore / explorer-host PR work (specialty ops tree only; not a Zero400 merge track).
+**Pirate -- pull from 3.4.** Next node-repo work that is actually a cherry-pick: **PIR-02** (knapsack early exit; existing `wallet_tests`). Then **PIR-05** (addr rate-limit from `bitcoin-src` or Zcash PR 6477). PIR-01 is shipped. PIR-03 leftover is product (WALK-UNLOCK), not a remaining Pirate port. PIR-06--08 is a P2P epic after PIR-05. **WAL-PIRATE-TIMESMART** (`5f0cab6ba`: `nTimeSmart = nTimeReceived`) is an emergency alternate to Zero `wtxOrdered`; it drops arrival-time semantics -- prefer the Zero path (ZeroStruct §13.4).
 
-**Still allowed outside this hub:** Zcash/Bitcoin candidates; Zero-local wallet/RPC work that is not a Pirate/TENT cherry-pick (e.g. getalldata S/W items, `wtxOrdered` Zcash align).
-
-**Related postponed alternate (Pirate-derived, not a PIR-NN row):**
-
-| ID | Area | Pirate ref | Zero status | Recommendation |
-|----|------|------------|-------------|----------------|
-| **WAL-PIRATE-TIMESMART** | Wallet insert CPU | [`5f0cab6ba`](https://github.com/PirateNetwork/pirate/commit/5f0cab6bad6e61bcc751c4c44dd98c1f3a286709) (2021-11-17): `nTimeSmart = nTimeReceived = blocktime`, skip ordered walk | Zero has incremental `wtxOrdered` (keep accounts/`TxPair`) | **Emergency alternate only** -- O(1) insert, loses arrival-time semantics. Prefer `wtxOrdered`; do not schedule while hub postponed. Structure: ZeroStruct §13.4. |
-
-**Shipped from these tables (historical, not reopened by the postpone):** PIR-01 (`ENABLE_SYSTEM_COMMAND`); OPS-PIRATE-DB modest `max_open_files` bump (ZeroStruct §13.3).
-
-Tables below remain the catalog; this hub owns **execution status**.
+**TENT -- pull from 3.5.** Next node-repo work: **TNT-12** remainder (phases **ZeroNodeDev** section **5**; C full `startalias` needs 10000 ZER, regtest emission ~3000). **TNT-04**: watch OVERPAY `LogPrintf` / `--zn-pay`; do not port `>=` without hits. TNT-01 is done. TNT-02/03: keep 99 + exit. Do not copy TENT live reorg follow, `SliceHash`, treasury, or obfuscation `ProcessMessage`.
 
 ### 3.4 Pirate upstream cherry-pick candidates (2022--2026)
 
-**Status:** Covered by **section 3.3a** (postponed hub). Do not schedule individual open PIR-* ports until 3.3a reopens. Shipped rows (e.g. PIR-01) stay historical. Insight/bitcore PRs: **skip** (specialty only).
+**Status:** This section owns PIR rows and order. Schedule a **Port**/**Review** row when it beats Ordered next. Shipped rows (PIR-01) stay historical. Insight/bitcore PRs: specialty only.
 
 **Repo:** `~/Work/ZK/ZKs/pirate` (`PirateNetwork/pirate`), Komodo assetchain C++ on zcashd lineage -- not a zeronode fork. Releases sampled: v5.5.0 (2022-06), v5.7.0 (2023-06), v5.8.x (2024-03), v5.9.x (2024-09). Recent tip work is mostly build/CI/Komodo merges; portable fixes are scattered single commits.
 
-**Where other Pirate research lives:** Wallet algorithms, RPC controls, hex validation, glossary -> `ZKs/Comparison.md` section **3**. P2P matrix and cross-chain timeline -> `Comparison.md` section **4** (**4.1**). Insight ops -> `~/Work/ZK/insight/README.md`. Orchard CVE posture -> `ZcashFixes.md` Appendix A.1. TENT -> **section 3.5** and `ZeroNodeDev.md` section **9**.
+**Where other Pirate research lives:** Wallet algorithms, RPC controls, hex validation, glossary -> `ZKs/Comparison.md` section **3**. P2P matrix and cross-chain timeline -> `Comparison.md` section **4** (**4.1**). Insight ops -> `~/Work/ZK/insight/README.md`. Orchard CVE posture -> `ZcashFixes.md` Appendix A.1. TENT -> **section 3.5**.
 
 **Cherry-pick rule:** Prefer Zcash upstream when the same fix exists there. Use Pirate as a diff anchor only when it already merged a feature onto a zcashd-shaped tree. Reject Komodo-only consensus (notary seasons, KIP coinbase, `-ac_`*). Wallet consolidation and dust tooling: **section 5** (under review, not rejected outright).
 
@@ -300,9 +290,9 @@ Cross-chain history, commit volume, feature dates, wallet RPC matrices, hex vali
 **Suggested execution order (node repo only):**
 
 1. **PIR-01** -- **shipped**; spec **OPS-SHELL** in **BUILD_ZERO.md** section **4.6.1**; **TST-09** pending.
-2. **PIR-03** -- wallet correctness; **TST-08 done** (blocks + status allowlist under `-33`). Opt-in ship package ready: `-walletwitness=ibd-defer` + `-walletwitnessnote=1` (defaults off; release note text in **Perf.md** §0.16). **FIX-WIT-WALK-UNLOCK** (R5c): height walk holds `cs_main`, so mid-rebuild reorg is not a test gap -- product work to drop the lock and abort/restart; **Perf.md** §0.16.
-3. **PIR-02** -- coin selection perf; run existing `wallet_tests` knapsack cases unchanged.
-4. **PIR-05** then **PIR-06--08** -- schedule as a P2P modernization epic tied to fixed-seed work (DOC-02 fixed-seed note) and `Comparison.md` gap list.
+2. **PIR-02** -- coin selection perf; run existing `wallet_tests` knapsack cases unchanged.
+3. **PIR-05** then **PIR-06--08** -- P2P epic; `bitcoin-src` or Zcash PR 6477 for addr rate-limit; tied to fixed-seed work (DOC-02) and `Comparison.md` gap list.
+4. **PIR-03 leftover** -- product, not a remaining Pirate port. **TST-08 done**. Opt-in ship package: `-walletwitness=ibd-defer` + `-walletwitnessnote=1` (defaults off; **Perf.md** §0.16). **FIX-WIT-WALK-UNLOCK** (R5c): height walk holds `cs_main`; product work to drop the lock and abort/restart.
 
 **PIR-01 patch shape (reference):**
 
@@ -326,78 +316,78 @@ Files: `src/alert.cpp`, `src/init.cpp`, `src/util.cpp`, `src/util.h`, `src/walle
 
 ### 3.5 TENT upstream cherry-pick candidates (2018--2021)
 
-**Status:** Covered by **section 3.3a** (postponed hub). Do not schedule individual open TNT-* ports until 3.3a reopens. Zeronode architecture detail remains in **ZeroNodeDev**; this section is execution catalog only while postponed.
+**Status:** This section owns TNT rows and order. Schedule a **Port**/**Implement**/**Hold** row when it beats Ordered next. **TNT-01** is in tree. Reorg **product** text is **3.5.1**. Zeronode tests: **ZeroNodeDev** section **5**. File map: **TENTZero.md**.
 
-**Repo:** `~/Work/ZK/ZKs/TENT` ([TENTOfficial/TENT](https://github.com/TENTOfficial/TENT)), Snowgem lineage zcashd + masternode layer. Tip frozen **2021-11** (~333 commits). Zero `src/zeronode/`* is a port of TENT `src/masternode/*` (wire `mn*` -> `zn*`, treasury removed, `CZeronodeWalletInterface`). TENT is the **direct upstream** for zeronode behavior, not a distant peer like Pirate.
+**Repo:** `~/Work/ZK/ZKs/TENT` ([TENTOfficial/TENT](https://github.com/TENTOfficial/TENT)). Tip frozen **`bcb429b` (2021-11-13)**. Zero `src/zeronode/`* is a port of TENT `src/masternode*` (wire `mn*` -> `zn*`, treasury removed, `CZeronodeWalletInterface`). TENT is the **direct upstream** for zeronode behavior, not a living vendor.
 
-**Where other TENT research lives:** P2P masternode wire inventory -> `ZKs/Comparison.md` section **4** (TENT subsection). File-level port map and wallet boundary -> `ZeroNodeDev.md` sections **2**--**9**. Operator workflow -> `ZeroNodes.md`.
+**Where other TENT research lives:** P2P masternode wire inventory -> `ZKs/Comparison.md` section **4**. File map -> **`TENTZero.md`**. Wallet interface -> **`ZeroNodeDev.md`** sections **1**--**3**. Operator workflow and deep-reorg exit -> **`ZeroNodes.md`**. Family reorg table -> **`Comparison.md`** section **14.5**.
 
-**Cherry-pick rule:** Prefer fixes already landed on Zero's integration line (audit **C-07**, **C-11**, **C-14**, **C-21** in section **8** Completed). Use TENT only where Zero's zeronode fork **regressed** TENT behavior or never picked up a post-port TENT commit. Reject Snowgem/TENT tokenomics (treasury, upgrade-named consensus hooks, Atlantis/Wakanda/Knowhere schedules).
-
-
-| ID         | Area                    | TENT ref                                                                                                                                                  | Zero status                                                                                                                         | Recommendation                                                                                                   | Priority |
-| ---------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------- |
-| **TNT-01** | P2P / logging           | `main.cpp` else branch: extension dispatch **without** trailing `Unknown command` log                                                                     | Zero logs after `znodeman` / budget / payments / SwiftTX / spork / sync dispatch (`main.cpp` ~7033)                                 | **Port** -- match TENT; detail **ZeroNodeDev.md** section **9**                                                  | High     |
-| **TNT-02** | Chain / reorg           | `6f64bb7` (2021-07-21) deleted live `ActivateBestChainStep` depth check (code **applies** unbounded reorg; comment said display error / no shutdown) | Zero **exits** at depth **> 99** (`StartShutdown()` before `DisconnectTip`) | **Port (adapted)** -- **reject-and-stay** (keep `return false`, drop shutdown). Not TENT follow. Pair sizing with TNT-03. **Perf.md** §0.16 Cycle 2 | High     |
-| **TNT-03** | Chain / reorg           | TENT `main.h`: `MAX_REORG_LENGTH = COINBASE_MATURITY - 1`; later dropped shutdown only                                                                    | Zero: `MAX_REORG_LENGTH = 100 - 1` with comment that maturity **720** is too large (`main.h` ~69); witness cache uses same constant | **Review** -- reconcile 99-block cap with `COINBASE_MATURITY = 720` and wallet witness rewind (`main.cpp` ~5244) | Medium   |
-| **TNT-04** | Zeronode / payments     | `74bbde2` (2019-09) payee validation uses `out.nValue >= requiredMasternodePayment`                                                                       | Zero requires exact match `out.nValue == requiredZeronodePayment` (`zeronode/payments.cpp` ~555)                                    | **Port (review)** -- allow >= minimum when drift/spork logic intends tolerance                                   | Medium   |
-| **TNT-05** | Wallet / coin selection | `3915ac3` (2021-05) `GetCoinbaseProtected(chainActive.Height() + 1)` in `SelectCoins`                                                                     | Zero uses static `Params().GetConsensus().fCoinbaseMustBeProtected` (`wallet.cpp` ~4333)                                            | **Skip unless** Zero adds height-gated coinbase shielding like TENT Atlantis fork                                | Low      |
-| **TNT-06** | RPC / UX                | `e3d39f1` (2021-01) sync wait text: "Syncing masternodes list..."                                                                                         | Zero: "Zeronode is not synced..." (`rpc/zeronode.cpp` ~122, ~331)                                                                   | **Port** -- copy-only UX fix                                                                                     | Low      |
-| **TNT-07** | Consensus / testnet     | `chainparams.cpp` testnet `nPowAllowMinDifficultyBlocksAfterHeight = 13000`                                                                               | Zero testnet: `boost::none`                                                                                                         | **Consensus decision** -- **ZeroNodeDev.md** section **9**                                                       | Low      |
-| **TNT-08** | Consensus / Equihash    | TENT epoch fork mainnet 192,7 vs testnet 144,5 (`validEHparameterList`)                                                                                   | Zero: 192,7 mainnet **and** testnet                                                                                                 | **Reject** without NU -- **ZeroNodeDev.md** section **9**                                                        | N/A      |
-| **TNT-09** | Consensus / PoW         | TENT LWMA3 after DIFA height                                                                                                                              | Zero: Zcash 17-block window                                                                                                         | **Defer** -- **ZeroNodeDev.md** section **9**                                                                    | Low      |
-| **TNT-10** | Tokenomics              | Treasury coinbase, `GetTreasuryRewardScriptAtHeight`                                                                                                      | **Removed** on Zero                                                                                                                 | **Reject** -- **ZeroNodeDev.md** section **9**                                                                   | N/A      |
-| **TNT-11** | Tokenomics              | Founders % by upgrade (5 / 7.5 / 15)                                                                                                                      | Zero fixed **7.5%** after fee-start                                                                                                 | **Reject** -- **ZeroNodeDev.md** section **9**                                                                   | N/A      |
-| **TNT-12** | Testing                 | No masternode integration tests in TENT either                                                                                                            | Zero: no regtest zeronode harness                                                                                                   | **Implement** on Zero first; **Track Z** Phase A now (**ZeroNodeDev.md** section **9**)                            | Medium   |
-| **TNT-13** | Docs / ops              | External MN setup scripts (obsolete in the wild)                                                                                                          | Same gap on Zero                                                                                                                    | **Doc** -- **ZeroNodes.md** / BUILD_ZERO when scripted                                                           | Medium   |
-| **TNT-14** | Build                   | `db81202` (2021-01) libsnark `-march` via `ax_gcc_archflag` for cross-compile                                                                             | Not in Zero `configure.ac` / `build-aux/m4/`                                                                                        | **Review** -- port if cross-build libsnark failures recur                                                        | Low      |
-| **TNT-15** | Consensus               | `cb0284e` minimum block time after UPGRADE_WAKANDA                                                                                                        | TENT-only upgrade name                                                                                                              | **Skip** -- no Zero equivalent fork                                                                              | N/A      |
-| **TNT-16** | RPC product             | `sendtoaddressnochange`, `sendmanynochange`, wallet-encryption experiments (2021)                                                                         | Not in Zero RPC surface                                                                                                             | **Reject** -- out of scope unless product asks                                                                   | N/A      |
-| **TNT-17** | Checkpoints             | `00c34dc` TENT mainnet checkpoint + fork shutdown messaging                                                                                               | Zero has its own checkpoint table; no TENT heights                                                                                  | **Skip** -- chain-specific                                                                                       | N/A      |
+**Cherry-pick rule:** Prefer fixes already landed on Zero's integration line (audit **C-07**, **C-11**, **C-14**, **C-21** in section **8** Completed). Use TENT only where Zero's zeronode fork **regressed** TENT behavior or never picked up a post-port TENT commit. Reject Snowgem/TENT tokenomics (treasury, upgrade-named consensus hooks, Atlantis/Wakanda/Knowhere schedules). Do not copy TENT `SliceHash`, live unbounded reorg follow, or obfuscation `ProcessMessage`.
 
 
-Port/reject **detail** and source **anchors**: `ZeroNodeDev.md` section **9**. This section keeps **TNT** execution order only.
+| ID         | Area                    | TENT ref | Zero status | Recommendation | Priority |
+| ---------- | ----------------------- | -------- | ----------- | -------------- | -------- |
+| **TNT-01** | P2P / logging | Else-branch dispatch without trailing `Unknown command` log | **Done** -- `main.cpp` ~7070 handlers then return | **Done**. Drop from TODO. | N/A |
+| **TNT-02** | Chain / reorg | `6f64bb7` deleted live depth check; live path **follows** unbounded | Zero **exits** at depth **> 99** | **Keep current.** Do not copy TENT follow. **3.5.1** | N/A |
+| **TNT-03** | Chain / reorg | `MAX_REORG_LENGTH = COINBASE_MATURITY - 1` | Zero cap **99**; maturity **720** | **Keep 99.** Do not raise toward 719. **3.5.1** | N/A |
+| **TNT-04** | Zeronode / payments | `74bbde2` always `>=` (plus Alfheimr-gate removal, not messages-only) | Zero `==`. `LogPrintf` on **overpay** (`>`). | **Hold `>=`.** Watch `debug.log` / `--zn-pay`. **3.5.2** | Low |
+| **TNT-05** | Wallet / coin selection | `3915ac3` height-gated `GetCoinbaseProtected` | Static `fCoinbaseMustBeProtected` | **Skip unless** Zero adds height-gated shielding | Low |
+| **TNT-06** | RPC / UX | `e3d39f1` (2021-01) prefix "Syncing masternodes list..." (list sync, not "node not synced") | `"Zeronode is not synced..."` + `GetSyncStatus()` already names the asset | **Skip** as a TENT port. Optional 2-line prefix on an RPC UX pass. | N/A |
+| **TNT-07** | Consensus / testnet | Min-diff after h13000 | `boost::none` | **Consensus decision** | Low |
+| **TNT-08** | Consensus / Equihash | Testnet 144,5 epoch | 192,7 both nets | **Reject** without NU | N/A |
+| **TNT-09** | Consensus / PoW | LWMA3 after DIFA | Zcash 17-block window | **Defer** | Low |
+| **TNT-10** | Tokenomics | Treasury coinbase | **Removed** | **Reject** | N/A |
+| **TNT-11** | Tokenomics | Founders 5 / 7.5 / 15 by upgrade | Fixed **7.5%** after fee-start | **Reject** | N/A |
+| **TNT-12** | Testing | No MN integration tests in TENT | Boost A + Python B/C + GTest E in tree | **Implement** on Zero. Phases **ZeroNodeDev.md** section **5**. | Medium |
+| **TNT-13** | Docs / ops | External MN setup scripts | Operator guide exists | **Doc** -- **ZeroNodes.md** / BUILD_ZERO when scripted | Medium |
+| **TNT-14** | Build | `db81202` libsnark `-march` | Not in Zero `configure.ac` | **Review** if cross-build libsnark fails | Low |
+| **TNT-15** | Consensus | Wakanda min block time | TENT-only upgrade | **Skip** | N/A |
+| **TNT-16** | RPC product | `*nochange` send RPCs | Absent | **Reject** unless product asks | N/A |
+| **TNT-17** | Checkpoints | TENT mainnet checkpoint | Zero's own table | **Skip** | N/A |
 
-**Suggested execution order (zeronode / chain ops):**
+This section keeps **TNT** execution order only. Source paths: **ZeroNodeDev.md** section **4**. File map: **TENTZero.md**.
 
-Witness Cycle 1 (STALE) is **Perf.md**, not TNT. Zeronode work is Track Z, parallel.
+**Suggested execution order:**
 
-1. **TNT-01** -- one-line logging fix; unblocks `-debug=net` triage (catalog only while **3.3a** postponed). Anytime.
-2. **TNT-12 Phase A** / **TST-03** -- RPC argument validation on existing Boost suites. **Now** (S). DOC-02 docs steps 1-2 with this.
-3. **TNT-12 Phase B** -- regtest founders/zeronode coinbase. Parallel with Cycle 1 if the lab node is free.
-4. **Cycle 2:** **TNT-02** then recovery no-`exit(1)` -- reject-and-stay at 99 (**Perf.md** Cycle 2, R5d). **TNT-03** is Cycle 3, not this PR. Do not follow TENT unbounded connect.
-5. **TNT-12 Phase C** -- two-node `startalias` after A/B. Not gated on TNT-02. Phase D (`GetZeronodeInputAge` / invalidate) after Cycle 2.
-6. **TNT-04** -- payment validation only if mainnet coinbase rejects valid winner payouts today.
-7. **TNT-03** -- Cycle 3, after Cycle 2 proven. Cache/memory review if the cap moves.
+Witness Cycle 1 (STALE) is **Perf.md**, not TNT.
 
-**TNT-01 patch shape (reference):**
+1. **TNT-12 Phase A** / **TST-03** -- Boost RPC args.
+2. **TNT-12 Phase B** -- regtest coinbase / `GetZeronodePayment` with sporks off and injected on.
+3. **TNT-12 Phase C** -- two-node `startalias` after A/B.
+4. **TNT-04** -- watch overpay `LogPrintf`; `--zn-pay`. Do not port `>=` without hits.
 
-TENT ends the `else` branch after extension handlers with no log. Zero should drop line ~7033 or guard it so handled `zn*` / spork / SwiftTX commands do not emit `Unknown command` (keep the `notfound` exception already present).
+**TNT-01** is done. **TNT-02** / **TNT-03**: keep 99 + exit (**3.5.1**). **TNT-06** is not a port.
 
-**TNT-02 context:** TENT `6f64bb7` (2021-07-21) deleted the live `reorgLength` check, so the node **applies** unbounded reorgs (comment said "display error, do not shutdown"). Zero still **exits**. Desired policy is neither: **reject-and-stay** (Flux/Zebra) -- do not apply, do not `StartShutdown()`, keep relaying the current tip. Cap stays 99 until TNT-03.
-
-#### 3.5.1 TNT-02 / TNT-03 reorg policy
+#### 3.5.1 Reorg policy
 
 Two constants serve different jobs and must not be conflated:
 
 | Constant | Value | Role |
 | -------- | ----- | ---- |
 | **`COINBASE_MATURITY`** | **720** blocks | Consensus: coinbase outputs are unspendable until 720 confirmations (`consensus.h`). |
-| **`MAX_REORG_LENGTH`** | **`100 - 1` = 99** | Node policy: do not **apply** a reorg/rewind deeper than 99. Today: modal + **`StartShutdown()`** before `DisconnectTip` (`main.cpp` `ActivateBestChainStep`, `RewindBlockIndex`). Witness cache size is **`MAX_REORG_LENGTH + 1`** (`wallet.h`). |
+| **`MAX_REORG_LENGTH`** | **`100 - 1` = 99** | Node policy: do not **apply** a reorg/rewind deeper than 99. On breach: modal + **`StartShutdown()`** before `DisconnectTip`. Witness cache size is **`MAX_REORG_LENGTH + 1`** (`wallet.h`). |
 
-**Why Zero uses 99, not 719.** Upstream Zcash set `MAX_REORG_LENGTH = COINBASE_MATURITY - 1` so the node could always reorg far enough to undo immature coinbases. Zero's comment in `main.h` rejects 719 as **too much** for witness-cache memory and rebuild cost. The cap is a **practical safety bound**, not a consensus rule. Zebra raised its *non-finalized* window to 1000 without coupling maturity; Zero cannot copy that number onto a 100-slot witness deque without a memory review (**TNT-03**).
+**Settled:** keep **99** and the current **exit** posture. Operator text: **`ZeroNodes.md`** section **6**. Family table: **`Comparison.md`** section **14.5**.
 
-**The operational gap (TNT-02).** Exit takes zeronodes off the network. TENT follow-longest with a 100-slot cache is the other failure. **Reject-and-stay** keeps serving the chain already accepted. Headers of the fork may already be in `mapBlockIndex`; tip, coins, wallet, insight must not move. **Perf.md** §0.16 Cycle 2. Independent of STALE (Cycle 1). Family facts: **`~/Work/ZK/ZKs/Comparison.md` §14.5**.
+**TNT-03:** **Keep 99.** Do not set `MAX_REORG_LENGTH = COINBASE_MATURITY - 1` (719). That would require growing the shielded witness deque in lockstep. Not scheduled.
 
-**The design tension (TNT-03).** Raising `MAX_REORG_LENGTH` toward maturity (or toward Zebra 1000) is a **sizing** change: keep `WITNESS_CACHE_SIZE >= MAX_REORG_LENGTH + 1`, `keeptxfornblocks` floor, rewind, and rebuild-if-cache-short. A deque shallower than the apply bound is the failure mode, not a setting. Do not fold into TNT-02.
+**TNT-02:** TENT `6f64bb7` follows unbounded live reorgs. Do not copy that. Dropping `StartShutdown()` while still refusing the fork (reject-and-stay) is a different ops choice; **not scheduled**. Catalog row stays for history.
 
-**Recommendation (when scheduled):**
+#### 3.5.2 TNT-04 payee amount
 
-1. **TNT-02:** Drop `StartShutdown()` on `reorgLength > MAX_REORG_LENGTH`; keep `return false` **before** any `DisconnectTip` / wallet / insight reverse. Warning log + `getblockchaininfo`/`errors`, not fatal modal. E2e **R5d**. Replace Decrement `exit(1)` with rebuild (Cycle 2 package D). **Do not** follow TENT unbounded connect.
-2. **TNT-03:** Separate PR. Keep 99 until cache/memory reviewed. Optional Pirate-style `-maxreorg` only as a reject-bound override, not an apply-unbounded escape.
-3. **Do not** set `MAX_REORG_LENGTH = COINBASE_MATURITY - 1` without that review.
+TENT `74bbde2` (2019-09, "correct check payee valid") is not a message-only patch. It:
 
-**Status:** **Scheduled Cycle 2** as **DEF-07** / TNT-02 with R5d. **TNT-12** Phase A is now (Track Z); not a gate for TNT-02. **PIR-03** and STALE do not resolve this.
+1. Collapsed the Alfheimr height gate: pre-fork **`==`**, post-Alfheimr **`>=`**, then **always `>=`**.
+2. Dropped the extra vote-count branch that only ran after Alfheimr.
+3. Quieted some `LogPrintf` payee dumps to `LogPrint`.
+
+Zero never had Alfheimr and still requires **`==`**. `GetZeronodePayment` ignores node count in both trees. `>=` would accept **overpay** to the winner script (miner takes less). Underpay fails both. `IsTransactionValid` only enforces when winner signatures exist; **SPORK_8** then decides whether a failed check rejects the block.
+
+Do not port `>=`. Add a **`LogPrintf`** when paid **`>`** required (the case `==` would reject) so live `debug.log` shows whether it occurs without `-debug=zeronode`. Scan: `chain_stats.py --zn-pay`. Sampled windows (tip ~2521664, 2.4M, 1.6M, 0.8M) were all exact vs model.
+
+#### 3.5.3 TNT-06 sync string
+
+TENT `e3d39f1` (2021-01) changed two RPC prefixes from "Masternode is not synced" to "Syncing masternodes list" because the wait is list/asset sync, not chain IBD. Zero still uses "Zeronode is not synced" plus `GetSyncStatus()`, which already names sporks / list / winners / budget. Not a behavior port. Skip unless an RPC copy pass wants the two-line prefix.
 
 ---
 
@@ -921,7 +911,7 @@ Items marked **"contributor-ready"** are self-contained enough to be written up 
 
 **TST-02 -- Parallel Tier A RPC.** Deprioritized. `paymentdisclosure` hang under `--jobs>1`. Serial gate is sufficient.
 
-**TST-03 -- Zeronode / budget subcmd validation.** **Scheduled -- Track Z Phase A.** Write Boost.Test or GTest cases for `zeronodecurrent`, `getzeronodeoutputs`, `startzeronode`, and `znbudget` subcommands. Focus on argument validation and error returns; full integration is Phase C (collateral). Does not wait on Cycle 1 STALE. See **ZeroNodeDev.md** §9 and DOC-02.
+**TST-03 -- Zeronode / budget subcmd validation.** Boost **A** in `rpc_zeronode_tests.cpp` / `rpc_zeronode_budget_tests.cpp`. Python **B/C**: `zeronode_coinbase.py`, `zeronode_startalias.py` (Tier B). Full phases: **ZeroNodeDev.md** section **5**.
 
 **TST-09 -- Shell notify disabled (default build, PIR-01).**
 
@@ -1036,15 +1026,15 @@ Sapling header root script moved to **TST-SAPLING-ROOT** (`finalsaplingroot.py`,
 
 **DEF-05 -- Boost >1.88.** Googletest 1.16.0 is the last release on C++14; GTest 1.17+ requires C++17. A Boost bump past 1.88 may also require C++17 headers. Upgrade path: evaluate C++17 readiness of all `src/` code, revalidate `ax_boost_`* m4 macros, rebuild full depends graph. See BUILD_ZERO §4.1 (Boost, Googletest rows).
 
-**DEF-06 -- SwiftTX removal.** Zeronode instant-confirmation quorum (see Reference below). Not implemented on the Zero network; `SPORK_2_SWIFTTX` never activated. Plan: remove `src/zeronode/swifttx.cpp`, `swifttx.h`, hidden CLI options (`-enableswifttx`, `-swifttxdepth`), P2P messages (`ix`, `txlvote`), lock-conflict checks in `main.cpp`. Keep `-deleteconflicttx` (serves `-deletetx` pruning for reorgs/double-spends independent of SwiftTX). Remove `Options.csv` SwiftTX hidden entries. Blocked on: confirming no mainnet spork activation history.
+**DEF-06 -- SwiftTX removal.** **Not fitting.** Mainnet **`spork show`**: `SPORK_2_SWIFTTX` and `SPORK_3_SWIFTTX_BLOCK_FILTERING` are **1558907000** (2019-05-26) -- **active**. Budget superblocks remain off (`SPORK_13` / `SPORK_9` = 4070908800). Do not strip `swifttx.cpp` / `ix` / `txlvote` while those sporks are on. Revisit only after a signed spork turns them off (or an explicit NU). Local `if (pwalletMain)` in `ProcessConsensusVote` is still a small cleanup if the file stays.
 
-**DEF-07 -- TNT-02 / TNT-03 deep reorg policy.** **Scheduled Cycle 2 / Cycle 3.** Today: exit when reorg/rewind **> 99**. Desired **TNT-02:** reject-and-stay (no apply, no `StartShutdown`). **TNT-03:** cap vs `WITNESS_CACHE_SIZE` / maturity 720 / Zebra 1000 -- separate, memory-gated. TENT code follows unbounded live reorgs; do not copy that. E2e **R5d**. Full logic: **§3.5.1**, **Perf.md** §0.16 Cycles 2-3. Independent of STALE (Cycle 1) and **PIR-03**. Family: **`~/Work/ZK/ZKs/Comparison.md` §14.5**.
+**DEF-07 -- Reorg bound.** **Settled: 99 + exit.** See **§3.5.1** and **`ZeroNodes.md`** section **6**. TNT-02/03 are not scheduled. Family: **`Comparison.md`** §14.5.
 
 **DEF-08 -- macOS `MACOSX_DEPLOYMENT_TARGET` / libtool `-bind_at_load`.** **Postponed.** Manual **`make`** or **`make check-symbols`** on Darwin without **`MACOSX_DEPLOYMENT_TARGET`** can emit **`ld: warning: -bind_at_load is deprecated on macOS`**. GNU libtool (**`build-aux/ltmain.sh`**) adds **`-Wl,-bind_at_load`** for C++ executable links when **`${MACOSX_DEPLOYMENT_TARGET-10.0}`** matches **`10.[0123]`**; when the env var is unset, the default **`10.0`** incorrectly matches on modern macOS. **`./zcutil/build.sh`** already exports **`MACOSX_DEPLOYMENT_TARGET=15.0`** (same as **`depends/hosts/darwin.mk`** **`OSX_MIN_VERSION=15.0`** and **`-mmacosx-version-min=15.0`** on the compiler). **Workaround:** **`export MACOSX_DEPLOYMENT_TARGET=15.0`** before manual make. **Fix (deferred):** set and export **`MACOSX_DEPLOYMENT_TARGET`** from **`configure.ac`** / top-level **`Makefile.am`** on Darwin so all make invocations inherit it without operator env. Harmless for release; cosmetic linker warning only.
 
 ### Reference
 
-**SwiftTX.** Zeronode quorum instant-lock (`SWIFTTX_SIGNATURES_REQUIRED` / `SWIFTTX_SIGNATURES_TOTAL` in `src/zeronode/swifttx.h`). Controlled by `SPORK_2_SWIFTTX` (never activated on mainnet). Code: `src/zeronode/swifttx.cpp`, `src/main.cpp`. **Planned for removal** (DEF-06).
+**SwiftTX.** Zeronode quorum instant-lock (`SWIFTTX_SIGNATURES_REQUIRED` / `SWIFTTX_SIGNATURES_TOTAL`). **`SPORK_2` / `SPORK_3` are on mainnet** (signed 1558907000). Code: `src/zeronode/swifttx.cpp`, `src/main.cpp`. **DEF-06:** do not remove while those sporks are active.
 
 **Hidden options and CLI inventories.** Options parsed in `src/init.cpp` but not shown in `--help` output. Tracked in `Options.csv` as `*-hidden` category.
 
@@ -1150,7 +1140,7 @@ Upstream `configs/coins/` ships **100** coin configs including `zcash.json` / `z
 
 **zerod flags (public, current):** **BUILD_ZERO.md** §4.6.2. Do not duplicate Insight install/nginx/bitcore procedure here.
 
-**Zero decision:** keep Insight operational for mainnet UI; Blockbook remains a separate postponed infra track (**4.1**). Explorer-host PRs are out of the Zero400 merge track (**3.3a**). Public minimum flags: **BUILD_ZERO.md** §4.6.2. Authoritative flag bundles / client matrix: **ZeroStruct.md** sections **5**, **11.3**.
+**Zero decision:** keep Insight operational for mainnet UI; Blockbook remains a separate infra track (**4.1**). Explorer-host PRs stay in **`~/Work/ZK/insight/`**. Public minimum flags: **BUILD_ZERO.md** §4.6.2. Authoritative flag bundles / client matrix: **ZeroStruct.md** sections **5**, **11.3**.
 
 ### 4.4 Indexer approach pointer
 
@@ -1162,7 +1152,7 @@ Cross-fork indexing strategies: **`~/Work/ZK/ZKs/Comparison.md`** section **12**
 
 ## 5. Pirate wallet features under review
 
-**Status:** Covered by **section 3.3a** (postponed hub) together with PIR-* / TNT-*. Review rows below are catalog only until 3.3a reopens.
+**Status:** Pirate wallet review. Same queue as **3.4**; pull a row when it beats Ordered next.
 
 **Repo:** `~/Work/ZK/ZKs/pirate`. Portable wallet ops only -- not Komodo consensus, notary, or KIP coinbase (**PIR-14 reject**). Wallet vs consolidation on-chain behavior: `ZeroStruct.md` **section 8**.
 
@@ -1455,7 +1445,7 @@ throw std::runtime_error("message");
 
 ## DOC-02 follow-up: zeronode documentation and functional tests
 
-Outline for closing gaps from zeronode gap analysis and mainnet coinbase verification (Jun 2026). **TENT cherry-pick table:** `UpdateZero.md` section 3.5. **Zeronode port detail and test roadmap:** `ZeroNodeDev.md` section **9**.
+Outline for remaining zeronode doc gaps. **TNT catalog:** section **3.5**. **TNT-12 phases:** `ZeroNodeDev.md` section **5** only (do not duplicate that table here). **Operator reorg:** `ZeroNodes.md` section **6**. **File map:** `TENTZero.md`.
 
 ### Documentation deliverables
 
@@ -1470,24 +1460,9 @@ Outline for closing gaps from zeronode gap analysis and mainnet coinbase verific
 | 6    | **Multisig founders**    | `Zeros/MULTISIG.md` appendix                                   | Done Jun 2026                                                                     |
 
 
-### Functional test roadmap (TST-03 extension)
+### Functional tests
 
-| Phase | Test | Harness | Pass criteria | Schedule |
-| ----- | ---- | ------- | ------------- | -------- |
-| **A** | RPC argument validation | Existing `rpc_zeronode_tests`, `rpc_zeronode_budget_tests` | Expand budget subcmds per TST-03 | **Now** -- Track Z |
-| **B** | Founders window | `qa/rpc-tests/founders_window.py` (Tier B) | At fee-start **1000** / off **1500**: founders vout 7.5%; zeronode when spork on | Parallel with Cycle 1 if lab free |
-| **C** | Regtest 2-node zeronode | Manual -> scripted | Collateral UTXO, `startalias`, payment in coinbase within N blocks | After A/B; not gated on TNT-02 |
-| **D** | Reorg / `GetZeronodeInputAge` | Regtest `invalidateblock` | Steps in DOC-02 subsection; automate when harness allows | After Cycle 2 (applied + excessive policy) |
-| **E** | Mock wallet | Inject `CZeronodeWalletInterface` test double | Ping/payment paths without full wallet | After C |
-| **F** | Mainnet decode regression | `decode_coinbase.py` optional CI fixtures (see **`ZERO_COIN.md`**) | Archived block hash fixtures or mocked RPC | Optional |
-
-### Priority order
-
-1. Phase A (low cost, extend existing Boost suites) -- **now**.
-2. DOC steps 1-2 (retire broken external install docs) -- with A.
-3. Phase B (consensus-critical coinbase + founders alignment with `test_foundersreward.cpp`).
-4. Phase C (multi-node -- highest value, highest setup cost).
-5. Phase D after Cycle 2 reject-and-stay.
+**TNT-12** / **TST-03** phases A-F, complexity, and sequence: **`ZeroNodeDev.md`** section **5**. DOC steps 1-2 can ride with phase A.
 
 ---
 
@@ -1508,7 +1483,7 @@ Outline for closing gaps from zeronode gap analysis and mainnet coinbase verific
 - `-regtest=1`; mine with `generate` / `generatetoaddress` (not `setgenerate` on testnet -- `fMiningRequiresPeers`).
 - NU activation: `-nuparams=<branchHex>:<height>` (see `TEST_ZERO.md`, `util.py` `NU_TEST_ARGS`).
 - Frozen cache tip **725** (`COINBASE_MATURITY` 720 + 5) for fast wallet tests.
-- Public testnet: no min-difficulty rule on Zero (see **ZeroNodeDev.md** section **9**).
+- Public testnet: no min-difficulty rule on Zero (**TNT-07**; ZND-02 path in **ZeroNodeDev.md** section **4**).
 
 **Testnet notes:**
 
@@ -1526,7 +1501,7 @@ Outline for closing gaps from zeronode gap analysis and mainnet coinbase verific
 | Port / datadir matrix       | `UpdateZero.md` DOC-02 table (exists)               | `ZERO_COIN.md`                |
 | `-nuparams` recipe          | `TEST_ZERO.md`                                      | Zcash regtest book pattern    |
 | Coinbase inspection         | `ZERO_COIN.md`                                      | `Zeros/MULTISIG.md`           |
-| Zeronode regtest multi-node | **Gap** -- DOC-02 steps -> BUILD_ZERO when scripted | `ZeroNodes.md`                |
+| Zeronode regtest multi-node | **Gap** -- **ZeroNodeDev.md** section **5** phase C | `ZeroNodes.md` |
 | Security / CVE posture      | `ZcashFixes.md`                                     | README Security bullet        |
 
 

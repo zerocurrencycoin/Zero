@@ -37,25 +37,15 @@ MAX_CAPTURES="${5:-0}"     # 0 = unbounded (until reindex exits)
 TEMPLATE="${6:-Time Profiler}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck disable=SC1091
+. "$REPO_ROOT/contrib/perf/datadir_guard.sh"
 ZEROD="$REPO_ROOT/src/zerod"
 ZERO_CLI="$REPO_ROOT/src/zero-cli"
 RPCPORT=23920
 
-# Refuse the platform default datadir -- labs must use a disposable -datadir.
-default_datadir_mac="$HOME/Library/Application Support/zero"
-default_datadir_mac_alt="$HOME/Library/Application Support/Zero"
-refuse_default_datadir() {
-    local d
-    d="$(cd "$1" 2>/dev/null && pwd -P)" || d="$1"
-    case "$d" in
-        "$default_datadir_mac"|"$default_datadir_mac_alt"|"$HOME/.zero")
-            echo "ERROR: refusing default user datadir: $d" >&2
-            echo "Use a disposable path (e.g. reindex-profile/datadir or \$TMPDIR/zero-lab-*)." >&2
-            exit 1
-            ;;
-    esac
-}
-refuse_default_datadir "$DATADIR"
+# Refuse the live datadir -- labs must use a disposable -datadir
+# unless ZERO_PERF_ALLOW_LIVE_DATADIR=1.
+refuse_live_datadir DATADIR "$DATADIR"
 
 mkdir -p "$OUT_DIR"
 SEQ_LOG="$OUT_DIR/sequence.log"

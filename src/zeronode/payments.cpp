@@ -552,10 +552,15 @@ bool CZeronodeBlockPayees::IsTransactionValid(const CTransaction& txNew)
         BOOST_FOREACH (CTxOut out, txNew.vout) {
             if (payee.scriptPubKey == out.scriptPubKey) {
                 LogPrint("zeronode","Zeronode payment Paid=%s Min=%s\n", FormatMoney(out.nValue).c_str(), FormatMoney(requiredZeronodePayment).c_str());
-                if(out.nValue == requiredZeronodePayment)
+                if(out.nValue == requiredZeronodePayment) {
                     found = true;
-                else
-                    LogPrint("zeronode","Zeronode payment is out of drift range");
+                } else if (out.nValue > requiredZeronodePayment) {
+                    LogPrintf("Zeronode payment OVERPAY height=%d paid=%s required=%s (exact-match would reject)\n",
+                        nBlockHeight, FormatMoney(out.nValue).c_str(), FormatMoney(requiredZeronodePayment).c_str());
+                } else {
+                    LogPrintf("Zeronode payment UNDERPAY height=%d paid=%s required=%s\n",
+                        nBlockHeight, FormatMoney(out.nValue).c_str(), FormatMoney(requiredZeronodePayment).c_str());
+                }
             }
         }
 

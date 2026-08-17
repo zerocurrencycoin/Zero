@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Filter-then-process zerod debug.log markers into Measures.md vocabulary.
 
-Read-only on logs. Does not launch zerod. Refuses the platform default
-datadir when --datadir is used (labs must use a disposable path).
+Read-only on logs. Does not launch zerod. Log path spec is shared with
+stall_check.py (contrib/perf/debuglog.py): --datadir, --rotated, --log,
+positional file/dir/glob. Launchers that write still refuse the live
+datadir unless ZERO_PERF_ALLOW_LIVE_DATADIR=1.
 
 Usage:
   python3 contrib/perf/extract_measures.py --datadir "$LAB" \\
@@ -18,7 +20,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 import re
 import sys
 import tempfile
@@ -26,6 +27,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Optional
+
+_PERF_DIR = Path(__file__).resolve().parent
+if str(_PERF_DIR) not in sys.path:
+    sys.path.insert(0, str(_PERF_DIR))
+import debuglog  # noqa: E402
 
 TS_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
 TIP_RE = re.compile(
@@ -72,12 +78,6 @@ SEGMENT_START_RE = re.compile(
     r")"
 )
 
-DEFAULT_DATADIRS = {
-    Path.home() / "Library" / "Application Support" / "zero",
-    Path.home() / "Library" / "Application Support" / "Zero",
-    Path.home() / ".zero",
-}
-
 CSV_FIELDS = [
     "run_id",
     "segment",
@@ -100,44 +100,6 @@ CSV_FIELDS = [
 
 def parse_ts(s: str) -> datetime:
     return datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
-
-
-def resolve_path(p: Path) -> Path:
-    try:
-        return p.resolve()
-    except OSError:
-        return p
-
-
-def refuse_default_datadir(datadir: Path) -> None:
-    resolved = resolve_path(datadir)
-    defaults = {resolve_path(d) for d in DEFAULT_DATADIRS}
-    if resolved in defaults:
-        raise SystemExit(
-            f"ERROR: refusing default user datadir: {resolved}\n"
-            "Use a disposable path ($TMPDIR/zero-lab-* or reindex-profile/datadir)."
-        )
-
-
-def list_debug_logs(datadir: Path) -> list[Path]:
-    """Return debug.log plus rotated debugN.log / debug.N.log, oldest first."""
-    refuse_default_datadir(datadir)
-    found: list[Path] = []
-    primary = datadir / "debug.log"
-    if primary.is_file():
-        found.append(primary)
-    # Bitcoin-style debug.log.N and Zero-style debugN.log
-    for p in sorted(datadir.glob("debug*.log")):
-        if p == primary:
-            continue
-        if p.name == "debug.log":
-            continue
-        found.append(p)
-    # Order: rotated archives often older; prefer mtime then name
-    found.sort(key=lambda p: (p.stat().st_mtime, p.name))
-    if not found:
-        raise SystemExit(f"ERROR: no debug*.log under {datadir}")
-    return found
 
 
 @dataclass
@@ -730,12 +692,7 @@ def run_self_test() -> int:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("logs", nargs="*", type=Path, help="debug.log paths")
-    p.add_argument(
-        "--datadir",
-        type=Path,
-        help="Disposable datadir; reads debug*.log (refuses default zero/)",
-    )
+    debuglog.add_log_input_args(p)
     p.add_argument("--run-id", default="", help="Default: UTC stamp")
     p.add_argument(
         "--op-class",
@@ -783,16 +740,19 @@ def main(argv: Optional[list[str]] = None) -> int:
         print("NA" if elapsed is None else elapsed)
         return 0
 
-    paths: list[Path] = []
-    if args.datadir:
-        paths.extend(list_debug_logs(args.datadir))
-    paths.extend(args.logs)
-    if not paths:
-        build_arg_parser().error("provide log paths and/or --datadir")
-
-    for p in paths:
-        if not p.is_file():
-            raise SystemExit(f"ERROR: not a file: {p}")
+    paths = debuglog.paths_from_args(args)
+    if args.datadir and debuglog.is_default_runtime_datadir(args.datadir) and args.env == "lab":
+        print(
+            "note: default runtime datadir with --env=lab; "
+            "set --env insight|wallet before citing Measures rows",
+            file=sys.stderr,
+        )
+    elif any(debuglog.is_default_runtime_datadir(p) for p in paths) and args.env == "lab":
+        print(
+            "note: log path is under the default runtime datadir with --env=lab; "
+            "set --env insight|wallet before citing Measures rows",
+            file=sys.stderr,
+        )
 
     run_id = args.run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     op_hint = args.op_class or None

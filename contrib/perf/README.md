@@ -12,10 +12,51 @@ specs** (BENCH-*, FIX-*, IMP-*, L0-L7, Stages) and **lab materials**:
 these scripts.
 
 **Datadir rule:** never use the default `~/Library/Application Support/zero`
-(or `~/.zero`) as a writable lab datadir. Scripts refuse that path.
-Archives may be read-only sources via `ZERO_PERF_SRC_DATADIR` /
-`ZERO_PERF_ARCHIVE_DIR`. Also refuse writing **LAB** under the Zero400
-product tree.
+(or `~/.zero`) as a **writable** lab datadir, and never launch `zerod`
+`-reindex`/`-rescan`/`-loadblock` against it. Launchers refuse that path and
+also refuse **LAB** under the Zero400 product tree. Shared guard:
+`contrib/perf/datadir_guard.sh` -> `contrib/perf/debuglog.py --guard-write`.
+Override (can destroy the live node): `ZERO_PERF_ALLOW_LIVE_DATADIR=1` or
+`python3 contrib/perf/debuglog.py --guard-write --allow-live-datadir PATH`.
+Archives may be **read-only sources** via `ZERO_PERF_SRC_DATADIR` /
+`ZERO_PERF_ARCHIVE_DIR`.
+
+Read-only log scanners (`extract_measures.py`, `stall_check.py`) use the
+path spec below. They do not start `zerod`. Do not cite operator extracts as
+lab `M-*` rows unless `--env` is `insight` or `wallet`.
+
+## debug.log path spec
+
+Shared by `extract_measures.py` and `stall_check.py` (`contrib/perf/debuglog.py`).
+
+| Input | What is read |
+|-------|----------------|
+| `--datadir DIR` | `DIR/debug.log` only |
+| `--datadir DIR --rotated` | `debug.log` plus **rotation siblings** in DIR |
+| `--log SPEC` (repeatable) | File, directory, or glob |
+| positional SPEC | Same as `--log` |
+| directory operand | That datadir's `debug.log` (`--rotated` applies) |
+| explicit file | That file as-is (name need not be `debug.log`; `debug.log.snapshot` is fine) |
+| glob (e.g. `*.log`) | Matching files; directory matches expand like a datadir operand |
+
+**`--rotated` names** (only these, not other `*.log`):
+
+- `debug.log.N` -- Bitcoin / logrotate (`debug.log.1`)
+- `debugN.log` -- Zero (`debug10.log`, `debug11.log`, ...)
+- `debug.N.log`
+
+Sorted oldest `mtime` first, then name. `notes.log` and `debug.log.snapshot`
+are not rotations; pass them with `--log` if needed. A glob `debug*.log` is
+**not** `--rotated`: it misses `debug.log.1` and can include extra names.
+Concatenating rotations can look like `tip_gap` at file joins; prefer current
+`debug.log` unless you need history.
+
+```bash
+python3 contrib/perf/debuglog.py --self-test
+python3 contrib/perf/debuglog.py --list --datadir "$HOME/Library/Application Support/zero"
+python3 contrib/perf/debuglog.py --list --datadir "$HOME/Library/Application Support/zero" --rotated
+python3 contrib/perf/debuglog.py --list --log "$HOME/Library/Application Support/zero/*.log"
+```
 
 **Reuse outside this tree:** the fixture contract is the reusable part --
 refuse protected datadirs, inject wallets by env, packed snaps outside git,
@@ -51,16 +92,50 @@ python3 contrib/perf/extract_measures.py \
   --datadir "$LAB" --run-id tiny-... --op-class reindex --no-wallet --env lab \
   --jsonl test-logs/tiny.jsonl --csv test-logs/measures_tiny.csv
 
+# Live node (read-only; not a lab campaign unless --env insight|wallet):
+python3 contrib/perf/extract_measures.py \
+  --datadir "$HOME/Library/Application Support/zero" --env insight \
+  --op-class catchup --sample-tip 1
+
+# Explicit file / glob (path spec: debuglog.py):
+python3 contrib/perf/extract_measures.py --log /path/to/debug.log.snapshot
+python3 contrib/perf/extract_measures.py --rotated --log "$LAB"
+
 # Shared helper used by bench_matrix.sh:
 python3 contrib/perf/extract_measures.py --elapsed-heights "$LAB/debug.log" 50000 350000
 ```
+
+## stall_check.py
+
+Read-only scan of stock `debug.log` for follow-tip stalls: `UpdateTip` wall
+gaps, log still writing with no tip (`tip_silent`), same-second socket/ping
+timeout bursts, and clock-warn. Expired tx / Misbehaving / Insight logical
+timestamp bumps are counted, not stall-class. `--datadir` may be the default
+runtime (same read policy as `extract_measures.py`). Does **not** launch
+`zerod`. Lab duration/rates stay in `extract_measures.py`.
+
+Zero PoW target spacing is 120s. Default `--gap-s 900` is 15 minutes.
+
+```bash
+python3 contrib/perf/stall_check.py --self-test
+python3 contrib/perf/stall_check.py --datadir "$HOME/Library/Application Support/zero"
+python3 contrib/perf/stall_check.py --log "$HOME/Library/Application Support/zero/debug.log"
+python3 contrib/perf/stall_check.py --rotated --datadir "$HOME/Library/Application Support/zero"
+```
+
+Exit 1 if any stall-class finding (`tip_gap`, `tip_silent`, `timeout_burst`,
+`clock_warn`). `header_lag` (follow-tip only: height +1 and log dt >= 30s,
+log time vs `date=`) is reported and does not fail the process. Catch-up
+bursts (many tips in one second) are counted as `header_lag_catchup`, not
+findings. `--rotated` is defined in **debug.log path spec** above.
 
 ## prep_lab_datadir.sh
 
 Create a disposable lab datadir and unroll only `blocks/` + `chainstate/`
 (includes `blocks/index/` and `rev*`). Does **not** write `zero.conf` or start
-`zerod`. Refuses the default Application Support datadir and Zero400 as **LAB**.
-Default archive is read-only (no writes there).
+`zerod`. Refuses the default Application Support datadir and Zero400 as **LAB**
+unless `ZERO_PERF_ALLOW_LIVE_DATADIR=1`. Default archive is read-only (no writes
+there).
 
 ```bash
 contrib/perf/prep_lab_datadir.sh          # create + unroll
