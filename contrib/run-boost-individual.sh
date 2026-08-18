@@ -7,7 +7,7 @@ set -e
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-DEFAULT_EXCLUDE="miner_tests,Checkpoints_tests"
+DEFAULT_EXCLUDE="Checkpoints_tests"
 
 LOG_DIR="${LOG_DIR:-$REPO_ROOT/test-logs}"
 mkdir -p "$LOG_DIR"

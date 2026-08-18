@@ -42,6 +42,8 @@ Language: describe harness areas as **working** or **under development**. Reserv
 | **getalldata empty-wallet gates** (working) | `./src/test/test_bitcoin --run_test=rpc_zero_exclusive_tests` |
 | **getalldata populated wallet** (working Ext) | `./qa/pull-tester/rpc-tests.sh getalldata_scenario` |
 | **Export tier CSV** | `./qa/pull-tester/rpc-tests.sh -list-csv qa/rpc-tests/test_tier_inventory.csv` |
+| **Ops smoke** | `./contrib/ops-validate.sh smoke` (cold + restart) |
+| **Ops short** (RC) | `./contrib/ops-validate.sh short` (equihash + eq-verify + smoke) |
 
 **Environment:** Python **3.10+**. For direct `rpc-tests.sh`, set `PYTHON` / `BUILDDIR` if needed (see **Process -> Troubleshooting** below).
 
@@ -80,7 +82,7 @@ invalidateblock, maxblocksinflight, rpc_coverage_probe, receivedby, rpcbind_test
 
 ### C++ working filters (`qa/zcash/test_filters.sh`)
 
-Default gate excludes two suites still under development (listed in §6). Everything else in GTest/Boost runs under `--strict` / `--no-python`.
+Default gate excludes one GTest still under development (listed in §6). Everything else in GTest/Boost runs under `--strict` / `--no-python`.
 
 ### Measured timing (2026-07-02, warm cache)
 
@@ -89,7 +91,7 @@ Actual wall-clock measurement, replacing prior qualitative "slow" callouts with 
 | Phase | Wall time |
 |---|---|
 | C++ GTest (`-WalletTests.CachedWitnessesCleanIndex` excluded, see `ExtTests.md` §1) | 56.6s |
-| C++ Boost (`!miner_tests` excluded) | 62.5s |
+| C++ Boost | 62.5s |
 | RPC pass tiers (A=10 + B=22 + E=2 = 34 invocations) | 944s (15.7 min) |
 | **Sum (~= `--all --strict` scope)** | **~1063s (~17.7 min)** |
 
@@ -145,7 +147,6 @@ These tracks extend coverage; they do **not** block the working merge gate. Per-
 | Bulk timing refresh | `--all --strict` | Re-record wall time for **47** working invocations |
 | Parallel Tier A | `--jobs>1` | Optional throughput; keep serial for gates |
 | GTest | `CachedWitnessesCleanIndex` | Reindex-style harness |
-| Boost | `miner_tests` | (48,5) `blockinfo` (TST-05) |
 
 **Promote rule:** when a basename run succeeds, move it into a working array in `rpc-tests.sh`, regenerate CSV, update §3.
 
@@ -178,7 +179,6 @@ getblocktemplate_proposals, pruning, smartfees, invalidblockrequest, p2p-acceptb
 | Layer | Working-gate exclude | Run alone via |
 |-------|----------------------|---------------|
 | GTest | `-WalletTests.CachedWitnessesCleanIndex` | `--fail` or `--gtest_filter=WalletTests.CachedWitnessesCleanIndex` |
-| Boost | `!miner_tests` | `--fail` or `--run_test=miner_tests` |
 
 ---
 
@@ -190,7 +190,6 @@ Prefer **§2 Use cases** and **§3 Working inventory** for day-to-day work. Sect
 
 - Without **`--strict`**, failures print **`WARNING`** but exit **0**. With **`--strict`**, exit **1** on any failure.
 - **Exit 0 after `skip_test`** is a skip, not a pass.
-- Some Boost cases return early (e.g. **(96,5)** Equihash vectors on **(192,7)** mainnet) -- they pass but do not prove that code path ran.
 
 ---
 
@@ -214,8 +213,10 @@ GTest: **`[  PASSED  ] N tests.`** means all ran passed; **`FAILED`** or non-zer
 
 **Source:** **`src/test/equihash_tests.cpp`**. **Run:** **`./src/test/test_bitcoin -t equihash_tests`**.
 
-- **(96,5) solver/validator vectors** return early when mainnet **`nEquihashN != 96`** -- compatible no-op on Zero, **not** **(96,5)** coverage.
-- **Zero-specific cases** exercise **(192,7)** mainnet genesis (valid + corrupt **`nSolution`**) and **(48,5)** regtest genesis.
+- **(192,7)** mainnet genesis (valid + corrupt **`nSolution`**), `validator_testvectors_192_7` / `_h1`.
+- **(48,5)** regtest genesis validator + `solver_testvectors_48_5` (`ENABLE_MINING`).
+- Unsupported `n,k` throw (`unsupported_equihash_params_throw`).
+- Python Equihash in `qa/` is not authoritative and not performant. C++ `CheckEquihashSolution` / `zcbenchmark` is.
 
 Failures in the Zero-specific cases usually mean **`chainparams.cpp`** / **`pow.cpp`** / **`CheckEquihashSolution`** drift. Verbose: **`--log_level=test_suite`** or **`message`**.
 
@@ -404,16 +405,11 @@ Commands and inventory: see **§2 Use cases** and **§3 Inventory** above.
 --gtest_filter='-WalletTests.CachedWitnessesCleanIndex'
 ```
 
-**Boost**
-
-```text
---run_test='!miner_tests'
-```
+Boost has no pass-only exclude (`BOOST_PASS_EXCLUDE` empty).
 
 | Layer | Excluded (default) | Reason (summary) |
 |-------|-------------------|------------------|
 | GTest | **`CachedWitnessesCleanIndex`** | Reindex scenario needs incremental **`BuildWitnessCache`** path (**`pcoinsTip`** anchors + **`ReadBlockFromDisk`**); gtest harness has neither |
-| Boost | **`miner_tests`** | **`CreateNewBlock_validity`**: **`blockinfo`** **(96,5)** vs Zero **(192,7)** MAIN -> skip via `nEquihashN != 96`; excluded in **`test_filters.sh`** |
 
 **Fixed 2026-06-09 (now in gate):** GTest **`WriteCryptedSaplingZkey*`**, **`CachedWitnessesEmptyChain/ChainTip/DecrementFirst`**; Boost **`rpc_wallet_encrypted_wallet_sapzkeys`**.
 
@@ -490,10 +486,9 @@ No automated test connects to public mainnet or testnet. All harness layers use 
 | Suite / pattern | Chain params | Encapsulation |
 |-----------------|--------------|---------------|
 | Fixture default | **MAIN** (`test_bitcoin.cpp` `SelectParams(MAIN)`) | In-process; no network |
-| `equihash_tests` | MAIN + REGTEST switch per case | Genesis header vectors **(192,7)** / **(48,5)** |
+| `equihash_tests` | MAIN + REGTEST switch per case | Genesis + KAT **(192,7)** / **(48,5)** |
 | `rpc_wallet_tests` | Often **TESTNET** for zaddr HRP checks | `CallRPC` / wallet fixtures |
 | `transaction_tests` | REGTEST for Overwinter branch | Temporary `SelectParams` |
-| `miner_tests` | MAIN fixture | **`blockinfo`** **(96,5)**; skips when MAIN **`nEquihashN != 96`** (Zero **192**); regtest **(48,5)** vectors not yet authored |
 | `pow_tests` | MAIN | `CalculateNextWorkRequired` unit tests |
 | `key_tests` | REGTEST | Key derivation |
 
@@ -1133,50 +1128,11 @@ PYTHONPATH=qa/rpc-tests python3 qa/rpc-tests/rpcbind_test.py --srcdir src
 - **`getblocktemplate.py`**: below START; **`coinbasetxn.required`** + **`finalsaplingroothash`** only.
 - **`coinbasevalue`**: documented but not exposed (**`coinbasetxn`** path; **`mining.cpp`** TODO).
 
-### **`miner_tests`** and Equihash **(96,5)** vs **(192,7)** vs **(48,5)**
+### Equihash params
 
-Three different **N,K** pairs appear in C++ tests and params. They are not interchangeable.
+Zero uses **(192,7)** on mainnet/testnet and **(48,5)** on regtest (`src/chainparams.cpp`). `EhInitialiseState` / solve / validate throw on any other pair. Boost `equihash_tests` and GTest `test_equihash` cover those two only.
 
-| Context | **N, K** | Source |
-|---------|----------|--------|
-| Zero mainnet | **192, 7** | `src/chainparams.cpp` production PoW |
-| Zero regtest | **48, 5** | `src/chainparams.cpp` fast regtest PoW |
-| Legacy **`miner_tests` `blockinfo[]`** | **96, 5** | Frozen upstream Bitcoin/Zcash-era vectors (precomputed block hashes + **`nSolution`** hex) |
-| Zcash mainnet (historical reference) | **200, 9** | Not Zero; explains why upstream tests rarely matched production |
-| Zcash testnet (historical reference) | **96, 5** | Same **N,K** as **`miner_tests` `blockinfo`** |
-
-**`equihash_tests`** (Boost, in default pass filter) exercises Zero correctly:
-
-- **(96,5)** solver/validator cases **return early** when **`Params(MAIN).nEquihashN != 96`** -- on Zero mainnet (**192**) they are a compatible no-op, not **(96,5)** coverage.
-- Zero-specific cases validate **(192,7)** mainnet genesis (valid + corrupt **`nSolution`**) and **(48,5)** regtest genesis.
-
-**`miner_tests`** (Boost, **excluded** in pass-only filter via **`qa/zcash/test_filters.sh`**) is a different problem:
-
-| Item | Detail |
-|------|--------|
-| Suite | **`miner_tests`**, case **`CreateNewBlock_validity`** |
-| Fixture | **`TestingSetup`** (in-memory **`CChainParams::MAIN`**) |
-| Vectors | **`blockinfo[]`** -- dozens of **(96,5)** blocks with valid Equihash solutions for upstream params |
-| Skip guard (current code) | `if (chainparams.GetConsensus().nEquihashN != 96) return;` |
-| On Zero today | **`Params(MAIN).nEquihashN == 192`** -> condition true -> **always skips** with message that **`blockinfo`** is **(96,5)** |
-| If run unfiltered | Skip is intentional; body would call **`CheckProofOfWork`** / **`CreateNewBlock`** with wrong **N,K** solutions and fail or assert |
-
-**Why not run on mainnet (192,7) or regtest (48,5) as-is:**
-
-- **(192,7)** and **(48,5)** need different solution lengths and validation paths than **(96,5)** **`blockinfo`** entries.
-- The test does **not** call **`CBlock::solve()`**; it replays frozen **`nSolution`** blobs. Reusing **(96,5)** blobs on **(192,7)** or **(48,5)** params is invalid.
-- Switching the case to **`Params(REGTEST)`** without new vectors still fails: Zero regtest is **(48,5)**, not **(96,5)**.
-
-**Why not repoint Zero to (96,5):** regtest **(48,5)** is consensus in **`chainparams.cpp`** for faster RPC mining; mainnet **(192,7)** is production PoW. **`miner_tests` `blockinfo`** matches neither.
-
-**Harness status:** **`BOOST_PASS_EXCLUDE='!miner_tests:...'`** in **`test_filters.sh`**. Default and **`--all`** never run the suite. **`--fail`** can run it; expect skip/no-op on Zero until new vectors exist.
-
-**Path to enable (regtest target):**
-
-1. Mine a short **(48,5)** regtest chain (or capture from **`generate`** on regtest).
-2. Export block hashes + **`nSolution`** hex into a new **`blockinfo`** table for **(48,5)**.
-3. Run the case under **`Params(REGTEST)`** (or a dedicated fixture).
-4. Remove **`!miner_tests`** from pass-only exclude once the case exercises real code paths.
+Timed (192,7) verify/solve: wallet RPC `zcbenchmark verifyequihash` / `solveequihash` (`ENABLE_MINING` for solve). Regtest `generate` is (48,5).
 
 **`src/Makefile.test.include`:** **`alert_tests.cpp`** is not in **`BITCOIN_TESTS`** (obsolete P2P alert system). No separate Boost exclude for alerts -- suite is simply not linked.
 
@@ -1320,11 +1276,10 @@ Default and **`--all`** share the same C++ exclusions (**Known failures** below)
 | Item | Count | Risk | Notes |
 |------|-------|------|-------|
 | GTest **`CachedWitnessesCleanIndex`** | 1 test | Fail | Reindex scenario needs incremental **`BuildWitnessCache`** (**`pcoinsTip`** anchors + **`ReadBlockFromDisk`**); not available in gtest harness |
-| Boost **`miner_tests`** | 1 case (`CreateNewBlock_validity`) | Skip / no-op on Zero | **`blockinfo`** is **(96,5)**; Zero mainnet **(192,7)** -> `nEquihashN != 96` skip; need **(48,5)** regtest **`blockinfo`** to enable |
 
 **Fixed 2026-06-09:** the encrypt-hang class (GTest **`WriteCryptedSaplingZkey*`**, Boost **`rpc_wallet_encrypted_wallet_sapzkeys`**) -- root cause was a wallet-DB re-entry deadlock in `CCryptoKeyStore::AddCryptedSaplingSpendingKey` (virtual `AddSaplingFullViewingKey` persisted during `EncryptWallet`/`LoadWallet`); this also deadlocked the **`encryptwallet`** RPC on any wallet holding Sapling keys. `CachedWitnessesEmptyChain/ChainTip/DecrementFirst` ported to Zero witness semantics.
 
-**Mitigation (remaining):** Zero **(48,5)** **`blockinfo`** for **`miner_tests`**; coins-view harness for **`CachedWitnessesCleanIndex`**.
+**Mitigation (remaining):** coins-view harness for **`CachedWitnessesCleanIndex`**.
 
 ### RPC Tier Bfail groups
 

@@ -13,7 +13,7 @@ Repo-root copies of the same basenames are also accepted (UpdateZero cites
 
 ## Forms
 
-- **Header form (Zero mainnet):** `I = CEquihashInput(header) || nNonce` then `EhIsValidSolution` / `CheckEquihashSolution` (`pow.cpp`). Genesis dump is this form -- **not** the legacy string-`I` helper used by old (96,5) Zcash vectors.
+- **Header form (Zero mainnet):** `I = CEquihashInput(header) || nNonce` then `EhIsValidSolution` / `CheckEquihashSolution` (`pow.cpp`).
 - **Regtest (48,5):** no separate file; tests use `Params().GenesisBlock()` and optional `BasicSolve`/`OptimisedSolve` on that header state (`solver_testvectors_48_5`).
 
 ## Regenerate
@@ -32,7 +32,6 @@ DUMP_1927EQ=./contrib/perf/kats/1927EQ.txt \
 - `validator_testvectors_192_7` -- indices <-> genesis `nSolution`; corrupt swap fails
 - `validator_testvectors_192_7_h1` -- deserialize hex; `CheckEquihashSolution`; index round-trip
 - `validator_testvectors_48_5` / `solver_testvectors_48_5` -- regtest genesis (in-tree, no file)
-- Legacy (96,5) cases remain skip-guarded on Zero params
 
 Acceptance: `--run_test=equihash_tests` green; no algorithm changes.
 

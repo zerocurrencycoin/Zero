@@ -106,59 +106,15 @@ default/`--all` runs green.
 
 ---
 
-## 2. Why the Equihash vectors can't be "adjusted," and mining-test status
+## 2. Equihash params and mining-test status
 
-*(Relates to `UpdateZero.md` TST-05, §2 consensus params. Investigation 2026-07-02.)*
+Relates to `UpdateZero.md` TST-05. Zero instantiates **(192,7)** (mainnet/testnet) and **(48,5)** (regtest) only; other `n,k` throw.
 
-Elaborates TST-05 with the root cause of the recurring skip and a survey of
-mining-test gaps. This is the authoritative "why"; TST-05 remains the actionable
-task.
+Boost `equihash_tests` covers genesis headers, `1927EQ.txt` / `1927EQ_h1.hex` validators, and `solver_testvectors_48_5` when `ENABLE_MINING`. GTest `test_equihash.cpp` is the (48,5) solver cancel / array suite. Timed (192,7) solve/verify is wallet RPC `zcbenchmark`, not a frozen nonce table.
 
-### Why the failing/skipped test cannot be trivially adjusted
-The guard is not a parameter constant that can be flipped from `96` to `192`.
-`solver_testvectors` / `validator_testvectors` (`src/test/equihash_tests.cpp:108`,
-and the gtest twin `src/gtest/test_equihash.cpp`) assert against **hardcoded
-32-element solution index arrays** (e.g. `{976, 126621, 100174, ...}`). Those
-arrays are cryptographic outputs of the Equihash solver *at (96,5) for a specific
-input+nonce*; they are inherited verbatim from upstream Zcash. Changing the
-declared `n,k` to Zero's **(192,7)** (`src/chainparams.cpp:94`, `Eh192_7` in
-`src/crypto/equihash.h:203`) would make every one of those literal arrays wrong --
-the solver at (192,7) produces entirely different index sets and a different
-solution width (`cBitLen = n/(k+1) = 24` vs `16`). There is no adjustment short of
-**regenerating** the vectors by actually running `Equihash<192,7>::BasicSolve`.
-That is exactly the remaining work TST-05 scopes. The current
-`if (nEquihashN != 96) return;` skip (`equihash_tests.cpp:111`) is correct
-behavior -- it prevents a guaranteed false failure for the frozen (96,5) arrays.
+Remaining gap: `src/gtest/test_miner.cpp` only checks `Miner.GetScriptForMinerAddress`. RPC `generate` on regtest is (48,5). A live `CreateNewBlock` + solve smoke (regtest) is optional later; do not resurrect a parameter-frozen `blockinfo[]`.
 
-**Update 2026-07-22:** Zero is **not** at zero KAT coverage anymore. Boost
-`equihash_tests` also has mainnet genesis **(192,7)** valid + corrupt-solution
-cases and regtest genesis **(48,5)**; suite **PASS** on recheck. **TST-05**
-scope: add index-array KATs for **(192,7)** (128 indices) and **(48,5)**
-(32 indices) only; **drop (96,5)** / do not refresh `miner_tests` `blockinfo[]`.
-
-### Confirmed build/run facts
-`ENABLE_MINING = 1` in this build (`src/config/bitcoin-config.h:30`), so the
-(96,5) solver-vector cases compile and early-return via the guard. The
-parameter-agnostic cases (`expand_and_contract_arrays`,
-`minimal_solution_representation`, `is_probably_duplicate`,
-`check_basic_solver_cancelled`, `check_optimised_solver_cancelled`) plus the
-Zero genesis header cases run/pass.
-
-### Mining-test gaps found
-- **`src/gtest/test_miner.cpp`** tests only `Miner.GetScriptForMinerAddress` (miner-address plumbing). It does **not** assemble a block template, run the solver, or validate a solved header -- no end-to-end mine path in gtest.
-- **`src/test/miner_tests.cpp`** (`CreateNewBlock_validity`) carries a hardcoded `blockinfo[]` table of upstream **(96,5)** nonces/solutions and is already quarantined in the Boost known-fail bucket (`BOOST_FAIL_ONLY='miner_tests'`, `qa/zcash/test_filters.sh:8`). Same root cause as the Equihash vectors: the frozen solutions are for the wrong parameter set. It is excluded from default/`--all`, exercised only under `run-tests.sh --fail`.
-- Net: genesis-header KATs cover **CheckEquihashSolution** at (192,7)/(48,5); **no** passing test yet validates build + solve + accept a **fresh** (192,7) block. RPC `generate` in regtest uses (**(48,5)**).
-
-### Proposed fixes (priority order)
-1. **Regenerate (192,7) solver + validator vectors (= TST-05).** Standalone generator using `Equihash<192,7>::BasicSolve` (needs `ENABLE_MINING`) or extract `(nNonce, nSolution)` from known Zero mainnet headers and re-derive index arrays via `GetIndicesFromMinimal`. Add `solver_testvectors_192_7` (Boost, `#ifdef ENABLE_MINING`) and `validator_testvectors_192_7` (Boost, no mining needed -- validator runs without the solver). Mirror in the gtest file. Keep the (96,5) cases behind their existing guard for cross-check on non-Zero params.
-2. **Refresh `miner_tests.cpp` `blockinfo[]` for (192,7)** *or* convert it to solve-at-runtime (drop the frozen solution column, call the solver in-test) so it stops being parameter-frozen; then move `miner_tests` out of `BOOST_FAIL_ONLY`. Runtime-solve is slower but eliminates the recurring "wrong vectors" class of failure permanently.
-3. **Add a gtest end-to-end mine smoke test** in `test_miner.cpp`: build a template via `CreateNewBlock`, solve with the real solver at test params, assert `CheckEquihashSolution` + `CheckProofOfWork` pass. Even at regtest (48,5) this closes the "can we assemble+solve+accept a block" gap that neither current file covers.
-
-*Key files:* `src/test/equihash_tests.cpp` (108 solver, 91/167 validator),
-`src/gtest/test_equihash.cpp`, `src/gtest/test_miner.cpp`,
-`src/test/miner_tests.cpp`, `src/crypto/equihash.{h,cpp}` (`Eh192_7`, `BasicSolve`
-~823), `src/chainparams.cpp` (N/K per network: main/test 192,7; regtest 48,5),
-`qa/zcash/test_filters.sh` (`BOOST_FAIL_ONLY`).
+*Key files:* `src/test/equihash_tests.cpp`, `src/gtest/test_equihash.cpp`, `src/gtest/test_miner.cpp`, `src/crypto/equihash.{h,cpp}`, `src/chainparams.cpp`.
 
 ---
 

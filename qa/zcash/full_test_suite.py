@@ -35,7 +35,7 @@ BOOST_PASS_EXCLUDE, GTEST_PASS_FILTER = _load_test_filters()
 
 def btest_command(unfiltered):
     cmd = [repofile('src/test/test_bitcoin'), '-p']
-    if not unfiltered:
+    if not unfiltered and BOOST_PASS_EXCLUDE:
         cmd.append('--run_test=' + BOOST_PASS_EXCLUDE)
     return cmd
 

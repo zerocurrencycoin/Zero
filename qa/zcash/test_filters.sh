@@ -4,7 +4,7 @@
 # WriteCryptedSaplingZkey* and rpc_wallet_encrypted_wallet_sapzkeys now pass.
 # CachedWitnesses* ported except CleanIndex (reindex scenario needs the
 # incremental BuildWitnessCache path: pcoinsTip anchors + ReadBlockFromDisk).
-BOOST_PASS_EXCLUDE='!miner_tests'
-BOOST_FAIL_ONLY='miner_tests'
+BOOST_PASS_EXCLUDE=''
+BOOST_FAIL_ONLY=''
 GTEST_PASS_EXCLUDE='-WalletTests.CachedWitnessesCleanIndex'
 GTEST_FAIL_ONLY='WalletTests.CachedWitnessesCleanIndex'

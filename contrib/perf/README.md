@@ -156,7 +156,7 @@ now add `-walletwitness=rebuild` for that start only. See **Perf.md** §0.14.
 
 ## tiny_baseline.sh
 
-Unpack tiny (or short) snap into `$TMPDIR`, `-reindex -disablewallet`, then
+Unpack tiny (or short) snap into `/tmp`, `-reindex -disablewallet`, then
 run `extract_measures.py`. Writes `test-logs/<run_id>.*`.
 
 ```bash

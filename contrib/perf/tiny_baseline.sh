@@ -27,7 +27,7 @@ case "$SNAP" in
   *) echo "usage: $0 [tiny|short]" >&2; exit 1 ;;
 esac
 
-LAB="${LAB:-${TMPDIR:-/tmp}/zero-lab-${SNAP}-baseline-$$}"
+LAB="${LAB:-/tmp/zero-lab-${SNAP}-baseline-$$}"
 refuse_live_datadir LAB "$LAB"
 
 if [ ! -x "$ZEROD" ]; then

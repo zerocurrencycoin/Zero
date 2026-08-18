@@ -15,11 +15,15 @@ _DEBUGLOG_PY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/debuglog.py"
 refuse_live_datadir() {
   local label="${1:-LAB}"
   local path="${2:?usage: refuse_live_datadir LABEL PATH}"
-  local extra=()
+  # No arrays: bash 3.2 and zsh `set -u` both treat empty extra[@] as unbound.
   case "${ZERO_PERF_ALLOW_LIVE_DATADIR:-}" in
-    1|true|yes|YES) extra+=(--allow-live-datadir) ;;
+    1|true|yes|YES)
+      python3 "$_DEBUGLOG_PY" --guard-write "$path" --label "$label" --allow-live-datadir
+      ;;
+    *)
+      python3 "$_DEBUGLOG_PY" --guard-write "$path" --label "$label"
+      ;;
   esac
-  python3 "$_DEBUGLOG_PY" --guard-write "$path" --label "$label" "${extra[@]}"
 }
 
 is_default_datadir() {

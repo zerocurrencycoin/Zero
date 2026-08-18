@@ -149,7 +149,7 @@ def summarize_latencies(samples: list[dict]) -> dict:
 def run_one(dbcache: int, insight: bool, stamp: str, run_idx: int) -> dict:
     port = 19000 + (os.getpid() % 1000) + run_idx * 2
     rpcport = port + 1
-    tmp = tempfile.mkdtemp(prefix='measure-dbcache-')
+    tmp = tempfile.mkdtemp(prefix='measure-dbcache-', dir='/tmp')
     datadir = tmp
     with open(os.path.join(datadir, 'zero.conf'), 'w') as f:
         f.write('regtest=1\nshowmetrics=0\nrpcuser=rt\nrpcpassword=rt\n')

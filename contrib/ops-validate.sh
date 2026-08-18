@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Runtime ops validation: one catalog id per invocation.
-# Copy this file to Zero400 as contrib/ops-validate.sh later.
 #
 # Interesting (operator-equivalent data, this binary):
 #   contrib/ops-validate.sh live     # RPC to SRC (operator datadir); does not start or stop
@@ -9,6 +8,17 @@
 #
 # Binary-up only (not a wallet/sync test):
 #   contrib/ops-validate.sh cold
+#   contrib/ops-validate.sh restart  # after cold; tip unchanged
+#
+# Equihash (separate invocations; not a load soak):
+#   contrib/ops-validate.sh equihash     # Boost KATs (test_bitcoin)
+#   contrib/ops-validate.sh eq-verify    # zcbenchmark verifyequihash 20 (MAIN 192,7)
+#   contrib/ops-validate.sh eq-solve     # one OptimisedSolve; long; ENABLE_MINING
+#
+# Bundles:
+#   contrib/ops-validate.sh smoke    # cold + restart
+#   contrib/ops-validate.sh short    # equihash + eq-verify + smoke (RC short)
+#   --force / ZERO_OPS_FORCE=1       # override datadir/zerod/port gates (WARNING)
 #
 # Load exercises (one trial per invocation; default -disablewallet, stop 100000):
 #   contrib/ops-validate.sh reindex            # -reindex tiny snap to 100000
@@ -22,7 +32,7 @@
 # Wallet: p0|p1|fat|none or --wallet=PATH (default none = -disablewallet).
 #
 # Env:
-#   ZERO_OPS_LAB       scratch for copy/cold/reindex (default $TMPDIR/zero-ops-validate)
+#   ZERO_OPS_LAB       scratch for copy/cold/reindex (default /tmp/zero-ops-validate)
 #   ZERO_OPS_SRC       read-only source (default ~/Library/Application Support/zero)
 #   ZERO_OPS_WALLET    wallet path (overrides p0/p1/fat). default empty = -disablewallet
 #   ZERO_OPS_WALLET_P0 / P1 / FAT   catalog paths (default SRC/wallet.zero0, personalbak, wallet.zero)
@@ -46,7 +56,7 @@ cd "$REPO_ROOT"
 
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
 ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
-LAB="${ZERO_OPS_LAB:-${TMPDIR:-/tmp}/zero-ops-validate}"
+LAB="${ZERO_OPS_LAB:-/tmp/zero-ops-validate}"
 RPCPORT="${ZERO_RPCPORT:-23941}"
 WAIT_S="${ZERO_OPS_WAIT:-1800}"
 export ZERO400="${ZERO400:-$HOME/Work/ZK/Zero400}"
@@ -67,14 +77,23 @@ else
   LEDGER="${ZERO_OPS_LEDGER:-$REPO_ROOT/test-logs/ops-status.jsonl}"
 fi
 
-CMD="${1:-}"
 KEEP="${ZERO_OPS_KEEP:-0}"
+FORCE="${ZERO_OPS_FORCE:-0}"
+while [[ $# -ge 1 ]]; do
+  case "$1" in
+    force|--force) FORCE=1; shift ;;
+    keep|--keep) KEEP=1; shift ;;
+    *) break ;;
+  esac
+done
+CMD="${1:-}"
 ARG2=""
 if [[ $# -ge 1 ]]; then
   shift
   for a in "$@"; do
     case "$a" in
       keep|--keep) KEEP=1 ;;
+      force|--force) FORCE=1 ;;
       all|ALL) ARG_TARGET=all ;;
       snap=*) SNAP="${a#snap=}" ;;
       --snap=*) SNAP="${a#--snap=}" ;;
@@ -89,28 +108,79 @@ if [[ $# -ge 1 ]]; then
         elif [[ "$CMD" == "boot" || "$CMD" == "cold" ]]; then
           ARG2="$a"
         else
-          echo "ERROR: extra arg $a (want all|N|p0|p1|fat|none|keep|snap=tiny|--wallet=PATH)" >&2
+          echo "ERROR: extra arg $a (want all|N|p0|p1|fat|none|keep|force|snap=tiny|--wallet=PATH)" >&2
           exit 2
         fi
         ;;
     esac
   done
 fi
+if [[ "$FORCE" == "1" ]]; then
+  export ZERO_OPS_FORCE=1
+  export ZERO_PERF_ALLOW_LIVE_DATADIR=1
+fi
 TPL="lab"
 
 usage() {
-  echo "Usage: contrib/ops-validate.sh CMD [all|N] [p0|p1|fat|none] [keep] [snap=tiny|short|full]"
-  echo "CMD: reindex|rescan|bootstrap|live|copy|cold|attach|stop|wallets"
+  echo "Usage: contrib/ops-validate.sh CMD [all|N] [p0|p1|fat|none] [keep] [force] [snap=tiny|short|full]"
+  echo "CMD: short|smoke|reindex|rescan|bootstrap|live|copy|cold|restart|attach|stop|wallets|equihash|eq-verify|eq-solve"
+  echo "short: equihash + eq-verify + smoke (RC). smoke: cold + restart."
   echo "reindex: -reindex from blk*.dat. Default stop 100000. reindex all = snap tip."
   echo "rescan: keep indexes, -rescan, wait Done loading. Wallet recommended (p0|p1|fat)."
   echo "bootstrap: -loadblock to 100000 (bootstrap all = end of file). always -disablewallet."
   echo "wallet: p0|p1|fat|none or --wallet=PATH  (contrib/ops-validate.sh wallets)"
   echo "live: RPC to SRC only. attach: RPC to LAB. keep: leave LAB zerod running."
+  echo "restart: stop+start LAB after cold; tip must be unchanged."
+  echo "equihash: Boost KATs (test_bitcoin; no zerod). eq-verify: zcbenchmark verifyequihash 20."
+  echo "eq-solve: one (192,7) OptimisedSolve via zcbenchmark (long; ENABLE_MINING). Separate invocation."
+  echo "--force / ZERO_OPS_FORCE=1: override datadir, running-zerod, and port gates (WARNING)."
 }
 
 resolve() { (cd "$1" 2>/dev/null && pwd -P) || echo "$1"; }
 
 refuse_lab() { refuse_live_datadir LAB "$1"; }
+
+warn_or_die_zerod() {
+  local why="$1"
+  if pgrep -x zerod >/dev/null 2>&1; then
+    if [[ "$FORCE" == "1" ]]; then
+      echo "WARNING: zerod already running ($why); continuing (--force)" >&2
+      return 0
+    fi
+    echo "ERROR: stop zerod first ($why); or pass --force" >&2
+    exit 1
+  fi
+}
+
+port_listen() {
+  local p="$1"
+  command -v lsof >/dev/null 2>&1 || return 1
+  lsof -nP -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1
+}
+
+require_lab_clear() {
+  local busy=0
+  if pgrep -f "zerod .*-datadir=${LAB}" >/dev/null 2>&1; then
+    busy=1
+  fi
+  if port_listen "$RPCPORT"; then
+    busy=1
+  fi
+  if [[ "$busy" -eq 1 ]]; then
+    if [[ "$FORCE" == "1" ]]; then
+      echo "WARNING: LAB zerod or rpcport $RPCPORT in use; continuing (--force)" >&2
+      return 0
+    fi
+    echo "ERROR: LAB zerod or rpcport $RPCPORT in use (stop that node, or pass --force)" >&2
+    exit 1
+  fi
+}
+
+pass_force() {
+  if [[ "$FORCE" == "1" ]]; then
+    printf '%s\n' --force
+  fi
+}
 
 src_rpcport() {
   local conf="$1/zero.conf" p=""
@@ -238,17 +308,18 @@ copy_from_src() {
   s="$(resolve "$SRC")"
   [[ -d "$s/blocks" && -d "$s/chainstate" ]] || { echo "ERROR: SRC needs blocks/ and chainstate/: $s" >&2; exit 1; }
   if is_default_datadir "$LAB"; then
-    echo "ERROR: copy dest is the default datadir" >&2
-    exit 1
+    if [[ "$FORCE" == "1" ]]; then
+      echo "WARNING: copy dest is the default datadir (--force)" >&2
+    else
+      echo "ERROR: copy dest is the default datadir (pass --force)" >&2
+      exit 1
+    fi
   fi
   if [[ "$(resolve "$LAB")" == "$s" ]]; then
     echo "ERROR: LAB and SRC are the same path" >&2
     exit 1
   fi
-  if pgrep -x zerod >/dev/null 2>&1; then
-    echo "ERROR: zerod is running; stop it before copy (do not snapshot a live chainstate)" >&2
-    exit 1
-  fi
+  warn_or_die_zerod "do not snapshot a live chainstate"
   echo "wipe LAB then copy $s/{blocks,chainstate} -> $(resolve "$LAB") (read-only source)"
   rm -rf "$LAB"
   mkdir -p "$LAB"
@@ -391,10 +462,7 @@ target_label() {
 
 unpack_snap() {
   refuse_lab "$LAB"
-  if pgrep -x zerod >/dev/null 2>&1; then
-    echo "ERROR: stop zerod before reindex/bootstrap/rescan" >&2
-    exit 1
-  fi
+  warn_or_die_zerod "reindex/rescan snap unpack"
   rm -rf "$LAB"
   mkdir -p "$LAB"
   case "$SNAP" in
@@ -456,6 +524,107 @@ walletinfo_ok() {
   perl -e 'alarm 30; exec @ARGV' -- "$ZERO_CLI" -datadir="$LAB" -rpcport="$RPCPORT" getwalletinfo >/dev/null
 }
 
+TEST_BITCOIN="${TEST_BITCOIN:-$REPO_ROOT/src/test/test_bitcoin}"
+
+cmd_equihash() {
+  [[ -x "$TEST_BITCOIN" ]] || { echo "missing $TEST_BITCOIN (build test_bitcoin)" >&2; exit 1; }
+  echo "OPS-EQUIHASH --run_test=equihash_tests"
+  if (cd "$REPO_ROOT" && "$TEST_BITCOIN" --run_test=equihash_tests); then
+    finish_ok OPS-EQUIHASH ""
+  else
+    finish_err OPS-EQUIHASH ""
+    exit 1
+  fi
+}
+
+enable_wallet_conf() {
+  local conf="$LAB/zero.conf"
+  [[ -f "$conf" ]] || return 0
+  grep -v '^disablewallet=' "$conf" > "$conf.tmp" || true
+  mv "$conf.tmp" "$conf"
+}
+
+finish_eq_conf() {
+  enable_wallet_conf
+  local conf="$LAB/zero.conf"
+  grep -vE '^(regtest|rpcuser|rpcpassword|rpcport)=' "$conf" > "$conf.tmp" || true
+  mv "$conf.tmp" "$conf"
+  {
+    echo "regtest=1"
+    echo "rpcuser=rt"
+    echo "rpcpassword=rt"
+    echo "rpcport=$RPCPORT"
+  } >> "$conf"
+}
+
+run_eq_bench() {
+  local rpc="$1" samples="$2" id="$3"
+  local saved_lab="$LAB" saved_port="$RPCPORT"
+  LAB="${ZERO_OPS_EQ_LAB:-/tmp/zero-ops-eq}"
+  RPCPORT="${ZERO_OPS_EQ_RPCPORT:-23951}"
+  refuse_lab "$LAB"
+  require_lab_clear
+  rm -rf "$LAB"
+  mkdir -p "$LAB"
+  write_isolated_conf
+  finish_eq_conf
+  echo "$id $rpc $samples (zcbenchmark always MAIN 192,7; isolated regtest LAB=$LAB rpcport=$RPCPORT)"
+  "$ZEROD" -datadir="$LAB" -daemon -listen=0 -connect=0 -maxconnections=0 -rpcport="$RPCPORT" -keypool=1
+  wait_rpc
+  cli zcbenchmark "$rpc" "$samples"
+  local h
+  h="$(cli getblockcount 2>/dev/null || echo 0)"
+  maybe_stop
+  finish_ok "$id" "$h"
+  LAB="$saved_lab"
+  RPCPORT="$saved_port"
+}
+
+cmd_restart() {
+  refuse_lab "$LAB"
+  [[ -f "$LAB/zero.conf" ]] || { echo "ERROR: run cold first (need $LAB/zero.conf)" >&2; exit 1; }
+  local h0 h1
+  h0="$(cli getblockcount 2>/dev/null || echo NA)"
+  cli stop >/dev/null 2>&1 || true
+  sleep 2
+  start_isolated
+  h1="$(cli getblockcount)"
+  maybe_stop
+  echo "OPS-RESTART height=$h1 (before_stop=${h0})"
+  if [[ "$h0" != "NA" && "$h1" != "$h0" ]]; then
+    echo "ERROR: tip changed across restart ($h0 -> $h1)" >&2
+    finish_err OPS-RESTART "$h1"
+    exit 1
+  fi
+  finish_ok OPS-RESTART "$h1"
+}
+
+cmd_smoke() {
+  local self="$REPO_ROOT/contrib/ops-validate.sh"
+  local f
+  f="$(pass_force)"
+  echo "OPS-SMOKE cold + restart LAB=$LAB"
+  # shellcheck disable=SC2086
+  "$self" cold keep $f
+  # shellcheck disable=SC2086
+  "$self" restart $f
+  finish_ok OPS-SMOKE ""
+}
+
+cmd_short() {
+  local self="$REPO_ROOT/contrib/ops-validate.sh"
+  local f
+  f="$(pass_force)"
+  echo "OPS-SHORT equihash + eq-verify + smoke"
+  # shellcheck disable=SC2086
+  "$self" equihash $f
+  # shellcheck disable=SC2086
+  "$self" eq-verify $f
+  # shellcheck disable=SC2086
+  "$self" smoke $f
+  finish_ok OPS-SHORT ""
+}
+
 [[ -n "$CMD" ]] || { usage >&2; exit 2; }
 if [[ "$CMD" == "wallets" || "$CMD" == "-h" || "$CMD" == "--help" ]]; then
   [[ "$CMD" == "wallets" ]] && { cmd_wallets; exit 0; }
@@ -464,13 +633,16 @@ fi
 if [[ -n "$WALLET_SEL" ]]; then
   WALLET_FILE="$(resolve_wallet "$WALLET_SEL")"
 fi
-[[ -x "$ZEROD" ]] || { echo "missing $ZEROD" >&2; exit 1; }
+if [[ "$CMD" != "equihash" ]]; then
+  [[ -x "$ZEROD" ]] || { echo "missing $ZEROD" >&2; exit 1; }
+fi
 
 T0=$(date +%s)
 
 case "$CMD" in
   reindex)
     refuse_lab "$LAB"
+    require_lab_clear
     prepare_snap_for_reindex
     maybe_inject_wallet
     write_isolated_conf
@@ -500,10 +672,7 @@ case "$CMD" in
       echo "ERROR: pass a copy of bootstrap.dat, not the lab original" >&2
       exit 1
     fi
-    if pgrep -x zerod >/dev/null 2>&1; then
-      echo "ERROR: stop zerod before bootstrap" >&2
-      exit 1
-    fi
+    warn_or_die_zerod "bootstrap -loadblock"
     rm -rf "$LAB"
     mkdir -p "$LAB"
     cp -p "$BOOTSTRAP" "$LAB/bootstrap.dat"
@@ -561,6 +730,7 @@ case "$CMD" in
     ;;
   copy)
     refuse_lab "$LAB"
+    require_lab_clear
     copy_from_src
     write_isolated_conf
     WAIT_RPC_S=600 start_isolated
@@ -574,6 +744,7 @@ case "$CMD" in
     ;;
   cold|boot)
     refuse_lab "$LAB"
+    require_lab_clear
     mkdir -p "$LAB"
     wipe_chain
     TPL="${ARG2:-lab}"
@@ -583,6 +754,24 @@ case "$CMD" in
     maybe_stop
     echo "OPS-START-COLD (binary-up only, not a sync test)"
     finish_ok OPS-START-COLD "$h"
+    ;;
+  restart)
+    cmd_restart
+    ;;
+  smoke)
+    cmd_smoke
+    ;;
+  short)
+    cmd_short
+    ;;
+  equihash)
+    cmd_equihash
+    ;;
+  eq-verify)
+    run_eq_bench verifyequihash 20 OPS-EQ-VERIFY
+    ;;
+  eq-solve)
+    run_eq_bench solveequihash 1 OPS-EQ-SOLVE
     ;;
   attach)
     refuse_lab "$LAB"

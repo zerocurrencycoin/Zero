@@ -2,12 +2,12 @@
 set -u
 
 
-DATADIR=./benchmark-datadir
+DATADIR="${ZERO_MEASURE_DATADIR:-/tmp/zero-ops-measure}"
 SHA256CMD="$(command -v sha256sum || echo shasum)"
 SHA256ARGS="$(command -v sha256sum >/dev/null || echo '-a 256')"
 
 function zcash_rpc {
-    ./src/zero-cli -datadir="$DATADIR" -rpcuser=user -rpcpassword=password -rpcport=5983 "$@"
+    ./src/zero-cli -datadir="$DATADIR" -rpcuser=user -rpcpassword=password -rpcport=23961 "$@"
 }
 
 function zcash_rpc_slow {
@@ -74,7 +74,7 @@ function zerod_start {
             mkdir -p "$DATADIR/regtest"
             touch "$DATADIR/zcash.conf"
     esac
-    ./src/zerod -regtest -datadir="$DATADIR" -rpcuser=user -rpcpassword=password -rpcport=5983 -showmetrics=0 &
+    ./src/zerod -regtest -datadir="$DATADIR" -rpcuser=user -rpcpassword=password -rpcport=23961 -showmetrics=0 &
     ZEROD_PID=$!
     zcash_rpc_wait_for_start
 }
@@ -105,7 +105,7 @@ function zerod_massif_start {
             touch "$DATADIR/zcash.conf"
     esac
     rm -f massif.out
-    valgrind --tool=massif --time-unit=ms --massif-out-file=massif.out ./src/zerod -regtest -datadir="$DATADIR" -rpcuser=user -rpcpassword=password -rpcport=5983 -showmetrics=0 &
+    valgrind --tool=massif --time-unit=ms --massif-out-file=massif.out ./src/zerod -regtest -datadir="$DATADIR" -rpcuser=user -rpcpassword=password -rpcport=23961 -showmetrics=0 &
     ZEROD_PID=$!
     zcash_rpc_wait_for_start
 }
@@ -121,7 +121,7 @@ function zerod_valgrind_start {
     mkdir -p "$DATADIR"
     touch "$DATADIR/zero.conf"
     rm -f valgrind.out
-    valgrind --leak-check=yes -v --error-limit=no --log-file="valgrind.out" ./src/zerod -regtest -datadir="$DATADIR" -rpcuser=user -rpcpassword=password -rpcport=5983 -showmetrics=0 &
+    valgrind --leak-check=yes -v --error-limit=no --log-file="valgrind.out" ./src/zerod -regtest -datadir="$DATADIR" -rpcuser=user -rpcpassword=password -rpcport=23961 -showmetrics=0 &
     ZEROD_PID=$!
     zcash_rpc_wait_for_start
 }

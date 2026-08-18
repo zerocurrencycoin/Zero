@@ -238,8 +238,8 @@ if [ "$MODE" = "fail" ]; then
             GTEST_PID=$BG_LAST_PID
         fi
         BTEST_PID=""
-        if [ -x "src/test/test_bitcoin" ]; then
-            echo "--- Boost: miner_tests (blockinfo is (96,5); skips on Zero) ---"
+        if [ -x "src/test/test_bitcoin" ] && [ -n "$BOOST_FAIL_ONLY" ]; then
+            echo "--- Boost fail-only: $BOOST_FAIL_ONLY ---"
             run_bg "test_bitcoin-fail-only" \
                 ./src/test/test_bitcoin --run_test="$BOOST_FAIL_ONLY" --log_level=test_suite
             BTEST_PID=$BG_LAST_PID
@@ -304,9 +304,14 @@ if [ "$QUICK" -eq 0 ]; then
     echo ""
     BTEST_PID=""
     if [ -x "src/test/test_bitcoin" ]; then
-        echo "--- Boost (excludes --fail suites: miner_tests) ---"
-        run_bg "test_bitcoin" \
-            ./src/test/test_bitcoin --run_test="$BOOST_PASS_EXCLUDE" --log_level=test_suite
+        echo "--- Boost ---"
+        if [ -n "$BOOST_PASS_EXCLUDE" ]; then
+            run_bg "test_bitcoin" \
+                ./src/test/test_bitcoin --run_test="$BOOST_PASS_EXCLUDE" --log_level=test_suite
+        else
+            run_bg "test_bitcoin" \
+                ./src/test/test_bitcoin --log_level=test_suite
+        fi
         BTEST_PID=$BG_LAST_PID
     fi
 

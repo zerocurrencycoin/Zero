@@ -1,3 +1,7 @@
+"""Python Equihash helpers for the qa harness.
+
+Not authoritative and not performant. C++ CheckEquihashSolution / zcbenchmark is.
+"""
 from functools import reduce
 from operator import itemgetter
 import struct
