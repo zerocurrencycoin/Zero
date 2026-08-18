@@ -97,7 +97,7 @@ public:
 
     void append(Hash obj);
     // The root only depends on `left`, `right`, and `parents`, which are
-    // otherwise only ever changed by append() and deserialization below —
+    // otherwise only ever changed by append() and deserialization below --
     // both invalidate the latch, so it's always either empty or correct.
     Hash root() const {
         if (!cached_root) {
