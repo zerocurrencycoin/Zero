@@ -254,7 +254,7 @@ testScriptsExtFail=(
 )
 
 # Invocation tiers (documented in TEST_ZERO.md; inventory: -list-csv):
-#   Pass: A=10, B=27 (26 unique; txn_doublespend x2), E=8 (-all = 45). Bfail Debug includes heavy proving. Efail=5.
+#   Pass: A=10, B=31 (30 unique; txn_doublespend x2), E=8 (-all = 49). Bfail Debug includes heavy proving. Efail=5.
 #   -A | --tier-a       Tier A gate
 #   -B | --tier-b       Tier B pass only
 #   -Bfail              Tier B fail only (Debug then Retired; diagnostic)

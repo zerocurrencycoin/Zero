@@ -10,7 +10,6 @@ Working inventory and contributor commands live in **TEST_ZERO.md**. This file h
 
 - Without **`--strict`**, `run-tests.sh` may print **WARNING** and still exit **0**. With **`--strict`**, any failed step exits **1**.
 - **`skip_test`** exit **0** is a skip, not a pass.
-- Some Boost Equihash **(96,5)** vectors return early on Zero mainnet **(192,7)** -- they pass without exercising that solver path.
 
 | Signal | Meaning |
 |--------|---------|
@@ -29,7 +28,7 @@ Working inventory and contributor commands live in **TEST_ZERO.md**. This file h
 
 ### Promote rule
 
-A basename that exits **0** when run alone is **not** in the contributor gate until it is moved into a pass array in `rpc-tests.sh`, CSV regenerated, and **TEST_ZERO** §3 updated in the same change set.
+A basename that exits **0** when run alone is **not** in the contributor gate until it is moved into a pass array in `rpc-tests.sh`, CSV regenerated, and **TEST_ZERO** §3 updated in the same change set. Hold reasons: **TEST_ZERO** §5.
 
 ### Layer roles
 
@@ -58,8 +57,10 @@ A basename that exits **0** when run alone is **not** in the contributor gate un
 **Facts:**
 
 - Mainnet PoW is **(192,7)**; regtest uses **(48,5)** for fast tests.
-- Boost **`equihash_tests`**: Zero-specific cases cover mainnet genesis (valid + corrupt `nSolution`) and regtest genesis. Upstream **(96,5)** vectors no-op on Zero.
-- **`miner_tests`** remains outside the working gate until **(48,5)** `blockinfo` / TST-05 wiring is complete.
+- Boost **`equihash_tests`**: mainnet genesis **(192,7)** (valid + corrupt `nSolution`), `1927EQ.txt` / `1927EQ_h1.hex`, regtest **(48,5)**. Dispatch throws on other `n,k`.
+- Boost **`miner_tests`**: in-process `CreateNewBlock` + (48,5) solve + `ProcessNewBlock` (`ENABLE_MINING`). No frozen `blockinfo[]`.
+- Timed verify/solve: `contrib/ops-validate.sh verifyeq` / `solveeq` (optional N). Isolated regtest `generate`: `contrib/ops-validate.sh mine`. Operator mainnet CPU miner is `setgenerate` / `gen=1` (TEST_ZERO §8.5), not `mine`.
+- Python Equihash in `qa/` is not authoritative and not a (192,7) solver. `zcash_person` is ZcashPoW; node `InitialiseState` is ZERO_PoW.
 
 Do not "adjust" failing vectors by changing mainnet Equihash parameters.
 

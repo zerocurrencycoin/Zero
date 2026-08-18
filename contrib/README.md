@@ -22,8 +22,9 @@ Contains the script `github-merge.sh` for merging github pull requests securely 
 Tool to verify that every merge commit was signed by a developer using the above `github-merge.sh` script.
 
 ### [Conf templates](/contrib/conf-templates) ###
-Starting `zero.conf` files. Apply with `contrib/zero-conf.sh` (default **prod**, `/tmp/zero.conf`). Host/setup: `zcutil/check-setup.sh`. Release identity: `zcutil/check-release.sh`. Compile wrapper: `zcutil/build-release.sh`. Ops: `contrib/ops-validate.sh` (loads / live); `contrib/ops-smoke.sh` (`restart`).
+Starting `zero.conf` files. Apply with `contrib/zero-conf.sh` (default **prod**, `/tmp/zero.conf`). Host/setup: `zcutil/check-setup.sh`. Release identity: `zcutil/check-release.sh`. Compile wrapper: `zcutil/build-release.sh`. Ops: `contrib/ops-validate.sh` (`short` / `smoke` / `mine` / `verifyeq` / `solveeq` / loads / live).
 
+### [Linearize](/contrib/linearize) ###
 Construct a linear, no-fork, best version of the blockchain. RPC `port` in the cfg is the JSON-RPC port (mainnet default 23811).
 
 ### [Qos](/contrib/qos) ###

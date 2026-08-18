@@ -24,7 +24,7 @@ This repository is the **full node** (`zerod`, `zero-cli`, `zero-tx`). It downlo
 | I want to... | Start here |
 |------------|------------|
 | **Trade or hold** | Wallets and exchanges from [zerocurrency.io](https://zerocurrency.io); verify tickers on official channels only. |
-| **Mine** | Equihash **192,7** (not Zcash **200,9**). See community mining guides for current hardware needs. |
+| **Mine** | Equihash **(192,7)** -- Zero's PoW (Zcash mainnet uses **(200,9)**). `gen=0` is the operator default. |
 | **Run a node** | [Quick start](#-building) below, then [BUILD_ZERO.md](BUILD_ZERO.md). |
 | **Understand economics** | [ZERO_COIN.md](ZERO_COIN.md) (emission, halvings, founders, zeronodes). |
 | **Contribute** | [CONTRIBUTING.md](CONTRIBUTING.md) · [TEST_ZERO.md](TEST_ZERO.md) · [TODO.md](TODO.md) · [AGENTS.md](AGENTS.md). |
@@ -152,6 +152,19 @@ git clone https://github.com/zerocurrencycoin/Zero.git && cd Zero
 
 macOS and Windows: see [BUILD_ZERO.md](BUILD_ZERO.md).
 
+### Operator checks
+
+Config, then an isolated lab cycle under `/tmp` (not the live datadir):
+
+```bash
+./contrib/zero-conf.sh prod -dir ~/.zero
+./contrib/ops-validate.sh smoke
+```
+
+`smoke` is cold start + restart. `./contrib/ops-validate.sh short` adds Equihash KATs and `verifyeq`. Timed (192,7) solves are `solveeq` (default 1; pass N). Isolated regtest `generate` is `mine` (not mainnet). Load soaks (`reindex`, `bootstrap`, `copy`) stay separate. If a leftover `zerod` or RPC port is in the way, stop it or pass `--force`.
+
+From-source merge check: `./contrib/run-tests.sh --strict`. Maintainer inventory: [TEST_ZERO.md](TEST_ZERO.md).
+
 ### Data directory (`zero.conf`, wallet, chain)
 
 Canonical defaults (`GetDefaultDataDir()` / `ZC_GetBaseParamsDir()` in `src/util.cpp`):
@@ -164,7 +177,7 @@ Canonical defaults (`GetDefaultDataDir()` / `ZC_GetBaseParamsDir()` in `src/util
 
 Replace **`USERNAME`** with your login. Override datadir with `-datadir=<path>`. Wallet file: **`wallet.zero`** inside the datadir.
 
-**Linux** -- create config:
+**Linux** -- create config (or `./contrib/zero-conf.sh prod -dir ~/.zero`):
 
 ```bash
 mkdir -p ~/.zero
@@ -198,17 +211,24 @@ With `server=1` and RPC credentials in `zero.conf`:
 ```
 
 ### Optional CPU mining
-```
-echo 'gen=1' >> ~/.zero/zero.conf
-echo "genproclimit=1" >> ~/.zero/zero.conf
-echo 'equihashsolver=tromp' >> ~/.zero/zero.conf
+
+Template **prod** ships `gen=0`. Isolated tests (`ops-validate.sh mine`, Boost `miner_tests`) are **regtest (48,5)** and do not mine the live chain. Mainnet CPU mining is Equihash **(192,7)** on a synced node with peers, a wallet or `-mineraddress`, and `ENABLE_MINING`.
+
+Without restart, on the operator node:
+
+```bash
+./src/zero-cli setgenerate true 1
+./src/zero-cli getmininginfo
+./src/zero-cli setgenerate false
 ```
 
+`getmininginfo` should show `"generate": true` and a non-zero `localsolps` once the solver is running. `debug.log` should contain `Using Equihash solver` and `Running ZeroMiner`. The miner waits if there are no peers or the node is still in initial block download. Finding a mainnet block at current difficulty is not expected.
+
+To persist across restart, set `gen=1` and `genproclimit=1` in `zero.conf` (already present as `gen=0` / `genproclimit=1` / `equihashsolver=tromp` in the prod template). Use `setgenerate false` or `gen=0` to stop.
+
 ### Config samples
-```
-./contrib/zero.conf
-./contrib/debian/examples/zero.conf
-```
+
+`./contrib/zero-conf.sh` writes `contrib/conf-templates/` (default **prod**, `/tmp/zero.conf`, generated `rpcpassword`). In-tree samples: `./contrib/zero.conf`, `./contrib/debian/examples/zero.conf`.
 
 🔩 Running Zero
 --------------------

@@ -1,3 +1,11 @@
+"""Python Equihash helpers for the qa harness.
+
+Not authoritative and not performant. C++ CheckEquihashSolution / zcbenchmark is.
+
+Personalization here is ZcashPoW (upstream mininode). The node uses ZERO_PoW
+(equihash.cpp InitialiseState). Compact index codec matches; Wagner gbp_basic
+does not match node (48,5) solutions unless person is ZERO_PoW.
+"""
 from functools import reduce
 from operator import itemgetter
 import struct

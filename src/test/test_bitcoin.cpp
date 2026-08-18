@@ -83,8 +83,9 @@ BasicTestingSetup::~BasicTestingSetup()
     ECC_Stop();
 }
 
-TestingSetup::TestingSetup()
+TestingSetup::TestingSetup(CBaseChainParams::Network network)
 {
+    SelectParams(network);
     const CChainParams& chainparams = Params();
         // Ideally we'd move all the RPC tests to the functional testing framework
         // instead of unit tests, but for now we need these here.

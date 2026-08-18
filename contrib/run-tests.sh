@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run Zero tests. Modes:
-#   passing (default): pass-only C++ + Tier A RPC; excludes known hang/crash/fail suites.
-#   --fail: ONLY the C++ suites excluded from default (known hang, crash, or fail; see TEST_ZERO.md).
+# passing (default): pass-only C++ + Tier A RPC. GTest exclude: CachedWitnessesCleanIndex.
+#   --fail: ONLY that excluded GTest (see qa/zcash/test_filters.sh / TEST_ZERO.md).
 #   --all: same C++ filters as default + rpc-tests.sh -all (-A -B -E pass tiers).
 #   --rpcfail: rpc-tests.sh -rpcfail (-Bfail -Efail diagnostic; no C++, no util).
 #
@@ -33,8 +33,7 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
 
-# Default: exclude these suites. --fail: run ONLY these (must match TEST_ZERO.md Known failures).
-# Canonical values: qa/zcash/test_filters.sh
+# Default exclude: qa/zcash/test_filters.sh (GTest CachedWitnessesCleanIndex). --fail runs GTEST_FAIL_ONLY.
 . "$REPO_ROOT/qa/zcash/test_filters.sh"
 
 # Tier A basenames for --jobs=N parallel runs only. Canonical list: testScriptsTierA in qa/pull-tester/rpc-tests.sh.
@@ -235,8 +234,8 @@ if [ "$MODE" = "fail" ]; then
             GTEST_PID=$BG_LAST_PID
         fi
         BTEST_PID=""
-        if [ -x "src/test/test_bitcoin" ]; then
-            echo "--- Boost: miner_tests (blockinfo is (96,5); skips on Zero) ---"
+        if [ -x "src/test/test_bitcoin" ] && [ -n "$BOOST_FAIL_ONLY" ]; then
+            echo "--- Boost fail-only: $BOOST_FAIL_ONLY ---"
             run_bg "test_bitcoin-fail-only" \
                 ./src/test/test_bitcoin --run_test="$BOOST_FAIL_ONLY" --log_level=test_suite
             BTEST_PID=$BG_LAST_PID
@@ -301,9 +300,14 @@ if [ "$QUICK" -eq 0 ]; then
     echo ""
     BTEST_PID=""
     if [ -x "src/test/test_bitcoin" ]; then
-        echo "--- Boost (excludes --fail suites: miner_tests) ---"
-        run_bg "test_bitcoin" \
-            ./src/test/test_bitcoin --run_test="$BOOST_PASS_EXCLUDE" --log_level=test_suite
+        echo "--- Boost ---"
+        if [ -n "$BOOST_PASS_EXCLUDE" ]; then
+            run_bg "test_bitcoin" \
+                ./src/test/test_bitcoin --run_test="$BOOST_PASS_EXCLUDE" --log_level=test_suite
+        else
+            run_bg "test_bitcoin" \
+                ./src/test/test_bitcoin --log_level=test_suite
+        fi
         BTEST_PID=$BG_LAST_PID
     fi
 

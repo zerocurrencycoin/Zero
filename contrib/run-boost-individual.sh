@@ -9,7 +9,7 @@ ME="run-boost-individual"
 . "$(dirname "${BASH_SOURCE[0]}")/../zcutil/fzero.sh"
 cd "$REPO_ROOT"
 
-DEFAULT_EXCLUDE="miner_tests,Checkpoints_tests"
+DEFAULT_EXCLUDE="Checkpoints_tests"
 
 LOG_DIR="${LOG_DIR:-$ZERO_BUILD_DIR/test-logs}"
 mkdir -p "$LOG_DIR"

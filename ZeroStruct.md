@@ -318,9 +318,10 @@ Zero's only related API is [`GetLockedPageCount()`](src/support/pagelocker.h) --
 
 **RPC `getdbinfo`:** returns `-dbcache` slice budgets, in-memory UTXO `DynamicMemoryUsage` / `GetCacheSize` / fill %, and per-DB LevelDB block-cache capacity/usage (`Cache::TotalCharge`, Zero patch -- upstream LevelDB 1.x has no `block-cache-usage` property), write-buffer budget, `leveldb.stats`, `num-files-at-level0`.
 
-**Script:** `contrib/measure_dbcache_utxo.py`
+**Script:** ZeroPerf `contrib/measure_dbcache_utxo.py` (campaign; not in this tree).
 
 ```bash
+# In the ZeroPerf worktree:
 PATH=src:$PATH ZERO_MEASURE_MATRIX=800,2048,4096 ZERO_MEASURE_INSIGHT=both \
   ZERO_MEASURE_BLOCKS=600 ZERO_MEASURE_SETINFO_EVERY=0 \
   python3 contrib/measure_dbcache_utxo.py

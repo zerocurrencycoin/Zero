@@ -84,7 +84,7 @@ Do **not** use sticky `reindex=` in conf. Prefer one-shot CLI `-reindex` and typ
 ```bash
 # Canonical archives (macOS host example)
 ZERO_HOME="$HOME/Library/Application Support/zero"
-LAB="${LAB:-$TMPDIR/zero-lab-tiny-run}"   # or zero-lab-short-run; never the golden datadir
+LAB="${LAB:-/tmp/zero-lab-tiny-run}"   # or zero-lab-short-run; never the golden datadir
 mkdir -p "$LAB"
 # wipe lab only -- never the golden datadir
 rm -rf "$LAB"/*

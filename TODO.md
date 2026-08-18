@@ -33,7 +33,7 @@ Open follow-ups for the Zero **full node** (`zerod`). Commands and inventory: **
 - RPC coverage matrix: `RPCs.csv` vs harness depth
 - **TST-01** -- exclusive getalldata + Ext `getalldata_scenario` working; under development: `getsupply` / `zs_*` / sapling depth
 - **TST-03** -- `zeronodestats` + zeronode/budget subcmds; arg validation
-- **TST-05** -- genesis (192,7) indices + (48,5) KATs for miner tests
+- **TST-05** -- (48,5) CreateNewBlock live in `miner_tests`; genesis (192,7) KATs in `equihash_tests`
 - **TST-09** -- alertnotify working; `-blocknotify` / `-walletnotify` open
 - **WAL-GETALLDATA-W5** -- revisit soon
 - macOS datadir: prefer `Application Support/zero/` for wallet

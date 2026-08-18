@@ -2,8 +2,12 @@
 # Write a zero.conf from contrib/conf-templates/.
 # Default: template prod, file /tmp/zero.conf
 #
+# Port defaults:
+#   prod / node / zerowallet / insight / full -> 23811 (deployment RPC)
+#   lab / test                                -> 23941 (isolated; not 23801-23820)
+#
 #   contrib/zero-conf.sh
-#   contrib/zero-conf.sh lab -dir /tmp/zero400-ops
+#   contrib/zero-conf.sh lab -dir /tmp/zero-ops-validate
 #   contrib/zero-conf.sh insight -dir ~/.zero -force
 #
 # -dir DIR     directory (default /tmp)
@@ -23,6 +27,10 @@ RPCUSER="${ZERO_RPCUSER:-}"
 RPCPASSWORD="${ZERO_RPCPASSWORD:-}"
 RPCPORT="${ZERO_RPCPORT:-}"
 DBCACHE="${ZERO_DBCACHE:-}"
+
+gen_rpc_password() {
+  head -c 18 /dev/urandom | base64 | tr -d '/+\n=' | head -c 24
+}
 
 usage() {
   echo "Usage: contrib/zero-conf.sh [template] [-dir DIR] [-out NAME] [-force]"
@@ -53,9 +61,12 @@ SRC="$TPL_DIR/${NAME}.conf"
 [[ -f "$SRC" ]] || { echo "missing template $SRC" >&2; usage >&2; exit 1; }
 
 case "$NAME" in
-  lab|test) : "${RPCUSER:=lab}"; : "${RPCPASSWORD:=lab}"; : "${RPCPORT:=23941}" ;;
-  *)        : "${RPCUSER:=zero}"; : "${RPCPASSWORD:=zero}"; : "${RPCPORT:=23811}" ;;
+  lab|test) : "${RPCUSER:=lab}"; : "${RPCPORT:=23941}" ;;
+  *)        : "${RPCUSER:=zero}"; : "${RPCPORT:=23811}" ;;
 esac
+if [[ -z "$RPCPASSWORD" ]]; then
+  RPCPASSWORD="$(gen_rpc_password)"
+fi
 
 resolve() { (cd "$1" 2>/dev/null && pwd -P) || echo "$1"; }
 mkdir -p "$DIR"
@@ -94,4 +105,5 @@ else:
     body = body.replace("#dbcache=@DBCACHE@\n", "")
 open(out, "w", encoding="utf-8").write(body)
 print("wrote", out)
+print("rpcuser=%s (password in %s)" % (user, out))
 PY

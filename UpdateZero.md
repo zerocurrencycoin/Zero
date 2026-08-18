@@ -919,40 +919,18 @@ Items marked **"contributor-ready"** are self-contained enough to be written up 
 
 **TST-05 -- Equihash KATs for Zero params only.** **Contributor-ready.**
 
-**(96,5) out of scope** -- leave skip-guarded legacy cases or delete later; do not regenerate `miner_tests` `blockinfo[]`.
-
-**Already PASS:** genesis header checks -- mainnet **(192,7)** valid + corrupt `nSolution`; regtest **(48,5)** valid (`equihash_tests.cpp`).
-
-**Still to add:** solver/validator **index-array** KATs in the same format as existing `TestEquihashSolvers` / `TestEquihashValidator`:
-
-| Params | Network | `n/(k+1)` | Indices per solution | Case names |
-|--------|---------|-----------|----------------------|------------|
-| **(192,7)** | mainnet PoW | 24 | **128** `uint32_t` | `solver_testvectors_192_7`, `validator_testvectors_192_7` |
-| **(48,5)** | regtest PoW | 8 | **32** `uint32_t` | `solver_testvectors_48_5`, `validator_testvectors_48_5` |
-
-*Format (match existing helpers):*
-
-```cpp
-// Input I = string; V = nonce (arith_uint256 / hex)
-// Soln = ordered index vector length 2^k
-TestEquihashSolvers(192, 7, "block header", 0, {
-  { /* 128 indices */ },
-  // ...
-});
-TestEquihashValidator(48, 5, "…", 1, { /* 32 indices */ }, true);
-```
-
-**Mainnet genesis (192,7) committed:** repo-root **`1927EQ.txt`** (128 indices + `nNonce` / `nSolution_hex`; `roundtrip_ok: true`). Regenerate:
+Supported params: **(192,7)** mainnet/testnet, **(48,5)** regtest. Dispatch in `equihash.h` throws on anything else. Boost `equihash_tests`: genesis header valid + corrupt `nSolution`; `validator_testvectors_192_7` / `_h1` / `_48_5`; `solver_testvectors_48_5` under `ENABLE_MINING`. Files: `src/test/data/1927EQ.txt`, `1927EQ_h1.hex`.
 
 ```bash
-DUMP_1927EQ=./1927EQ.txt ./src/test/test_bitcoin --run_test=equihash_tests/dump_mainnet_genesis_192_7_indices
+DUMP_1927EQ=./src/test/data/1927EQ.txt ./src/test/test_bitcoin --run_test=equihash_tests/dump_mainnet_genesis_192_7_indices
+contrib/ops-validate.sh equihash
+contrib/ops-validate.sh verifyeq
+contrib/ops-validate.sh solveeq
 ```
 
-Note: these indices are for **header** `CEquihashInput||nNonce` state (`pow.cpp`), not the string-`I` form used by legacy `TestEquihashSolvers`. Prefer `CheckEquihashSolution` / header-based validator cases when wiring this file.
+Header form is `CEquihashInput||nNonce` (`pow.cpp`). Solver cases `#ifdef ENABLE_MINING`; validator always on. Timed (192,7) solve is `ops-validate.sh solveeq` (default one sample; pass N). Regtest `generate` is `ops-validate.sh mine`, not this KAT task.
 
-Generate additional vectors via `Equihash<N,K>::BasicSolve` (`ENABLE_MINING`) or more mainnet headers. Solver cases `#ifdef ENABLE_MINING`; validator always on.
-
-*Acceptance:* genesis vector wired + >=1 more (192,7) and (48,5) coverage as needed. `--strict` green. No algorithm changes.
+*Acceptance:* `--run_test=equihash_tests` green; `--strict` green. No algorithm changes.
 
 **TST-06 -- Fuzz harness.** **Contributor-ready.**
 
