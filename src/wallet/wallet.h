@@ -1726,6 +1726,7 @@ public:
     KeyAddResult operator()(const libzcash::InvalidEncoding& no) const;
 };
 
+/** Run -walletnotify hook (or log skip when ENABLE_SYSTEM_COMMAND is off). Exposed for TST-09. */
 void RunWalletNotifyCommand(const uint256& hash);
 
 #endif // BITCOIN_WALLET_WALLET_H

@@ -4,6 +4,8 @@
 
 #include "rpc/server.h"
 #include "rpc/client.h"
+#include "wallet/wallet.h"
+#include "util.h"
 
 #include "test/test_bitcoin.h"
 
@@ -18,6 +20,7 @@ using namespace std;
 
 extern UniValue CallRPC(string args);
 extern bool initWitnessesBuilt;
+extern bool fBuildingWitnessCache;
 extern uint64_t GetGetAllDataSortKeyCollisionCount();
 extern void ResetGetAllDataSortKeyCollisionCount();
 extern void ResetRpcDataContinueState();
@@ -272,6 +275,104 @@ BOOST_AUTO_TEST_CASE(rpc_getsupply_param_validation)
     BOOST_CHECK(r.isObject());
     BOOST_CHECK(r.exists("supplyzats"));
     BOOST_CHECK(r.exists("supply"));
+}
+
+// Witness / IBD-defer corner cases and DoS gates (FIX-WAL-WITNESS-*)
+BOOST_AUTO_TEST_CASE(rpc_witness_building_cache_blocks_all_rpc)
+{
+    // While fBuildingWitnessCache: wallet/spend/data blocked (-33); status/ops allowlisted.
+    if (RPCIsInWarmup(nullptr))
+        SetRPCWarmupFinished();
+    const bool savedBuild = fBuildingWitnessCache;
+    const bool savedInit = initWitnessesBuilt;
+    initWitnessesBuilt = true;
+    fBuildingWitnessCache = true;
+    // TST-08 / PIR-03: spend path must see -33 (message), not only -31.
+    CheckRPCExecuteThrows("z_sendmany",
+        "RPC interface disabled while building witness cache. Check debug.log for progress.");
+    CheckRPCExecuteThrows("getsupply 0",
+        "RPC interface disabled while building witness cache. Check debug.log for progress.");
+    CheckRPCExecuteThrows("getalldata 1",
+        "RPC interface disabled while building witness cache. Check debug.log for progress.");
+    CheckRPCExecuteThrows("getwalletinfo",
+        "RPC interface disabled while building witness cache. Check debug.log for progress.");
+    fBuildingWitnessCache = savedBuild;
+    initWitnessesBuilt = savedInit;
+}
+
+BOOST_AUTO_TEST_CASE(rpc_witness_building_cache_allows_status_rpc)
+{
+    if (RPCIsInWarmup(nullptr))
+        SetRPCWarmupFinished();
+    const bool savedBuild = fBuildingWitnessCache;
+    const bool savedInit = initWitnessesBuilt;
+    initWitnessesBuilt = true;
+    fBuildingWitnessCache = true;
+    UniValue r;
+    BOOST_CHECK_NO_THROW(r = CallRPCExecute("getblockcount"));
+    BOOST_CHECK(r.isNum());
+    BOOST_CHECK_NO_THROW(r = CallRPCExecute("getblockchaininfo"));
+    BOOST_CHECK(r.isObject());
+    BOOST_CHECK_NO_THROW(r = CallRPCExecute("getnetworkinfo"));
+    BOOST_CHECK(r.isObject());
+    BOOST_CHECK_NO_THROW(r = CallRPCExecute("help"));
+    // stop is allowlisted at the gate; do not invoke actor (would shut down the process).
+    BOOST_CHECK(tableRPC["stop"] != nullptr);
+    fBuildingWitnessCache = savedBuild;
+    initWitnessesBuilt = savedInit;
+}
+
+BOOST_AUTO_TEST_CASE(rpc_walletinfo_note_inventory_fields)
+{
+    UniValue r;
+    BOOST_CHECK_NO_THROW(r = CallRPC("getwalletinfo"));
+    BOOST_CHECK(r.isObject());
+    BOOST_CHECK(r.exists("txcount"));
+    BOOST_CHECK(r.exists("note_tx_count"));
+    BOOST_CHECK(r.exists("sprout_note_count"));
+    BOOST_CHECK(r.exists("sapling_note_count"));
+    BOOST_CHECK(r["note_tx_count"].get_int() >= 0);
+    BOOST_CHECK(r["sprout_note_count"].get_int() >= 0);
+    BOOST_CHECK(r["sapling_note_count"].get_int() >= 0);
+}
+
+BOOST_AUTO_TEST_CASE(wallet_witness_ibd_defer_arg)
+{
+    mapArgs.erase("-walletwitness");
+    BOOST_CHECK(!CWallet::IsIBDWitnessDeferred());
+    mapArgs["-walletwitness"] = "ibd-defer";
+    BOOST_CHECK(CWallet::IsIBDWitnessDeferred());
+    mapArgs["-walletwitness"] = "rebuild";
+    BOOST_CHECK(!CWallet::IsIBDWitnessDeferred());
+    mapArgs["-walletwitness"] = "default";
+    BOOST_CHECK(!CWallet::IsIBDWitnessDeferred());
+    mapArgs.erase("-walletwitness");
+}
+
+BOOST_AUTO_TEST_CASE(wallet_witness_note_arg)
+{
+    mapArgs.erase("-walletwitnessnote");
+    BOOST_CHECK(!CWallet::IsWitnessNoteIndexEnabled());
+    mapArgs["-walletwitnessnote"] = "1";
+    BOOST_CHECK(CWallet::IsWitnessNoteIndexEnabled());
+    mapArgs["-walletwitnessnote"] = "0";
+    BOOST_CHECK(!CWallet::IsWitnessNoteIndexEnabled());
+    mapArgs.erase("-walletwitnessnote");
+}
+
+BOOST_AUTO_TEST_CASE(rpc_witness_gate_allows_walletinfo_when_unbuilt)
+{
+    // Monitoring must remain available during ibd-defer (getalldata gated; getwalletinfo not).
+    if (RPCIsInWarmup(nullptr))
+        SetRPCWarmupFinished();
+    const bool saved = initWitnessesBuilt;
+    initWitnessesBuilt = false;
+    UniValue r;
+    BOOST_CHECK_NO_THROW(r = CallRPCExecute("getwalletinfo"));
+    BOOST_CHECK(r.isObject());
+    CheckRPCExecuteThrows("getalldata 1",
+        "RPC Command disabled until witnesses are built.");
+    initWitnessesBuilt = saved;
 }
 
 BOOST_AUTO_TEST_SUITE_END()

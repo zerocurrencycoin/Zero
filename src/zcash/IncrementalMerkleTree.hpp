@@ -96,8 +96,9 @@ public:
     size_t size() const;
 
     void append(Hash obj);
-    // The root only depends on left, right, and parents, which otherwise
-    // change only in append() and deserialization -- both invalidate the latch.
+    // The root only depends on `left`, `right`, and `parents`, which are
+    // otherwise only ever changed by append() and deserialization below —
+    // both invalidate the latch, so it's always either empty or correct.
     Hash root() const {
         if (!cached_root) {
             cached_root = root(Depth, std::deque<Hash>());
@@ -137,7 +138,9 @@ private:
 
     // Collapsed "left" subtrees ordered toward the root of the tree.
     std::vector<boost::optional<Hash>> parents;
-    // Lazily computed by root(); cleared by append() and deserialization.
+    // Lazily computed and cached by root(); cleared by append() and by
+    // deserialization (SerializationOp), the only two places left/right/
+    // parents change.
     mutable boost::optional<Hash> cached_root;
     MerklePath path(std::deque<Hash> filler_hashes = std::deque<Hash>()) const;
     Hash root(size_t depth, std::deque<Hash> filler_hashes = std::deque<Hash>()) const;
