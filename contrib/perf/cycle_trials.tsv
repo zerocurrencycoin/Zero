@@ -1,0 +1,12 @@
+id	cycles	set	wallet	op	snap	flags	comment
+nowallet-reindex-tiny	1,2,3	smoke	none	reindex	tiny		ConnectBlock control
+p0-reindex-tiny	1,2,3	smoke	p0	reindex	tiny		Empty-ish wallet
+p1-reindex-tiny	1,2,3	smoke	p1	reindex	tiny		Mid wallet
+p0-rescan-tiny	1,2,3	smoke	p0	rescan	tiny		Known chainstate + -rescan
+p0-sync-tiny	1,2,3	smoke	p0	sync	tiny		Caught-up start, no -reindex
+nowallet-bootstrap-presap	1,2,3	smoke	none	bootstrap	window		Needs LOADBLOCK; ops-validate bootstrap to 100000
+fat-reindex-tiny-noteidx	1,2,3	gate	fat	reindex	tiny	noteidx+defer	L wall; one trial
+fat-rescan-tiny-noteidx	1,2,3	gate	fat	rescan	tiny	noteidx	Pre-Sap tiny; not the 1.6M cliff
+fat-sync-tiny-noteidx	1,2,3	gate	fat	sync	tiny	noteidx	
+fat-sync-tip-noteidx	1,2,3	gate	fat	sync	tip	noteidx	Needs ZERO_PERF_TIP_TEMPLATE
+fat-rescan-full-noteidx	1	long	fat	rescan	full	noteidx	Genesis-to-tip optional Cycle 1 rematch

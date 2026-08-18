@@ -9,6 +9,11 @@
 
 namespace libzcash {
 
+#ifdef ZERO_PERF
+std::atomic<uint64_t> MerkleRootCacheStats::calls{0};
+std::atomic<uint64_t> MerkleRootCacheStats::no_matches{0};
+#endif
+
 PedersenHash PedersenHash::combine(
     const PedersenHash& a,
     const PedersenHash& b,

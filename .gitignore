@@ -130,3 +130,10 @@ qa/pull-tester/test.*/*
 
 contrib/debian/files
 contrib/debian/substvars
+
+# Perf lab scratch (ZeroPerf only)
+reindex-profile/
+
+# groth16-batch-poc/'s fetched pinned-librustzcash dependency checkout
+# (see contrib/perf/groth16-batch-poc/README.md "Setup") -- not vendored source, never commit
+/librustzcash-pinned/
