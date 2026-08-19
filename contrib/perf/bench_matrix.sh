@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Historical ZERO_FDCACHE A/B. ZeroPerf-only; do not copy into a GA Zero400 tree.
 # Product bootstrap: contrib/ops-validate.sh bootstrap.
 # Stock post-Sapling rematch: contrib/perf/postsapling_reindex.sh.
@@ -27,7 +27,7 @@
 #     avoids partial-block boundary effects and lets throughput be compared
 #     directly as blocks/exact-elapsed-seconds).
 #   - Elapsed time for the measured range is read from debug.log's UpdateTip
-#     timestamps (exact, per Perf.md §6), not RPC-polling wall clock.
+#     timestamps (exact), not RPC-polling wall clock.
 #   - N repeated trials per condition, so mean/stdev/CI can be computed
 #     instead of trusting a single sample.
 #
@@ -47,6 +47,7 @@
 # Output: <out_dir>/results.tsv (one row per trial) plus per-trial debug.log
 # copies and driver logs under <out_dir>/<mode>_<condition>_trial<N>/.
 
+export LC_ALL=C
 set -u
 
 OUT_DIR="${1:?usage: bench_matrix.sh <out_dir> [warmup_height|all] [measure_blocks|all] [n_trials] [bootstrap_dat_path]}"
@@ -153,7 +154,7 @@ reset_scratch_datadir() {
 
 # Reads debug.log's UpdateTip timestamps to get the exact wall-clock elapsed
 # time between the block at $1 first appearing and the block at $2 first
-# appearing -- exact, not RPC-poll-interval-limited (Perf.md §6 method).
+# appearing -- exact, not RPC-poll-interval-limited.
 # Delegates to extract_measures.py so tip parsing stays in one place.
 elapsed_between_heights() {
     local log_path="$1" h_start="$2" h_end="$3"
@@ -213,7 +214,7 @@ run_trial() {
 
     # Warmup/measure waits scale with how many blocks they actually need to
     # cover -- a flat 600s (fine for a small pre-Sapling warmup, where
-    # throughput is 800-1,100 blk/s per Perf.md §2) is too tight once
+    # throughput is 800-1,100 blk/s) is too tight once
     # WARMUP_HEIGHT reaches into or past post-Sapling heights, where
     # throughput drops to ~240-290 blk/s. Floor of 600s preserves prior
     # behavior for small targets; 200 blk/s is a conservative floor below
@@ -319,7 +320,7 @@ run_trial() {
 log "=== bench_matrix starting: warmup=$WARMUP_HEIGHT measure_blocks=$MEASURE_BLOCKS n_trials=$N_TRIALS bootstrap_dat=${BOOTSTRAP_DAT:-none} ==="
 
 # nofdcache is the true baseline -perffdcache is compared against -- every
-# condition before this one (see Perf.md §3/§0 item 1) had -perffdcache=1 on
+# condition before this one had -perffdcache=1 on
 # unconditionally, so the buffer-size A/B could never actually isolate
 # -perffdcache's own effect from -perfbufsize's. This condition omits
 # -perffdcache entirely (defaults to off), giving a real 2x2-style isolation:

@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Run a long `-reindex` under repeated Time Profiler captures: capture for
 # CAPTURE_SECS, then idle until the next PERIOD_SECS boundary, repeat until
 # the node exits (reindex complete) or MAX_CAPTURES is reached.
 #
 # Each capture's trace, XML export, height range, and system-state snapshot
 # are written to their own subdirectory under OUT_DIR, so decode_captures.py
-# can process the whole run after the fact. See Perf.md §0/§6 for the
+# can process the whole run after the fact. See the perf docs for the
 # underlying methodology (why height range must be derived from debug.log,
 # not guessed; why xctrace's id/ref export format needs bucket_profile.py's
 # parser rather than a naive regex).
@@ -27,6 +27,7 @@
 # templates are typically far larger (a 30s File Activity capture against a
 # busy reindex was ~2.2GB) -- check free disk space before a long run.
 
+export LC_ALL=C
 set -u
 
 DATADIR="${1:?usage: capture_sequence.sh <datadir> <out_dir> [period_secs] [capture_secs] [max_captures] [template]}"

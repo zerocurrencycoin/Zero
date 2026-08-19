@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Witness lab: INV-DIRTY-CONT (one-shot decision data) and BENCH-WIT-REBUILD.
 # Disposable scratch only. Reusable automation; each mode is one restartable trial.
 #
@@ -30,6 +30,7 @@
 #     without -reindex (preferred post-Sap walk measure). One trial at a time.
 #   rescan* / catchup* -- known-state chain + injected wallet; see ops-campaign.sh.
 
+export LC_ALL=C
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

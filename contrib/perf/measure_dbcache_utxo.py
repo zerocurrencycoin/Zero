@@ -151,7 +151,7 @@ def run_one(dbcache: int, insight: bool, stamp: str, run_idx: int) -> dict:
     rpcport = port + 1
     tmp = tempfile.mkdtemp(prefix='measure-dbcache-', dir='/tmp')
     datadir = tmp
-    with open(os.path.join(datadir, 'zero.conf'), 'w') as f:
+    with open(os.path.join(datadir, 'zero.conf'), 'w', encoding='utf8') as f:
         f.write('regtest=1\nshowmetrics=0\nrpcuser=rt\nrpcpassword=rt\n')
         f.write('port=%d\nrpcport=%d\nlistenonion=0\n' % (port, rpcport))
 
@@ -389,7 +389,7 @@ def main() -> int:
                 log_dir,
                 '%s-dbcache-%d-insight%d.json' % (stamp, dbcache, int(insight)),
             )
-            with open(out_json, 'w') as f:
+            with open(out_json, 'w', encoding='utf8') as f:
                 json.dump(report, f, indent=2)
                 f.write('\n')
             print('Wrote %s' % out_json, flush=True)
@@ -447,7 +447,7 @@ def main() -> int:
         ],
     }
     out_sum = os.path.join(log_dir, '%s-dbcache-matrix-summary.json' % stamp)
-    with open(out_sum, 'w') as f:
+    with open(out_sum, 'w', encoding='utf8') as f:
         json.dump(summary, f, indent=2)
         f.write('\n')
     print('Wrote %s' % out_sum)

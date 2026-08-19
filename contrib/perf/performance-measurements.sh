@@ -1,9 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # zcbenchmark / valgrind runner (M-ZCB-SUITE). Moved here from qa/zcash/ on
 # 2026-08-18: Zero400 dropped it from qa/ (commit c96d5ad27), and it is a
 # measurement harness, not a shipped test. All paths are ./src/* relative to
 # the REPO ROOT -- run it from there, not from contrib/perf/:
 #   ./contrib/perf/performance-measurements.sh <benchmark>
+export LC_ALL=C
 set -u
 
 

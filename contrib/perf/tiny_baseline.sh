@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Tiny-snap reindex baseline: disposable LAB datadir + extract_measures.
 # Never touches the default Application Support/zero tree except as a
 # read-only archive source.
@@ -9,6 +9,7 @@
 #
 # Args: [tiny|short]  (default tiny)
 
+export LC_ALL=C
 set -euo pipefail
 
 SNAP="${1:-tiny}"
@@ -46,7 +47,7 @@ echo "LAB=$LAB (disposable)"
 echo "RUN_ID=$RUN_ID"
 
 # Fresh unpack into LAB only
-rm -rf "$LAB"/*
+rm -rf "${LAB:?}"/*
 tar -xzf "$ARCHIVE_PATH" -C "$LAB"
 
 # Ensure offline / no sticky reindex in conf if present

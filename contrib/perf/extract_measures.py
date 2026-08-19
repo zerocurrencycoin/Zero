@@ -211,7 +211,7 @@ def is_segment_start(line: str) -> bool:
 
 def iter_log_lines(paths: Iterable[Path]) -> Iterator[tuple[Path, str]]:
     for path in paths:
-        with open(path, errors="replace") as f:
+        with open(path, encoding="utf8", errors="replace") as f:
             for line in f:
                 yield path, line
 
@@ -451,7 +451,7 @@ def reduce_segment(
             )
         )
 
-    # Tip window rate (catchup / connect). Skip when reindex source→finished
+    # Tip window rate (catchup / connect). Skip when reindex source->finished
     # already produced the authoritative window for this segment.
     if len(tips) >= 2 and not (sources and finished):
         h0, h1 = tips[0].height, tips[-1].height
@@ -574,7 +574,7 @@ def elapsed_between_heights(log_path: Path, h_start: int, h_end: int) -> Optiona
         r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+UpdateTip:.*?(?:new height=|height=)(\d+)"
     )
     t_start = t_end = None
-    with open(log_path, errors="replace") as f:
+    with open(log_path, encoding="utf8", errors="replace") as f:
         for line in f:
             m = pat.match(line)
             if not m:
@@ -591,7 +591,7 @@ def elapsed_between_heights(log_path: Path, h_start: int, h_end: int) -> Optiona
 
 def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", newline="") as f:
+    with open(path, "w", encoding="utf8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=CSV_FIELDS, extrasaction="ignore")
         w.writeheader()
         for r in rows:
@@ -605,7 +605,7 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
 
 def write_jsonl(path: Path, objs: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf8") as f:
         for o in objs:
             f.write(json.dumps(o, sort_keys=True) + "\n")
 

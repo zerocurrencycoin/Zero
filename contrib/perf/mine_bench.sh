@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # BENCH-MINE: Equihash *solve* profile env (regtest / mainnet-template / neon-stock).
 # Does not replace ConnectBlock rematch. Assign M-* via accumulate_bench when measured.
 #
@@ -16,6 +16,7 @@
 #   CAMPAIGN                  ledger campaign (default mine-equihash-<mode>)
 #   ZERO_PERF_NEON_ZEROD      optional NEON-enabled zerod for A/B (else probe-only)
 
+export LC_ALL=C
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -110,7 +111,7 @@ probe_neon() {
       echo "neon_zerod_present=1"
     else
       echo "neon_zerod_present=0"
-      echo "note=NEON A/B needs ZERO_PERF_NEON_ZEROD pointing at a NEON-blake2b build; stock arm64 uses libsodium compress_ref (see Perf.md §5)."
+      echo "note=NEON A/B needs ZERO_PERF_NEON_ZEROD pointing at a NEON-blake2b build; stock arm64 uses libsodium compress_ref."
     fi
     # libsodium symbols hint (ref vs accelerated)
     if command -v nm >/dev/null 2>&1; then

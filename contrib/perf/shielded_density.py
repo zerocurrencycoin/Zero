@@ -4,7 +4,7 @@
 NOTE: Zero `getblock` verbosity 2 omits Sapling/Sprout shield fields; do not
 use JSON block txs for counts. Use `getblock <hash> false` + mininode.
 
-Writes append-only progress JSONL and density CSV per Perf.md §0.9.
+Writes append-only progress JSONL and density CSV.
 Fine rematch windows first; coarse 400k bands with Sapling activation split.
 """
 

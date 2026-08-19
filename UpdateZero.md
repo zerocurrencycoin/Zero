@@ -1649,3 +1649,68 @@ Product / naming options -- not scheduled on the public checklist:
 **Out of scope for this item alone:** Guix/reproducible builds (separate if pursued); desktop-wallet signing (other repos).
 
 When the procedure is ready, copy operator-facing verify steps into **BUILD_ZERO** (no maintainer IDs).
+
+---
+
+## DOC-UNICODE: non-ASCII policy and audit
+
+**Local to ZeroPerf.** Zero400 `src/` is left as-is; this section records what is
+there, what is deliberate, and what the checker tolerates.
+
+**Rule (AGENTS.md):** no emojis or decorative Unicode in any document except
+`README.md`; use ASCII -- `--` not em-dash, `->` not arrow, `"` not curly
+quotes, `...` not ellipsis. Nothing enforced it, so violations accumulated.
+
+**Checker:** `contrib/perf/check-unicode.py` (report; `--fix` for safe
+substitutions; `--all` to include tolerated; exit 1 on violations). Its own
+substitution table is written with `\uXXXX` escapes so the tool is self-clean.
+
+### Settings
+
+| Setting | Contents | Why |
+|---------|----------|-----|
+| `REPLACE` | em/en dash, both arrows, curly single and double quotes, ellipsis, middle dot, bullet, multiplication sign, almost-equal, NBSP, narrow NBSP | Exact ASCII equivalent exists; `--fix` rewrites these |
+| `FLAG_ONLY_RANGES` | emoji and pictographs (U+1F300-1FAFF), misc symbols and dingbats (U+2600-27BF, includes the check mark), variation selectors | No safe ASCII equivalent; reported for a human, never auto-rewritten |
+| `TOLERATED` | section sign U+00A7 | 468 of 694 tree-wide hits; conventional section notation in the perf docs, not decoration. `--all` reports it anyway |
+| `SKIP_PATH` | `src/{leveldb,univalue,secp256k1,snark,crypto/ctaes}`, `depends/`, `contrib/perf/{mine,groth16-batch-poc}/`, `contrib/perf/dis-nodes.txt`, `share/genbuild.sh` | Vendored source and captured data. Captures preserve what was captured; normalizing them would corrupt the record |
+| `EXEMPT` | `README.md` (any directory) | AGENTS.md exempts it explicitly |
+
+### Zero400 `src/` -- keep as is
+
+Three classes, none changed:
+
+| Class | Sites | Disposition |
+|-------|-------|-------------|
+| **Mathematical / spec notation** | `zcash/JoinSplit.hpp` 19-21 `pi_A/pi_B/pi_C` as Groth16 proof elements; `consensus/params.cpp:37` Z-notation `:` from ZIP-208; `wallet/gtest/test_wallet.cpp:2336` "identical to" | **Keep.** Ties the code to the protocol spec; ASCII substitutes lose that |
+| **Quoted data** | `wallet/paymentdisclosure.h:27` -- the ISO-8859-1 rendering of byte `0xFF` | **Keep.** Rewriting makes the comment factually wrong |
+| **Curly apostrophes** (U+2019) | `crypto/equihash.cpp:12` (NDSS '16 citation); `wallet/rpcwallet.cpp` 4156 / 4164 | **Keep for now, inherited.** Both `rpcwallet.cpp` strings are verbatim Zcash (`zcash/src/wallet/rpcwallet.cpp` 5104 / 5112). Note these are **RPC help text**, not comments: they reach operator terminals |
+
+Also present and unchanged: `wallet/db.cpp:394` arrow in a commented-out debug
+line, and `qa/rpc-tests/addressindex.py:111` section sign in a doc reference.
+
+### Perf scripts -- doc references struck
+
+`contrib/perf/*.sh` and `*.py` previously carried `Perf.md SS N` pointers in
+comments. Struck; the substance was kept inline where it mattered (for example
+"bound by timestamp, not by searching for a height substring: `height=937` also
+matches `height=937237`"). Rationale: shipped code should not href maintainer
+documents (see the public-docs rule above), and section numbers decay --
+`src/wallet/gtest/test_wallet_zkeys.cpp:406` still cites **UpdateTests.md**,
+retired some time ago with its core content moved into `TEST_ZERO.md` and the
+remainder consolidated here.
+
+### Upstream comparison
+
+Neither upstream enforces ASCII in source, and both carry non-ASCII:
+
+| Tree | Files with non-ASCII in `src/` | Most common |
+|------|-------------------------------|-------------|
+| **Zcash** | 23 | U+2019 curly apostrophe (54), variation selector + keycap (57, emoji sequences), curly double quotes (32) |
+| **Bitcoin Core** | 43 | box drawing (approx. 440 across 6 glyphs), ellipsis (81), curly apostrophe (18), em dash (11) |
+
+Bitcoin has `test/lint/` (16 linters) and Zcash `test/lint/` (13); **neither
+includes an ASCII or Unicode check**. Zcash's `lint-whitespace.sh` covers
+trailing whitespace and tabs only. So Zero's rule is stricter than either
+upstream -- which is a defensible local choice, but it means inherited code will
+keep arriving with non-ASCII, and a blanket `--fix` over `src/` would create
+diff noise against upstream for no functional gain.

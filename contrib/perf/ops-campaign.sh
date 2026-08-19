@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ZeroPerf cycle rematch dispatcher. Not a product ops check (that is
 # contrib/ops-validate.sh). ZeroPerf-only; do not copy into a GA Zero400 tree.
 #
@@ -41,6 +41,7 @@
 #
 # Durable: reindex-profile/cycle-campaign/status.jsonl
 #          reindex-profile/bench-summaries/ledger.* (CAMPAIGN=cycle-N)
+export LC_ALL=C
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

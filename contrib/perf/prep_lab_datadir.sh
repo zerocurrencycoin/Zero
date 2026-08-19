@@ -15,6 +15,7 @@
 #   SRC       source datadir used only when ARCHIVE is set to empty
 #             (default reindex-profile/fulltip-812-datadir)
 
+export LC_ALL=C
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

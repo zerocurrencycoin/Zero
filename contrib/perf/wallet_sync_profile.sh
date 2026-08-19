@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Wallet-on sync util profile (CPU / RSS / wallet.zero size / txcount).
 # Disposable scratch only. Never writes default Application Support/zero.
 #
@@ -24,6 +24,7 @@
 #   ZERO_PERF_RPCPORT       default 23955
 #   ZEROD_EXTRA_ARGS        extra zerod args (e.g. -walletwitness=ibd-defer)
 
+export LC_ALL=C
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

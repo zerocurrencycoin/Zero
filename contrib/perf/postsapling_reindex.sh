@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Post-Sapling ConnectBlock rematch -- overall throughput measures (stock -reindex).
 # FDCACHE A/B is out of the current mix; optional CONDITIONS remain for later.
 #
@@ -24,6 +24,7 @@
 # Durable ledger:     reindex-profile/bench-summaries/ledger.*
 # Collation report:   reindex-profile/bench-summaries/REPORT-postsapling.md
 
+export LC_ALL=C
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

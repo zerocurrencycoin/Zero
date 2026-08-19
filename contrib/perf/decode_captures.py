@@ -7,12 +7,12 @@ capture_sequence.sh), this:
      the export already exists from a prior run of this script).
   2. Buckets CPU time using the same call-stack substring matching as
      reindex-profile/tools/bucket_profile.py (imported directly, not
-     reimplemented -- see Perf.md §6 for why the id/ref backreference
-     parsing has to be done this specific way).
+     reimplemented: the id/ref backreference parsing is subtle and has
+     exactly one correct implementation).
   3. Derives the capture's exact block-height range from the trace's own
      <start-date> (in its stated UTC offset) cross-referenced against the
-     debug.log snapshot's UpdateTip timestamps -- see Perf.md §6, "getting
-     the height window right". This is more precise than capture_meta.txt's
+     debug.log snapshot's UpdateTip timestamps. This is more precise than
+     capture_meta.txt's
      RPC-polled height_before/height_after, which only bound the *whole*
      capture-plus-idle loop iteration, not the 300s recording window itself.
   4. Optionally samples a handful of blocks in that height range over RPC
@@ -94,12 +94,11 @@ UPDATETIP_RE = re.compile(
 
 
 def height_range_from_log(debug_log_path, start_utc, end_utc):
-    """First/last UpdateTip height whose (UTC, per Perf.md §6) timestamp
-    falls in [start_utc, end_utc]. Bounded by timestamp, not by searching
-    for a height substring (Perf.md §6 flags `height=937` matching
-    `height=937237` as a real mistake to avoid)."""
+    """First/last UpdateTip height whose (UTC) timestamp falls in
+    [start_utc, end_utc]. Bound by timestamp, not by searching for a
+    height substring: `height=937` also matches `height=937237`."""
     first_h = last_h = None
-    with open(debug_log_path, "r", errors="replace") as f:
+    with open(debug_log_path, "r", encoding="utf8", errors="replace") as f:
         for line in f:
             m = UPDATETIP_RE.match(line)
             if not m:
@@ -116,7 +115,7 @@ def height_range_from_log(debug_log_path, start_utc, end_utc):
 def bucket_capture(xml_path, thread_filter="zcash-loadblk"):
     """Re-implements bucket_profile.main()'s parse loop but returns data
     instead of printing, so results can be aggregated across captures."""
-    with open(xml_path) as f:
+    with open(xml_path, encoding="utf8") as f:
         content = f.read()
     rows = re.findall(r"<row>.*?</row>", content, re.DOTALL)
 
