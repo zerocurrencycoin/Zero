@@ -87,6 +87,9 @@ bool fInsightExplorer = false;  // insightexplorer
 bool fAddressIndex = false;     // insightexplorer
 bool fSpentIndex = false;       // insightexplorer
 bool fTimestampIndex = false;   // insightexplorer
+#ifdef ZERO_FDCACHE
+bool fPerfFdCache = false;   // -perffdcache, read once in InitPerfFdCache()
+#endif
 bool fHavePruned = false;
 bool fPruneMode = false;
 bool fIsBareMultisigStd = true;
@@ -2092,7 +2095,7 @@ bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus:
     bool fCached = false;
     FILE* fp;
 #ifdef ZERO_FDCACHE
-    if ((fCached = GetArg("-perffdcache", false)))
+    if ((fCached = fPerfFdCache))
         fp = GetCachedReadFile(pos, BlockFileKind::BLK);
     else
 #endif
@@ -2579,7 +2582,7 @@ bool UndoReadFromDisk(CBlockUndo& blockundo, const CDiskBlockPos& pos, const uin
     bool fCached = false;
     FILE* fp;
 #ifdef ZERO_FDCACHE
-    if ((fCached = GetArg("-perffdcache", false)))
+    if ((fCached = fPerfFdCache))
         fp = GetCachedReadFile(pos, BlockFileKind::REV);
     else
 #endif
@@ -4932,6 +4935,13 @@ FILE* GetCachedReadFile(const CDiskBlockPos &pos, BlockFileKind kind)
     case BlockFileKind::REV: return CacheOpen(revReadLatch, pos, GetBlockPosFilename(pos, "rev"));
     }
     return NULL; // unreachable
+}
+
+void InitPerfFdCache()
+{
+    // Read once at startup: consulted per block read, so a map lookup (and the
+    // non-const mapArgs[] it performs) does not belong on that path.
+    fPerfFdCache = GetBoolArg("-perffdcache", false);
 }
 
 void LogReadFdCacheStats(int height)

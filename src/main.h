@@ -255,6 +255,9 @@ private:
 enum class BlockFileKind { BLK, REV };
 /** Fetch (or open+cache) a read-only FILE* for the given file kind+index, seeked to pos.nPos. */
 FILE* GetCachedReadFile(const CDiskBlockPos &pos, BlockFileKind kind);
+/** Read -perffdcache once into fPerfFdCache. Call from init before block reads. */
+void InitPerfFdCache();
+extern bool fPerfFdCache;
 /** Periodic opens/hits log line, called from ConnectBlock. */
 void LogReadFdCacheStats(int height);
 #endif
