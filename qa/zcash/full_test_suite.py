@@ -21,7 +21,7 @@ REPOROOT = os.path.dirname(
 def repofile(filename):
     return os.path.join(REPOROOT, filename)
 
-# Same exclusions as contrib/run-tests.sh — canonical source: qa/zcash/test_filters.sh
+# Same exclusions as contrib/run-tests.sh -- canonical source: qa/zcash/test_filters.sh
 def _load_test_filters():
     script = repofile('qa/zcash/test_filters.sh')
     out = subprocess.check_output(

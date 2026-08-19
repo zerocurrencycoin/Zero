@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run Zero tests. Modes:
 # passing (default): pass-only C++ + Tier A RPC. GTest exclude: CachedWitnessesCleanIndex.
-#   --fail: ONLY that excluded GTest (see qa/zcash/test_filters.sh / TEST_ZERO.md).
+#   --fail: ONLY that excluded GTest (canonical list: qa/zcash/test_filters.sh).
 #   --all: same C++ filters as default + rpc-tests.sh -all (-A -B -E pass tiers).
 #   --rpcfail: rpc-tests.sh -rpcfail (-Bfail -Efail diagnostic; no C++, no util).
 #
@@ -10,7 +10,7 @@
 # Env: ZERO_MINE_COINBASE=1 to mine 1000 blocks for get_coinbase_address tests (slow).
 # --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
 # --no-python: skip Python RPC tests (qa/rpc-tests); superset of --quick (adds C++ layers per mode).
-# --build-checks: run make check-security (requires python on PATH; see TEST_ZERO.md)
+# --build-checks: run make check-security (requires python on PATH)
 # --jobs=N: Tier A RPC only, default pass-only mode. Serial (N=1) is the supported path (CI / contributor gate).
 # --suite: run qa/zcash/full_test_suite.py only (ordered stages; not --all, not default).
 # rpc_test: basename of one qa/rpc-tests script (e.g. proxy_test or proxy_test.py).
@@ -220,7 +220,7 @@ if [ "$MODE" = "rpcfail" ]; then
     exit 0
 fi
 
-# --fail: only suites listed in TEST_ZERO.md Known failures (hang / crash / fail).
+# --fail: only the known-failing suites (hang / crash / fail).
 if [ "$MODE" = "fail" ]; then
     echo "--- --fail: known hang / crash / fail C++ suites only (no util, no RPC) ---"
     if [ "$QUICK" -eq 1 ]; then

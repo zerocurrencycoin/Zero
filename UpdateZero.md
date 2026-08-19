@@ -336,6 +336,7 @@ Files: `src/alert.cpp`, `src/init.cpp`, `src/util.cpp`, `src/util.h`, `src/walle
 | **TNT-15** | Consensus | Wakanda min block time | TENT-only upgrade | **Skip** | N/A |
 | **TNT-16** | RPC product | `*nochange` send RPCs | Absent | **Reject** unless product asks | N/A |
 | **TNT-17** | Checkpoints | TENT mainnet checkpoint | Zero's own table | **Skip** | N/A |
+| **TNT-18** | Mempool / zeronode | `AcceptableInputs` -- TENT-only ATMP variant (TENT `main.cpp` 1765); absent from Zcash / Zclassic / Pirate | In tree `main.cpp` **1791-1989** (~199 lines), byte-identical to TENT except TENT's DarkSend `isDSTX` param dropped. Called **only** from `src/zeronode/zeronode.cpp` (2 sites) for collateral validation. Duplicates `AcceptToMemoryPool` and reads `-relaypriority` / `-limitfreerelay` a **second** time with **different defaults** (`true` / `30` vs ATMP's `false` / `15`) | **Postpone.** Inherited semantics, not drift: collateral checks are deliberately more permissive than relay. Do **not** hoist the flags to a single global -- that silently changes one path. Resolve only with the wider ATMP-duplication question | Low |
 
 This section keeps **TNT** execution order only. Source paths: **ZeroNodeDev.md** section **4**. File map: **`~/Work/ZK/ZeroPerf/TENTZero.md`**.
 

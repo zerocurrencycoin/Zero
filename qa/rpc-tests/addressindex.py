@@ -108,7 +108,7 @@ class AddressIndexTest(BitcoinTestFramework):
         # Currently our only unspents are coinbase transactions, choose any one.
         # Zero regtest: founders/dev-fee coinbase vout is off until fee-start (1000).
         # Tip here is maturity+5 (725), so coinbases are single-output miner P2PKH.
-        # (see ExtTests.md Finding A / §5). Do not assume Zcash's 2-vout shape.
+        # Do not assume Zcash's 2-vout coinbase shape.
         tx = self.nodes[0].getrawtransaction(unspent_txids[0], 1)
         assert_equal(len(tx['vout']), 1)
         addr_p2pkh = tx['vout'][0]['scriptPubKey']['addresses'][0]

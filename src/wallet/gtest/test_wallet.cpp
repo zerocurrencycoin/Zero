@@ -997,7 +997,7 @@ TEST(WalletTests, NavigateFromSaplingNullifierToNote) {
         ASSERT_FALSE(nd.nullifier);
     }
 
-    // Build witness manually — BuildWitnessCache needs pcoinsTip (test harness does not provide)
+    // Build witness manually -- BuildWitnessCache needs pcoinsTip (test harness does not provide)
     uint256 hash = wtx.GetHash();
     SaplingMerkleTree saplingTree;
     saplingTree.append(testNote.note.cm().get());
@@ -1117,7 +1117,7 @@ TEST(WalletTests, SpentSaplingNoteIsFromMe) {
     wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
 
-    // Build witness for note B manually — note A is synthetic, not from any block.
+    // Build witness for note B manually -- note A is synthetic, not from any block.
     auto wtxHash = wtx.GetHash();
     for (uint32_t i = 0; i < wtx.vShieldedOutput.size(); i++) {
         saplingTree.append(wtx.vShieldedOutput[i].cm);
@@ -2049,7 +2049,7 @@ TEST(WalletTests, UpdatedSaplingNoteData) {
     wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
 
-    // Build witness manually for change output only — BuildWitnessCache needs pcoinsTip.
+    // Build witness manually for change output only -- BuildWitnessCache needs pcoinsTip.
     // Wallet has key for change (sop1) but not payment (sop0).
     uint256 hash = wtx.GetHash();
     SaplingMerkleTree saplingTree;
@@ -2204,7 +2204,7 @@ TEST(WalletTests, MarkAffectedSaplingTransactionsDirty) {
     wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
 
-    // Build witness manually — no synthetic note; tree starts empty, append block outputs.
+    // Build witness manually -- no synthetic note; tree starts empty, append block outputs.
     uint256 hash = wtx.GetHash();
     SaplingWitness noteBWitness;
     for (uint32_t i = 0; i < tx1.vShieldedOutput.size(); i++) {

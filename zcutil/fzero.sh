@@ -79,7 +79,7 @@ prune_logs() {
 }
 
 # init_logging tees the whole script (stdout+stderr) to LOG_FILE, so build commands are
-# run directly — no per-command pipe. (A pipe here would double-log and reintroduce a
+# run directly -- no per-command pipe. (A pipe here would double-log and reintroduce a
 # pipefail-in-critical-path.) Failures are caught by the ERR trap in the entry scripts.
 
 # Call on build failure: analyze log if set, then err.

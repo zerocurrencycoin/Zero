@@ -1788,6 +1788,10 @@ bool GetAddressUnspent(const uint160& addressHash, int type,
     return true;
 }
 
+// Zeronode collateral acceptance (src/zeronode/). Duplicates AcceptToMemoryPool
+// but is deliberately more permissive: -relaypriority defaults true (not false)
+// and -limitfreerelay 30 (not 15), since collateral is checked, not relayed.
+// Keep the defaults distinct from ATMP's.
 bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransaction& tx, bool fLimitFree, bool* pfMissingInputs, bool fRejectInsaneFee)
 {
     AssertLockHeld(cs_main);

@@ -29,7 +29,7 @@
 // test binary. That table is PoW-parameter-specific. Authoring one for Zero
 // mainnet (192,7) would mean running OptimisedSolve once per height (on the
 // order of a minute each) and storing nSolution, not a compact nonce. Use
-// regtest (48,5) live solve instead. See TEST_ZERO / ExtTests.
+// regtest (48,5) live solve instead.
 
 struct MinerRegtestSetup : public TestingSetup {
     MinerRegtestSetup() : TestingSetup(CBaseChainParams::REGTEST) {}

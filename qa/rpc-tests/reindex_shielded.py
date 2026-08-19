@@ -6,7 +6,7 @@
 Shielded reindex coverage: Sapling note remains spendable after -reindex.
 
 Exercises real BuildWitnessCache + pcoinsTip + ReadBlockFromDisk (not the
-quarantined CachedWitnessesCleanIndex gtest harness). See WitnessReindex.md.
+quarantined CachedWitnessesCleanIndex gtest harness).
 
 Tier: B pass / Ext candidate (maturity mining ~720 blocks).
 """
