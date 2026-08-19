@@ -6,7 +6,7 @@
 #
 # Test txindex generation and fetching
 #
-# Harness: Bfail Debug (rpc-tests.sh). 2026-07-22 failures / fixes: TEST_ZERO.md
+# Harness: Bfail Debug (rpc-tests.sh).
 # "txindex.py debug" -- Py3 Decimal nValue; Bitcoin 50-ZER asserts vs Zero 10 ZER.
 #
 

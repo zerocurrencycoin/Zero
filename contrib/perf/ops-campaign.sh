@@ -107,11 +107,11 @@ cmd_list() {
 }
 
 next_id() {
-  local done
-  done=$(done_ids)
+  local done_list
+  done_list=$(done_ids)
   while IFS=$'\t' read -r id _rest; do
     [ -n "$id" ] || continue
-    if ! printf '%s\n' "$done" | grep -qx "$id"; then
+    if ! printf '%s\n' "$done_list" | grep -qx "$id"; then
       echo "$id"
       return 0
     fi
@@ -240,7 +240,8 @@ PY
   hpair=$(snap_heights "$snap")
   h0=${hpair%% *}
   h1=${hpair##* }
-  local run_id="cycle${CYCLE}-${id}-$(date -u +%Y%m%dT%H%M%SZ)"
+  local run_id
+  run_id="cycle${CYCLE}-${id}-$(date -u +%Y%m%dT%H%M%SZ)"
   echo "RUN trial=$id cycle=$CYCLE wallet=$wallet op=$op snap=$snap flags=$flags run_id=$run_id"
 
   export ZERO_PERF_RPCPORT="${ZERO_PERF_RPCPORT:-23957}"

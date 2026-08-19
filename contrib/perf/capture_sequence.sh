@@ -19,11 +19,11 @@
 #   contrib/perf/capture_sequence.sh reindex-profile/datadir reindex-profile/captures 1200 300
 #
 # [template] selects the xctrace Instruments template (default: 'Time Profiler',
-# the only one decode_captures.py can parse headlessly -- see GUI.md before
-# using anything else). Passing 'File Activity' or 'Allocations' records real
+# the only one decode_captures.py can parse headlessly; inspect anything else
+# in Instruments.app). Passing 'File Activity' or 'Allocations' records real
 # data but produces a trace `xcrun xctrace export` cannot read in this
-# Instruments version ("Document Missing Template Error") -- GUI.md documents
-# opening those in Instruments.app by hand. Traces from non-Time-Profiler
+# Instruments version ("Document Missing Template Error"); open those in
+# Instruments.app by hand. Traces from non-Time-Profiler
 # templates are typically far larger (a 30s File Activity capture against a
 # busy reindex was ~2.2GB) -- check free disk space before a long run.
 

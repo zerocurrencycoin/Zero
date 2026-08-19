@@ -45,7 +45,7 @@ class UnsupportedTraceError(Exception):
     this Instruments version -- known to happen for File Activity,
     Allocations, and Leaks templates ("Document Missing Template Error"),
     which are GUI-only for export in the version this was developed against.
-    See GUI.md for how to inspect those traces instead."""
+    Open those traces in Instruments.app instead."""
 
 
 def _run_xctrace(args, cap_dir_hint=""):
@@ -55,7 +55,7 @@ def _run_xctrace(args, cap_dir_hint=""):
             raise UnsupportedTraceError(
                 f"{cap_dir_hint}: this trace's template can't be read by `xcrun xctrace export` "
                 "in this Instruments version (likely File Activity/Allocations/Leaks, not Time "
-                "Profiler) -- see GUI.md to inspect it in Instruments.app instead."
+                "Profiler) -- open it in Instruments.app instead."
             )
         raise subprocess.CalledProcessError(r.returncode, args, r.stdout, r.stderr)
     return r.stdout
@@ -316,7 +316,7 @@ def main():
             results.append(r)
 
     if skipped:
-        print(f"\n{len(skipped)} capture(s) skipped (unsupported trace template, see GUI.md): {', '.join(skipped)}", file=sys.stderr)
+        print(f"\n{len(skipped)} capture(s) skipped (unsupported trace template): {', '.join(skipped)}", file=sys.stderr)
 
     # --- report ---
     print(f"\n{'='*100}")

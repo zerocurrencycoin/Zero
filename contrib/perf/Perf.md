@@ -132,7 +132,7 @@ Decide before any more Groth16 product code. **Hand-port vs. adopt upstream — 
 
 ### 0.2 Priority-ordered open items
 
-ConnectBlock / sync lab only. Planning for this tree stays here (and in **Measures.md** / **WitnessReindex.md** where noted). Do **not** rework **TODO.md** / **ExtTests.md** / **UpdateZero.md** or any other Zero400-owned document on ZeroPerf -- they are authoritative on the product branch and ZeroPerf tracks Zero400's copies verbatim. Perf context that would otherwise land in them goes in **[PerfDoc.md](PerfDoc.md)**.
+ConnectBlock / sync lab only. Planning for this tree stays here (and in **Measures.md** / **WitnessReindex.md** where noted). Do **not** heavily rework **TODO.md** / **ExtTests.md** / **UpdateZero.md** or other Zero400-owned documents on ZeroPerf -- they are authoritative on the product branch. Prefer keeping ZeroPerf's copies close to Zero400's so the diff stays readable, but exact match is a **preference, not a requirement**: a change that is right for ZeroPerf can land here first. Perf context that would otherwise go in those documents belongs in **[PerfDoc.md](PerfDoc.md)**.
 
 **Groth16 investigation group (ongoing -- one decision gate, then phased work):** hand-port vs adopt (`§0.1a`); optional migration-cost spike; Phases 2+ only after decide; multicore later. Treat as one program, not mixed with FR/wallet Decide items.
 
@@ -478,6 +478,7 @@ Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex ga
 | **IMP-NEON** | NEON blake2b if ARM mix warrants | Equihash | ARM deployment check |
 | **IMP-GROTH-SPIKE** | Bound Option B migration cost (FFI/`cxx`, `ff`/`group`) | Groth | Person still decides A/B before Phase 2 |
 | **IMP-SHIELDEX-DEAD** | Optional remove dead `nNotarizations` when touching `chain.h` | RSS/cleanup | Opportunistic; full gate set aside |
+| **IMP-DB-REWRITE-SPIN** | `CDB::Rewrite` (`src/wallet/db.cpp:389`) spins `while (mapFileUseCount[strFile] != 0) { MilliSleep(100); }`. If a caller still holds the file open the count never drops and the loop runs forever with **no log line, no timeout and no error** -- indistinguishable from a slow node. Introduced/diagnosed Feb 2026 (`f6497b208`); **never fixed, only worked around**: two gtests and one Boost test are excluded for it (`WriteCryptedSaplingZkey*`, `rpc_wallet_encrypted_wallet_sapzkeys`), so the deadlock path has **no test coverage at all**. Original notes recorded scope-block and separate-file attempts, both of which still hung; the leftover diagnostic is the commented-out refcount `LogPrintf` at `db.cpp:394`, driven by hand under gdb/lldb. **Do:** bound the loop (iteration or wall-clock cap), log the holder past a threshold, decide fail-loud vs spin; then re-check whether the three excluded tests can be restored. Cross-project comparison (Zclassic byte-identical, Zcash/Pirate idiom-only deltas, Bitcoin removed the path): **`~/Work/ZK/ZKs/CDBRewrite.md`**. | Wallet / ops | Reproduce under an excluded test; a bounded loop must surface the holding refcount instead of hanging |
 | **IMP-WITNESS-B2** | CleanIndex gtest harness | WitnessReindex | **Do not run for confidence** -- always-fail; B1 `reindex_shielded.py` covers the product gap |
 | **IMP-WAL-MATRIX** | Execute §0.11 getalldata matrix | Wallet util | Disposable wallets; Accounts/W5 still pending review |
 

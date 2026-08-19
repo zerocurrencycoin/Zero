@@ -107,6 +107,13 @@ AC_ARG_ENABLE(tests,
     [use_tests=$enableval],
     [use_tests=yes])
 
+AC_ARG_ENABLE([perf],
+  [AS_HELP_STRING([--enable-perf],
+  [enable ZeroPerf lab instrumentation: root() latch counters and the
+   -perffdcache / -perfbufsize block-file read latch (default is no)])],
+  [use_perf=$enableval],
+  [use_perf=no])
+
 AC_ARG_ENABLE([asan],
   [AS_HELP_STRING([--enable-asan],
   [instrument the executables with asan (default is no)])],
@@ -818,6 +825,15 @@ if test x$enable_mining != xno; then
   AC_MSG_RESULT(yes)
   AC_DEFINE(ENABLE_MINING, 1, [Define to 1 to enable mining functions])
 
+else
+  AC_MSG_RESULT(no)
+fi
+
+AC_MSG_CHECKING([whether to build with ZeroPerf lab instrumentation])
+if test x$use_perf = xyes; then
+  AC_MSG_RESULT(yes)
+  AC_DEFINE(ZERO_PERF, 1, [Define to 1 to enable perf instrumentation counters])
+  AC_DEFINE(ZERO_FDCACHE, 1, [Define to 1 to enable the block-file read latch])
 else
   AC_MSG_RESULT(no)
 fi

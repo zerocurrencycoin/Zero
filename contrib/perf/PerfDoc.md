@@ -118,7 +118,83 @@ copy; do not fork these into ZeroPerf.
 
 ---
 
-## 6. Harness inventory
+## 6. Building with instrumentation
+
+The gated source layer is off unless configured in. ZeroPerf adds one option
+(`configure.ac`, ZeroPerf-only -- Zero400 has no such flag):
+
+```bash
+./autogen.sh
+./configure --enable-perf
+make
+```
+
+`--enable-perf` defines **both** `ZERO_PERF` (root() latch counters) and
+`ZERO_FDCACHE` (the `-perffdcache` / `-perfbufsize` block-file read latch).
+They are one lab feature with one audience; splitting them would double an
+already-untested build matrix. Default is **no**, so a stock build is
+byte-identical to Zero400's.
+
+**Editing `configure.ac` arms an autotools trap**: the next `make` re-runs
+`configure` without the depends `CONFIG_SITE` and dies on a misleading
+"libdb_cxx headers missing". Pre-existing in both trees, not caused by
+`--enable-perf`. Symptom, cause, recovery and hardening options:
+**[BUILD_RECONFIG.md](BUILD_RECONFIG.md)**.
+
+Runtime flags, meaningful only in an `--enable-perf` build:
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `-perffdcache` | off | Use the one-entry read latch per blk/rev file |
+| `-perfbufsize=N` | 0 (libc) | `setvbuf` size on block-file reads |
+| `-mrclogevery=N` | 16384 | Block-height interval for the root() match-rate log |
+
+**Why this exists.** Before it, neither gate appeared in `configure.ac`, any
+Makefile, or `bitcoin-config.h` -- the code was unreachable from any normal
+build and had likely never been compiled. That is how `-perffdcache` came to
+bind the wrong `GetArg` overload (`atoi64("")` is 0, so a bare flag read as
+false) and go unnoticed. Gated code that cannot be built cannot be tested.
+
+## 7. Lint automation
+
+`contrib/perf/lint-perf.sh` runs every check in one pass and filters to code
+ZeroPerf owns.
+
+```bash
+contrib/perf/lint-perf.sh            # gate: exit 1 only on contrib/perf/ findings
+contrib/perf/lint-perf.sh --summary  # counts only, one line per check
+contrib/perf/lint-perf.sh --all      # no filter, every finding tree-wide
+contrib/perf/lint-perf.sh --list     # what runs, then exit
+```
+
+It wraps `contrib/perf/check-unicode.py`, `shellcheck`, and the nine vendored
+`zcash-lint/lint-*.sh`, printing OWNED and TOTAL counts per check.
+
+**Why filtered.** `zcash-lint/lint-all.sh` exits 1 on roughly 200 findings that
+live in code inherited from Bitcoin and Zcash. Those are set aside -- changing
+them diverges from upstream for no functional gain -- so an unfiltered gate is
+permanently red, and a permanently red gate gets ignored. This one is green when
+`contrib/perf/` is clean and still prints the upstream totals for visibility.
+
+**Scope decisions baked in:**
+
+| Decision | Reason |
+|----------|--------|
+| Gate scope is `^contrib/perf/` | The only code ZeroPerf owns |
+| `datadir_guard.sh` excluded | Sourced, mode 644: shebang meaningless, and `LC_ALL` there would override the caller's locale. Two linters flag it; both are false positives |
+| Unicode gate covers `*.sh` / `*.py` only | Perf `.md` and captured `.txt` are a separate concern (UpdateZero.md DOC-UNICODE). `--all` still shows them |
+| `shellcheck -f gcc` | Emits `path:line:col:`, so one path filter works across every check |
+
+**Default filtering.** Three checks report only inherited upstream findings that
+are set aside; their TOTAL is high, constant and uninformative, so it prints as
+`set aside` unless `--all` is given: `include-guards` (52), `includes` (186),
+`locale-dependence` (71). `--all` and `--summary` compose.
+
+Baseline as of 2026-08-19: **OWNED 0 across all eleven checks**, exit 0.
+Verified to fail correctly by introducing an unused loop counter and an
+em-dash, and to return to 0 when reverted.
+
+## 8. Harness inventory
 
 All ZeroPerf-only tooling lives under **`contrib/perf/`** (22 files). Nothing
 perf-specific remains in `qa/` or elsewhere in `contrib/`.

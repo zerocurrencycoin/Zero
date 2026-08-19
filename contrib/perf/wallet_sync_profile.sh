@@ -188,7 +188,7 @@ while kill -0 "$pid" 2>/dev/null; do
   h=$(cli getblockcount 2>/dev/null || echo 0)
   if [ "${TARGET_HEIGHT:-0}" -gt 0 ] && [ "${h:-0}" -ge "$TARGET_HEIGHT" ]; then
     log "target height reached h=$h"
-    sample_row done "$pid"
+    sample_row "done" "$pid"
     break
   fi
   sleep "$SAMPLE_PERIOD_S"

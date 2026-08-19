@@ -110,14 +110,14 @@ height_of() {
 kill_pid_hard() {
     local pid="$1"
     kill -TERM "$pid" 2>/dev/null
-    for i in $(seq 1 10); do
+    for _ in $(seq 1 10); do
         kill -0 "$pid" 2>/dev/null || return 0
         sleep 2
     done
     if kill -0 "$pid" 2>/dev/null; then
         log "pid=$pid did not respond to SIGTERM after 20s, sending SIGKILL"
         kill -9 "$pid" 2>/dev/null
-        for i in $(seq 1 10); do
+        for _ in $(seq 1 10); do
             kill -0 "$pid" 2>/dev/null || return 0
             sleep 1
         done
@@ -218,7 +218,7 @@ run_trial() {
     # WARMUP_HEIGHT reaches into or past post-Sapling heights, where
     # throughput drops to ~240-290 blk/s. Floor of 600s preserves prior
     # behavior for small targets; 200 blk/s is a conservative floor below
-    # every post-Sapling capture in Perf.md's table (237-1,103 blk/s).
+    # every post-Sapling capture measured so far (237-1,103 blk/s).
     local warmup_wait_s=$(( WARMUP_HEIGHT / 200 + 600 ))
     waited=0
     until h=$(height_of) && [ "$h" -ge "$WARMUP_HEIGHT" ]; do
@@ -294,7 +294,7 @@ run_trial() {
     grep "ReadFdCache:" "$SCRATCH_DATADIR/debug.log" | tail -3 > "$trial_dir/readfdcache_tail.log"
 
     "$ZERO_CLI" -datadir="$SCRATCH_DATADIR" -rpcport=$RPCPORT stop >/dev/null 2>&1
-    for i in $(seq 1 20); do
+    for _ in $(seq 1 20); do
         kill -0 "$pid" 2>/dev/null || break
         sleep 3
     done
@@ -303,7 +303,8 @@ run_trial() {
         kill_pid_hard "$pid"
     fi
 
-    local elapsed=$(elapsed_between_heights "$trial_dir/debug.log.snapshot" "$WARMUP_HEIGHT" "$target_end")
+    local elapsed
+    elapsed=$(elapsed_between_heights "$trial_dir/debug.log.snapshot" "$WARMUP_HEIGHT" "$target_end")
     if [ "$elapsed" = "NA" ] || [ -z "$elapsed" ]; then
         log "WARNING: could not determine elapsed time for trial $trial (heights not found in log)"
         printf "%s\t%s\t%s\t%s\t%s\t%s\tNA\tNA\n" "$mode" "$condition" "$trial" "$WARMUP_HEIGHT" "$h" "$nblocks" >> "$RESULTS_TSV"

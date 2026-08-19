@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Flag non-ASCII characters that AGENTS.md bans from documents and code.
+"""Flag decorative non-ASCII in documents and code.
 
-AGENTS.md: no emojis or decorative Unicode in any document except README.md;
-use ASCII equivalents -- `--` not em-dash, `->` not arrow, `"` not curly
-quotes, `...` not ellipsis. Nothing enforced this, so violations accumulated.
+Project rule (AGENTS.md): no emojis or decorative Unicode in any document
+except README.md; use ASCII equivalents -- `--` not em-dash, `->` not arrow,
+`"` not curly quotes, `...` not ellipsis. Nothing enforced it, so violations
+accumulated.
 
 Usage (from repo root):
   contrib/perf/check-unicode.py            # report; exit 1 if violations
@@ -59,7 +60,7 @@ SKIP_PATH = re.compile(
 )
 CHECK_EXT = re.compile(r"\.(md|cpp|h|hpp|py|sh|txt|conf|csv|include|ac|am)$")
 
-# AGENTS.md exempts README.md from the no-decorative-Unicode rule.
+# README.md is exempt from the no-decorative-Unicode rule.
 EXEMPT = re.compile(r"(^|/)README\.md$")
 
 

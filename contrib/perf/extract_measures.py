@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Filter-then-process zerod debug.log markers into Measures.md vocabulary.
+"""Filter-then-process zerod debug.log markers into measure vocabulary.
 
 Read-only on logs. Does not launch zerod. Log path spec is shared with
 stall_check.py (contrib/perf/debuglog.py): --datadir, --rotated, --log,
