@@ -1685,6 +1685,73 @@ TEST(WalletTests, CachedWitnessesCleanIndex) {
     }
 }
 
+// Differential oracle: a witness read twice over an unchanged chain must be
+// identical, and clearing the cache must actually discard it.
+//
+// This pins two invariants that any future change to the witness walk can
+// silently break:
+//   1. Witness reads are a pure function of chain state -- repeated reads with
+//      no new block return the same witness and the same anchor. A walk that
+//      accumulated state across calls, or advanced a height it should not,
+//      would diverge here.
+//   2. ClearNoteWitnessCache genuinely clears. A rebuild that reads a stale
+//      cache would look correct while doing nothing; this asserts the
+//      precondition that makes any rebuild test meaningful.
+//
+// Note on scope: the notes produced by CreateValidBlock use random inputs, so
+// two independently constructed wallets do NOT share a chain and their
+// witnesses are not comparable. The oracle therefore operates on a single
+// wallet and a single chain, which is the only comparison that is well defined
+// here. A cross-wallet comparison would need deterministic note construction.
+//
+// Passes against the current implementation; it is a correctness baseline, not
+// a bug hunt.
+TEST(WalletTests, WitnessReadIsStableAndClearDiscards) {
+    TestWallet wallet;
+    CBlock block1, block2, block3;
+    CBlockIndex index1(block1), index2(block2), index3(block3);
+    SproutMerkleTree sproutTree;
+    SaplingMerkleTree saplingTree;
+
+    auto sk = libzcash::SproutSpendingKey::random();
+    wallet.AddSproutSpendingKey(sk);
+
+    index1.nHeight = 1;
+    auto outpts1 = CreateValidBlock(wallet, sk, index1, block1, sproutTree, saplingTree);
+    index2.nHeight = 2;
+    CreateValidBlock(wallet, sk, index2, block2, sproutTree, saplingTree);
+    index3.nHeight = 3;
+    CreateValidBlock(wallet, sk, index3, block3, sproutTree, saplingTree);
+
+    std::vector<JSOutPoint> sproutNotes {outpts1.first};
+    std::vector<SaplingOutPoint> saplingNotes {outpts1.second};
+
+    // First read.
+    std::vector<boost::optional<SproutWitness>> sproutA;
+    std::vector<boost::optional<SaplingWitness>> saplingA;
+    auto anchorsA = GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutA, saplingA);
+    ASSERT_EQ(sproutA.size(), 1);
+    ASSERT_TRUE((bool) sproutA[0]);
+
+    // Second read, no chain change: must be identical.
+    std::vector<boost::optional<SproutWitness>> sproutB;
+    std::vector<boost::optional<SaplingWitness>> saplingB;
+    auto anchorsB = GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutB, saplingB);
+    ASSERT_TRUE((bool) sproutB[0]);
+    EXPECT_TRUE(*sproutA[0] == *sproutB[0]);
+    EXPECT_EQ(anchorsA.first, anchorsB.first);
+    EXPECT_EQ(anchorsA.second, anchorsB.second);
+
+    // Clearing must discard: a later rebuild that read a stale cache would
+    // pass a naive test while doing no work.
+    wallet.ClearNoteWitnessCache();
+    std::vector<boost::optional<SproutWitness>> sproutCleared;
+    std::vector<boost::optional<SaplingWitness>> saplingCleared;
+    GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutCleared, saplingCleared);
+    ASSERT_EQ(sproutCleared.size(), 1);
+    EXPECT_FALSE((bool) sproutCleared[0]);
+}
+
 TEST(WalletTests, ClearNoteWitnessCache) {
     TestWallet wallet;
 

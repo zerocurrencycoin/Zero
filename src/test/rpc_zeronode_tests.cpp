@@ -188,4 +188,24 @@ BOOST_AUTO_TEST_CASE(getzeronodepayment_sporks)
     mapSporksActive = saved;
 }
 
+// The 16th zeronode RPC; the only one with no case until now.
+//
+// getzeronodescores parses its optional argument with std::stoi inside
+//   try { ... } catch (const boost::bad_lexical_cast &)
+// std::stoi throws std::invalid_argument / std::out_of_range, never
+// boost::bad_lexical_cast, so that handler is dead and a non-numeric argument
+// escapes the RPC. The server's outer catch(std::exception) turns it into a
+// generic RPC_PARSE_ERROR rather than a parameter error, so the node does not
+// crash, but the diagnostic is wrong and the intended handler never runs.
+//
+// std::invalid_argument derives from std::logic_error, NOT std::runtime_error,
+// so the assertion below is deliberately on std::exception: a narrower
+// runtime_error check would fail today. Tighten this to runtime_error once the
+// catch is corrected -- that tightening is the regression signal.
+BOOST_AUTO_TEST_CASE(rpc_getzeronodescores_param_validation)
+{
+    BOOST_CHECK_THROW(CallRPC("getzeronodescores a b"), runtime_error); // arity
+    BOOST_CHECK_THROW(CallRPC("getzeronodescores notanumber"), std::exception);
+}
+
 BOOST_AUTO_TEST_SUITE_END()

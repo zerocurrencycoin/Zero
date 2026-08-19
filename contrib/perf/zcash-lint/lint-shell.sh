@@ -42,8 +42,8 @@ fi
 EXCLUDE="--exclude=$(IFS=','; echo "${disabled[*]}")"
 # ZeroPerf: upstream's pattern had an empty first alternation branch --
 # 'src/(|leveldb|secp256k1|univalue)/'. GNU grep tolerates it; macOS BSD grep
-# and ugrep both reject it as "empty (sub)expression", so no files reached
-# shellcheck and this script exited on a usage error that looked like a lint
+# and ugrep both reject it as "empty (sub)expression", so no files reached the
+# checker and this script exited on a usage error that looked like a lint
 # failure. Dropping the empty branch keeps the intent (skip those subtrees)
 # and is valid POSIX ERE everywhere.
 # RECHECK: confirm this still behaves on Linux/GNU grep before upstreaming.

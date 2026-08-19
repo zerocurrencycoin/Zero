@@ -85,8 +85,7 @@ Decide before any more Groth16 product code. **Hand-port vs. adopt upstream — 
 
 | Question | Owner / gate | Status |
 |----------|--------------|--------|
-| Groth16 Option A vs B (§0.1a) | Person | **Open** -- G2 then G3 consecutive after G5/G9 |
-| cxx bridge questions (§0.6a) | G2 evidence pass | **Open** |
+| Groth16 Option A vs B (§0.1a), **including the cxx-bridge scoping (§0.6a)** | Person | **Open** -- G2 then G3 consecutive after G5/G9. The cxx questions are not a separate decision: whether batching can land behind Zero's existing C ABI (`librustzcash.h`, raw `extern "C"`) or requires a cxx bridge **is** the A-vs-B cost difference |
 | ARM fleet mix (NEON worth?) | Deploy survey | **Open**; G7 NEON **postponed** anyway |
 | FDCACHE 8/16KB vs default vs 1MB | G6 | **Hold** |
 | W5/W6 / getalldata cache / Zerowallet notmodified | Product review | **Postponed** |
@@ -466,7 +465,7 @@ Doc ownership: **BENCH-/FIX-/IMP-***, **L0-L7**, Stages, **G**/**P1-P4**, lab ma
 | **FIX-WAL-WITNESS-NOTEIDX** | Iterate note-bearing txs only | Same; avoid `empty()` on ~801k maps | **Prototype done** -- `-walletwitnessnote=1` (~33x h8k); walk done; stale narrowing **specified** -- §0.14 | Low–med |
 | **FIX-WAL-WITNESS-NOTEIDX-STALE** | Invalidate NOTEIDX only on note-membership change | Founders-dense `-rescan`/IBD Ensure storm (M-WAL-RESCAN-FAT) | **Specified** -- Cycle 1; §0.14 | Med (missed note insert) |
 | **FIX-WAL-WITNESS-DIRTY** | Dirty set for notes needing initial witness | Differential; skip validated | **Proposed** -- §0.14 | Med (reorg/load) |
-| **FIX-WIT-WALK-UNLOCK** | Drop `cs_main` during full height walk; abort/restart if tip moves | R5c: mid-`-33` reorg is unreachable while the walk holds `cs_main` | **Open** -- product, not a test-only item; §0.16 | Med (reorg during rebuild) |
+| **FIX-WIT-WALK-UNLOCK** | Drop `cs_main` during full height walk; abort/restart if tip moves | R5c: mid-`-33` reorg is unreachable while the walk holds `cs_main` | **Not recommended** -- analysed 2026-08-19; abort-and-restart cannot converge once walk time exceeds the 120 s block spacing (full stock walk ~3.7 h => E[attempts] ~10^48). Faster walks (NOTEIDX, 35x) make it unnecessary; slower ones make it impossible. Arithmetic and test plan: ZeroPerf `TODO.md` | Moot -- not scheduled |
 
 Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex gating, Accounts, W5, Groth Phase 2 (decision-blocked). FDCACHE buffer A/B (G6) held until wallet-witness triage decides order.
 
@@ -478,6 +477,7 @@ Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex ga
 | **IMP-NEON** | NEON blake2b if ARM mix warrants | Equihash | ARM deployment check |
 | **IMP-GROTH-SPIKE** | Bound Option B migration cost (FFI/`cxx`, `ff`/`group`) | Groth | Person still decides A/B before Phase 2 |
 | **IMP-SHIELDEX-DEAD** | Optional remove dead `nNotarizations` when touching `chain.h` | RSS/cleanup | Opportunistic; full gate set aside |
+| **IMP-BUILD-RECONFIG** | Harden the autotools re-configure path: the automake-spawned `configure` re-run inherits no `CONFIG_SITE`, so it dies on a misleading "libdb_cxx headers missing" on a tree that built minutes earlier. Pre-existing in **both** trees (reproduces in Zero400 with no local edit). Options and recovery: **[BUILD_RECONFIG.md](BUILD_RECONFIG.md)**. Smallest real fixes (persist `CONFIG_SITE`, or make the BDB probe name it) touch `configure.ac`, which is Zero400-owned -- not a perf-local change | Build / ops | A re-run triggered by touching `configure.ac` completes, or fails with a message naming `CONFIG_SITE` |
 | **IMP-DB-REWRITE-SPIN** | `CDB::Rewrite` (`src/wallet/db.cpp:389`) spins `while (mapFileUseCount[strFile] != 0) { MilliSleep(100); }`. If a caller still holds the file open the count never drops and the loop runs forever with **no log line, no timeout and no error** -- indistinguishable from a slow node. Introduced/diagnosed Feb 2026 (`f6497b208`); **never fixed, only worked around**: two gtests and one Boost test are excluded for it (`WriteCryptedSaplingZkey*`, `rpc_wallet_encrypted_wallet_sapzkeys`), so the deadlock path has **no test coverage at all**. Original notes recorded scope-block and separate-file attempts, both of which still hung; the leftover diagnostic is the commented-out refcount `LogPrintf` at `db.cpp:394`, driven by hand under gdb/lldb. **Do:** bound the loop (iteration or wall-clock cap), log the holder past a threshold, decide fail-loud vs spin; then re-check whether the three excluded tests can be restored. Cross-project comparison (Zclassic byte-identical, Zcash/Pirate idiom-only deltas, Bitcoin removed the path): **`~/Work/ZK/ZKs/CDBRewrite.md`**. | Wallet / ops | Reproduce under an excluded test; a bounded loop must surface the holding refcount instead of hanging |
 | **IMP-WITNESS-B2** | CleanIndex gtest harness | WitnessReindex | **Do not run for confidence** -- always-fail; B1 `reindex_shielded.py` covers the product gap |
 | **IMP-WAL-MATRIX** | Execute §0.11 getalldata matrix | Wallet util | Disposable wallets; Accounts/W5 still pending review |

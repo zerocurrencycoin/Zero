@@ -155,7 +155,66 @@ build and had likely never been compiled. That is how `-perffdcache` came to
 bind the wrong `GetArg` overload (`atoi64("")` is 0, so a bare flag read as
 false) and go unnoticed. Gated code that cannot be built cannot be tested.
 
-## 7. Lint automation
+## 7. Witness-walk baselines
+
+Two checks built 2026-08-19. Both stand on their own; neither depends on
+FIX-WIT-WALK-UNLOCK, which was analysed and is **not recommended**.
+
+### 7.1 Correctness oracle (gtest)
+
+`WalletTests.WitnessReadIsStableAndClearDiscards` in
+`src/wallet/gtest/test_wallet.cpp`. Pins two invariants:
+
+1. **Witness reads are a pure function of chain state.** Two reads with no new
+   block return the same witness and the same anchor. A walk that accumulated
+   state across calls, or advanced a height it should not, diverges here.
+2. **`ClearNoteWitnessCache` genuinely clears.** A rebuild that quietly read a
+   stale cache would look correct while doing no work; this asserts the
+   precondition that makes any rebuild test meaningful.
+
+**Scope limit, recorded because it bit during development.** `CreateValidBlock`
+builds notes with random inputs, so two independently constructed wallets do
+**not** share a chain and their witnesses are not comparable. A first version of
+this test compared two wallets and failed for that reason -- the implementation
+was correct, the test was wrong. The oracle therefore works within one wallet on
+one chain. A cross-wallet differential would need deterministic note
+construction first.
+
+**Verified sensitive, not just green:** with `ClearNoteWitnessCache` mutated to
+`return;` immediately, the test fails at the clear assertion
+(`test_wallet.cpp:1752`). Restored, it passes. A test that has never failed has
+not been shown to test anything.
+
+### 7.2 Cost baseline (log extraction)
+
+`contrib/perf/witness_walk_cost.py`. Pairs the two lines `BuildWitnessCache`
+already emits -- `height-walk begin ... noteidx= startHeight= tip=` and
+`height-walk done ... elapsed_ms=` -- and reports ms/block per walk, split by
+the NOTEIDX flag. No node change and no new instrumentation.
+
+```bash
+contrib/perf/witness_walk_cost.py <debug.log> [more.log ...]
+contrib/perf/witness_walk_cost.py --tsv <debug.log>
+```
+
+**Why it exists.** The per-block figures used in planning were extrapolated from
+a single mainnet window. Running the extractor over retained logs replaces the
+extrapolation with a measurement:
+
+| Source | noteidx | blocks | ms/block |
+|--------|---------|-------:|---------:|
+| `test-logs/rescan-sys-20260814T014246Z/` | 1 | 13491 (380 walks) | **0.1530** |
+| `test-logs/witness-lab-tip-rebuild-*` | 0 | 1442 | **5.3114** |
+| same, second walk | 0 | 1442 | **5.7150** |
+| same | 1 | 1442 | **0.1526** |
+
+The NOTEIDX figure reproduces the planning value (0.153) across 380 independent
+walks. The stock figure does too (5.31 vs 5.32) -- but a second stock walk on
+the same window measured **5.72 ms/block, about 8% higher**, which a
+single-point extrapolation could not show. Treat stock per-block cost as a range
+(~5.3-5.7), not a constant, when estimating walk duration.
+
+## 8. Lint automation
 
 `contrib/perf/lint-perf.sh` runs every check in one pass and filters to code
 ZeroPerf owns.
@@ -194,7 +253,7 @@ Baseline as of 2026-08-19: **OWNED 0 across all eleven checks**, exit 0.
 Verified to fail correctly by introducing an unused loop counter and an
 em-dash, and to return to 0 when reverted.
 
-## 8. Harness inventory
+## 9. Harness inventory
 
 All ZeroPerf-only tooling lives under **`contrib/perf/`** (22 files). Nothing
 perf-specific remains in `qa/` or elsewhere in `contrib/`.
