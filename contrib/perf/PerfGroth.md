@@ -6,6 +6,15 @@ Current state and forward path only; superseded attempts are not recorded here.
 Numbers are cited by `M-*` id and live in `Measures.md`. Task status lives in
 `PerfTasks.md`.
 
+> **Postponed pending developer review (2026-08-20).** This document is
+> complete and reviewable as it stands; it is waiting on a maintainer to pick
+> Option A or Option B (S4), not on further measurement. **Do not start
+> implementation work, and do not extend the prototype in S7.** The decision
+> is a judgement call about consensus-critical crypto and migration cost, and
+> the two options diverge at the FFI boundary. The crux to answer first is S4
+> question 4: if batching can land behind the existing C ABI, Option A avoids
+> a release-scale migration entirely.
+
 ---
 
 ## 1. Why this matters

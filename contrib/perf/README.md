@@ -14,17 +14,29 @@ contrib/perf/profile_collate.py report                # everything accumulated s
 
 Data produced 2026-08-19/20 and its provenance: `test-logs/DATA_INDEX.md`.
 
-# perf
+## Routing
 
-Scripts supporting the `zerod` sync performance investigation documented in
-`Perf.md` at the repo root. Read that file first -- it has the methodology
-and the reasoning these scripts implement; this README is just usage.
+This file is the **per-tool reference**: invocation, environment variables and
+per-tool caveats. It is deliberately the only place those live in long form.
+
+| Looking for | Read |
+|-------------|------|
+| How to take a profile and read it | `BENCHMARKING.md` |
+| One-line index of every tool | `BENCHMARKING.md` S4.1 |
+| Findings and method | `Perf.md` |
+| Numbers bound to `M-*` | `Measures.md` |
+| Task state and what to do next | `PerfTasks.md`, `PerfNext.md` |
+| Governance, ownership, lab discipline | `PerfDoc.md` |
+
+`BENCHMARKING.md` S4.1 lists the same 13 tools as a one-line index; the detail
+below is not repeated there. When adding a tool, add the row there and the
+section here.
 
 **Numbers inventory:** `M-*` campaign IDs, metric tokens (`height_per_s`,
 `wall_s`, `cpu_pct`, ...), comparability rules, extraction schema, and the
 ledger `CAMPAIGN=` map live in **`Measures.md`** (§8 for bindings). **Plans /
 specs** (BENCH-*, FIX-*, IMP-*, L0-L7, Stages) and **lab materials**:
-**`Perf.md`**. Prefer Measures tokens in new TSV/JSONL columns when extending
+**`Perf.md`** (in this directory, not the repo root). Prefer Measures tokens in new TSV/JSONL columns when extending
 these scripts.
 
 **Datadir rule:** never use the default `~/Library/Application Support/zero`

@@ -9,6 +9,11 @@ documentation conventions. Operational how-to moved out:
 | How to run and read a measurement | `BENCHMARKING.md` |
 | Groth16 evidence, decision, plan | `PerfGroth.md` |
 | Task list and state | `PerfTasks.md` |
+| What to work on next, and why not the rest | `PerfNext.md` |
+| Phase-timer design and spec | `PerfTimers.md` |
+| Cross-platform tooling survey | `PerfPlatforms.md` |
+| Measurement-store schema and aggregation keys | `PerfStores.md` |
+| Which document to read, and which to retire | `PerfDocReview.md` |
 | Findings and method | `Perf.md` |
 | Numbers bound to `M-*` | `Measures.md` |
 
@@ -49,6 +54,11 @@ Where perf work is written down, and what each file is for.
 | **contrib/perf/BENCHMARKING.md** | ZeroPerf | **How to benchmark and profile.** Workflow, reading the three views, traps that produced wrong numbers. Start here. |
 | **contrib/perf/PerfGroth.md** | ZeroPerf | Groth16: evidence, the blocking Option A/B decision, implementation path. |
 | **contrib/perf/PerfTasks.md** | ZeroPerf | Every tracked item with state and blocker. |
+| **contrib/perf/PerfNext.md** | ZeroPerf | Next directions: which measurement gaps, automation and documentation work are worth doing, ranked, and which are deliberately not. Written while GROTH-DECIDE is postponed; every item is independent of that decision. |
+| **contrib/perf/PerfTimers.md** | ZeroPerf | Design and spec for block-processing phase timers. Records three defects in the inherited `-debug=bench` instrumentation, the most significant being that proof verification is timed by nothing. Spec only -- no code changes. |
+| **contrib/perf/PerfPlatforms.md** | ZeroPerf | Tooling survey: macOS dependencies of the harness, Ubuntu / Windows 11 / WSL2 equivalents, and existing OSS tools worth adopting rather than rewriting. |
+| **contrib/perf/PerfStores.md** | ZeroPerf | Measurement-store schema: platform identity, binary versioning, feature-set encoding, and the fingerprint/aggregation rules that make a multi-platform body of measures searchable. Spec only. Distinct from `Stores.md` (chain/datadir storage). |
+| **contrib/perf/PerfDocReview.md** | ZeroPerf | Per-document goal, audience, inclusion criteria and critique for every file in `contrib/perf/`. Identifies duplication, obsolescence and off-subject material; proposed relocations need confirmation. |
 | **contrib/perf/PERF_RESTRUCTURE.md** | ZeroPerf | Proposal to restructure Perf.md. Not applied. |
 | **test-logs/DATA_INDEX.md** | ZeroPerf | Every number produced, with the log or ledger it came from. |
 | **AtHeight.md** | **Zero400** | Height-bounded reindex / short-snap lab procedure. Tiny/short archive unpack, timed reindex, resume interrupt lab. Points numbers to Measures.md. |
