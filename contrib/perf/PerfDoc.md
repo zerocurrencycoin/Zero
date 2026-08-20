@@ -1,4 +1,22 @@
-# PerfDoc - ZeroPerf-only context from Zero400-owned documents
+# PerfDoc - ZeroPerf governance and context
+
+**Scope, after the 2026-08 split.** This file holds what is *policy*: who owns
+which document, how lab runs must be bounded, what is out of scope, and the
+documentation conventions. Operational how-to moved out:
+
+| Looking for | Read |
+|-------------|------|
+| How to run and read a measurement | `BENCHMARKING.md` |
+| Groth16 evidence, decision, plan | `PerfGroth.md` |
+| Task list and state | `PerfTasks.md` |
+| Findings and method | `Perf.md` |
+| Numbers bound to `M-*` | `Measures.md` |
+
+Sections 6-11 below (build flags, witness baselines, logging facilities, test
+types, lint, harness inventory) are **operational reference that duplicates
+`BENCHMARKING.md` Part 4**. They are retained for now because other documents
+link to them by section number; the reintegration plan is at the end of this
+file.
 
 Zero400 owns the authoritative code, tests, and project documents. ZeroPerf owns
 `contrib/perf/` -- which holds both the harness and the four perf documents
@@ -28,6 +46,11 @@ Where perf work is written down, and what each file is for.
 | **contrib/perf/Measures.md** | ZeroPerf | Quantitative measures inventory. Vocabulary; **`M-*`** campaigns; comparability; extraction schema; §8 ledger `CAMPAIGN=` map. |
 | **contrib/perf/Stores.md** | ZeroPerf | Storage / datadir structure notes. |
 | **contrib/perf/PerfDoc.md** | ZeroPerf | This file. Perf context extracted from Zero400-owned docs. |
+| **contrib/perf/BENCHMARKING.md** | ZeroPerf | **How to benchmark and profile.** Workflow, reading the three views, traps that produced wrong numbers. Start here. |
+| **contrib/perf/PerfGroth.md** | ZeroPerf | Groth16: evidence, the blocking Option A/B decision, implementation path. |
+| **contrib/perf/PerfTasks.md** | ZeroPerf | Every tracked item with state and blocker. |
+| **contrib/perf/PERF_RESTRUCTURE.md** | ZeroPerf | Proposal to restructure Perf.md. Not applied. |
+| **test-logs/DATA_INDEX.md** | ZeroPerf | Every number produced, with the log or ledger it came from. |
 | **AtHeight.md** | **Zero400** | Height-bounded reindex / short-snap lab procedure. Tiny/short archive unpack, timed reindex, resume interrupt lab. Points numbers to Measures.md. |
 | **ZeroStruct.md** | **Zero400** | Architecture: structures, indexes, algorithms (esp. §4.3, §6.2, §13). Problem/pro-con only, not task status. |
 | **TODO.md** | **Zero400** | Status and full task text for `OPS-*` / `WAL-*` / `FR-*` / `EXT-*`. |
@@ -118,103 +141,89 @@ copy; do not fork these into ZeroPerf.
 
 ---
 
-## 6. Building with instrumentation
+## 6. Building with instrumentation -- policy
 
-The gated source layer is off unless configured in. ZeroPerf adds one option
-(`configure.ac`, ZeroPerf-only -- Zero400 has no such flag):
+Commands are in `BENCHMARKING.md` 4.2. What belongs here is the reasoning:
 
-```bash
-./autogen.sh
-./configure --enable-perf
-make
-```
+**One flag, not two.** `--enable-perf` defines **both** `ZERO_PERF` (root-latch
+counters) and `ZERO_FDCACHE` (block-file read latch). They are separable in
+principle but are one lab feature with one audience; two flags would double an
+already-untested build matrix. Split only if a reason appears.
 
-`--enable-perf` defines **both** `ZERO_PERF` (root() latch counters) and
-`ZERO_FDCACHE` (the `-perffdcache` / `-perfbufsize` block-file read latch).
-They are one lab feature with one audience; splitting them would double an
-already-untested build matrix. Default is **no**, so a stock build is
-byte-identical to Zero400's.
+**Default off**, so a stock build is byte-identical to Zero400's.
 
-**Editing `configure.ac` arms an autotools trap**: the next `make` re-runs
+**Why the flag exists at all.** Before it, neither gate appeared in
+`configure.ac`, any Makefile, or `bitcoin-config.h` -- the code was unreachable
+from any normal build and had likely never been compiled. That is how
+`-perffdcache` came to bind the wrong `GetArg` overload (`atoi64("")` is 0, so
+a bare flag read as false) and go unnoticed. **Gated code that cannot be built
+cannot be tested**; any future gate needs a configure path on day one.
+
+**Editing `configure.ac` arms an autotools trap** -- the next `make` re-runs
 `configure` without the depends `CONFIG_SITE` and dies on a misleading
-"libdb_cxx headers missing". Pre-existing in both trees, not caused by
-`--enable-perf`. Symptom, cause, recovery and hardening options:
-**[BUILD_RECONFIG.md](BUILD_RECONFIG.md)**.
+"libdb_cxx headers missing". Pre-existing in both trees. Symptom, cause,
+recovery: **[BUILD_RECONFIG.md](BUILD_RECONFIG.md)**; tracked as
+`IMP-BUILD-RECONFIG` in `PerfTasks.md`.
 
-Runtime flags, meaningful only in an `--enable-perf` build:
+## 7. Witness-walk baselines -- scope limits
 
-| Flag | Default | Effect |
-|------|---------|--------|
-| `-perffdcache` | off | Use the one-entry read latch per blk/rev file |
-| `-perfbufsize=N` | 0 (libc) | `setvbuf` size on block-file reads |
-| `-mrclogevery=N` | 16384 | Block-height interval for the root() match-rate log |
+Usage is in `BENCHMARKING.md` 1.7. Retained here is the constraint a future
+editor would otherwise re-learn:
 
-**Why this exists.** Before it, neither gate appeared in `configure.ac`, any
-Makefile, or `bitcoin-config.h` -- the code was unreachable from any normal
-build and had likely never been compiled. That is how `-perffdcache` came to
-bind the wrong `GetArg` overload (`atoi64("")` is 0, so a bare flag read as
-false) and go unnoticed. Gated code that cannot be built cannot be tested.
+`WalletTests.WitnessReadIsStableAndClearDiscards` operates on **one wallet and
+one chain**. `CreateValidBlock` builds notes with random inputs, so two
+independently constructed wallets do not share a chain and their witnesses are
+not comparable -- an earlier version of this test compared two wallets and
+failed for that reason, with the implementation correct and the test wrong. A
+cross-wallet differential needs deterministic note construction first.
 
-## 7. Witness-walk baselines
+The test was verified sensitive by mutation: with `ClearNoteWitnessCache`
+stubbed to `return;`, it fails at the clear assertion.
 
-Two checks built 2026-08-19. Both stand on their own; neither depends on
-FIX-WIT-WALK-UNLOCK, which was analysed and is **not recommended**.
+## 8. Logging and tracing -- what exists, and the gaps
 
-### 7.1 Correctness oracle (gtest)
+Invocation is in `BENCHMARKING.md` 4.2/4.3. Retained here: the inventory and
+what is missing.
 
-`WalletTests.WitnessReadIsStableAndClearDiscards` in
-`src/wallet/gtest/test_wallet.cpp`. Pins two invariants:
+| Layer | State |
+|-------|-------|
+| `-debug=<category>` | 30 categories; `zeronode` 228 sites, `net` 39, `bench` 11 |
+| `-debug=bench` | per-block phase tree with cumulative totals; `extract_measures.py --bench` ingests it |
+| `zcbenchmark` RPC | 19 named micro-benchmarks; runner `performance-measurements.sh` |
+| `--enable-perf` counters | section 6 |
+| Instruments / `sample` | `xctrace`, decoded by `bucket_profile2.py` |
 
-1. **Witness reads are a pure function of chain state.** Two reads with no new
-   block return the same witness and the same anchor. A walk that accumulated
-   state across calls, or advanced a height it should not, diverges here.
-2. **`ClearNoteWitnessCache` genuinely clears.** A rebuild that quietly read a
-   stale cache would look correct while doing no work; this asserts the
-   precondition that makes any rebuild test meaningful.
+**Gaps** (tracked in `PerfTasks.md` section 6): no tracing inside the witness
+walk beyond its begin/done pair; no always-on subsystem timing, so a slow node
+in the field yields no evidence; `-debug=bench` and `zcbenchmark` both work and
+are used by no campaign, so neither has a recorded baseline.
 
-**Scope limit, recorded because it bit during development.** `CreateValidBlock`
-builds notes with random inputs, so two independently constructed wallets do
-**not** share a chain and their witnesses are not comparable. A first version of
-this test compared two wallets and failed for that reason -- the implementation
-was correct, the test was wrong. The oracle therefore works within one wallet on
-one chain. A cross-wallet differential would need deterministic note
-construction first.
+## 9. Test and campaign types -- the matrix
 
-**Verified sensitive, not just green:** with `ClearNoteWitnessCache` mutated to
-`return;` immediately, the test fails at the clear assertion
-(`test_wallet.cpp:1752`). Restored, it passes. A test that has never failed has
-not been shown to test anything.
+Commands are in `BENCHMARKING.md` Part 1. Retained here: the dimensions, since
+they determine what a capture can and cannot conclude.
 
-### 7.2 Cost baseline (log extraction)
+**Operations:** reindex, bootstrap, rescan, sync, mine.
 
-`contrib/perf/witness_walk_cost.py`. Pairs the two lines `BuildWitnessCache`
-already emits -- `height-walk begin ... noteidx= startHeight= tip=` and
-`height-walk done ... elapsed_ms=` -- and reports ms/block per walk, split by
-the NOTEIDX flag. No node change and no new instrumentation.
+**Chain snaps** (tips measured, not assumed):
 
-```bash
-contrib/perf/witness_walk_cost.py <debug.log> [more.log ...]
-contrib/perf/witness_walk_cost.py --tsv <debug.log>
-```
+| Snap | Tip | Region |
+|------|----:|--------|
+| `tiny` | 187417 | pre-Sapling |
+| `short` | 245992 | pre-Sapling |
+| `postsap12` | ~583699+ | **post-Sapling, 1.65G** |
+| `full` / 812 | ~2518018 | full chain, 8.5G |
 
-**Why it exists.** The per-block figures used in planning were extrapolated from
-a single mainnet window. Running the extractor over retained logs replaces the
-extrapolation with a measurement:
+Sapling activates at **492850**: only the last two reach it.
 
-| Source | noteidx | blocks | ms/block |
-|--------|---------|-------:|---------:|
-| `test-logs/rescan-sys-20260814T014246Z/` | 1 | 13491 (380 walks) | **0.1530** |
-| `test-logs/witness-lab-tip-rebuild-*` | 0 | 1442 | **5.3114** |
-| same, second walk | 0 | 1442 | **5.7150** |
-| same | 1 | 1442 | **0.1526** |
+**Wallets:** `none` (control), `p0` 106KB, `p1` 237KB, `fat` 749MB / 801619 tx.
 
-The NOTEIDX figure reproduces the planning value (0.153) across 380 independent
-walks. The stock figure does too (5.31 vs 5.32) -- but a second stock walk on
-the same window measured **5.72 ms/block, about 8% higher**, which a
-single-point extrapolation could not show. Treat stock per-block cost as a range
-(~5.3-5.7), not a constant, when estimating walk duration.
+**Flags under test:** `noteidx`, `ibd-defer`, the FDCACHE trio.
 
-## 8. Lint automation
+**Campaign catalog:** `cycle_trials.tsv`, 11 trials in three sets (smoke 6,
+gate 4, long 1), resumable via `ops-campaign.sh`.
+
+## 10. Lint automation
 
 `contrib/perf/lint-perf.sh` runs every check in one pass and filters to code
 ZeroPerf owns.
@@ -253,20 +262,38 @@ Baseline as of 2026-08-19: **OWNED 0 across all eleven checks**, exit 0.
 Verified to fail correctly by introducing an unused loop counter and an
 em-dash, and to return to 0 when reverted.
 
-## 9. Harness inventory
+---
 
-All ZeroPerf-only tooling lives under **`contrib/perf/`** (22 files). Nothing
-perf-specific remains in `qa/` or elsewhere in `contrib/`.
+## Disposition of sections 6-10, after the 2026-08-20 pass
 
-| Script | Role |
-|--------|------|
-| `bench_matrix.sh`, `capture_sequence.sh`, `tiny_baseline.sh`, `postsapling_reindex.sh` | Campaign drivers |
-| `witness_lab.sh`, `wallet_sync_profile.sh`, `mine_bench.sh` | Targeted labs |
-| `ops-campaign.sh`, `prep_lab_datadir.sh`, `datadir_guard.sh` | Orchestration and the live-datadir write guard |
-| `accumulate_bench.py`, `extract_measures.py`, `collate_cycle.py`, `decode_captures.py` | Ledger and trace extraction |
-| `debuglog.py`, `stall_check.py`, `shielded_density.py` | Log parsing and analysis |
-| `measure_dbcache_utxo.py` | dbcache / UTXO matrix (**M-CACHE-MATRIX**) |
-| `performance-measurements.sh` | `zcbenchmark` / valgrind runner (**M-ZCB-SUITE**); run from repo root |
-| `kats/README.md` | Equihash KAT regeneration; vectors ship from `src/test/data/` |
+**Done in this pass:**
 
-Run recipes: **contrib/perf/README.md**. Campaign definitions: **Perf.md** §0.13.
+- **S11 Harness inventory -- struck.** It listed no tool built in the 2026-08
+  work (`profile_run.sh`, `bucket_profile2.py`, `profile_collate.py`,
+  `res_sample.sh`, `witness_walk_cost.py`, `check-unicode.py`, `lint-perf.sh`)
+  and so was actively misleading. `BENCHMARKING.md` 4.1 is the list, and it is
+  verified against the directory.
+- **S6-S9 pared to what BENCHMARKING does not carry.** Commands, options and
+  invocation moved out; what remains is reasoning, constraints and the
+  dimensions of the test matrix -- the parts a future editor would otherwise
+  re-derive. 294 lines to about 90.
+
+**Verified current, not stale, during the pass:**
+
+| Claim | Checked against |
+|-------|-----------------|
+| 30 debug categories | `grep LogPrint` over `src/` -- 30 |
+| `--enable-perf` is the flag | `configure.ac` -- present |
+| snap tips 187417 / 245992 | measured by reindex to completion |
+| 19 zcbenchmark names | `rpcwallet.cpp` dispatch -- 19 |
+| lint gate: 11 checks, OWNED 0 | `lint-perf.sh` run |
+
+**Left for later review:**
+
+- **S10 Lint automation** kept in full. Lint policy is governance, not
+  measurement, so it belongs here rather than in `BENCHMARKING.md`. Worth a
+  later look at whether the set-aside list has changed.
+- **S1-S5** (ownership, lab discipline, out-of-scope, conventions, pointers
+  into Zero400) untouched -- all policy, none duplicated elsewhere.
+- The `postsap12` snap is new; S9 now lists it, but no campaign driver defaults
+  to it yet. Worth wiring into `tiny_baseline.sh`-style entry points.

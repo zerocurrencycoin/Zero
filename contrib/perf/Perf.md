@@ -1,5 +1,9 @@
 # `zerod` sync performance: current understanding, and next steps
 
+**Groth16** now lives in **[PerfGroth.md](PerfGroth.md)**; **task state** in **[PerfTasks.md](PerfTasks.md)**. This file keeps findings and method.
+
+**New to benchmarking this node?** Read **[BENCHMARKING.md](BENCHMARKING.md)** first -- this file is the investigation narrative and assumes the workflow is already familiar. Data provenance for every recent number: `test-logs/DATA_INDEX.md`.
+
 **Quantitative inventory** (`M-*` campaigns, vocabulary, comparability, extraction, ledger `CAMPAIGN=` map): **[Measures.md](Measures.md)** -- cite IDs only here; means/stdevs live there. This file keeps optimization narrative, **BENCH-/FIX-/IMP-***, baseline tracks **L0-L7**, Stages 0-6, priorities **G**/**P1-P4**, Groth decision, and **lab materials** (§1). Doc-map, lab discipline, and harness inventory: **[PerfDoc.md](PerfDoc.md)**.
 
 **Program: recreate the ConnectBlock / import performance baseline** so Groth and other decisions sit on current measured numbers. Already-shipped product work with tests stays in the tree (§3 fd-cache, §4 root latch + anchor index, reindex resume, ExtTests **B1** `reindex_shielded`, founders integer subsidy, FIX-LBI/IMPORT). **Baseline tracks** (§0.13 F **L0-L7**): tiny/short, pre-Sap reindex+bootstrap, post-Sap reindex+bootstrap, era segments, util; then Groth decision inputs. FDCACHE 4x2 postponed. Accounts/W5 pending review.

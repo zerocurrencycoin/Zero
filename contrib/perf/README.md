@@ -1,3 +1,19 @@
+# contrib/perf
+
+**New here? Read [BENCHMARKING.md](BENCHMARKING.md) first.** It teaches the
+workflow -- how to take a profile, how to read the three views, which traps
+have produced wrong numbers before. This file is a per-tool reference and
+assumes you already know why you are running something.
+
+Quickest useful thing:
+
+```bash
+contrib/perf/profile_run.sh <scenario> <datadir> 60   # capture -> bucket -> collate
+contrib/perf/profile_collate.py report                # everything accumulated so far
+```
+
+Data produced 2026-08-19/20 and its provenance: `test-logs/DATA_INDEX.md`.
+
 # perf
 
 Scripts supporting the `zerod` sync performance investigation documented in
