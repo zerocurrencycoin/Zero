@@ -1,0 +1,113 @@
+{
+  "_comment": "Named feature combinations. Schema and rules: contrib/perf/docs/SCHEMA.md S4. A bundle is a NAME for a feature set, not a substitute -- both are stored on every row. Never redefine an existing bundle: add a -v2 instead, or old rows silently change meaning. Bump bundle_v when adding.",
+  "bundle_v": 2,
+  "bundles": {
+    "stock": {
+      "description": "What ships to users. The default comparison baseline.",
+      "build": {
+        "ZERO_PERF": false,
+        "ZERO_FDCACHE": false,
+        "ENABLE_WALLET": true,
+        "ENABLE_MINING": true,
+        "ENABLE_ZMQ": true
+      },
+      "runtime": {},
+      "effective": {
+        "wallet": "per-run",
+        "mining": "per-run"
+      }
+    },
+    "perf": {
+      "description": "Lab instrumentation build (--enable-perf). Root-latch counters and the block-file read latch compiled in, both off at runtime.",
+      "build": {
+        "ZERO_PERF": true,
+        "ZERO_FDCACHE": true,
+        "ENABLE_WALLET": true,
+        "ENABLE_MINING": true,
+        "ENABLE_ZMQ": true
+      },
+      "runtime": {},
+      "effective": {
+        "wallet": "per-run",
+        "mining": "per-run"
+      }
+    },
+    "perf-fdcache-on": {
+      "description": "perf build with the block-file read latch enabled at runtime.",
+      "build": {
+        "ZERO_PERF": true,
+        "ZERO_FDCACHE": true,
+        "ENABLE_WALLET": true,
+        "ENABLE_MINING": true,
+        "ENABLE_ZMQ": true
+      },
+      "runtime": {
+        "perffdcache": true
+      },
+      "effective": {
+        "wallet": "per-run",
+        "mining": "per-run"
+      }
+    },
+    "noteidx": {
+      "description": "Stock build, NOTEIDX witness path enabled. Iterates note-bearing txs only.",
+      "build": {
+        "ZERO_PERF": false,
+        "ZERO_FDCACHE": false,
+        "ENABLE_WALLET": true,
+        "ENABLE_MINING": true,
+        "ENABLE_ZMQ": true
+      },
+      "runtime": {
+        "walletwitnessnote": true
+      },
+      "effective": {
+        "wallet": "required-on",
+        "mining": "per-run"
+      }
+    },
+    "ibd-defer": {
+      "description": "Stock build, per-block witness build skipped during IBD and rebuilt after import.",
+      "build": {
+        "ZERO_PERF": false,
+        "ZERO_FDCACHE": false,
+        "ENABLE_WALLET": true,
+        "ENABLE_MINING": true,
+        "ENABLE_ZMQ": true
+      },
+      "runtime": {
+        "walletwitness": "ibd-defer"
+      },
+      "effective": {
+        "wallet": "required-on",
+        "mining": "per-run"
+      }
+    }
+  },
+  "_flag_classes": {
+    "architectural": {
+      "flags": [
+        "ENABLE_ZMQ",
+        "ENABLE_PROTON"
+      ],
+      "meaning": "Stable, long-standing ecosystem choices. Effectively constant across ZeroPerf scenarios and not expected to vary between batches. Recorded for completeness; NOT part of bundle matching, so a ZMQ-enabled and ZMQ-disabled build of the same perf configuration still compare as the same bundle.",
+      "in_bundle_key": false
+    },
+    "scenario": {
+      "flags": [
+        "ENABLE_WALLET",
+        "ENABLE_MINING"
+      ],
+      "meaning": "Compiled default AND a runtime equivalent (-disablewallet; -gen/-genproclimit). Vary between batches of test scenarios and show up in ZeroPerf work often. Both the compiled capability and the runtime state are recorded, because a wallet-capable binary run with -disablewallet is NOT the same measurement as a binary built without wallet support.",
+      "in_bundle_key": true
+    },
+    "perf": {
+      "flags": [
+        "ZERO_PERF",
+        "ZERO_FDCACHE"
+      ],
+      "meaning": "ZeroPerf lab instrumentation. Off in shipped builds. Always part of the bundle key.",
+      "in_bundle_key": true
+    }
+  }
+}

@@ -6,6 +6,13 @@ Current state and forward path only; superseded attempts are not recorded here.
 Numbers are cited by `M-*` id and live in `Measures.md`. Task status lives in
 `PerfTasks.md`.
 
+**This is the focused Groth16 document.** It is the single home for Groth16
+evidence, options and implementation path. Other documents cite its conclusions
+and carry a headline figure at most -- they deliberately do not restate the
+evidence here. When adding Groth16 material anywhere in `contrib/perf/`, add it
+to this file instead. Task state: `docs/TASKS.md`. Everything else:
+`docs/FINDINGS.md`, which explicitly excludes this topic.
+
 > **Postponed pending developer review (2026-08-20).** This document is
 > complete and reviewable as it stands; it is waiting on a maintainer to pick
 > Option A or Option B (S4), not on further measurement. **Do not start
