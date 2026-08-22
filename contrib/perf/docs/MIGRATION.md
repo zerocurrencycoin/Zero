@@ -55,7 +55,7 @@ question** rather than by investigation order.
 | `BUILD_RECONFIG.md` | 89 | Keep while `C3` is open |
 | `Stores.md` | 170 | Chain/datadir storage. Live; see `NOTES.md` |
 | `Peer.md` | 471 | Off-subject: ops notes -> Zero400 |
-| `TENT.md`, `TENTZero.md` | 123 | Off-subject: fork lineage -> `~/Work/ZK/ZKs/` |
+| `TENT.md`, `TENTZero.md` | 123 | Off-subject: fork lineage -> out-of-tree ZKs notes |
 | `ZcashV.md` | 132 | Off-subject: security notes. **0 inbound** |
 | `ZeroWallet_Design.md`, `desys.md` | 475 | **Out of scope** -- Qt wallet UI; `AGENTS.md` says full node only. **0 inbound** |
 
@@ -76,6 +76,42 @@ repeated here.
    into `POLICY.md` S7.1/S7.2 first; `PERF_RESTRUCTURE.md` had every claim
    validated against `Perf.md` before removal.
 4. **Relocate off-subject material** -- **done**, six files to `../keep/`.
+
+## 6. Caveat diff -- `Perf.md` (2026-08-21)
+
+The stated risk of the consolidation was losing a hard-won caveat while
+summarising. `Perf.md` was checked mechanically before being kept.
+
+| Measure | Result |
+|---------|--------|
+| Normative lines (`do not` / `never` / `must not`) in `Perf.md` | **107** |
+| Already carried by the new set | 47 |
+| Reviewed individually | 60 |
+| **Genuinely orphaned rules found** | **0** |
+
+What the 60 turned out to be, by subject: witness / RPC-code behaviour (22),
+implementation detail for open items (10), measurement discipline (9),
+lab and datadir safety (7), consensus and code specifics (6), Groth16 (5),
+ownership (1).
+
+**Conclusion: nothing is orphaned, and `Perf.md` must stay.** The uncovered
+lines are not rules the new set dropped -- they are implementation detail bound
+to work that has not landed yet:
+
+- **Witness `-31` / `-33` RPC codes** -- 55 sites in `Perf.md`, and 5 in
+  Zero400's `TODO.md`, which owns that surface (`POLICY.md` S7.1).
+- **`assumeutxo` / skip-chain, `fZindex`** -- single mentions of explicitly
+  out-of-scope or not-pursued options. Correctly absent from a set describing
+  current work.
+- **NOTEIDX staleness detail** -- the `AddToWallet` / `EraseFromWallet`
+  invalidation rules belong with `TASKS.md` B3 and move to `FINDINGS.md` when
+  that lands.
+
+**Rule going forward:** `Perf.md` is retired only when the open items it holds
+detail for -- B1, B3, GROTH -- have landed and their caveats have moved to
+`FINDINGS.md`. Re-run this diff before retiring it.
+
+---
 
 Retiring originals carries the remaining risk: losing a hard-won caveat while merging. Mitigation
 is the one the original proposal named -- mechanically diff all `M-*` ids and

@@ -264,6 +264,47 @@ def run_self_test() -> int:
         os.environ.pop(_ENV_ALLOW, None)
         guard_write(fake_allow, allow_live=True, label="LAB")
 
+        # The guard's whole purpose is REFUSING a live datadir. Passing on a
+        # scratch path proves nothing on its own -- a guard that never fires
+        # would pass every assertion above. Each live location is therefore
+        # asserted to raise, and the override asserted to let it through.
+        import contextlib
+        import io
+
+        live_dirs = list(default_runtime_datadirs()) + [zero400_root()]
+        checked = 0
+        quiet = contextlib.redirect_stderr(io.StringIO())  # expected WARNINGs
+        for live in live_dirs:
+            if live is None:
+                continue
+            target = Path(live) / "scratch-probe"
+            assert live_kind(target) is not None, f"not classified live: {target}"
+            os.environ.pop(_ENV_ALLOW, None)
+            try:
+                guard_write(target, label="LAB")
+            except SystemExit:
+                checked += 1
+            else:
+                raise AssertionError(f"guard did NOT refuse a live datadir: {target}")
+
+            # Explicit override must be honoured, or the escape hatch is broken.
+            with quiet:
+                guard_write(target, allow_live=True, label="LAB")
+
+            # Env override must be honoured too -- launchers use this form.
+            os.environ[_ENV_ALLOW] = "1"
+            try:
+                with quiet:
+                    guard_write(target, label="LAB")
+            finally:
+                os.environ.pop(_ENV_ALLOW, None)
+        assert checked > 0, "no live datadir was exercised; guard is untested"
+
+        # A path merely *resembling* a live datadir by name must not be refused.
+        lookalike = d / "Application Support" / "zero"
+        lookalike.mkdir(parents=True)
+        guard_write(lookalike, label="LAB")
+
     print("self-test OK")
     return 0
 

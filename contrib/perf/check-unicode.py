@@ -8,7 +8,8 @@ accumulated.
 
 Usage (from repo root):
   contrib/perf/check-unicode.py            # report; exit 1 if violations
-  contrib/perf/check-unicode.py --fix      # rewrite the safe substitutions
+  contrib/perf/check-unicode.py --fix      # rewrite, contrib/perf/ only
+  contrib/perf/check-unicode.py --fix --any-path   # allow writes outside it
   contrib/perf/check-unicode.py --all      # include tolerated characters
   contrib/perf/check-unicode.py PATH...    # limit to given paths
 
@@ -100,6 +101,21 @@ def main(argv):
     if not paths:
         paths = [f for f in tracked_files()
                  if CHECK_EXT.search(f) and not SKIP_PATH.match(f)]
+
+    # --fix is scoped to ZeroPerf-owned files. Zero400 owns the root documents
+    # and src/; rewriting them from this tree contradicts the ownership rule
+    # (contrib/perf/docs/POLICY.md S7) and has silently damaged content before:
+    # the U+00B7 -> '-' mapping turned products into apparent subtraction in a
+    # Groth16 pairing equation. Reporting is unrestricted; only writing is not.
+    OWNED = "contrib/perf/"
+    if do_fix and "--any-path" not in argv:
+        skipped = [p for p in paths if not p.startswith(OWNED)]
+        paths = [p for p in paths if p.startswith(OWNED)]
+        if skipped:
+            print("--fix scoped to %s; %d file(s) outside it left unchanged."
+                  % (OWNED, len(skipped)), file=sys.stderr)
+            print("  Report them with no --fix, or override with --any-path.",
+                  file=sys.stderr)
 
     violations = 0
     fixed_files = 0

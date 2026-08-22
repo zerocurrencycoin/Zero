@@ -82,7 +82,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | ------------------ | ------------------------------------------------------------------------ |
 | **ZeroNodes.md**   | Operators: `zeronode.conf`, `startalias`, sporks, collateral, deep-reorg exit |
 | **ZeroNodeDev.md** | Developers: wallet interface, ZND path anchors (section **4**), TNT-12 phases (section **5**) |
-| **TENTZero.md**    | File map only (`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`)                         |
+| **TENTZero.md**    | File map only (`TENTZero.md`)                         |
 
 
 
@@ -111,7 +111,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | Maintainer -> maintainer | One-line pointer when another file **owns** the topic |
 
 
-**Redundancy:** One owner per table or procedure. TNT execution order only here (**3.5**). Reorg **product** decision only **3.5.1**. Reorg **operator** text only **ZeroNodes** section **6**. Reorg **family** table only **Comparison.md** section **14.5**. ZND paths only **ZeroNodeDev** section **4**. TNT-12 phases only **ZeroNodeDev** section **5**. File map only **`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`**. Ecosystem/indexer compare only **Comparison.md** (section **12**). Clone paths only **ZKRepos.md**. Org repo audit only **`Repos/ZeroC.md`**. **zerod** structures/algorithms and per-client requirement matrices only **ZeroStruct.md** (sections **5**, **11**). Node readiness status FSM / conditions / UI maps only **StatusTransitions.md**. Blockbook port and Insight **execution status** only here (**section 4**); do not duplicate full `zero.conf` or RPC catalogs in **4.3** -- pointer only.
+**Redundancy:** One owner per table or procedure. TNT execution order only here (**3.5**). Reorg **product** decision only **3.5.1**. Reorg **operator** text only **ZeroNodes** section **6**. Reorg **family** table only **Comparison.md** section **14.5**. ZND paths only **ZeroNodeDev** section **4**. TNT-12 phases only **ZeroNodeDev** section **5**. File map only **`TENTZero.md`**. Ecosystem/indexer compare only **Comparison.md** (section **12**). Clone paths only **ZKRepos.md**. Org repo audit only **`Repos/ZeroC.md`**. **zerod** structures/algorithms and per-client requirement matrices only **ZeroStruct.md** (sections **5**, **11**). Node readiness status FSM / conditions / UI maps only **StatusTransitions.md**. Blockbook port and Insight **execution status** only here (**section 4**); do not duplicate full `zero.conf` or RPC catalogs in **4.3** -- pointer only.
 
 **ID namespaces (do not mix):**
 
@@ -309,11 +309,11 @@ Files: `src/alert.cpp`, `src/init.cpp`, `src/util.cpp`, `src/util.h`, `src/walle
 
 ### 3.5 TENT upstream cherry-pick candidates (2018--2021)
 
-**Status:** This section owns TNT rows and order. Schedule a **Port**/**Implement**/**Hold** row when it beats Ordered next. **TNT-01** is in tree. Reorg **product** text is **3.5.1**. Zeronode tests: **ZeroNodeDev** section **5**. File map: **`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`**.
+**Status:** This section owns TNT rows and order. Schedule a **Port**/**Implement**/**Hold** row when it beats Ordered next. **TNT-01** is in tree. Reorg **product** text is **3.5.1**. Zeronode tests: **ZeroNodeDev** section **5**. File map: **`TENTZero.md`**.
 
 **Repo:** `~/Work/ZK/ZKs/TENT` ([TENTOfficial/TENT](https://github.com/TENTOfficial/TENT)). Tip frozen **`bcb429b` (2021-11-13)**. Zero `src/zeronode/`* is a port of TENT `src/masternode*` (wire `mn*` -> `zn*`, treasury removed, `CZeronodeWalletInterface`). TENT is the **direct upstream** for zeronode behavior, not a living vendor.
 
-**Where other TENT research lives:** P2P masternode wire inventory -> `ZKs/Comparison.md` section **4**. File map -> **`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`**. Wallet interface -> **`ZeroNodeDev.md`** sections **1**--**3**. Operator workflow and deep-reorg exit -> **`ZeroNodes.md`**. Family reorg table -> **`Comparison.md`** section **14.5**.
+**Where other TENT research lives:** P2P masternode wire inventory -> `ZKs/Comparison.md` section **4**. File map -> **`TENTZero.md`**. Wallet interface -> **`ZeroNodeDev.md`** sections **1**--**3**. Operator workflow and deep-reorg exit -> **`ZeroNodes.md`**. Family reorg table -> **`Comparison.md`** section **14.5**.
 
 **Cherry-pick rule:** Prefer fixes already landed on Zero's integration line (audit **C-07**, **C-11**, **C-14**, **C-21** in section **8** Completed). Use TENT only where Zero's zeronode fork **regressed** TENT behavior or never picked up a post-port TENT commit. Reject Snowgem/TENT tokenomics (treasury, upgrade-named consensus hooks, Atlantis/Wakanda/Knowhere schedules). Do not copy TENT `SliceHash`, live unbounded reorg follow, or obfuscation `ProcessMessage`.
 
@@ -338,7 +338,7 @@ Files: `src/alert.cpp`, `src/init.cpp`, `src/util.cpp`, `src/util.h`, `src/walle
 | **TNT-16** | RPC product | `*nochange` send RPCs | Absent | **Reject** unless product asks | N/A |
 | **TNT-17** | Checkpoints | TENT mainnet checkpoint | Zero's own table | **Skip** | N/A |
 
-This section keeps **TNT** execution order only. Source paths: **ZeroNodeDev.md** section **4**. File map: **`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`**.
+This section keeps **TNT** execution order only. Source paths: **ZeroNodeDev.md** section **4**. File map: **`TENTZero.md`**.
 
 **Suggested execution order:**
 
@@ -1430,7 +1430,7 @@ throw std::runtime_error("message");
 
 ## DOC-02 follow-up: zeronode documentation and functional tests
 
-Outline for remaining zeronode doc gaps. **TNT catalog:** section **3.5**. **TNT-12 phases:** `ZeroNodeDev.md` section **5** only (do not duplicate that table here). **Operator reorg:** `ZeroNodes.md` section **6**. **File map:** `~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`.
+Outline for remaining zeronode doc gaps. **TNT catalog:** section **3.5**. **TNT-12 phases:** `ZeroNodeDev.md` section **5** only (do not duplicate that table here). **Operator reorg:** `ZeroNodes.md` section **6**. **File map:** `TENTZero.md`.
 
 ### Documentation deliverables
 

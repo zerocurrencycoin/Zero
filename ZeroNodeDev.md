@@ -6,7 +6,7 @@
 
 **Include:** `CZeronodeWalletInterface` / stub; library split; SwiftTX / `CReserveKey` leftovers; ZND-to-TNT crosswalk with source paths; test phases A-F (complexity, coverage, impact, sequence).
 
-**Exclude:** Operator workflow and operator-visible reorg (**`ZeroNodes.md`**); TNT execution order and reorg product decision (**`UpdateZero.md`** sections **3.5**, **3.5.1**); file map (**`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`**); emission (**`ZERO_COIN.md`**); family reorg taxonomy (**`Comparison.md`** section **14.5**).
+**Exclude:** Operator workflow and operator-visible reorg (**`ZeroNodes.md`**); TNT execution order and reorg product decision (**`UpdateZero.md`** sections **3.5**, **3.5.1**); file map (**`TENTZero.md`**); emission (**`ZERO_COIN.md`**); family reorg taxonomy (**`Comparison.md`** section **14.5**).
 
 **Operators:** **`ZeroNodes.md`**. Cite **ZND-NN** only in ZeroNode files. Cite **TNT-NN** for scheduling in **`UpdateZero.md`**.
 
@@ -59,7 +59,7 @@ Not TENT ports. Local cleanup.
 
 **ZND-01..08** are stable labels for TENT-vs-Zero **source paths**. Port/reject **decisions and schedule** live in **`UpdateZero.md`** section **3.5** (**TNT-NN**). Do not copy TNT recommendation text here.
 
-File map: **`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`**. Payments files: `TENT/src/masternode-payments.cpp` vs `src/zeronode/payments.cpp`.
+File map: **`TENTZero.md`**. Payments files: `TENT/src/masternode-payments.cpp` vs `src/zeronode/payments.cpp`.
 
 | ZND | TNT | Topic | Zero path / note |
 |-----|-----|-------|------------------|

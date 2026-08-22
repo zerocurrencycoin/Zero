@@ -137,3 +137,6 @@ reindex-profile/
 # groth16-batch-poc/'s fetched pinned-librustzcash dependency checkout
 # (see contrib/perf/groth16-batch-poc/README.md "Setup") -- not vendored source, never commit
 /librustzcash-pinned/
+
+# ZeroPerf: per-host salt for host_id hashing -- never commit
+contrib/perf/.host_salt

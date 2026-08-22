@@ -259,8 +259,80 @@ def format_report(summary: list[dict], deltas: list[str]) -> str:
     return "\n".join(lines)
 
 
+def self_test() -> int:
+    """Pin fingerprint and dedup behaviour.
+
+    The fingerprint exists for one purpose: import idempotency. A false match
+    silently DROPS a real measurement, so the failure mode is data loss with no
+    error. These assertions cover both directions, and record the known v1 gap
+    (docs/SCHEMA.md S6.3) as an explicit xfail rather than leaving it unstated.
+    """
+    import tempfile
+
+    ok = True
+
+    def check(cond, msg):
+        nonlocal ok
+        if not cond:
+            print("FAIL: " + msg, file=sys.stderr)
+            ok = False
+
+    base = {"campaign": "c", "run_id": "r", "mode": "reindex", "condition": "stock",
+            "trial": 1, "warmup_height": 0, "end_height": 1000,
+            "elapsed_s": 10.0, "blocks_per_sec": 100.0}
+
+    # Deterministic and stable: the same observation must hash the same way.
+    check(fingerprint(base) == fingerprint(dict(base)), "fingerprint is deterministic")
+    check(len(fingerprint(base)) == 16, "fingerprint is 16 hex chars")
+
+    # Fields that identify an observation must all change it.
+    for field, val in [("campaign", "other"), ("run_id", "r2"), ("mode", "bootstrap"),
+                       ("condition", "nofdcache"), ("trial", 2), ("warmup_height", 1),
+                       ("end_height", 2000), ("elapsed_s", 11.0),
+                       ("blocks_per_sec", 101.0)]:
+        row = dict(base); row[field] = val
+        check(fingerprint(row) != fingerprint(base),
+              "changing %s must change the fingerprint" % field)
+
+    # Fields NOT in the key must not change it -- otherwise a re-import of the
+    # same observation looks new and duplicates.
+    for field, val in [("recorded_at", "2026-01-01T00:00:00Z"), ("notes", "x"),
+                       ("binary", "/some/path")]:
+        row = dict(base); row[field] = val
+        check(fingerprint(row) == fingerprint(base),
+              "%s must not affect the fingerprint" % field)
+
+    # Round trip through the store: append is idempotent.
+    with tempfile.TemporaryDirectory() as d:
+        store = Path(d)
+        check(append_row(store, dict(base)) is True, "first append writes")
+        check(append_row(store, dict(base)) is False, "re-append is skipped")
+        rows = load_rows(store)
+        check(len(rows) == 1, "store holds exactly one row after a duplicate append")
+        second = dict(base); second["trial"] = 2
+        check(append_row(store, second) is True, "a distinct trial is written")
+        check(len(load_rows(store)) == 2, "store holds two distinct rows")
+
+    # KNOWN GAP (v1): platform, arch and build are absent from the key, so two
+    # observations differing only by platform collide and one is silently
+    # dropped. Asserted as-is so the fix (SCHEMA.md S6.4) has a failing anchor.
+    mac = dict(base); mac["platform"] = {"os": "macos", "arch": "arm64"}
+    lin = dict(base); lin["platform"] = {"os": "linux", "arch": "x86_64"}
+    check(fingerprint(mac) == fingerprint(lin),
+          "v1 fingerprint is expected to ignore platform (known gap)")
+    if fingerprint(mac) != fingerprint(lin):
+        print("NOTE: fingerprint now distinguishes platform -- update this test "
+              "and docs/SCHEMA.md S6.4", file=sys.stderr)
+
+    print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)
+    return 0 if ok else 1
+
+
 def main() -> int:
+    if "--self-test" in sys.argv:
+        return self_test()
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--store-dir", type=Path, default=DEFAULT_DIR)
     ap.add_argument("--import-tsv", type=Path)
     ap.add_argument("--campaign", default="")

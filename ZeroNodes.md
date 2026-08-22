@@ -6,7 +6,7 @@
 
 **Include:** Operator setup, spork effects, coinbase order summary, P2P/discovery, operator-visible reorg policy.
 
-**Exclude:** `CZeronodeWalletInterface` and `--disable-wallet` (**`ZeroNodeDev.md`**); TNT execution catalog (**`UpdateZero.md`** section **3.5**); ZND anchors (**`ZeroNodeDev.md`** section **4**); test phases (**`ZeroNodeDev.md`** section **5**); file map (**`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`**); emission tables (**`ZERO_COIN.md`**); family reorg compare (**`~/Work/ZK/ZKs/Comparison.md`** section **14.5**); insight/explorer flags (**`ZeroStruct.md`**).
+**Exclude:** `CZeronodeWalletInterface` and `--disable-wallet` (**`ZeroNodeDev.md`**); TNT execution catalog (**`UpdateZero.md`** section **3.5**); ZND anchors (**`ZeroNodeDev.md`** section **4**); test phases (**`ZeroNodeDev.md`** section **5**); file map (**`TENTZero.md`**); emission tables (**`ZERO_COIN.md`**); family reorg compare (**`~/Work/ZK/ZKs/Comparison.md`** section **14.5**); insight/explorer flags (**`ZeroStruct.md`**).
 
 Developer documents in **UpdateZero.md** section **1**. **Developers:** **`ZeroNodeDev.md`**.
 
@@ -14,7 +14,7 @@ Developer documents in **UpdateZero.md** section **1**. **Developers:** **`ZeroN
 
 ## 2. What a zeronode is
 
-Zero's zeronode layer is a renamed port of frozen TENT masternode code. File map: **`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`**.
+Zero's zeronode layer is a renamed port of frozen TENT masternode code. File map: **`TENTZero.md`**.
 
 - **Collateral:** 10,000 ZER locked UTXO (exact amount)
 - **Payment:** 20% -> 40% of block subsidy by 800k tiers, spork-gated
@@ -97,7 +97,7 @@ Regtest runner: **`TEST_ZERO.md`**. Zeronode phases A-F: **`ZeroNodeDev.md`** se
 | Topic | Doc |
 |-------|-----|
 | Wallet interface / tests | **`ZeroNodeDev.md`** |
-| File map | **`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`** |
+| File map | **`TENTZero.md`** |
 | TNT catalog | **`UpdateZero.md`** section **3.5** |
 | Economics | **`ZERO_COIN.md`** |
 | Reorg family | **`~/Work/ZK/ZKs/Comparison.md`** section **14.5** |

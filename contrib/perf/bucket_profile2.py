@@ -170,7 +170,81 @@ def pool_of(frames):
     return "shared"
 
 
+
+def self_test():
+    """Pin the bucket-ordering regressions that produced published wrong numbers.
+
+    classify() is five lines, but every CPU share in the ledger comes out of
+    it, and it is order-sensitive: first match wins on any frame in the stack.
+    Four figures have been wrong because of that (docs/FINDINGS.md S3.3), so
+    each is pinned here as an executable assertion rather than a comment.
+    """
+    ok = True
+
+    def check(cond, msg):
+        nonlocal ok
+        if not cond:
+            print("FAIL: " + msg, file=sys.stderr)
+            ok = False
+
+    order = list(BUCKETS)
+
+    def before(a, b):
+        """Ordering assertion that reports a missing bucket instead of raising."""
+        if a not in order or b not in order:
+            check(False, "bucket missing from BUCKETS: %s" %
+                  ", ".join(x for x in (a, b) if x not in order))
+            return False
+        return order.index(a) < order.index(b)
+
+    # 1. groth16 BEFORE tree_anchor. jubjub Point::add appears in both paths;
+    #    ordering tree first understated Groth16 by ~50 points.
+    check(before("groth16_proof", "tree_anchor"),
+          "groth16_proof must be ordered before tree_anchor")
+    check(classify(["sapling_crypto::jubjub::edwards::Point::add",
+                    "bellman::groth16::verifier::verify_proof"]) == "groth16_proof",
+          "a stack containing verify_proof must bucket as groth16, not tree")
+
+    # 2. witness_cache BEFORE wallet_other. A bare CWallet:: needle otherwise
+    #    swallows VerifyAndSetInitialWitness.
+    check(before("witness_cache", "wallet_other"),
+          "witness_cache must be ordered before wallet_other")
+    check(classify(["CWallet::VerifyAndSetInitialWitness"]) == "witness_cache",
+          "VerifyAndSetInitialWitness must not fall into wallet_other")
+
+    # 3. blake2b BEFORE equihash. blake2b was hidden inside equihash, so no
+    #    blake2b figure existed at all.
+    check(before("blake2b", "equihash"),
+          "blake2b must be ordered before equihash")
+
+    # 4. disk split. disk_io over-attributed 14.66% vs 4.91% of real syscall
+    #    leaves; the merged bucket must stay split.
+    check("disk_syscall" in BUCKETS and "disk_decode" in BUCKETS,
+          "disk_syscall / disk_decode split must be preserved")
+    check("disk_io" not in BUCKETS, "the merged disk_io bucket must not return")
+
+    # Unmatched frames are attributed, not dropped.
+    check(classify(["some::unknown::frame"]) == "other",
+          "unmatched stack must bucket as 'other'")
+    check(classify([]) == "other", "empty stack must not raise")
+
+    # Pool attribution is separate from bucketing and defaults to shared.
+    check(pool_of(["librustzcash_sprout_verify"]) == "sprout", "sprout pool")
+    check(pool_of(["librustzcash_sapling_check_spend"]) == "sapling", "sapling pool")
+    check(pool_of(["miller_loop"]) == "shared",
+          "code common to both pools must be 'shared', not guessed")
+
+    # Buckets are mutually exclusive: classify returns one name from the table.
+    check(classify(["BuildWitnessCache", "verify_proof"]) in BUCKETS,
+          "classify must return a known bucket name")
+
+    print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)
+    return 0 if ok else 1
+
+
 def main(argv):
+    if "--self-test" in argv:
+        return self_test()
     if not argv:
         print(__doc__)
         return 2

@@ -12,7 +12,7 @@ Raw `sample` output lives in this directory. The exclusive/inclusive tables belo
 | Tool | `/usr/bin/sample` every 1 ms, requested 60 s |
 | Samples per thread | 50758 (~50.8 s of on-CPU stacks in the graph) |
 | pid | 40344 |
-| Binary | `/Users/walter/Work/ZK/Zero400/src/zerod -daemon` |
+| Binary | `Zero400 src/zerod -daemon` |
 | Datadir | `~/Library/Application Support/zero` |
 | RPC | 23811 |
 | Launch time | 2026-08-18 00:32:43 -0700 (~57 min up at sample) |

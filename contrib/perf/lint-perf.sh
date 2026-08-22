@@ -66,7 +66,23 @@ run_check() {
                 # concern (see UpdateZero.md DOC-UNICODE); --all shows them.
                 contrib/perf/check-unicode.py \
                   $(git ls-files 'contrib/perf/*.sh' 'contrib/perf/*.py') 2>/dev/null ;;
-    unicode-docs) contrib/perf/check-unicode.py 2>/dev/null ;;
+    self-tests) # Run every tool that has a --self-test. These pin behaviour
+                # that has been wrong before (bucket ordering, fingerprint
+                # dedup), so a silent regression here corrupts published
+                # numbers rather than crashing.
+                for t in $(git ls-files 'contrib/perf/*.py'); do
+                  grep -q -- '--self-test' "$t" || continue
+                  out=$(python3 "$t" --self-test 2>&1) || \
+                    printf '%s: %s\n' "$t" "$(printf '%s' "$out" | tail -1)"
+                done ;;
+    unicode-docs) # Owned documents only. Inherited src/ and root-level
+                  # Zero400-owned docs are out of scope for this gate; run
+                  # check-unicode.py with no args to see the whole tree.
+                  # keep/ is archived point-in-time notes: kept as written,
+                  # not maintained (docs/POLICY.md S5), so not gated.
+                  contrib/perf/check-unicode.py \
+                    $(git ls-files 'contrib/perf/*.md' 'contrib/perf/**/*.md' \
+                      | grep -v '^contrib/perf/keep/') 2>/dev/null ;;
     shellcheck) # -f gcc gives "path:line:col: level: msg", so the same
                 # path filter works as for the other checks.
                 shellcheck -f gcc --exclude="$SHELLCHECK_EXCLUDE" \
@@ -75,8 +91,9 @@ run_check() {
   esac
 }
 
-CHECKS="unicode shellcheck whitespace shebang shell-locale python-utf8-encoding
-        include-guards includes locale-dependence make-dist cargo-patches"
+CHECKS="self-tests unicode unicode-docs shellcheck whitespace shebang shell-locale
+        python-utf8-encoding include-guards includes locale-dependence
+        make-dist cargo-patches"
 
 if [ "$MODE" = list ]; then
   echo "checks: $(echo $CHECKS | tr '\n' ' ')"

@@ -32,13 +32,12 @@ in the note; recorded as estimates rather than omitted (`POLICY.md` S5).
 
 ### Inbound references from Zero400
 
-`keep/TENTZero.md` is cited by absolute path from **`UpdateZero.md`**,
-`ZeroNodes.md` and `ZeroNodeDev.md` as
-`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`. Those paths are now stale.
-Those documents are **Zero400-owned** and are not edited from this tree
-(`POLICY.md` S7), so the fix belongs there -- either repoint to
-`contrib/perf/keep/TENTZero.md` or move the file into the Zero400 tree that
-actually depends on it.
+`keep/TENTZero.md` is cited by **`UpdateZero.md`**, `ZeroNodes.md` and
+`ZeroNodeDev.md` (11 sites), which name it as `TENTZero.md` without a path.
+
+Because nothing in ZeroPerf depends on it, the cleaner resolution is to **move
+the file into the Zero400 tree** that does. Until then it stays in `../keep/`
+and readers resolve the name by search.
 
 ### Retired
 

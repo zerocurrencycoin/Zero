@@ -1,12 +1,12 @@
                                                                                                          
-  - chainstate/ (LevelDB, CCoinsViewDB) maps (txid, vout) → scriptPubKey + amount — a UTXO set, not an     
-  address→balance index. No reverse lookup, no ranking.                                                    
+  - chainstate/ (LevelDB, CCoinsViewDB) maps (txid, vout) -> scriptPubKey + amount -- a UTXO set, not an     
+  address->balance index. No reverse lookup, no ranking.                                                    
   - -insightexplorer adds blocks/index/ LevelDB key families (DB_ADDRESSINDEX, DB_ADDRESSUNSPENTINDEX,     
-  DB_SPENTINDEX, DB_TIMESTAMPINDEX, DB_BLOCKHASHINDEX) — but these support per-address queries             
+  DB_SPENTINDEX, DB_TIMESTAMPINDEX, DB_BLOCKHASHINDEX) -- but these support per-address queries             
   (getaddressbalance, getaddressutxos, getaddressdeltas, getaddresstxids), not "list all addresses sorted  
   by balance."                                                                                             
   - gettxoutsetinfo gives a chain-wide transparent total only, not per-address.                            
-  - Shielded (Sprout/Sapling) balances are never exposed chain-wide by design (privacy ceiling) — any "top 
+  - Shielded (Sprout/Sapling) balances are never exposed chain-wide by design (privacy ceiling) -- any "top 
   wallets/addresses" analysis is necessarily transparent-only.                                             
   - A real local Insight/bitcore-node deployment exists (~/Work/ZK/ZKs/insight/: insight-api-zero,         
   bitcore-node-zero, bitcore-lib-zero), plus parallel sibling forks under ~/Work/ZK/ZKs/insight/ecosystem/ 
@@ -15,11 +15,11 @@
   access outside the live node; contrib/stats/chain_stats.py is an existing lightweight RPC-scan pattern   
   already in this repo.                                                                                    
                                                                                                            
-  What we need answered, with citations (file:line for code, URL for external sources) — not restated      
+  What we need answered, with citations (file:line for code, URL for external sources) -- not restated      
   assumptions:                                                                                             
                                                                                                            
   1. For "top N addresses/wallets by transparent balance," "top N by UTXO count," "top N by transaction    
-  count/volume" — what are the known-good, production-proven approaches used by real Zcash-family block    
+  count/volume" -- what are the known-good, production-proven approaches used by real Zcash-family block    
   explorers and indexers (Zcash's own zcash-cli/lightwalletd ecosystem, zcashd-era Insight forks,          
   Blockbook, zebra's indexing if any, third-party analytics like Zchain/CipherScan mentioned in prior      
   research)? Specifically: do any of them maintain a live sorted/ranked address-balance table, and if so,  
@@ -27,11 +27,11 @@
   UTXO-set scan/rebuild, vs. an external SQL/columnar store fed by RPC or ZMQ)?                            
   2. Local code check first, before assuming a gap: search ~/Work/ZK/ZKs/insight/ (including the ecosystem/
   sibling forks) and ~/Work/ZK/Zero400/~/Work/ZK/ZeroPerf for any existing rich-list, balance-ranking, or  
-  UTXO-ranking code/scripts/RPC extensions — don't assume this needs to be built from scratch without      
+  UTXO-ranking code/scripts/RPC extensions -- don't assume this needs to be built from scratch without      
   checking. Report exactly what exists today versus what would need to be added.                           
   3. Given zerod's actual data surfaces (raw blocks/*.dat via linearize tooling or direct parsing,         
   chainstate/ LevelDB, -insightexplorer indexes, bootstrap.dat), what's the most robust way to             
-  build/maintain a "top N by X" answer that stays correct across reorgs and incremental sync — i.e., how do
+  build/maintain a "top N by X" answer that stays correct across reorgs and incremental sync -- i.e., how do
   real implementations handle chain reorganization when maintaining a derived ranked index (rollback       
   strategy, checkpointing, or full-rebuild-only approaches)?                                               
   4. Grafting options: is it more standard/robust in this ecosystem to (a) add new RPC methods directly to 
@@ -44,7 +44,7 @@
                                                                                                            
   Constraints: cite real file:line evidence for every local-code claim; cite real URLs for every external  
   claim; explicitly flag anything you could not verify rather than presenting it as established. Zero is a 
-  smaller, lower-adoption fork than Zcash — don't assume Zcash-ecosystem solutions apply unmodified; note  
+  smaller, lower-adoption fork than Zcash -- don't assume Zcash-ecosystem solutions apply unmodified; note  
   where a technique would need adaptation for Zero's specific indexes/RPCs (per ZeroStruct.md §6,          
   §11.4-11.6) versus being directly reusable. Report back with concrete, actionable next steps for each of 
   the four questions, not a survey essay.

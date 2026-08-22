@@ -97,7 +97,7 @@ the fat wallet (749MB, 801619 tx) produces a rescan worth measuring.
 ## 1.4 Profile bootstrap import
 
 ```bash
-cp ~/Work/ZK/linearize/bootstrap.dat $SCRATCH/bootstrap.dat   # a COPY, always
+cp <linearize>/bootstrap.dat $SCRATCH/bootstrap.dat   # a COPY, always
 ./src/zerod -datadir=$SCRATCH -loadblock=$SCRATCH/bootstrap.dat -daemon
 sleep 30
 contrib/perf/profile_run.sh S4-bootstrap-none $SCRATCH 60

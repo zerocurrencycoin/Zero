@@ -22,7 +22,7 @@ unless a dependency is named. **D** runs in parallel throughout.
 
 | Item | Kanban | Disposition | Effort | Why |
 |------|--------|-------------|--------|-----|
-| A1 Enforce existing rules | ToDo | Open | S | `FINDINGS.md` S1.3 |
+| A1 Enforce existing rules | InProgress | Open | S | `FINDINGS.md` S1.3 |
 | A2 Record binary and platform | InTest | Open | M | `FINDINGS.md` S1.2, `SCHEMA.md` |
 | A3 Microbenchmark baseline | ToDo | Open | S | `FINDINGS.md` S4 |
 | B1 Phase timers | ToDo | Open | S-M | `FINDINGS.md` S1.1, `../PerfTimers.md` |
@@ -52,16 +52,16 @@ Everything: **`../PerfGroth.md`**. Nothing below depends on it.
 
 Make `lint-perf.sh` the enforcement point, then wire it into CI.
 
-| Step | What |
-|------|------|
-| a | Run `check-unicode.py --fix`; current backlog in `../lint_backlog.json` |
-| b | Add `unicode-docs` to the default `CHECKS` |
-| c | Add a citation check: a bare figure with no `M-*` id |
-| d | Add the working branch to the CI push trigger, and a lint job ahead of the build |
+| Step | What | State |
+|------|------|-------|
+| a | Run `check-unicode.py --fix` | **Finished** -- 693 -> 0 in owned scope |
+| b | Add `unicode-docs` to the default `CHECKS` | **Finished** -- scoped to owned docs, `keep/` excluded |
+| c | Add a citation check: a bare figure with no `M-*` id, and an absolute-path check (`POLICY.md` S7.3) | ToDo |
+| d | Add the working branch to the CI push trigger, and a lint job ahead of the build | ToDo |
 
 (a) without (b) drifts again; (d) is where (b) and (c) stop being advisory.
 
-**Kanban: ToDo. Effort S.** No product code.
+**Kanban: InProgress. Effort S.** No product code. (a) and (b) Finished.
 
 ### A2. Record what the binary and platform were
 
@@ -144,10 +144,11 @@ Scope and rationale: **`MIGRATION.md`**.
 
 | Step | What | State |
 |------|------|-------|
-| a | Build the docs set, pulling material in incrementally | InProgress |
+| a | Build the docs set, pulling material in incrementally | **Finished** |
 | b | `NOTES.md`: stamp dated evaluations with date and version | ToDo |
 | c | Relocate off-subject documents -- **needs confirmation** | ToDo |
-| d | Retire superseded originals once content has a home | ToDo |
+| d | Retire superseded originals once content has a home | **Finished** -- 7 retired, 6 relocated to `../keep/` |
+| e | Caveat diff before retiring `Perf.md` | **Finished** -- 0 orphaned rules; `MIGRATION.md` S6 |
 
 **Kanban: InProgress. Effort M.**
 
@@ -227,4 +228,7 @@ Harness: `mine_bench.sh`, `performance-measurements.sh`, KATs in
 | Retention classifier; `archives/` never reclaimable | `retention.py`, `POLICY.md` S6 |
 | `.host_salt` excluded from git | `.gitignore` |
 | Timer defects found | `FINDINGS.md` S1.1 |
-| Docs set restructured | `MIGRATION.md` |
+| Docs set restructured; 7 retired, 6 relocated | `MIGRATION.md`, `NOTES.md` |
+| Unicode backlog cleared and gated | `lint-perf.sh` `unicode-docs`, 0/0 |
+| Absolute paths struck from tracked docs | `POLICY.md` S7.3 |
+| `Perf.md` caveat diff: 0 orphaned rules | `MIGRATION.md` S6 |

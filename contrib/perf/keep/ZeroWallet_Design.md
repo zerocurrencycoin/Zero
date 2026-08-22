@@ -7,8 +7,8 @@ Investigation of UI styling in zerowallet400 (Qt5 desktop wallet). Last reviewed
 zerowallet has no formal design-token layer or component library. Visual styling is implemented as **Qt Style Sheets** (`.css` files under `res/css/`) loaded once on `MainWindow` and inherited by child widgets and dialogs. Five themes are user-selectable; two additional legacy themes exist in resources but are not exposed in Settings.
 
 ```
-main.cpp (Linux font) → MainWindow ctor → QFile(":/css/res/css/{theme}.css") → setStyleSheet()
-Settings → comboBoxTheme → slot_change_theme() → reload CSS
+main.cpp (Linux font) -> MainWindow ctor -> QFile(":/css/res/css/{theme}.css") -> setStyleSheet()
+Settings -> comboBoxTheme -> slot_change_theme() -> reload CSS
 ```
 
 There is no `QPalette` usage, no OS dark-mode integration, and no shared C++ color constants.
@@ -99,17 +99,17 @@ Planned but not implemented: **Midnight** theme (`TODO.md`).
 
 The rightmost tab in the main `QTabWidget` is **Wallet Info** (`tab_6` in `mainwindow.ui`). It is the clearest example of the immersive theme pattern because most of the tab surface is transparent, so the window background image shows through.
 
-**Tab order** (left to right): Overview → Balances → Send → Receive → ZeroNodes → **Wallet Info**.
+**Tab order** (left to right): Overview -> Balances -> Send -> Receive -> ZeroNodes -> **Wallet Info**.
 
 **Layout** (`gridLayout_7`):
 
 | Column | Content |
 |--------|---------|
-| Left (`groupBox_7`) | Node/wallet stats — version, protocol, block height, connections, chain value |
-| Center (`zerologo`) | Centered `zerodlogo.gif`, scaled to 256×256 in `setupZcashdTab()` |
-| Right (`zeroNodeGroup`) | ZeroNode stats — totals, ROI, daily income, locked coins |
+| Left (`groupBox_7`) | Node/wallet stats -- version, protocol, block height, connections, chain value |
+| Center (`zerologo`) | Centered `zerodlogo.gif`, scaled to 256x256 in `setupZcashdTab()` |
+| Right (`zeroNodeGroup`) | ZeroNode stats -- totals, ROI, daily income, locked coins |
 
-Section headers use 14pt labels (`nodeVersionLabel_2` “Wallet Information”, `nodeVersionLabel_3` “ZeroNode Information”). Row values use a `label | value` pattern with right-aligned values.
+Section headers use 14pt labels (`nodeVersionLabel_2` "Wallet Information", `nodeVersionLabel_3` "ZeroNode Information"). Row values use a `label | value` pattern with right-aligned values.
 
 **Background image** (immersive themes only):
 
@@ -123,7 +123,7 @@ QMainWindow
 }
 ```
 
-Asset: `res/images/backgrounds/zero.jpg` (2048×1152 JPEG). `matrix` theme uses the same pattern with `matrix.jpg`.
+Asset: `res/images/backgrounds/zero.jpg` (2048x1152 JPEG). `matrix` theme uses the same pattern with `matrix.jpg`.
 
 **Color setup paired with the image** (`zero` theme):
 
@@ -132,13 +132,13 @@ Asset: `res/images/backgrounds/zero.jpg` (2048×1152 JPEG). `matrix` theme uses 
 | Base widgets | `background: transparent` | Image visible; text `#ffffff` |
 | Tab content pane | `QTabWidget::pane` | `rgba(0, 0, 0, 128)` fill, `rgb(255, 215, 0)` gold border |
 | Tab bar | `QTabBar::tab` | `rgba(0, 0, 0, 128)`; gold bottom border; selected tab gold outline |
-| Info panels | `QGroupBox` | `rgba(0, 0, 0, 128)` — semi-transparent black over the photo |
+| Info panels | `QGroupBox` | `rgba(0, 0, 0, 128)` -- semi-transparent black over the photo |
 | Labels | inherited | `#ffffff` on transparent background |
 | Inputs (if any) | `QLineEdit`, etc. | `rgba(64, 64, 64, 128)` fill; gold border on hover/focus |
 
 `matrix` theme substitutes green accent `rgb(0, 128, 0)` and green-tinted input fills (`rgba(0, 16, 0, 128)`) for the same structure.
 
-**Flat themes on this tab:** `QMainWindow` has a solid fill (`#fcfcfc`, `#01698c`, or `#303335`), so the JPEG never appears. Group boxes pick up the theme’s solid `background-color` instead of the immersive overlay pattern.
+**Flat themes on this tab:** `QMainWindow` has a solid fill (`#fcfcfc`, `#01698c`, or `#303335`), so the JPEG never appears. Group boxes pick up the theme's solid `background-color` instead of the immersive overlay pattern.
 
 There is no tab-specific CSS or per-page stylesheet; Wallet Info inherits the global theme from `MainWindow::setStyleSheet()`.
 
@@ -246,7 +246,7 @@ This convention is mirrored in code. Example from `sendtab.cpp` `addAddressSecti
 | Table header | `min-height: 25px`; padding 5px H, 2px V |
 | Buttons | padding 15px H, 5px V; `border-radius: 13px`; `min-height: 15px` |
 | Scrollbars | 18px width/height; 18px track margin |
-| Checkboxes | 5px spacing; 16×16px indicator |
+| Checkboxes | 5px spacing; 16x16px indicator |
 | Status bar | `height: 36px` |
 
 ### CSS spacing (immersive themes)
@@ -293,7 +293,7 @@ Single resource file: `application.qrc` (linked in `zero-qt-wallet.pro`).
 | `icons` | `tick-white.png`, `tick.png`, `close.png` (dialog buttons in `zero.css`) |
 | `/translations` | 9 locale `.qm` files |
 
-**Outside qrc:** `res/zero.xpm` — Linux desktop icon.
+**Outside qrc:** `res/zero.xpm` -- Linux desktop icon.
 
 ### Runtime asset usage
 
@@ -317,7 +317,7 @@ Styles defined outside theme CSS:
 
 | File | Trigger |
 |------|---------|
-| `memoedit.cpp` | Memo over max length → `color: red` |
+| `memoedit.cpp` | Memo over max length -> `color: red` |
 | `mainwindow.cpp` | Turnstile insufficient balance; z-board memo size |
 
 ### `.ui` embedded styles
@@ -347,14 +347,14 @@ For immersive themes, add a background JPEG under `res/images/backgrounds/` and 
 
 ## Gaps and Known Issues
 
-1. **No design tokens** — colors and spacing are copy-pasted across 7 CSS files (~1700 lines total).
-2. **No OS theme sync** — no `QStyleHints` or platform dark-mode detection.
-3. **Theme-unaware data colors** — table models hardcode `Qt::black` / `Qt::red`.
-4. **Inline red/white overrides** — validation and QR backgrounds ignore theme palette.
-5. **Legacy themes orphaned** — `classic` and `default` in qrc but not in Settings UI.
-6. **Unused widget** — `FilledIconLabel` has no `.ui` references.
-7. **Two theme structures** — immersive themes lack scrollbar/checkbox styling that flat themes provide; visual parity across themes is incomplete.
-8. **Midnight theme** — mentioned in `TODO.md`, not implemented.
+1. **No design tokens** -- colors and spacing are copy-pasted across 7 CSS files (~1700 lines total).
+2. **No OS theme sync** -- no `QStyleHints` or platform dark-mode detection.
+3. **Theme-unaware data colors** -- table models hardcode `Qt::black` / `Qt::red`.
+4. **Inline red/white overrides** -- validation and QR backgrounds ignore theme palette.
+5. **Legacy themes orphaned** -- `classic` and `default` in qrc but not in Settings UI.
+6. **Unused widget** -- `FilledIconLabel` has no `.ui` references.
+7. **Two theme structures** -- immersive themes lack scrollbar/checkbox styling that flat themes provide; visual parity across themes is incomplete.
+8. **Midnight theme** -- mentioned in `TODO.md`, not implemented.
 
 ---
 

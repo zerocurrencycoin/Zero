@@ -287,3 +287,37 @@ a tracked document.
 
 Also out of scope: zerowallet (full node only), and Halo / Orchard (not Zero
 consensus).
+
+### 7.3 No absolute paths in tracked documents
+
+Reference a document by **name alone** (`TENTZero.md`, `CDBRewrite.md`), a
+sibling by repo-relative path (`contrib/perf/docs/TASKS.md`), and anything
+outside the repo by name plus "(out of tree)" or a placeholder
+(`<linearize>/bootstrap.dat`).
+
+Never write `/Users/<name>/...` or `~/Work/...` into a tracked document. Such a
+path is wrong for every reader but one, leaks a username into a public
+repository, and breaks silently the moment a file moves -- as 11 references to
+`TENTZero.md` did. For runtime paths that genuinely vary, use `$HOME` or an
+env var the launchers already set.
+
+Enforcement: none yet; candidate for `lint-perf.sh` alongside the citation
+check (`TASKS.md` A1c).
+
+### 7.4 Automated rewrites stay inside owned scope
+
+`check-unicode.py --fix` writes only under `contrib/perf/`. Running it
+tree-wide once rewrote eight Zero400-owned root documents, which this tree does
+not own (S7), and its `U+00B7 -> '-'` mapping turned products into apparent
+subtraction in a Groth16 pairing equation.
+
+Two rules follow:
+
+- **Report widely, write narrowly.** Scanning the whole tree is useful; writing
+  to it is not this tree's call. `--any-path` exists as a deliberate override.
+- **Never bulk-rewrite a document containing formulas.** The safe-substitution
+  table is safe for prose, not for mathematics. Middle dot, minus sign and
+  arrows all carry meaning there. Fix those by hand, per site.
+
+Violations found in Zero400-owned files are **reported to that tree**, not
+fixed here.
