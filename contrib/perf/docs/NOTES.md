@@ -15,22 +15,44 @@ stays as the record of when it was first established.
 
 ## Index
 
-| Note | Date | Applies to | Subject | Superseded by |
-|------|------|-----------|---------|---------------|
-| `../ZcashV.md` | 2026-06-08 | Zcash 2026 CVEs; RPC samples at h2,471,322 | Sprout `fChecked` and Orchard counterfeiting bugs; relevance to zcashd-lineage forks | nothing |
-| `../Peer.md` | 2026-06-10 | Zero400 v4.0.1, macOS | Peer and RPC operations: paths, config, DNS seeds, addrman | nothing |
-| `../ZeroWallet_Design.md` | 2026-06-26 | zerowallet400, Qt5 | Desktop wallet UI styling and themes | nothing |
-| `../desys.md` | 2026-06 (est.) | zerowallet400, Qt5 | Ice-blue light theme design system | nothing |
-| `../TENT.md` | frozen | TENT `bcb429b` (2021-11-13) | TENT masternode fork lineage and comparison | nothing |
-| `../TENTZero.md` | frozen | TENT `bcb429b` (2021-11-13) | TENT to Zero zeronode file map | nothing |
-| `../PERF_RESTRUCTURE.md` | 2026-08 | `Perf.md` before restructuring | Proposal to restructure `Perf.md` | acted on -- `MIGRATION.md` |
-| `../PerfDocReview.md` | 2026-08-20 | 21-document `contrib/perf/` set | Per-document goal, audience and critique | `MIGRATION.md` |
-| `../PerfStores.md` | 2026-08-20 | ledgers before schema v2 | Measurement-store assessment | `SCHEMA.md` |
-| `../PerfNext.md` | 2026-08-20 | task set before consolidation | Ranked next directions | `TASKS.md`, `FINDINGS.md` |
-| `../PerfTasks.md` | 2026-08-20 | task set before consolidation | Task register | `TASKS.md` |
+Relocated notes now live in **`../keep/`**. They are kept as written and are
+not maintained.
+
+| Note | Date | Applies to | Subject |
+|------|------|-----------|---------|
+| `../keep/ZcashV.md` | 2026-06-08 | Zcash 2026 CVEs; RPC samples at h2,471,322 | Sprout `fChecked` and Orchard counterfeiting bugs; relevance to zcashd-lineage forks |
+| `../keep/Peer.md` | 2026-06-10 | Zero400 v4.0.1, macOS | Peer and RPC operations: paths, config, DNS seeds, addrman. Cited by `../Measures.md` (M-PEER-LOAD) and `../Stores.md` |
+| `../keep/ZeroWallet_Design.md` | 2026-06-26 | zerowallet400, Qt5 | Desktop wallet UI styling and themes |
+| `../keep/desys.md` | 2026-06 (est.) | zerowallet400, Qt5 | Ice-blue light theme design system |
+| `../keep/TENT.md` | frozen | TENT `bcb429b` (2021-11-13) | TENT masternode fork lineage and comparison |
+| `../keep/TENTZero.md` | frozen | TENT `bcb429b` (2021-11-13) | TENT to Zero zeronode file map. **Referenced by Zero400 documents** -- see below |
 
 Dates marked `(est.)` are inferred from surrounding content rather than stated
 in the note; recorded as estimates rather than omitted (`POLICY.md` S5).
+
+### Inbound references from Zero400
+
+`keep/TENTZero.md` is cited by absolute path from **`UpdateZero.md`**,
+`ZeroNodes.md` and `ZeroNodeDev.md` as
+`~/Work/ZK/ZeroPerf/contrib/perf/TENTZero.md`. Those paths are now stale.
+Those documents are **Zero400-owned** and are not edited from this tree
+(`POLICY.md` S7), so the fix belongs there -- either repoint to
+`contrib/perf/keep/TENTZero.md` or move the file into the Zero400 tree that
+actually depends on it.
+
+### Retired
+
+These were superseded during the 2026-08 consolidation and removed. Recorded
+so their absence is not mistaken for loss:
+
+| Retired | Content now in |
+|---------|----------------|
+| `BENCHMARKING.md` | `HOWTO.md` |
+| `PerfTasks.md`, `PerfNext.md` | `TASKS.md`, `FINDINGS.md` |
+| `PerfStores.md` | `SCHEMA.md` |
+| `PerfDocReview.md` | `MIGRATION.md`, this file |
+| `PerfDoc.md` | `POLICY.md` (S7.1 routing, S7.2 scope), `HOWTO.md` |
+| `PERF_RESTRUCTURE.md` | Diagnosis acted on in `MIGRATION.md`; every claim validated before retirement |
 
 ## Live specs, not notes
 

@@ -4,7 +4,7 @@ Everything needed to decide and implement Sapling Groth16 batch verification.
 Current state and forward path only; superseded attempts are not recorded here.
 
 Numbers are cited by `M-*` id and live in `Measures.md`. Task status lives in
-`PerfTasks.md`.
+`docs/TASKS.md`.
 
 **This is the focused Groth16 document.** It is the single home for Groth16
 evidence, options and implementation path. Other documents cite its conclusions

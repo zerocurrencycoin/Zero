@@ -302,7 +302,7 @@ Per-tool invocation detail lives in `../README.md`; this is the index.
 | `-loadblock=<file>` | bootstrap import |
 | `-rescan` | wallet re-derive over existing chainstate |
 | `-disablewallet` | ConnectBlock control, no wallet cost |
-| `-debug=<cat>` | 30 categories; **`bench`** gives per-block phase timing |
+| `-debug=<cat>` | **30 categories.** `bench` gives per-block phase timing (11 sites); `zeronode` is by far the noisiest (228 sites), `net` 39 |
 | `-walletwitness=ibd-defer` | defer witness build during IBD |
 | `-walletwitnessnote` | NOTEIDX; 35x on the witness walk |
 | `-perffdcache`, `-perfbufsize` | require `--enable-perf` build |

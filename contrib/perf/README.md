@@ -1,6 +1,6 @@
 # contrib/perf
 
-**New here? Read [BENCHMARKING.md](BENCHMARKING.md) first.** It teaches the
+**New here? Read `docs/HOWTO.md` first.** It teaches the
 workflow -- how to take a profile, how to read the three views, which traps
 have produced wrong numbers before. This file is a per-tool reference and
 assumes you already know why you are running something.
@@ -21,14 +21,14 @@ per-tool caveats. It is deliberately the only place those live in long form.
 
 | Looking for | Read |
 |-------------|------|
-| How to take a profile and read it | `BENCHMARKING.md` |
-| One-line index of every tool | `BENCHMARKING.md` S4.1 |
+| How to take a profile and read it | `docs/HOWTO.md` |
+| One-line index of every tool | `docs/HOWTO.md` S4.1 |
 | Findings and method | `Perf.md` |
 | Numbers bound to `M-*` | `Measures.md` |
-| Task state and what to do next | `PerfTasks.md`, `PerfNext.md` |
-| Governance, ownership, lab discipline | `PerfDoc.md` |
+| Task state and what to do next | `docs/TASKS.md`, `docs/TASKS.md` |
+| Governance, ownership, lab discipline | `docs/POLICY.md` |
 
-`BENCHMARKING.md` S4.1 lists the same 13 tools as a one-line index; the detail
+`docs/HOWTO.md` S4.1 lists the same 13 tools as a one-line index; the detail
 below is not repeated there. When adding a tool, add the row there and the
 section here.
 

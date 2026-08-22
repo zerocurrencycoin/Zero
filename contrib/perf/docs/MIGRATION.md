@@ -3,8 +3,12 @@
 State of the consolidation: 21 documents / 6809 lines in `contrib/perf/`
 becoming a small set in `contrib/perf/docs/` -- 6 written so far, 3 pending.
 
-**Nothing in `contrib/perf/` has been deleted or moved.** Until a topic is
-marked **pulled in**, the old file is authoritative.
+**Complete (2026-08-21).** Seven documents were retired and six relocated to
+`../keep/`. Eight remain live in `contrib/perf/`. The table in S3 is kept as
+the record of where each source went -- entries naming a retired file describe
+history, not a current path.
+
+Current state: `NOTES.md` indexes what was kept and what was retired.
 
 ---
 
@@ -61,16 +65,17 @@ Indexed with their dates, versions and supersession state in **`NOTES.md`**,
 which is the durable record. Archive policy is `POLICY.md` S5. Neither is
 repeated here.
 
-## 5. Order
+## 5. Order -- completed
 
 1. **`OVERVIEW.md`, `README.md`, `SCHEMA.md`, `TASKS.md`, `POLICY.md`** --
    Finished. New work lands here.
 2. **`HOWTO.md`, `FINDINGS.md`, `NOTES.md`** -- Finished. The docs set is
    complete; every subject has a home.
-3. **Retire superseded originals** -- only after content has a home, and with
-   confirmation. Four are already superseded: `PerfTasks.md`, `PerfNext.md`,
-   `PerfStores.md`, `PerfDocReview.md`, plus `PerfDoc.md` once S6-S10 are
-   confirmed droppable.
+3. **Retire superseded originals** -- **done 2026-08-21**, seven files, after
+   each had a home. `PerfDoc.md` S1 routing and S3 scope were redistributed
+   into `POLICY.md` S7.1/S7.2 first; `PERF_RESTRUCTURE.md` had every claim
+   validated against `Perf.md` before removal.
+4. **Relocate off-subject material** -- **done**, six files to `../keep/`.
 
 Retiring originals carries the remaining risk: losing a hard-won caveat while merging. Mitigation
 is the one the original proposal named -- mechanically diff all `M-*` ids and

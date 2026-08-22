@@ -305,7 +305,7 @@ Use case: CI / contributor expectation only. **Do not** compare to IBD/reindex.
 
 | ID | Metric | Result | Type | Tools | Source |
 |----|--------|--------|--------|-------|--------|
-| M-PEER-LOAD | peers.dat load | **3073** addrs in **3 ms** | `spot` | `debug_log` | Peer.md (ZeroPerf) |
+| M-PEER-LOAD | peers.dat load | **3073** addrs in **3 ms** | `spot` | `debug_log` | `keep/Peer.md` (ZeroPerf) |
 
 ### 3.12 In-tree `-debug=bench`
 

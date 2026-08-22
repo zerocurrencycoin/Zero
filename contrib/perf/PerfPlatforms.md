@@ -5,8 +5,8 @@ Ubuntu Linux and Windows 11 (native and WSL2), and which existing open-source
 tools would do the processing rather than being written here.
 
 Written as a **survey and recommendation**, not a plan of record. Nothing here
-is scheduled; items judged worth doing are tracked in `PerfTasks.md` with the
-reasoning in `PerfNext.md`.
+is scheduled; items judged worth doing are tracked in `docs/TASKS.md`, with the
+reasoning in `docs/FINDINGS.md`.
 
 ---
 
@@ -34,7 +34,7 @@ Two specific reasons the numbers might not transfer:
   vector width and a different bls12_381 code path; the pinned crates ship
   assembly for both. The Groth16 share could plausibly differ by more than the
   4% same-host repeat spread.
-- **blake2b.** `PerfTasks.md` records that stock arm64 still links
+- **blake2b.** `docs/FINDINGS.md` S2.3 records that stock arm64 still links
   `blake2b_compress_ref` (the portable C fallback). On x86-64 an SSE/AVX path
   may be selected instead, which would move the blake2b bucket -- 18-21%
   pre-Sapling -- without any source change.
@@ -50,7 +50,7 @@ xctrace-specific**. `classify()`, `pool_of()` and the `BUCKETS` table are pure
 That table is where the accumulated knowledge lives -- including the two
 orderings that must not be "tidied" (groth16 before tree_anchor; witness_cache
 before wallet_other), each of which was a published wrong number first
-(`BENCHMARKING.md` S3.1).
+(`docs/HOWTO.md` S3.1).
 
 **Consequence for any porting work:** the task is to write a new `parse()` that
 yields the same `(thread, weight_ns, frames)` tuples from a Linux or Windows
@@ -128,7 +128,7 @@ being real time.
 | Pageins, compressed | `vm_stat` | `/proc/vmstat`, `/proc/meminfo` |
 | Thermal | `xctrace` thermal-state | `/sys/class/thermal/`, `turbostat` -- **better than macOS here**, exposes per-core frequency directly |
 
-Linux is the **easier** platform for the S2.2 thermal question in `PerfNext.md`:
+Linux is the **easier** platform for the thermal gap (`docs/FINDINGS.md` S4):
 `turbostat` reports actual achieved frequency, so throttling is directly
 observable rather than inferred from a coarse Nominal/Serious state.
 
@@ -209,7 +209,7 @@ that is well-judged; some is reinvention. An honest split:
 campaign grouping and n/mean/stdev/min/max. That is a small amount of code
 closely fitted to the comparability rules in `Measures.md`, and those rules are
 the actual asset. A general framework would not know that a capture needs a
-window and a thread to be comparable (`BENCHMARKING.md` S4.5).
+window and a thread to be comparable (`docs/HOWTO.md` S4.5).
 
 ### 5.2 Where existing tools would genuinely help
 
@@ -229,7 +229,7 @@ needs no privilege. It does not cover thermal or per-core frequency, so
 `turbostat`/`xctrace` stay for that.
 
 **`hyperfine` caveat.** It is built for short repeatable commands. A multi-hour
-reindex violates the "no unrestartable long batches" rule in `PerfDoc.md` S2 --
+reindex violates the "no unrestartable long batches" rule in `docs/POLICY.md` S2 --
 so use it for microbenchmarks and short trials, **not** as a replacement for the
 campaign ledger. Its statistical *approach* is worth borrowing even where the
 tool is not.
@@ -264,4 +264,4 @@ Ranks 1 and 2 are documentation-only, cost almost nothing, and make every later
 item cheaper. Rank 3 is the first that produces a new number.
 
 **None of this is scheduled.** It is a survey; scheduling is
-`PerfTasks.md`.
+`docs/TASKS.md`.

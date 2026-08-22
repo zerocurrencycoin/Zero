@@ -251,5 +251,39 @@ Zero400**. Do not restructure Zero400-owned documents from this tree: it
 contradicts ownership and creates merge conflicts against the tree that owns
 them.
 
-Out of scope entirely: dev-fee and founders addresses, address-ops scripts, and
-any host paths, in any tracked document.
+### 7.1 Routing by identifier
+
+Which document owns which prefix. Put an item where its prefix says, rather
+than where it was discovered.
+
+| Identifier | Goes in | Tree |
+|------------|---------|------|
+| `M-*` -- measure ids, campaign numbers | `../Measures.md` | ZeroPerf |
+| `PERF-*` -- ConnectBlock optimization narrative | `FINDINGS.md`; numbers cited from `Measures.md` | ZeroPerf |
+| `OPS-*` / `WAL-*` / `FR-*` / `EXT-*` -- status and task text | `TODO.md` | Zero400 |
+| `OPS-*` / `WAL-*` / `FR-*` -- architecture | `ZeroStruct.md` | Zero400 |
+| `OPS-AT-HEIGHT` | `AtHeight.md` procedure; status in `TODO.md` | Zero400 |
+| `INT-*` | `ZeroStruct.md` S11.7 | Zero400 |
+| `TST-*` -- test and gate work | `TEST_ZERO.md`, `TODO.md` | Zero400 |
+
+**A number with no `M-*` binding is not yet a measure.** `Measures.md` owns
+figures; everything else cites the id.
+
+Zero400-owned documents this tree reads but does not edit: `TODO.md`,
+`TEST_ZERO.md`, `ZeroStruct.md`, `AtHeight.md`, `BUILD_ZERO.md`,
+`WitnessReindex.md`, `ExtTests.md`, `UpdateZero.md`.
+
+### 7.2 Out of scope for this tree
+
+**Dev-fee and founders material is project-internal.** Founders and DevFee
+payee addresses, and address-ops scripts, stay out of this tree. Do **not** put
+DevWallet handling, scripting, or host paths into `ZeroStruct.md`,
+`TEST_ZERO.md`, `TODO.md`, `AtHeight.md`, `Measures.md`, or any other tracked
+document.
+
+Perf work touching fat-wallet behaviour uses out-of-tree `DevFeeWallets`
+material **by reference only** -- never by copying addresses or host paths into
+a tracked document.
+
+Also out of scope: zerowallet (full node only), and Halo / Orchard (not Zero
+consensus).

@@ -8,7 +8,7 @@ This page is the lifecycle and preservation map for Zero local stores. It answer
 
 Reviewed local documents:
 
-- `Peer.md`
+- `keep/Peer.md`
 - `Runtime.md`
 - `../Zero400/ZeroStruct.md`
 - `Perf.md`
@@ -36,7 +36,7 @@ Reviewed online references:
 
 `../Zero400/ZeroStruct.md` is a branch-local copy and should not be treated as the current source of truth unless work is explicitly happening on that branch. It was intentionally left at its branch state after the 2026-07-08 review.
 
-`Peer.md` is the canonical local note for `peers.dat`, addrman behavior, peer discovery, and practical peer monitoring. `Runtime.md` should not duplicate the whole peer treatment, but it should summarize the lifecycle and link back to `Peer.md`.
+`keep/Peer.md` is the canonical local note for `peers.dat`, addrman behavior, peer discovery, and practical peer monitoring. `Runtime.md` should not duplicate the whole peer treatment, but it should summarize the lifecycle and link back to `keep/Peer.md`.
 
 `Perf.md` is the current authority on sync-performance experiments (plans/specs in §0.13). It is performance-oriented, not a data-directory map, but it matters for classifying `blocks/index/`, `chainstate/`, and the optional Insight indexes by lifecycle and rebuild cost.
 
@@ -50,7 +50,7 @@ Reviewed online references:
 |---|---|---|
 | What stores exist, what is unique, what can be regenerated? | `Stores.md` | Lifecycle, preservation, cleanup, cross-store terminology |
 | How does `zerod` use stores at runtime? | `Runtime.md` | Flags, cache split, RPCs, client requirements, block-connect/index maintenance |
-| How does peer discovery and `peers.dat` really work? | `Peer.md` | Addrman internals, logs, DNS seeds, recovery procedure, external peer-analysis tools |
+| How does peer discovery and `peers.dat` really work? | `keep/Peer.md` | Addrman internals, logs, DNS seeds, recovery procedure, external peer-analysis tools |
 | What should be ported or implemented? | `UpdateZero.md` | Work plans, acceptance criteria, task IDs |
 | Why not simply upgrade BDB? | `../Zeros/ZEROV.md` plus this file | `ZEROV.md` is the superseded note; `Stores.md` has current wallet-store stance |
 
@@ -87,7 +87,7 @@ External indexers such as Blockbook or a custom syncer should be treated as sepa
 
 ## Peers.dat Decoding And Recovery
 
-Bitcoin and Zero share the same broad addrman model: an in-memory peer address manager with "new" and "tried" buckets, periodically dumped to `peers.dat`. Bitcoin Core documentation describes it as a cache used to avoid bootstrapping from scratch after restart. Zero's `Peer.md` owns the local source layout, serialization wrapper, DNS seed behavior, logging, and recovery details.
+Bitcoin and Zero share the same broad addrman model: an in-memory peer address manager with "new" and "tried" buckets, periodically dumped to `peers.dat`. Bitcoin Core documentation describes it as a cache used to avoid bootstrapping from scratch after restart. Zero's `keep/Peer.md` owns the local source layout, serialization wrapper, DNS seed behavior, logging, and recovery details.
 
 Tools found:
 
