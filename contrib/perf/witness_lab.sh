@@ -36,6 +36,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck disable=SC1091
 . "$REPO_ROOT/contrib/perf/datadir_guard.sh"
+# shellcheck source=/dev/null
+. "$REPO_ROOT/contrib/perf/perflib.sh"
 MODE="${1:-}"
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
 ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
@@ -68,13 +70,17 @@ OUT_DIR="$OUT_ROOT/$RUN_ID"
 mkdir -p "$OUT_DIR"
 DRIVER="$OUT_DIR/driver.log"
 SUMMARY="$OUT_DIR/SUMMARY.txt"
-log() { echo "$(date -u '+%Y-%m-%d %H:%M:%S UTC') $*" | tee -a "$DRIVER"; }
+# log() comes from perflib.sh and tees to DRIVER_LOG; shellcheck cannot see
+# that use across the source boundary.
+# shellcheck disable=SC2034
+DRIVER_LOG="$DRIVER"
 
 cli() { "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" -rpcuser=rt -rpcpassword=rt "$@"; }
 
 prepare_scratch() {
-  rm -rf "$SCRATCH"
-  mkdir -p "$SCRATCH"
+  # Honours ZERO_PERF_DATADIR_POLICY (default: set aside, then recreate), so a
+  # re-run preserves the previous scratch tree instead of destroying it.
+  dispose_datadir "$SCRATCH" SCRATCH
   case "$SNAP" in
     tiny)
       tar -xzf "$SRC_DATADIR/chainblocks-tiny.tgz" -C "$SCRATCH"

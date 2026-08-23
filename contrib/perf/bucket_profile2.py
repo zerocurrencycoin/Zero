@@ -290,6 +290,18 @@ def main(argv):
                 leaves[f] += wt
                 break
 
+    # A thread filter that matches nothing is the most common operator error
+    # (HOWTO S2.4). Report it as such rather than dividing by zero -- and never
+    # emit a 0.00% table, which reads like a real measurement.
+    if total_all <= 0:
+        print("no samples in this trace", file=sys.stderr)
+        return 1
+    if total <= 0:
+        print(f"no samples on thread {want!r}; "
+              f"threads present: {', '.join(sorted(per_thread)[:6])}",
+              file=sys.stderr)
+        return 1
+
     print(f"samples {len(rows)}  total {total_all/1e9:.3f}s across {len(per_thread)} threads")
     print(f"\nPer-thread split (top 10):")
     for th, wt in per_thread.most_common(10):

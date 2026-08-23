@@ -64,9 +64,16 @@ run_check() {
   case "$1" in
     unicode)    # Gate on code only. Perf .md and captured .txt are a separate
                 # concern (see UpdateZero.md DOC-UNICODE); --all shows them.
-                contrib/perf/check-unicode.py \
+                contrib/perf/fix_ascii.py \
                   $(git ls-files 'contrib/perf/*.sh' 'contrib/perf/*.py') 2>/dev/null ;;
-    self-tests) # Run every tool that has a --self-test. These pin behaviour
+    self-tests) # Shell library first: it owns the datadir policy and the
+                # value guards, so a regression there is destructive.
+                if [ -x contrib/perf/perflib_selftest.sh ]; then
+                  out=$(bash contrib/perf/perflib_selftest.sh 2>&1) || \
+                    printf '%s: %s\n' contrib/perf/perflib.sh \
+                      "$(printf '%s' "$out" | grep FAIL | head -1)"
+                fi
+                # Run every tool that has a --self-test. These pin behaviour
                 # that has been wrong before (bucket ordering, fingerprint
                 # dedup), so a silent regression here corrupts published
                 # numbers rather than crashing.
@@ -77,10 +84,10 @@ run_check() {
                 done ;;
     unicode-docs) # Owned documents only. Inherited src/ and root-level
                   # Zero400-owned docs are out of scope for this gate; run
-                  # check-unicode.py with no args to see the whole tree.
+                  # fix_ascii.py with no args to see the whole tree.
                   # keep/ is archived point-in-time notes: kept as written,
                   # not maintained (docs/POLICY.md S5), so not gated.
-                  contrib/perf/check-unicode.py \
+                  contrib/perf/fix_ascii.py \
                     $(git ls-files 'contrib/perf/*.md' 'contrib/perf/**/*.md' \
                       | grep -v '^contrib/perf/keep/') 2>/dev/null ;;
     shellcheck) # -f gcc gives "path:line:col: level: msg", so the same

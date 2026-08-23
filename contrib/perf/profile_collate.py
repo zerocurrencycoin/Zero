@@ -19,26 +19,41 @@ never loses resolution and a later bucket rename can be applied at read time.
 Exit: 0 ok, 2 usage.
 """
 import argparse
+import contextlib
 import datetime
+import io
 import json
 import os
 import sys
 
-LEDGER = "reindex-profile/bench-summaries/cpu_ledger.jsonl"
+LEDGER = os.environ.get(
+    "ZERO_PERF_CPU_LEDGER",
+    "reindex-profile/bench-summaries/cpu_ledger.jsonl",
+)
 
 
-def load(path=LEDGER):
+def ledger_path():
+    """Read the env override at call time, so tests can redirect writes."""
+    return os.environ.get("ZERO_PERF_CPU_LEDGER", LEDGER)
+
+
+def load(path=None):
+    path = path or ledger_path()
     if not os.path.exists(path):
         return []
     out = []
     with open(path, encoding="utf8") as fh:
-        for line in fh:
+        for lineno, line in enumerate(fh, 1):
             line = line.strip()
             if line:
                 try:
                     out.append(json.loads(line))
-                except json.JSONDecodeError:
-                    pass
+                except json.JSONDecodeError as exc:
+                    # Silently skipping corrupts the series: the row is a real
+                    # capture and dropping it changes every mean computed from
+                    # this file. Report it and keep going.
+                    print(f"WARNING: {path}:{lineno}: malformed JSON, skipped "
+                          f"({exc.msg})", file=sys.stderr)
     return out
 
 
@@ -60,11 +75,14 @@ def cmd_add(args):
         "note": args.note or "",
         "source": args.json,
     }
-    os.makedirs(os.path.dirname(LEDGER), exist_ok=True)
-    with open(LEDGER, "a", encoding="utf8") as fh:
+    ledger = ledger_path()
+    parent = os.path.dirname(ledger)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    with open(ledger, "a", encoding="utf8") as fh:
         fh.write(json.dumps(entry, sort_keys=True) + "\n")
-    n = len(load())
-    print(f"appended {args.scenario} ({args.window}) -> {LEDGER}  [{n} entries total]")
+    n = len(load(ledger))
+    print(f"appended {args.scenario} ({args.window}) -> {ledger}  [{n} entries total]")
     return 0
 
 
@@ -105,7 +123,107 @@ def cmd_report(args):
     return 0
 
 
+def self_test():
+    """Pin ledger round-trip and the reporting arithmetic.
+
+    This file owns the CPU-share ledger. Two failure modes matter and neither
+    crashes: a capture silently dropped on read (every mean shifts), and a
+    mean/spread computed wrongly (a published percentage is wrong). Both are
+    asserted here against a temporary ledger -- the real one is never touched.
+    """
+    import tempfile
+
+    ok = True
+
+    def check(cond, msg):
+        nonlocal ok
+        if not cond:
+            print("FAIL: " + msg, file=sys.stderr)
+            ok = False
+
+    class A:  # minimal argparse stand-in
+        def __init__(self, **kw):
+            self.__dict__.update(kw)
+
+    with tempfile.TemporaryDirectory() as d:
+        led = os.path.join(d, "cpu_ledger.jsonl")
+        cap = os.path.join(d, "buckets.json")
+        prev = os.environ.get("ZERO_PERF_CPU_LEDGER")
+        os.environ["ZERO_PERF_CPU_LEDGER"] = led
+        try:
+            json.dump({"thread_filter": "zcash-loadblk", "total_s": 60.0,
+                       "total_all_threads_s": 61.0,
+                       "bucket_pct": {"groth16_proof": 88.4567, "blake2b": 3.2},
+                       "buckets": {"groth16_proof": 53.0123, "blake2b": 1.92},
+                       "groth16_pools": {"sapling": 50.0, "sprout": 3.0},
+                       "threads": {"zcash-loadblk": 59.9}}, open(cap, "w"))
+
+            check(load(led) == [], "absent ledger reads as empty, not an error")
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                rc = cmd_add(A(json=cap, scenario="S-test", window="1-2", note="n"))
+            check(rc == 0, "add returns 0")
+            rows = load(led)
+            check(len(rows) == 1, "one row after one add")
+
+            r = rows[0]
+            # Rounding is part of the stored contract; drift changes published
+            # figures without any error surfacing.
+            check(r["bucket_pct"]["groth16_proof"] == 88.46, "bucket_pct rounds to 2dp")
+            check(r["buckets_s"]["groth16_proof"] == 53.012, "buckets_s rounds to 3dp")
+            check(r["scenario"] == "S-test" and r["window"] == "1-2",
+                  "scenario and window stored")
+            check(r["source"] == cap, "provenance recorded -- a row must name its capture")
+            check(r["thread_filter"] == "zcash-loadblk",
+                  "thread filter stored; a share without one is not comparable")
+            check("recorded_at" in r and r["recorded_at"].endswith("Z"),
+                  "recorded_at is UTC and stamped")
+
+            # One row per line: without the trailing newline a second append
+            # concatenates onto the first and both rows become unreadable.
+            raw = open(led, encoding="utf8").read()
+            check(raw.endswith("\n"), "each ledger row must end with a newline")
+            check(len(raw.strip().splitlines()) == 1, "one row occupies one line")
+
+            # Append-only: a second add must not overwrite the first.
+            with contextlib.redirect_stdout(io.StringIO()):
+                cmd_add(A(json=cap, scenario="S-test", window="1-2", note=""))
+            check(len(load(led)) == 2, "ledger is append-only")
+
+            # A malformed line must be REPORTED, not silently dropped.
+            with open(led, "a", encoding="utf8") as fh:
+                fh.write("{not json\n")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rows = load(led)
+            check(len(rows) == 2, "malformed line skipped, good rows kept")
+            check("malformed JSON" in err.getvalue(),
+                  "malformed line must warn, not vanish silently")
+
+            # Reporting must not raise on a mixed ledger.
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                check(cmd_report(A(scenario=None)) == 0, "report returns 0")
+            check("S-test" in out.getvalue(), "report lists the scenario")
+
+            # Filtering to an unknown scenario yields nothing, not everything.
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                cmd_report(A(scenario="nope"))
+            check("S-test" not in out.getvalue(), "scenario filter excludes others")
+        finally:
+            if prev is None:
+                os.environ.pop("ZERO_PERF_CPU_LEDGER", None)
+            else:
+                os.environ["ZERO_PERF_CPU_LEDGER"] = prev
+
+    print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)
+    return 0 if ok else 1
+
+
 def main(argv):
+    if "--self-test" in argv:
+        return self_test()
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd")

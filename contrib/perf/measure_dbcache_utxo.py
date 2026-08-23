@@ -365,7 +365,84 @@ def run_one(dbcache: int, insight: bool, stamp: str, run_idx: int) -> dict:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def self_test() -> int:
+    """Pin log parsing and the latency summary.
+
+    These functions turn a debug.log into recorded numbers. A parse that
+    silently returns nothing produces an empty cell rather than an error, so
+    absence is asserted explicitly alongside correctness.
+    """
+    import tempfile
+
+    ok = True
+
+    def check(cond, msg):
+        nonlocal ok
+        if not cond:
+            print("FAIL: " + msg, file=sys.stderr)
+            ok = False
+
+    with tempfile.TemporaryDirectory() as d:
+        log = os.path.join(d, 'debug.log')
+        with open(log, 'w', encoding='utf-8') as fh:
+            fh.write(
+                # Format matches src/init.cpp LogPrintf exactly: leading
+                # "* Using ", no space before MiB.
+                "2026-08-19 10:00:00 * Using 2.0MiB for block index database\n"
+                "2026-08-19 10:00:00 * Using 8.0MiB for chain state database\n"
+                "2026-08-19 10:00:00 * Using 450.0MiB for in-memory UTXO set\n"
+                "2026-08-19 10:00:01 UpdateTip: new best=aa height=100 "
+                "log2_work=1 tx=1 date=2026-08-19 progress=0.1 "
+                "cache=1.5MiB(20tx)\n"
+                "2026-08-19 10:00:02 UpdateTip: new best=bb height=200 "
+                "log2_work=1 tx=2 date=2026-08-19 progress=0.2 "
+                "cache=2.5MiB(40tx)\n"
+            )
+        cfg = parse_cache_config(log)
+        check(cfg.get('budget_block_index_mib') == 2.0, "block index budget parsed")
+        check(cfg.get('budget_chainstate_mib') == 8.0, "chainstate budget parsed")
+        check(cfg.get('budget_utxo_cache_mib') == 450.0, "UTXO budget parsed")
+
+        tip = last_tip_cache(log)
+        check(tip is not None, "tip line parsed")
+        if tip:
+            # LAST tip, not first: the run's end state is what is recorded.
+            check(tip['height'] == 200, "last tip wins, not the first")
+            check(tip['utxo_cache_mib'] == 2.5, "cache MiB parsed")
+            check(tip['utxo_cache_entries'] == 40, "cache entry count parsed")
+
+        empty = os.path.join(d, 'empty.log')
+        open(empty, 'w').close()
+        check(parse_cache_config(empty) == {}, "no config lines yields {}")
+        check(last_tip_cache(empty) is None, "no tip lines yields None, not 0")
+
+    # Latency summary.
+    samples = [{'generate_ms': v} for v in (30.0, 10.0, 20.0)]
+    out = summarize_latencies(samples)
+    g = out['generate_ms']
+    check(g['n'] == 3, "n counts samples")
+    check(g['min_ms'] == 10.0 and g['max_ms'] == 30.0, "min/max over sorted values")
+    check(g['mean_ms'] == 20.0, "mean computed")
+    check(g['p50_ms'] == 20.0, "p50 of an odd count is the middle value")
+
+    # KNOWN BEHAVIOUR: p50 is the upper-middle element, not an interpolated
+    # median, so an even count skews high. Pinned so a future change to
+    # summarize_latencies is a deliberate one, not an accident.
+    even = [{'generate_ms': v} for v in (10.0, 20.0)]
+    check(summarize_latencies(even)['generate_ms']['p50_ms'] == 20.0,
+          "p50 on an even count takes the upper middle (not interpolated)")
+
+    check(summarize_latencies([]) == {}, "no samples yields {}")
+    check(summarize_latencies([{'generate_ms': None}]) == {},
+          "all-None samples are dropped, not counted as zero")
+
+    print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)
+    return 0 if ok else 1
+
+
 def main() -> int:
+    if "--self-test" in sys.argv:
+        return self_test()
     if not os.path.isfile(BITCOIND):
         print('missing zerod at %s' % BITCOIND, file=sys.stderr)
         return 2

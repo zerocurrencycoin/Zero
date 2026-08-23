@@ -28,6 +28,7 @@ JSON summary (--json) for further analysis.
 """
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -285,7 +286,86 @@ def decode_one(cap_dir, do_rpc, rpc_cli, rpcport):
     }
 
 
+def self_test():
+    """Pin the window derivation and log parsing.
+
+    height_range_from_log decides the height window recorded with every
+    capture, and a window is what makes a CPU share comparable at all
+    (docs/HOWTO.md S2.4). It is bound by timestamp rather than by substring
+    precisely because `height=937` also matches `height=937237` -- that trap is
+    pinned below.
+    """
+    import tempfile
+
+    ok = True
+
+    def check(cond, msg):
+        nonlocal ok
+        if not cond:
+            print("FAIL: " + msg, file=sys.stderr)
+            ok = False
+
+    def ts(s):
+        return datetime.strptime(s, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+
+    log = (
+        "2026-08-19 10:00:00 UpdateTip: new best=aa height=937 log2_work=1 tx=1\n"
+        "2026-08-19 10:00:30 UpdateTip: new best=bb height=937237 log2_work=1 tx=1\n"
+        "2026-08-19 10:01:00 UpdateTip: new best=cc height=940000 log2_work=1 tx=1\n"
+        "2026-08-19 10:02:00 UpdateTip: new best=dd height=950000 log2_work=1 tx=1\n"
+        "2026-08-19 10:01:30 some other line that is not a tip\n"
+    )
+    with tempfile.TemporaryDirectory() as d:
+        f = os.path.join(d, "debug.log")
+        with open(f, "w", encoding="utf8") as fh:
+            fh.write(log)
+
+        lo, hi = height_range_from_log(f, ts("2026-08-19 10:00:00"),
+                                       ts("2026-08-19 10:01:00"))
+        check((lo, hi) == (937, 940000),
+              "window is first/last tip inside the interval, got %r" % ((lo, hi),))
+
+        # The substring trap: a window starting at the 937237 line must not
+        # pick up the earlier height=937 row.
+        lo, hi = height_range_from_log(f, ts("2026-08-19 10:00:30"),
+                                       ts("2026-08-19 10:02:00"))
+        check(lo == 937237, "bound by timestamp, not by height substring")
+
+        # Interval with no tips yields (None, None) rather than a bogus window.
+        lo, hi = height_range_from_log(f, ts("2026-08-19 09:00:00"),
+                                       ts("2026-08-19 09:30:00"))
+        check((lo, hi) == (None, None), "empty interval yields no window")
+
+        # Boundaries are inclusive on BOTH ends, tested separately so an
+        # exclusive comparison cannot pass by matching some interior tip.
+        lo, hi = height_range_from_log(f, ts("2026-08-19 10:02:00"),
+                                       ts("2026-08-19 10:02:00"))
+        check((lo, hi) == (950000, 950000),
+              "a zero-width interval on a tip still selects it")
+        # Start bound: the tip exactly at start must be included.
+        lo, _ = height_range_from_log(f, ts("2026-08-19 10:01:00"),
+                                      ts("2026-08-19 10:02:00"))
+        check(lo == 940000, "tip exactly at the start bound is included")
+        # End bound: the tip exactly at end must be included.
+        _, hi = height_range_from_log(f, ts("2026-08-19 10:00:00"),
+                                      ts("2026-08-19 10:00:30"))
+        check(hi == 937237, "tip exactly at the end bound is included")
+
+        # A malformed/short file must not raise.
+        bad = os.path.join(d, "bad.log")
+        with open(bad, "w", encoding="utf8") as fh:
+            fh.write("not a log line\n\n")
+        check(height_range_from_log(bad, ts("2026-08-19 10:00:00"),
+                                    ts("2026-08-19 10:02:00")) == (None, None),
+              "unparseable log yields no window, not an exception")
+
+    print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)
+    return 0 if ok else 1
+
+
 def main():
+    if "--self-test" in sys.argv:
+        return self_test()
     ap = argparse.ArgumentParser()
     ap.add_argument("captures_dir", type=Path)
     ap.add_argument("--rpc", action="store_true", help="sample tx-type mix via zero-cli RPC (needs a live node)")

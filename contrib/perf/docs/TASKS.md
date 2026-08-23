@@ -32,6 +32,10 @@ unless a dependency is named. **D** runs in parallel throughout.
 | C2 Remaining measurement gaps | ToDo | Open | M | `FINDINGS.md` S4 |
 | C3 Inherited build/DB defects | ToDo | Open | M | `../BUILD_RECONFIG.md` |
 | D1 Equihash / blake2 integration | ToDo | Open | M | `FINDINGS.md` S2 |
+| E1 Script corpus and safety | InProgress | Open | M | `POLICY.md` S3.1 |
+| F1 Regression gate on validate | ToDo | Open | S | this file, F1 |
+| F1b A2d stamp at write time | ToDo | Open | S-M | this file, F1b |
+| F2 CI wiring | -- | **Postponed** | S | needs repo settings |
 | GROTH | -- | Postponed | L-XL | `../PerfGroth.md` |
 
 ---
@@ -54,10 +58,12 @@ Make `lint-perf.sh` the enforcement point, then wire it into CI.
 
 | Step | What | State |
 |------|------|-------|
-| a | Run `check-unicode.py --fix` | **Finished** -- 693 -> 0 in owned scope |
+| a | Run `fix_ascii.py --fix` | **Finished** -- 693 -> 0 in owned scope |
 | b | Add `unicode-docs` to the default `CHECKS` | **Finished** -- scoped to owned docs, `keep/` excluded |
 | c | Add a citation check: a bare figure with no `M-*` id, and an absolute-path check (`POLICY.md` S7.3) | ToDo |
-| d | Add the working branch to the CI push trigger, and a lint job ahead of the build | ToDo |
+| d | CI wiring | **Moved** to F2 (Postponed) |
+| e | Gate tool self-tests in `lint-perf.sh` | **Finished** -- 13/15 Python tools plus `perflib.sh` |
+| f | Harden `fix_ascii --fix`: scope, formula and blast-radius guards | **Finished** -- `POLICY.md` S7.4 |
 
 (a) without (b) drifts again; (d) is where (b) and (c) stop being advisory.
 
@@ -202,6 +208,124 @@ Harness: `mine_bench.sh`, `performance-measurements.sh`, KATs in
 
 ---
 
+## F -- regression gating and CI
+
+### F1. Where the gate attaches (proposal)
+
+Compilation is standalone and slow; a lint/self-test gate should not wait on
+it. Proposal:
+
+| Stage | Runs | Gate |
+|-------|------|------|
+| **build** | `zcutil/build.sh` | standalone; no regression gate attached |
+| **validate** | `lint-perf.sh` + tool self-tests + `contrib/run-tests.sh` | **the regression gate** |
+| **release** | `zcutil/check-release.sh` | validate must have passed |
+
+`validate` is the natural attachment point: it already exists as a target
+(`contrib/run-tests.sh --strict`), it needs no compiler, and it is what a
+release is supposed to depend on. Attaching to `build` would couple a
+30-second check to a 4-hour compile; attaching to `release` alone would let
+regressions accumulate until the end.
+
+**Kanban: ToDo. Effort S.** Local `validate` first, since it works without any
+repository settings.
+
+### F1b. A2d resolution: where the stamp is emitted (proposal)
+
+A2d ("call `platform_stamp.py` from every launcher") is what keeps A2 in
+InTest. Three options were considered.
+
+| Option | How | Cost | Failure mode |
+|--------|-----|------|--------------|
+| **A. Per-launcher call** | Each of the 10 launchers calls the helper and merges the block into its row | 10 edits; drifts as launchers are added | A launcher that forgets it writes an unstamped row, and nothing notices |
+| **B. Stamp at write time (recommended)** | `accumulate_bench.py` / `profile_collate.py` call `platform_stamp` when appending a row | 2 edits, both in code already under self-test | None: a row cannot be written without a stamp |
+| **C. Post-hoc backfill** | Stamp rows after the fact from run metadata | 1 edit | The values are inferred, not observed -- exactly the provenance problem being fixed |
+
+**Recommend B.** The justification is that it makes the invariant structural
+rather than procedural: every row reaches the ledger through one of two writer
+functions, so stamping *there* means an unstamped row is unrepresentable. A is
+ten chances to forget; C records a guess.
+
+Two caveats B must handle, and they are why this is a change rather than a
+one-liner:
+
+- **The writer runs after the node exits**, so `build.*` must be captured from
+  the binary that actually ran, not from whatever `src/zerod` is at write time.
+  Pass the binary path into the writer; fall back to unknown rather than
+  guessing.
+- **`features.workload` is known only to the launcher** (op, wallet, snap,
+  height range). The writer cannot infer it. Launchers pass it as arguments --
+  a much smaller change than emitting the whole block, and the fields already
+  exist as parameters in most of them.
+
+Exit condition for A2: one measurement recorded end to end through the writer,
+with a populated `platform`, `build` and `features` block, and the aggregation
+guard (A2f) refusing to pool it with an existing macOS row from a different
+binary.
+
+**Kanban: ToDo. Effort S-M.**
+
+### F2. CI wiring -- **Postponed**
+
+Separated from F1 because it needs something no code change provides:
+repository settings access. `.github/workflows/tests.yml` triggers on push to
+`[main, master, develop]`; the working branch is `perf-402`, so direct pushes
+run no CI at all.
+
+**Consequence while postponed:** every gate is **local only**. A contributor
+who does not run `lint-perf.sh` bypasses all of it. F1 reduces but does not
+remove this -- a local `validate` target still has to be run by a person.
+
+Needed to unblock: add the working branch to the push trigger, and add a lint
+job ahead of the 240-minute build.
+
+---
+
+## E -- script corpus and safety
+
+### E1. Shared shell library
+
+`perflib.sh` replaces helpers that had been copied and had drifted: `log()` was
+byte-identical in 6 scripts, `cli()` in 5, `stop_node()` / `height_of()` in 3
+each. It also owns the value guards and the datadir policy.
+
+| Step | What | State |
+|------|------|-------|
+| a | `perflib.sh` + `perflib_selftest.sh`, gated | **Finished** |
+| b | Datadir disposition policy, default `aside` | **Finished** -- `POLICY.md` S3.1 |
+| c | Value guards: `require_num`, `nonneg`, `positive`, `safe_div`, `span_blocks` | **Finished** |
+| d | Divide-by-zero guards in `bucket_profile2.py`, `shielded_density.py` | **Finished** |
+| e | Unified datadir mapping (`zeropaths.py`) mirroring `GetDefaultDataDir()`, plus platform-independent production-datadir protection | **Finished** |
+| f | Migrate launchers onto `perflib.sh` | **InProgress** -- 8 of 9 done, **1 to go** |
+| g | `rm -r` by default, `-f` only under `ZERO_PERF_FORCE` / `--force` | **Finished** |
+| h | Rename `check-unicode.py` -> `fix_ascii.py`; `--all-paths` / `--ascii-formula`; Y/n confirm replaces `--yes` | **Finished** |
+
+**Remaining:** `performance-measurements.sh` only -- 5 `rm -rf` sites, no
+`log()`/`cli()` copies. Left last because it is the `zcbenchmark` runner rather
+than a sync launcher, and its datadir handling differs.
+
+Migrated: `bench_matrix.sh`, `capture_sequence.sh`, `mine_bench.sh`,
+`postsapling_reindex.sh`, `tiny_baseline.sh`, `wallet_sync_profile.sh`,
+`witness_lab.sh`, `lint-perf.sh`. All local `log()` copies are gone.
+
+**Kanban: InProgress. Effort M**, dominated by (e) and (f).
+
+---
+
+## Blockers and incomplete work
+
+Stated explicitly so nothing above reads as finished when it is not.
+
+| Item | State | What is needed |
+|------|-------|----------------|
+| **A2d** stamp helper in launchers | **Open** | See the proposal in F1 below |
+| **E1f** launcher migration | **InProgress** | **1 launcher** left (`performance-measurements.sh`, 5 `rm -rf` sites). Production datadirs are protected regardless -- the guard is in `dispose_datadir` and `debuglog.py` -- but that script's own wipes do not yet honour the disposition policy. (Earlier notes said 13 then 8; measured counts) |
+| **A2d** stamp helper in launchers | **Open** | Blocks A2 leaving InTest, and blocks B2 (first Linux capture) from being recordable |
+| **GROTH** | **Postponed** | A maintainer's decision; nothing else depends on it |
+| **`Perf.md` retirement** | **Not ready** | Holds detail for B1, B3 and GROTH. Re-run the caveat diff (`MIGRATION.md` S6) before retiring |
+
+---
+
 ## Aside -- will not do
 
 | Item | Reason |
@@ -229,6 +353,14 @@ Harness: `mine_bench.sh`, `performance-measurements.sh`, KATs in
 | `.host_salt` excluded from git | `.gitignore` |
 | Timer defects found | `FINDINGS.md` S1.1 |
 | Docs set restructured; 7 retired, 6 relocated | `MIGRATION.md`, `NOTES.md` |
+| Shared shell library; 6 duplicated helpers consolidated | `perflib.sh` |
+| Datadir disposition policy, default set-aside | `POLICY.md` S3.1 |
+| `fix_ascii --fix` blast-radius guards | `POLICY.md` S7.4 |
+| Tool self-tests gated; 13/15 Python tools plus `perflib.sh` | `lint-perf.sh` |
+| Divide-by-zero and sign-inversion guards | `perflib.sh`, `bucket_profile2.py` |
+| Platform-independent production-datadir protection | `zeropaths.py`, `POLICY.md` S3.1 |
+| `fix_ascii.py` rename; Y/n confirm on every file change | `POLICY.md` S7.4 |
+| 8 of 9 launchers on `perflib.sh`; all local `log()` copies gone | `perflib.sh` |
 | Unicode backlog cleared and gated | `lint-perf.sh` `unicode-docs`, 0/0 |
 | Absolute paths struck from tracked docs | `POLICY.md` S7.3 |
 | `Perf.md` caveat diff: 0 orphaned rules | `MIGRATION.md` S6 |

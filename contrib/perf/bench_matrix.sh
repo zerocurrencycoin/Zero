@@ -70,6 +70,8 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck disable=SC1091
 . "$REPO_ROOT/contrib/perf/datadir_guard.sh"
+# shellcheck source=/dev/null
+. "$REPO_ROOT/contrib/perf/perflib.sh"
 ZEROD="$REPO_ROOT/src/zerod"
 ZERO_CLI="$REPO_ROOT/src/zero-cli"
 # Read-only source for rsync resets. Override with ZERO_PERF_SRC_DATADIR.
@@ -86,11 +88,10 @@ fi
 
 mkdir -p "$OUT_DIR"
 RESULTS_TSV="$OUT_DIR/results.tsv"
+# Consumed by log() in perflib.sh; shellcheck cannot see across the source.
+# shellcheck disable=SC2034
 DRIVER_LOG="$OUT_DIR/driver.log"
 
-log() {
-    echo "$(date -u '+%Y-%m-%d %H:%M:%S UTC') $*" | tee -a "$DRIVER_LOG"
-}
 
 if [ ! -f "$RESULTS_TSV" ]; then
     printf "mode\tcondition\ttrial\twarmup_height\tend_height\tblocks\telapsed_s\tblocks_per_sec\n" > "$RESULTS_TSV"

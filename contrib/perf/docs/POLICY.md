@@ -65,7 +65,7 @@ nothing. Four have drifted that way. Current state:
 
 | Rule | Enforcement | State |
 |------|-------------|--------|
-| ASCII only | `check-unicode.py`, `lint-perf.sh` | Checker exists; `unicode-docs` **not** in default `CHECKS` |
+| ASCII only | `fix_ascii.py`, `lint-perf.sh` | Checker exists; `unicode-docs` **not** in default `CHECKS` |
 | Owned-scope lint clean | `lint-perf.sh` | Enforced, passing |
 | Numbers cited by `M-*` | -- | **Convention only.** Proposed: `TASKS.md` A1c |
 | Full node only | -- | **Convention only.** 475 lines of wallet UI docs present |
@@ -112,6 +112,52 @@ carries `features.effective`:
 ```
 
 `null` means unknown, never "off".
+
+---
+
+## 3.1 Existing datadirs: disposition policy
+
+When a launcher targets a datadir that already exists, what happens is set by
+`ZERO_PERF_DATADIR_POLICY` and implemented once in `perflib.sh`
+(`dispose_datadir`). Before this, nine sites did an unconditional `rm -rf`.
+
+| Policy | Behaviour |
+|--------|-----------|
+| **`aside`** | **Default.** Rename to `<path>.aside-<utc>`, then create a fresh tree. Nothing is lost |
+| `replace` / `recreate` | Delete and recreate. **Destructive**; warns. Uses `rm -r`; `-f` only under `ZERO_PERF_FORCE=1` (scripts expose `--force`), so a permission error surfaces instead of being forced through |
+| `keep` | Use in place. Warns that results may reflect prior state |
+| `external` | Do not touch; the caller manages the tree |
+
+**Why `aside` is the default.** A re-run must never silently destroy the
+previous run's evidence -- that evidence is often the only record, since lab
+scratch lives in `/tmp` and is reclaimed (S6). Set-aside costs disk; a lost
+capture costs a re-run, or the result outright.
+
+Three rules the implementation enforces:
+
+- **Production-datadir refusal runs first**, before any policy, and no policy
+  or flag is a way around it -- not `replace`, not `ZERO_PERF_FORCE=1`.
+- **Protection is platform-independent.** Every plausible production datadir
+  name is gated on every host: `~/.zero`, `~/zero`,
+  `~/Library/Application Support/{zero,Zero}`, `%APPDATA%\zero`, and the
+  contents of each. A `~/.zero` on macOS is not what `zerod` would create
+  there, but it is very plausibly a real datadir copied from a Linux machine --
+  and the incident this guards against was **an attempt to delete a production
+  datadir**, not a mis-mapped path.
+- **The guard's exit status is checked.** `refuse_live_datadir` reports by exit
+  status; ignoring it moved a directory during development. `perflib.sh` now
+  fails closed, and the self-test asserts it.
+
+**Two questions, two functions** (`zeropaths.py`) -- conflating them is a bug
+in either direction:
+
+| Question | Function | Breadth |
+|----------|----------|---------|
+| Which datadir would `zerod` use here? | `default_datadir()` | one path, this platform |
+| Might this be somebody's real datadir? | `is_protected_datadir()` | every name, every platform |
+
+Destructive guards use the second. Using the first would have left a
+production `~/.zero` unprotected on macOS.
 
 ---
 
@@ -304,9 +350,9 @@ env var the launchers already set.
 Enforcement: none yet; candidate for `lint-perf.sh` alongside the citation
 check (`TASKS.md` A1c).
 
-### 7.4 Automated rewrites stay inside owned scope
+### 7.4 Automated rewrites stay inside owned scope and confirm their blast radius
 
-`check-unicode.py --fix` writes only under `contrib/perf/`. Running it
+`fix_ascii.py --fix` writes only under `contrib/perf/`. Running it
 tree-wide once rewrote eight Zero400-owned root documents, which this tree does
 not own (S7), and its `U+00B7 -> '-'` mapping turned products into apparent
 subtraction in a Groth16 pairing equation.
@@ -321,3 +367,16 @@ Two rules follow:
 
 Violations found in Zero400-owned files are **reported to that tree**, not
 fixed here.
+
+`fix_ascii.py --fix` now enforces three guards, each with an explicit
+override so a deliberate operator is never blocked:
+
+| Guard | Refuses | Override |
+|-------|---------|----------|
+| Scope | writing outside `contrib/perf/` | `--any-path` |
+| Formula content | any file that looks mathematical | `--allow-formula-files` |
+| Blast radius | rewriting more than 5 files | `--yes` |
+
+Interactively it also lists the files and asks before writing. All three are
+asserted in the tool's `--self-test` by behaviour -- creating real files and
+checking they are byte-identical afterwards -- not by inspecting source text.

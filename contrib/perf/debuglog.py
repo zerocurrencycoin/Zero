@@ -32,6 +32,9 @@ import re
 import sys
 import tempfile
 from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import zeropaths as _zeropaths  # noqa: E402
 from typing import Iterable, Optional
 
 ROTATED_NAME_RE = re.compile(
@@ -49,13 +52,14 @@ def resolve_path(p: Path) -> Path:
 
 
 def default_runtime_datadirs() -> list[Path]:
-    home = Path.home()
-    return [
-        home / "Library" / "Application Support" / "zero",
-        home / "Library" / "Application Support" / "Zero",
-        home / ".zero",
-        home / "AppData" / "Roaming" / "zero",
-    ]
+    """THIS platform's default datadir spellings -- not every platform's.
+
+    Delegates to zeropaths.py, which mirrors GetDefaultDataDir(). Returning
+    other platforms' paths here previously made a macOS host treat the Unix
+    `~/.zero` as live, and a self-test iterating the list created and moved a
+    directory belonging to no platform in use.
+    """
+    return list(_zeropaths.datadir_variants())
 
 
 def zero400_root() -> Path:
@@ -72,10 +76,17 @@ def _is_under(path: Path, root: Path) -> bool:
 
 
 def live_kind(path: Path) -> Optional[str]:
-    """Return 'runtime', 'zero400', or None."""
-    for d in default_runtime_datadirs():
-        if _is_under(path, d):
-            return "runtime"
+    """Return 'runtime', 'zero400', or None.
+
+    'runtime' covers EVERY plausible production datadir name, not just the one
+    this platform would create. A `~/.zero` on a macOS host is not what zerod
+    makes there, but it is very plausibly a real datadir copied from a Linux
+    box -- and the incident this guards against was an attempt to delete a
+    production datadir, not a mis-mapped path. Protection is deliberately
+    wider than platform detection (zeropaths.is_protected_datadir).
+    """
+    if _zeropaths.is_protected_datadir(path):
+        return "runtime"
     z4 = zero400_root()
     if _is_under(path, z4):
         return "zero400"

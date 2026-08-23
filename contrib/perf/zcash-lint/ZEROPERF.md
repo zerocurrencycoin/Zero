@@ -145,10 +145,10 @@ permanent merge friction, and buys no function. Only ZeroPerf-owned files under
 | SC2155 x2 | `bench_matrix.sh:306`, `ops-campaign.sh:243` | split `local x=$(cmd)` into declare + assign so the command's exit status is not masked |
 | SC2034 x3 | `bench_matrix.sh` bounded retry loops | `for i in $(seq ...)` -> `for _ in ...` where the counter is unused |
 
-## Relation to check-unicode.py
+## Relation to fix_ascii.py
 
 No script here checks source **content** for non-ASCII.
 `lint-python-utf8-encoding.sh` is the only one matching "utf8", and it checks
 how Python `open()` calls are written, not what characters files contain.
-Bitcoin Core's 16 linters have no such check either. `contrib/perf/check-unicode.py`
+Bitcoin Core's 16 linters have no such check either. `contrib/perf/fix_ascii.py`
 covers that gap; see UpdateZero.md **DOC-UNICODE**.

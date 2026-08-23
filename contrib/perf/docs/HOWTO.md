@@ -290,7 +290,7 @@ Per-tool invocation detail lives in `../README.md`; this is the index.
 | `performance-measurements.sh` | `<benchmark> [args]`, run from repo root | `zcbenchmark` / valgrind runner (M-ZCB-SUITE); 19 named benchmarks |
 | `collate_cycle.py` | `--md <out.md>` | collate an `ops-campaign` cycle |
 | `datadir_guard.sh` | sourced, not executed | `refuse_live_datadir`; env `ZERO_PERF_ALLOW_LIVE_DATADIR` to override |
-| `check-unicode.py` | `[--fix] [--all] [paths]` | non-ASCII policy |
+| `fix_ascii.py` | `[--fix] [--all] [paths]` | non-ASCII policy |
 | `lint-perf.sh` | `[--all] [--summary] [--list]` | gated to `contrib/perf/` |
 | `zcash-lint/` | vendored Zcash linters | see `ZEROPERF.md` |
 

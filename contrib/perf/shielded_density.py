@@ -273,8 +273,11 @@ def scan_band(
         "sprout_js": totals["sprout_js"],
         "fully_shielded_tx": totals["fully_shielded_tx"],
         "blocks": totals["blocks"],
-        "shielded_tx_per_block": round(
-            (totals["sapling_tx"] + totals["sprout_tx"]) / blocks, 6
+        # An empty band divides by zero. Report None rather than 0.0: a
+        # density of zero is a real measurement, "no blocks" is not.
+        "shielded_tx_per_block": (
+            round((totals["sapling_tx"] + totals["sprout_tx"]) / blocks, 6)
+            if blocks > 0 else None
         ),
         "sapling_tx": totals["sapling_tx"],
         "sprout_tx": totals["sprout_tx"],

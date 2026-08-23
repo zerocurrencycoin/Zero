@@ -14,6 +14,8 @@ set -euo pipefail
 
 SNAP="${1:-tiny}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=/dev/null
+. "$REPO_ROOT/contrib/perf/perflib.sh"
 # shellcheck disable=SC1091
 . "$REPO_ROOT/contrib/perf/datadir_guard.sh"
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"

@@ -30,6 +30,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck disable=SC1091
 . "$REPO_ROOT/contrib/perf/datadir_guard.sh"
+# shellcheck source=/dev/null
+. "$REPO_ROOT/contrib/perf/perflib.sh"
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
 ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
 SRC_DATADIR="${ZERO_PERF_SRC_DATADIR:-$HOME/Library/Application Support/zero}"
@@ -80,7 +82,9 @@ mkdir -p "$OUT_DIR" "$STORE_DIR"
 RESULTS="$OUT_DIR/results.tsv"
 printf "mode\tcondition\ttrial\twarmup_height\tend_height\tblocks\telapsed_s\tblocks_per_sec\trun_id\n" > "$RESULTS"
 DRIVER="$OUT_DIR/driver.log"
-log() { echo "$(date -u '+%Y-%m-%d %H:%M:%S UTC') $*" | tee -a "$DRIVER"; }
+# log() comes from perflib.sh and tees to DRIVER_LOG.
+# shellcheck disable=SC2034
+DRIVER_LOG="$DRIVER"
 
 if [ "$MEASURE_BLOCKS" -eq 0 ]; then
   TARGET_END=0
@@ -135,8 +139,8 @@ kill_pid_hard() {
 
 reset_scratch() {
   log "reset scratch (rsync blocks, exclude chainstate; source read-only)"
-  rm -rf "$SCRATCH"
-  mkdir -p "$SCRATCH"
+  # Honours ZERO_PERF_DATADIR_POLICY (default: set aside, then recreate).
+  dispose_datadir "$SCRATCH" SCRATCH
   rsync -a --exclude='chainstate' --exclude='wallet.zero' --exclude='wallet.zero*' \
     --exclude='debug*.log' --exclude='.lock' \
     "$SRC_DATADIR/" "$SCRATCH/"

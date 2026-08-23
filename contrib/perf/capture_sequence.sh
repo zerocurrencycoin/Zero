@@ -40,6 +40,8 @@ TEMPLATE="${6:-Time Profiler}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck disable=SC1091
 . "$REPO_ROOT/contrib/perf/datadir_guard.sh"
+# shellcheck source=/dev/null
+. "$REPO_ROOT/contrib/perf/perflib.sh"
 ZEROD="$REPO_ROOT/src/zerod"
 ZERO_CLI="$REPO_ROOT/src/zero-cli"
 RPCPORT=23920
@@ -50,10 +52,10 @@ refuse_live_datadir DATADIR "$DATADIR"
 
 mkdir -p "$OUT_DIR"
 SEQ_LOG="$OUT_DIR/sequence.log"
+# log() comes from perflib.sh and tees to DRIVER_LOG.
+# shellcheck disable=SC2034
+DRIVER_LOG="$SEQ_LOG"
 
-log() {
-    echo "$(date -u '+%Y-%m-%d %H:%M:%S UTC') $*" | tee -a "$SEQ_LOG"
-}
 
 record_system_state() {
     local dest="$1"
