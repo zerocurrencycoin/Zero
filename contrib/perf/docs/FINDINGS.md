@@ -67,11 +67,32 @@ The ASCII-only rule (693 violations, 498 in `Perf.md`) and the "numbers live in
 documents). Both are written down; neither is checked. Pattern and fix:
 `POLICY.md` S2.1, `TASKS.md` A1.
 
-### 1.4 Direction this points
+### 1.4 Harness defects found by testing it
 
-1. **Instrument the proof path before building any summary** (B1).
-2. **Exercise the schema once end to end**, then take the first Linux capture
-   (A2, B2) -- the architecture assumption is untested.
+Bringing the harness to full self-test coverage surfaced defects that would
+each have corrupted a published number without raising anything. Recorded here
+because they bound how far the *older* figures in S3 can be trusted -- all of
+them predate these fixes.
+
+| Defect | Effect |
+|--------|--------|
+| `collate_cycle`: `float(x or 0)` | A missing rate counted as 0.0. Measured: a three-row group reported **33.3 instead of 100.0** |
+| `accumulate_bench.collate`: unguarded `float(r["blocks_per_sec"])` | One incomplete row raised `KeyError`, so **no report at all** could be produced from the ledger |
+| `bucket_profile2`: division by `total` | A thread filter matching nothing divided by zero rather than reporting the (documented, common) operator error |
+| Proof verification outside every timer | The dominant post-Sapling cost is invisible to `-debug=bench` (S1.1) |
+| `verify` includes `connect` | Summing the two double-counts; now `verify_excl_ms()` (S1.1) |
+
+None changed an existing figure: `accumulate_bench --report` output was
+verified byte-identical after the fix. What they change is confidence in
+figures produced *before* the guards existed.
+
+### 1.5 Direction this points
+
+1. **Take the first non-macOS capture** (B2). Now recordable: results carry
+   platform, build and feature identity, and stamping happens at the ledger
+   writer so an unstamped row cannot exist.
+2. **Instrument the proof path before building any summary** (B1c/d). The
+   parser side is done; the counters are a product change.
 3. **Record the microbenchmark baseline now** (A3): `verifysaplingspend` /
    `verifysaplingoutput` measure per-proof cost directly, and a batching result
    needs that baseline taken *beforehand*.

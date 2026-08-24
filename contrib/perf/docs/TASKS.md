@@ -28,15 +28,34 @@ unless a dependency is named. **D** runs in parallel throughout.
 | B1 Phase timers | **InProgress** | Open | S-M | `FINDINGS.md` S1.1, `../PerfTimers.md` |
 | B2 First non-macOS measurement | ToDo | Open | M | `../PerfPlatforms.md` |
 | B3 NOTEIDX staleness | ToDo | Open | S | `FINDINGS.md` S3.1 |
-| C1 Documentation consolidation | InProgress | Open | M | `MIGRATION.md` |
+| C1 Documentation consolidation | **InTest** | Open | M | `MIGRATION.md` |
 | C2 Remaining measurement gaps | ToDo | Open | M | `FINDINGS.md` S4 |
 | C3 Inherited build/DB defects | ToDo | Open | M | `../BUILD_RECONFIG.md` |
 | D1 Equihash / blake2 integration | ToDo | Open | M | `FINDINGS.md` S2 |
 | E1 Script corpus and safety | **Finished** | Finished | M | `POLICY.md` S3.1 |
 | F1 Regression gate on validate | **InTest** | Open | S | `validate.sh` |
-| F1b A2d stamp at write time | ToDo | Open | S-M | this file, F1b |
+| F1b A2d stamp at write time | **Finished** | Finished | S-M | this file, F1b |
 | F2 CI wiring | -- | **Postponed** | S | needs repo settings |
 | GROTH | -- | Postponed | L-XL | `../PerfGroth.md` |
+
+### Where to start next session
+
+Everything below is Open unless marked otherwise. Three items are at **InTest**
+and share one exit condition: **none has been exercised from a clean checkout
+on a second machine.** That is the single highest-value next step, because it
+is also what would validate the cross-platform schema work.
+
+| Next | Item | Why it is next |
+|------|------|----------------|
+| 1 | **B2** first non-macOS capture | Now recordable (A2/F1b landed). Would move A1, A2, F1 and C1 out of InTest together, since a clean-checkout Linux run exercises all four |
+| 2 | **A3** microbenchmark baseline | Effort S, no decision needed, and worth more the longer GROTH stays postponed: a batching result needs a per-proof baseline taken beforehand |
+| 3 | **B1c/d** proof counters + `BenchSummary` | Product change, Zero400 review. B1a/b (parser side) are Finished |
+
+**Do not start** GROTH (maintainer's decision) or F2 (needs repository
+settings). Both are Postponed, not forgotten.
+
+**Standing caveat:** every gate is local. `validate.sh` runs only when a person
+runs it, so until F2 lands a contributor who skips it bypasses all of A1.
 
 ---
 
@@ -62,7 +81,7 @@ Make `lint-perf.sh` the enforcement point, then wire it into CI.
 | b | Add `unicode-docs` to the default `CHECKS` | **Finished** -- scoped to owned docs, `keep/` excluded |
 | c | Citation + absolute-path checks | **Finished** -- `check_citations.py`, gated as `citations`. Scoped to measurement figures so it is signal, not noise |
 | d | CI wiring | **Moved** to F2 (Postponed) |
-| e | Gate tool self-tests in `lint-perf.sh` | **Finished** -- **16/16** Python tools plus `perflib.sh` |
+| e | Gate tool self-tests in `lint-perf.sh` | **Finished** -- **17/17** Python tools plus `perflib.sh` |
 | f | Harden `fix_ascii --fix`: scope, formula and blast-radius guards | **Finished** -- `POLICY.md` S7.4 |
 
 (a) without (b) drifts again; (d) is where (b) and (c) stop being advisory.
@@ -372,13 +391,13 @@ Stated explicitly so nothing above reads as finished when it is not.
 | Shared shell library; 6 duplicated helpers consolidated | `perflib.sh` |
 | Datadir disposition policy, default set-aside | `POLICY.md` S3.1 |
 | `fix_ascii --fix` blast-radius guards | `POLICY.md` S7.4 |
-| Tool self-tests gated; **16/16** Python tools plus `perflib.sh` | `lint-perf.sh` |
+| Tool self-tests gated; **17/17** Python tools plus `perflib.sh` | `lint-perf.sh` |
 | Divide-by-zero and sign-inversion guards | `perflib.sh`, `bucket_profile2.py` |
 | Platform-independent production-datadir protection | `zeropaths.py`, `POLICY.md` S3.1 |
 | Read vs destroy split as separate permissions | `POLICY.md` S3.1 |
 | Regression gate `validate.sh`; 15 self-tests + lint, logged per run | F1 |
 | Run logging: `warn()`/`die()` reach the driver log; `tiny_baseline.sh` and `validate.sh` keep durable logs | `POLICY.md` S3.2 |
-| Full self-test coverage: `collate_cycle.py`, `shielded_density.py` | 16/16 |
+| Full self-test coverage: `collate_cycle.py`, `shielded_density.py` | 17/17 |
 | `collate_cycle`: missing rate no longer counted as 0.0 (dragged a mean from 100.0 to 33.3); malformed ledger line no longer aborts collation | `collate_cycle.py` |
 | `accumulate_bench.collate`: one incomplete row raised `KeyError`, so **no** report could be produced from the whole ledger. Now excluded with a warning; report output verified byte-identical | `accumulate_bench.py` |
 | Grouping keys: a missing height no longer collides with a genuine height-0 window | `accumulate_bench.py` |
