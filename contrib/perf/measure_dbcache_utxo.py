@@ -412,7 +412,7 @@ def self_test() -> int:
             check(tip['utxo_cache_entries'] == 40, "cache entry count parsed")
 
         empty = os.path.join(d, 'empty.log')
-        open(empty, 'w').close()
+        open(empty, 'w', encoding='utf-8').close()
         check(parse_cache_config(empty) == {}, "no config lines yields {}")
         check(last_tip_cache(empty) is None, "no tip lines yields None, not 0")
 

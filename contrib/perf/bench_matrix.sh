@@ -105,7 +105,7 @@ height_of() {
 # shutdown path relies on RPC (not always up) or an interruption_point() a
 # stuck thread may not reach for a long time (e.g. LoadBlockIndexDB's
 # per-block accounting loop, main.cpp -- see the comment above run_trial's
-# wait loops). This script always rm -rf's the datadir before the next
+# wait loops). This script always resets the datadir (dispose_datadir) before the next
 # trial anyway, so there's no data-preservation reason to wait indefinitely
 # for a graceful exit once a bounded wait has already been exceeded.
 kill_pid_hard() {
@@ -144,7 +144,7 @@ kill_pid_hard() {
 reset_scratch_datadir() {
     local mode="$1"
     log "resetting scratch datadir for mode=$mode (source untouched: $SRC_DATADIR)"
-    rm -rf "$SCRATCH_DATADIR"
+    dispose_datadir "$SCRATCH_DATADIR" SCRATCH
     if [ "$mode" = "bootstrap" ]; then
         rsync -a --exclude='chainstate' --exclude='blocks' "$SRC_DATADIR" "$SCRATCH_DATADIR/"
         mkdir -p "$SCRATCH_DATADIR/blocks"

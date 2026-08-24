@@ -92,7 +92,7 @@ prepare_scratch() {
       rsync -a --exclude='chainstate' --exclude='wallet.zero' --exclude='wallet.zero*' \
         --exclude='debug*.log' --exclude='.lock' \
         "$SRC_DATADIR/" "$SCRATCH/"
-      rm -rf "$SCRATCH/chainstate"
+      rm -r "$SCRATCH/chainstate" 2>/dev/null || true
       ;;
     *)
       echo "ERROR: unknown SNAP=$SNAP" >&2
@@ -126,8 +126,7 @@ prepare_tip_scratch() {
     exit 1
   fi
   log "prepare tip template=$TIP_TEMPLATE -> scratch"
-  rm -rf "$SCRATCH"
-  mkdir -p "$SCRATCH"
+  dispose_datadir "$SCRATCH" SCRATCH
   rsync -a --delete \
     --exclude='wallet.zero' --exclude='wallet.zero*' \
     --exclude='debug*.log' --exclude='.lock' --exclude='zero.conf' \

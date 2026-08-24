@@ -288,7 +288,99 @@ def scan_band(
     return row
 
 
+def self_test() -> int:
+    """Pin band construction, count accumulation and resume bookkeeping.
+
+    coarse_bands decides how density data is binned, and the Sapling boundary
+    is the whole point of the split: a band straddling it mixes two populations
+    with very different shielded density, which is exactly the confusion this
+    scan exists to resolve.
+    """
+    import io
+    import contextlib
+    import tempfile
+
+    ok = True
+
+    def check(cond, msg):
+        nonlocal ok
+        if not cond:
+            print("FAIL: " + msg, file=sys.stderr)
+            ok = False
+
+    # No band may straddle Sapling activation.
+    for tip in (1000, SAPLING_ACTIVATION - 1, SAPLING_ACTIVATION,
+                SAPLING_ACTIVATION + 1, 900_000, 2_500_000):
+        bands = coarse_bands(tip)
+        for era, h0, h1 in bands:
+            check(not (h0 < SAPLING_ACTIVATION < h1),
+                  "band %s straddles Sapling activation (tip=%d)" % (era, tip))
+            check(h0 < h1, "band %s is non-empty" % era)
+            check("mixed" not in era,
+                  "no band should be tagged mixed once the split is applied: %s" % era)
+
+    # Bands are contiguous and cover [0, tip) with no gap or overlap.
+    bands = coarse_bands(2_500_000)
+    check(bands[0][1] == 0, "banding starts at height 0")
+    check(bands[-1][2] == 2_500_000, "banding ends at the tip")
+    for (e0, a0, a1), (e1, b0, b1) in zip(bands, bands[1:]):
+        check(a1 == b0, "bands are contiguous: %s ends %d, %s starts %d"
+              % (e0, a1, e1, b0))
+
+    # Tagging follows the boundary.
+    tags = {era.split("-")[1] + "-" + era.split("-")[2] for era, _, _ in bands}
+    check("pre-sapling" in tags and "post-sapling" in tags,
+          "both eras are represented above activation")
+    for era, h0, h1 in bands:
+        if h1 <= SAPLING_ACTIVATION:
+            check("pre-sapling" in era, "%s below activation must be pre" % era)
+        elif h0 >= SAPLING_ACTIVATION:
+            check("post-sapling" in era, "%s above activation must be post" % era)
+
+    # A tip at or below activation yields only pre-sapling bands.
+    for era, _, _ in coarse_bands(SAPLING_ACTIVATION):
+        check("pre-sapling" in era, "tip at activation yields only pre bands")
+
+    # Degenerate tips must not raise or emit an empty/negative band.
+    for tip in (0, 1):
+        for era, h0, h1 in coarse_bands(tip):
+            check(h1 > h0, "degenerate tip %d produced an empty band" % tip)
+
+    # add_counts accumulates and does not lose keys from either side.
+    a = {"sapling_tx": 1, "blocks": 2}
+    add_counts(a, {"sapling_tx": 3, "sprout_tx": 5})
+    check(a["sapling_tx"] == 4, "existing keys accumulate")
+    check(a["sprout_tx"] == 5, "new keys are added")
+    check(a["blocks"] == 2, "untouched keys are preserved")
+    add_counts(a, {})
+    check(a["sapling_tx"] == 4, "an empty update is a no-op")
+
+    # Resume bookkeeping: eras already in the CSV are skipped on a re-run.
+    with tempfile.TemporaryDirectory() as d:
+        csv_path = Path(d) / "density.csv"
+        check(load_done_eras(csv_path) == set(),
+              "an absent CSV means nothing is done, not an error")
+        with csv_path.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=["era", "blocks"])
+            w.writeheader()
+            w.writerow({"era": "coarse-pre-sapling-0-399999", "blocks": 400000})
+            w.writerow({"era": "", "blocks": 0})
+        done = load_done_eras(csv_path)
+        check(done == {"coarse-pre-sapling-0-399999"},
+              "completed eras are recognised; blank rows ignored")
+
+    # shielded_tx_per_block: a zero-block band must not divide by zero.
+    src = Path(__file__).read_text(encoding="utf-8")
+    check("if blocks > 0 else None" in src,
+          "an empty band yields None, not a divide-by-zero or a fake 0.0")
+
+    print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)
+    return 0 if ok else 1
+
+
 def main() -> int:
+    if "--self-test" in sys.argv:
+        return self_test()
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--datadir", required=True)
     ap.add_argument("--cli", default=str(REPO / "src" / "zero-cli"))

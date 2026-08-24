@@ -27,12 +27,19 @@ def load_jsonl(path: Path) -> list[dict]:
     if not path.is_file() or path.stat().st_size == 0:
         return []
     rows = []
-    with path.open() as f:
-        for line in f:
+    with path.open(encoding="utf-8") as f:
+        for lineno, line in enumerate(f, 1):
             line = line.strip()
             if not line:
                 continue
-            rows.append(json.loads(line))
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                # One bad line must not abort the whole collation, and must not
+                # vanish either: the row is a real trial, and dropping it
+                # silently changes every mean computed below.
+                print("WARNING: %s:%d: malformed JSON, skipped (%s)"
+                      % (path, lineno, exc.msg), file=sys.stderr)
     return rows
 
 
@@ -44,9 +51,19 @@ def cycle_rows(store_dir: Path) -> list[dict]:
 def group_rates(rows: list[dict]) -> dict[tuple[str, str, str], list[float]]:
     g: dict[tuple[str, str, str], list[float]] = defaultdict(list)
     for r in rows:
+        raw = r.get("blocks_per_sec")
+        # A missing or unparseable rate is EXCLUDED, not counted as zero.
+        # `float(x or 0)` silently contributed 0.0 to the mean, so one
+        # incomplete row could halve a reported rate with no warning.
+        if raw is None or raw == "":
+            continue
         try:
-            bps = float(r.get("blocks_per_sec") or 0)
+            bps = float(raw)
         except (TypeError, ValueError):
+            continue
+        if bps <= 0:
+            print("WARNING: skipping non-positive blocks_per_sec %r in %s"
+                  % (raw, r.get("run_id", "?")), file=sys.stderr)
             continue
         key = (str(r.get("campaign")), str(r.get("mode")), str(r.get("condition")))
         g[key].append(bps)
@@ -116,7 +133,103 @@ def format_report(rows: list[dict], status: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def self_test() -> int:
+    """Pin the collation arithmetic and its handling of bad input.
+
+    This file computes the cross-cycle rate comparison. Both failure modes are
+    silent: a malformed ledger line used to abort the run, and a missing rate
+    used to be counted as 0.0, dragging a reported mean down with no warning.
+    """
+    import io
+    import contextlib
+    import tempfile
+
+    ok = True
+
+    def check(cond, msg):
+        nonlocal ok
+        if not cond:
+            print("FAIL: " + msg, file=sys.stderr)
+            ok = False
+
+    def row(camp, cond, bps, mode="reindex", **kw):
+        r = {"campaign": camp, "mode": mode, "condition": cond,
+             "blocks_per_sec": bps, "run_id": "r-%s-%s" % (camp, cond)}
+        r.update(kw)
+        return r
+
+    # Grouping: same (campaign, mode, condition) accumulates.
+    g = group_rates([row("cycle-1", "p0", 100.0), row("cycle-1", "p0", 200.0),
+                     row("cycle-2", "p0", 150.0)])
+    check(g[("cycle-1", "reindex", "p0")] == [100.0, 200.0], "rates group by key")
+    check(g[("cycle-2", "reindex", "p0")] == [150.0], "separate campaigns stay apart")
+
+    # A missing rate is EXCLUDED, not counted as zero. This is the defect:
+    # with `float(x or 0)` the mean below would be 50.0 rather than 100.0.
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        g = group_rates([row("cycle-1", "p0", 100.0),
+                         row("cycle-1", "p0", None),
+                         row("cycle-1", "p0", ""),
+                         row("cycle-1", "p0", "not-a-number")])
+    check(g[("cycle-1", "reindex", "p0")] == [100.0],
+          "missing/unparseable rates are excluded, not zero-filled")
+    check(statistics.mean(g[("cycle-1", "reindex", "p0")]) == 100.0,
+          "the mean is not dragged down by absent rows")
+
+    # A non-positive rate is impossible and is reported, not averaged in.
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        g = group_rates([row("cycle-1", "p0", 100.0), row("cycle-1", "p0", 0.0),
+                         row("cycle-1", "p0", -5.0)])
+    check(g[("cycle-1", "reindex", "p0")] == [100.0], "non-positive rates dropped")
+    check("non-positive" in err.getvalue(), "dropping a bad rate warns")
+
+    with tempfile.TemporaryDirectory() as d:
+        store = Path(d)
+        led = store / "ledger.jsonl"
+
+        # Only cycle-* campaigns are collated.
+        with led.open("w", encoding="utf-8") as fh:
+            fh.write(json.dumps(row("cycle-1", "p0", 100.0)) + "\n")
+            fh.write(json.dumps(row("postsapling", "p0", 999.0)) + "\n")
+        rows = cycle_rows(store)
+        check(len(rows) == 1 and rows[0]["campaign"] == "cycle-1",
+              "non-cycle campaigns are excluded")
+
+        # A malformed line is skipped with a warning; good rows survive.
+        with led.open("a", encoding="utf-8") as fh:
+            fh.write("{not json\n")
+            fh.write(json.dumps(row("cycle-2", "p0", 110.0)) + "\n")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            rows = cycle_rows(store)
+        check(len(rows) == 2, "a malformed line does not abort the collation")
+        check("malformed JSON" in err.getvalue(), "the malformed line is reported")
+
+        # An absent or empty ledger is not an error.
+        check(load_jsonl(store / "nope.jsonl") == [], "absent ledger reads empty")
+        (store / "empty.jsonl").write_text("", encoding="utf-8")
+        check(load_jsonl(store / "empty.jsonl") == [], "empty ledger reads empty")
+
+        # The report renders, and the delta is only shown when both sides exist.
+        text = format_report(rows, [])
+        check("cycle-1" in text and "cycle-2" in text, "report lists both campaigns")
+        check(format_report([], []).find("No cycle-* ledger rows yet.") > 0,
+              "an empty ledger produces a clear message, not a broken table")
+
+        # Delta arithmetic: (c2 - c1) / c1, guarded against a zero baseline.
+        both = [row("cycle-1", "p1", 100.0), row("cycle-2", "p1", 110.0)]
+        text = format_report(both, [])
+        check("0.1" in text, "delta is a fraction of the cycle-1 mean")
+
+    print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)
+    return 0 if ok else 1
+
+
 def main() -> int:
+    if "--self-test" in sys.argv:
+        return self_test()
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--store-dir", type=Path, default=DEFAULT_STORE)
     ap.add_argument("--status", type=Path, default=DEFAULT_STATUS)

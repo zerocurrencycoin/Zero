@@ -135,8 +135,15 @@ capture costs a re-run, or the result outright.
 
 Three rules the implementation enforces:
 
-- **Production-datadir refusal runs first**, before any policy, and no policy
-  or flag is a way around it -- not `replace`, not `ZERO_PERF_FORCE=1`.
+- **Production-datadir refusal runs first**, before any policy.
+  `ZERO_PERF_FORCE=1` controls only whether `rm` gets `-f`; it is not an
+  authorisation to touch a production datadir.
+- **Reading a live datadir and destroying one are separate permissions.**
+  `ZERO_PERF_ALLOW_LIVE_DATADIR=1` permits a lab to *read* a live datadir. It
+  does **not** permit `aside`, `replace` or `recreate` on one -- that needs
+  `ZERO_PERF_ALLOW_LIVE_DESTROY=1` as well. The read override is routinely set
+  for a whole session, so a destructive policy would otherwise run
+  unchallenged; it deleted a datadir during development before this split.
 - **Protection is platform-independent.** Every plausible production datadir
   name is gated on every host: `~/.zero`, `~/zero`,
   `~/Library/Application Support/{zero,Zero}`, `%APPDATA%\zero`, and the
@@ -158,6 +165,32 @@ in either direction:
 
 Destructive guards use the second. Using the first would have left a
 production `~/.zero` unprotected on macOS.
+
+---
+
+## 3.2 Run logging
+
+Any script that **launches a node or produces a measurement** writes a durable
+log, keyed by `RUN_ID` alongside its artifacts. Set `DRIVER_LOG` and
+`perflib.sh`'s `log()` tees to it.
+
+| Script kind | Log |
+|-------------|-----|
+| Node launchers and measurement drivers | `<OUT_DIR>/<RUN_ID>-driver.log` (or `driver.log`) |
+| The regression gate | `test-logs/validate-<utc>.log`, one per run |
+| Short helpers and one-shot utilities | stdout is sufficient |
+
+Two rules, each of which failed in practice before being written down:
+
+- **`warn()` and `die()` go to the log as well as stderr.** They used to go to
+  stderr only, so a failed run left a driver log showing normal progress and no
+  error -- the operator saw the failure on the terminal and the archived log
+  did not record it.
+- **A result that exists only on a terminal cannot be cited.** A backgrounded
+  or piped run kept its measures and lost every decision that produced them:
+  which datadir policy applied, what was unpacked, whether the ledger append
+  succeeded. `validate.sh` logs per run rather than to one file, so a failure
+  is not overwritten by the next green run.
 
 ---
 

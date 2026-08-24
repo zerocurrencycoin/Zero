@@ -156,6 +156,19 @@ def import_tsv(store_dir: Path, path: Path, campaign: str, run_id: str, binary: 
     return added
 
 
+def _height_key(v) -> str:
+    """Sortable, collision-free height component for a grouping key.
+
+    Zero-padded so string order matches numeric order; "" for absent, which is
+    distinct from a genuine height 0."""
+    if v is None or v == "":
+        return ""
+    try:
+        return "%012d" % int(v)
+    except (TypeError, ValueError):
+        return str(v)
+
+
 def collate(rows: list[dict], campaign: str | None = None) -> list[dict]:
     groups: dict[tuple, list[float]] = defaultdict(list)
     meta: dict[tuple, dict] = {}
@@ -166,14 +179,41 @@ def collate(rows: list[dict], campaign: str | None = None) -> list[dict]:
             r.get("campaign", ""),
             r.get("mode", ""),
             r.get("condition", ""),
-            int(r.get("warmup_height", 0)),
-            int(r.get("end_height", 0)),
+            # Missing heights group separately rather than colliding with a
+            # genuine height-0 window. Normalised to str so the key stays
+            # sortable: mixing "" and 0 makes sorted() raise on comparison.
+            _height_key(r.get("warmup_height")),
+            _height_key(r.get("end_height")),
         )
-        groups[key].append(float(r["blocks_per_sec"]))
+        # A row without a usable rate is EXCLUDED, not zero-filled and not
+        # fatal. Before this, one incomplete row raised KeyError and no report
+        # could be produced at all; zero-filling instead would silently drag
+        # every mean down (see collate_cycle.py for the same defect).
+        raw = r.get("blocks_per_sec")
+        if raw is None or raw == "":
+            print("WARNING: no blocks_per_sec in run_id=%s; row excluded"
+                  % r.get("run_id", "?"), file=sys.stderr)
+            continue
+        try:
+            bps = float(raw)
+        except (TypeError, ValueError):
+            print("WARNING: unparseable blocks_per_sec %r in run_id=%s; row excluded"
+                  % (raw, r.get("run_id", "?")), file=sys.stderr)
+            continue
+        if bps <= 0:
+            print("WARNING: non-positive blocks_per_sec %r in run_id=%s; row excluded"
+                  % (raw, r.get("run_id", "?")), file=sys.stderr)
+            continue
+        groups[key].append(bps)
         meta[key] = r
     out = []
     for key, rates in sorted(groups.items()):
-        campaign_k, mode, condition, warm, end = key
+        campaign_k, mode, condition, warm_k, end_k = key
+        # Back to numbers for output and arithmetic; the padded strings exist
+        # only to keep the grouping key sortable.
+        warm = int(warm_k) if warm_k else None
+        end = int(end_k) if end_k else None
+        blocks = end - warm if (warm is not None and end is not None) else None
         out.append(
             {
                 "campaign": campaign_k,
@@ -181,7 +221,7 @@ def collate(rows: list[dict], campaign: str | None = None) -> list[dict]:
                 "condition": condition,
                 "warmup_height": warm,
                 "end_height": end,
-                "blocks": end - warm,
+                "blocks": blocks,
                 "n": len(rates),
                 "mean_bps": round(statistics.mean(rates), 4),
                 "stdev_bps": round(statistics.pstdev(rates), 4) if len(rates) > 1 else 0.0,
@@ -312,6 +352,36 @@ def self_test() -> int:
         second = dict(base); second["trial"] = 2
         check(append_row(store, second) is True, "a distinct trial is written")
         check(len(load_rows(store)) == 2, "store holds two distinct rows")
+
+    # collate() must survive an incomplete row. One row without a usable rate
+    # used to raise KeyError, so NO report could be produced from the whole
+    # ledger; zero-filling instead would drag every mean down silently.
+    import contextlib
+    import io
+
+    good = dict(base); good["blocks_per_sec"] = 50.0; good["run_id"] = "good"
+    bad = dict(base); bad.pop("blocks_per_sec", None); bad["run_id"] = "bad"
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        out = collate([good, bad])
+    check(len(out) == 1, "collate produces a group despite an incomplete row")
+    check(out[0]["n"] == 1, "the incomplete row is excluded from n, not counted")
+    check(out[0]["mean_bps"] == 50.0, "the mean is not dragged down by exclusion")
+    check("bad" in err.getvalue(), "the excluded row is named in a warning")
+
+    for junk in ("", None, "not-a-number", 0, -1):
+        r = dict(base); r["blocks_per_sec"] = junk; r["run_id"] = "junk"
+        with contextlib.redirect_stderr(io.StringIO()):
+            out = collate([good, r])
+        check(out[0]["n"] == 1, "junk rate %r is excluded" % (junk,))
+
+    # Missing heights must group separately, not collide with a real height 0.
+    a = dict(base); a["blocks_per_sec"] = 10.0; a["warmup_height"] = 0
+    b = dict(base); b["blocks_per_sec"] = 20.0; b.pop("warmup_height", None)
+    with contextlib.redirect_stderr(io.StringIO()):
+        out = collate([a, b])
+    check(len(out) == 2,
+          "a missing height does not collapse into a genuine height-0 window")
 
     # KNOWN GAP (v1): platform, arch and build are absent from the key, so two
     # observations differing only by platform collide and one is silently

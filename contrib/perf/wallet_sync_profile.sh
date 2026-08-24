@@ -132,7 +132,7 @@ prepare_scratch() {
       rsync -a --exclude='chainstate' --exclude='wallet.zero' --exclude='wallet.zero*' \
         --exclude='debug*.log' --exclude='.lock' \
         "$SRC_DATADIR/" "$SCRATCH/"
-      rm -rf "$SCRATCH/chainstate"
+      rm -r "$SCRATCH/chainstate" 2>/dev/null || true
       ;;
     *)
       echo "ERROR: ZERO_PERF_CHAIN_SNAP must be tiny|short|full" >&2

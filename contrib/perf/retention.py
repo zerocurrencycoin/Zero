@@ -230,7 +230,7 @@ def main(argv):
         print("# Protected artifacts are omitted entirely.")
         for r in rows:
             if r["status"] == "CANDIDATE":
-                print("rm -rf %-58s # %.1f MB" % (
+                print("rm -r %-59s # %.1f MB" % (
                     os.path.relpath(r["path"], ROOT), mb(r["size"])))
         for r in rows:
             if r["name"] in NEVER_RECLAIM:

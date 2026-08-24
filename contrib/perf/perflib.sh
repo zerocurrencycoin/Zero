@@ -17,10 +17,28 @@
 
 # Guard against double-sourcing: these are idempotent, but a second source
 # would re-run the shellcheck directives and re-declare readonlys.
+# shellcheck disable=SC2317  # reached only on a second source
 if [ -n "${_PERFLIB_SOURCED:-}" ]; then return 0 2>/dev/null || true; fi
 _PERFLIB_SOURCED=1
 
-_PERFLIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve this file's directory in bash AND zsh. BASH_SOURCE is unset under
+# zsh, where it silently resolved to $PWD -- so the guard file was "not found"
+# and every call fell into the fail-closed branch.
+if [ -n "${BASH_SOURCE:-}" ]; then
+  _PERFLIB_SELF="${BASH_SOURCE[0]}"
+elif [ -n "${ZSH_VERSION:-}" ]; then
+  # shellcheck disable=SC2296  # zsh-only expansion, guarded above
+  _PERFLIB_SELF="${(%):-%N}"
+else
+  _PERFLIB_SELF="$0"
+fi
+_PERFLIB_DIR="$(cd "$(dirname "$_PERFLIB_SELF")" && pwd)"
+export _PERFLIB_DIR
+if [ ! -f "$_PERFLIB_DIR/datadir_guard.sh" ]; then
+  echo "ERROR: perflib.sh cannot locate its own directory (got '$_PERFLIB_DIR')." >&2
+  echo "       Source it by full path, e.g. . \"\$REPO_ROOT/contrib/perf/perflib.sh\"" >&2
+  return 1 2>/dev/null || exit 1
+fi
 
 # ---------------------------------------------------------------- logging ---
 
@@ -36,8 +54,21 @@ log() {
   fi
 }
 
-warn() { echo "WARNING: $*" >&2; }
-die()  { echo "ERROR: $*" >&2; exit 1; }
+# warn/die go to stderr AND to the driver log when one is set. Without the
+# log copy, a failed run left a driver log showing normal progress and no
+# error at all -- the operator saw the failure on the terminal and the archived
+# log did not record it.
+warn() {
+  echo "WARNING: $*" >&2
+  [ -n "${DRIVER_LOG:-}" ] && echo "$(utc_stamp) WARNING: $*" >> "$DRIVER_LOG"
+  return 0
+}
+
+die() {
+  echo "ERROR: $*" >&2
+  [ -n "${DRIVER_LOG:-}" ] && echo "$(utc_stamp) ERROR: $*" >> "$DRIVER_LOG"
+  exit 1
+}
 
 run_id() { echo "${1:-run}-$(date -u '+%Y%m%dT%H%M%SZ')"; }
 
@@ -110,6 +141,17 @@ span_blocks() {
 }
 
 # ------------------------------------------------------ datadir disposition --
+
+# _perflib_is_protected PATH -- true if PATH is any plausible production
+# datadir, on any platform (zeropaths.is_protected_datadir).
+_perflib_is_protected() {
+  python3 - "$1" <<'EOF' 2>/dev/null
+import sys, os
+sys.path.insert(0, os.environ.get("_PERFLIB_DIR", "."))
+import zeropaths
+sys.exit(0 if zeropaths.is_protected_datadir(sys.argv[1]) else 1)
+EOF
+}
 #
 # What to do when the target datadir already exists. Default is set-aside then
 # recreate: the old tree is preserved under a timestamped name and a fresh one
@@ -143,6 +185,21 @@ dispose_datadir() {
     if ! refuse_live_datadir "$label" "$path"; then
       die "refusing to apply policy '$policy' to a live datadir: $path"
     fi
+    # refuse_live_datadir passes when ZERO_PERF_ALLOW_LIVE_DATADIR is set --
+    # that override exists so a lab may READ a live datadir. It must not also
+    # authorise DELETING one: the override is routinely set for a whole
+    # session, and a destructive policy would then run unchallenged.
+    # Destructive policies require their own, separate acknowledgement.
+    case "$policy" in
+      replace|recreate|aside)
+        if [ -n "${ZERO_PERF_ALLOW_LIVE_DATADIR:-}" ] \
+           && _perflib_is_protected "$path"; then
+          if [ "${ZERO_PERF_ALLOW_LIVE_DESTROY:-}" != "1" ]; then
+            die "$path is a production datadir. ZERO_PERF_ALLOW_LIVE_DATADIR permits reading it, not '$policy'. Set ZERO_PERF_ALLOW_LIVE_DESTROY=1 as well if you truly intend to destroy it."
+          fi
+          warn "ZERO_PERF_ALLOW_LIVE_DESTROY set; applying '$policy' to PRODUCTION datadir '$path'"
+        fi ;;
+    esac
   else
     die "datadir_guard.sh not found next to perflib.sh; refusing to touch '$path'"
   fi

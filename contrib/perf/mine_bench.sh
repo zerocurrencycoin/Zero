@@ -128,7 +128,7 @@ probe_neon() {
 
 run_regtest() {
   stop_node
-  rm -rf "$SCRATCH"
+  dispose_datadir "$SCRATCH" SCRATCH
   write_conf "regtest=1"
   log "START mode=regtest blocks=$MINE_BLOCKS timeout=${MINE_TIMEOUT_S}s"
   "$ZEROD" -datadir="$SCRATCH" -daemon

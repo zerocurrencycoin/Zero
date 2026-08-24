@@ -78,7 +78,7 @@ expect_fail "reversed span rejected" span_blocks 200 100
 # --------------------------------------------------- datadir disposition ----
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'rm -r "$TMP" 2>/dev/null || true' EXIT
 
 # aside (default): existing tree preserved, fresh one created.
 DD="$TMP/dd"
@@ -168,6 +168,30 @@ for PROD in "$HOME/.zero" "$HOME/Library/Application Support/zero" \
     bash -c ". '$HERE/perflib.sh'; dispose_datadir '$PROD/blocks' TEST"
 done
 
+# ZERO_PERF_ALLOW_LIVE_DATADIR permits READING a live datadir. It must not
+# also authorise destroying one: it is routinely set for a whole session, so a
+# destructive policy would otherwise run unchallenged. This deleted a real
+# datadir during development.
+for PROD in "$HOME/.zero" "$HOME/Library/Application Support/zero"; do
+  for POL in aside replace recreate; do
+    expect_fail "ALLOW_LIVE_DATADIR alone must not permit '$POL' on $PROD" \
+      env ZERO_PERF_ALLOW_LIVE_DATADIR=1 ZERO_PERF_DATADIR_POLICY="$POL" \
+      bash -c ". '$HERE/perflib.sh'; dispose_datadir '$PROD' TEST"
+  done
+  # Non-destructive policies stay available under the read override.
+  expect_ok "ALLOW_LIVE_DATADIR still permits 'keep' on $PROD" \
+    env ZERO_PERF_ALLOW_LIVE_DATADIR=1 ZERO_PERF_DATADIR_POLICY=keep \
+    bash -c ". '$HERE/perflib.sh'; dispose_datadir '$PROD' TEST"
+done
+
+# perflib must locate its own directory under zsh as well as bash. Under zsh
+# BASH_SOURCE is unset; it previously resolved to $PWD, so the guard file was
+# "not found" and every call took the fail-closed branch.
+if command -v zsh >/dev/null 2>&1; then
+  ZDIR=$(zsh -c ". '$HERE/perflib.sh'; printf '%s' \"\$_PERFLIB_DIR\"" 2>/dev/null)
+  ok_if "perflib resolves its directory under zsh" test "$ZDIR" = "$HERE"
+fi
+
 # Scratch paths must still work, or the lab cannot run.
 for OKDIR in "$TMP/scratch-ok" "$TMP/.zero-lab"; do
   expect_ok "scratch path remains usable: $OKDIR" \
@@ -175,6 +199,24 @@ for OKDIR in "$TMP/scratch-ok" "$TMP/.zero-lab"; do
 done
 
 # ------------------------------------------------------------------ misc ----
+
+# warn/die must reach the driver log, not stderr only. A failed run
+# previously left a log showing normal progress and no error.
+LOGF="$TMP/driver.log"
+# Run in a child shell so DRIVER_LOG is exported into it; shellcheck cannot
+# see the use across the source boundary either way.
+# shellcheck disable=SC2016  # $1 must expand in the child, not here
+env DRIVER_LOG="$LOGF" bash -c \
+  '. "$1/perflib.sh"; log "normal"; warn "a warning"' _ "$HERE" >/dev/null 2>&1
+ok_if "log() writes to DRIVER_LOG"    grep -q "normal" "$LOGF"
+ok_if "warn() writes to DRIVER_LOG"   grep -q "WARNING: a warning" "$LOGF"
+# shellcheck disable=SC2016  # $1 must expand in the child, not here
+env DRIVER_LOG="$LOGF" bash -c \
+  '. "$1/perflib.sh"; die "fatal thing"' _ "$HERE" >/dev/null 2>&1
+ok_if "die() writes to DRIVER_LOG"    grep -q "ERROR: fatal thing" "$LOGF"
+# ... and still work with no DRIVER_LOG set, rather than erroring.
+expect_ok "warn() tolerates an unset DRIVER_LOG" \
+  bash -c ". '$HERE/perflib.sh'; warn 'no log configured'"
 
 ok_if "utc_stamp returns a value" test -n "$(utc_stamp)"
 case "$(run_id tiny)" in tiny-*Z) ;; *) echo "FAIL: run_id shape" >&2; FAILED=1 ;; esac

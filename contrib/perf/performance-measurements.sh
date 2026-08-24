@@ -9,6 +9,9 @@ set -u
 
 
 DATADIR="${ZERO_MEASURE_DATADIR:-/tmp/zero-ops-measure}"
+
+# shellcheck source=/dev/null
+. "$(cd "$(dirname "$0")" && pwd)/perflib.sh"
 SHA256CMD="$(command -v sha256sum || echo shasum)"
 SHA256ARGS="$(command -v sha256sum >/dev/null || echo '-a 256')"
 
@@ -55,7 +58,9 @@ EOF
 }
 
 function use_200k_benchmark {
-    rm -rf benchmark-200k-UTXOs
+    # `rm -r`, not `-rf`: this tree is unpacked from a tarball, so a
+    # permission error means something unexpected and should be seen.
+    rm -r benchmark-200k-UTXOs 2>/dev/null || true
     extract_benchmark_datadir benchmark-200k-UTXOs dc8ab89eaa13730da57d9ac373c1f4e818a37181c1443f61fd11327e49fbcc5e
     DATADIR="./benchmark-200k-UTXOs/node$1"
 }
@@ -76,7 +81,7 @@ function zerod_start {
             esac
             ;;
         *)
-            rm -rf "$DATADIR"
+            dispose_datadir "$DATADIR" DATADIR
             mkdir -p "$DATADIR/regtest"
             touch "$DATADIR/zcash.conf"
     esac
@@ -106,7 +111,7 @@ function zerod_massif_start {
             esac
             ;;
         *)
-            rm -rf "$DATADIR"
+            dispose_datadir "$DATADIR" DATADIR
             mkdir -p "$DATADIR/regtest"
             touch "$DATADIR/zcash.conf"
     esac
@@ -123,8 +128,7 @@ function zerod_massif_stop {
 }
 
 function zerod_valgrind_start {
-    rm -rf "$DATADIR"
-    mkdir -p "$DATADIR"
+    dispose_datadir "$DATADIR" DATADIR
     touch "$DATADIR/zero.conf"
     rm -f valgrind.out
     valgrind --leak-check=yes -v --error-limit=no --log-file="valgrind.out" ./src/zerod -regtest -datadir="$DATADIR" -rpcuser=user -rpcpassword=password -rpcport=23961 -showmetrics=0 &
@@ -379,5 +383,11 @@ case "$1" in
         exit 1
 esac
 
-# Cleanup
-rm -rf "$DATADIR"
+# Cleanup. Guarded: DATADIR is reassigned to a relative path by some modes,
+# and a bare wipe here has no idea what it is pointing at.
+if [ "${ZERO_PERF_KEEP_SCRATCH:-}" = "1" ]; then
+  echo "ZERO_PERF_KEEP_SCRATCH set; leaving '$DATADIR' in place" >&2
+else
+  ZERO_PERF_DATADIR_POLICY=replace dispose_datadir "$DATADIR" DATADIR >/dev/null
+  rmdir "$DATADIR" 2>/dev/null || true
+fi

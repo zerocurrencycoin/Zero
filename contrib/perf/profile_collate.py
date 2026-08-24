@@ -151,12 +151,15 @@ def self_test():
         prev = os.environ.get("ZERO_PERF_CPU_LEDGER")
         os.environ["ZERO_PERF_CPU_LEDGER"] = led
         try:
-            json.dump({"thread_filter": "zcash-loadblk", "total_s": 60.0,
-                       "total_all_threads_s": 61.0,
-                       "bucket_pct": {"groth16_proof": 88.4567, "blake2b": 3.2},
-                       "buckets": {"groth16_proof": 53.0123, "blake2b": 1.92},
-                       "groth16_pools": {"sapling": 50.0, "sprout": 3.0},
-                       "threads": {"zcash-loadblk": 59.9}}, open(cap, "w"))
+            with open(cap, "w", encoding="utf-8") as fh:
+                json.dump({"thread_filter": "zcash-loadblk", "total_s": 60.0,
+                           "total_all_threads_s": 61.0,
+                           "bucket_pct": {"groth16_proof": 88.4567,
+                                          "blake2b": 3.2},
+                           "buckets": {"groth16_proof": 53.0123,
+                                       "blake2b": 1.92},
+                           "groth16_pools": {"sapling": 50.0, "sprout": 3.0},
+                           "threads": {"zcash-loadblk": 59.9}}, fh)
 
             check(load(led) == [], "absent ledger reads as empty, not an error")
 

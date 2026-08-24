@@ -32,8 +32,8 @@ unless a dependency is named. **D** runs in parallel throughout.
 | C2 Remaining measurement gaps | ToDo | Open | M | `FINDINGS.md` S4 |
 | C3 Inherited build/DB defects | ToDo | Open | M | `../BUILD_RECONFIG.md` |
 | D1 Equihash / blake2 integration | ToDo | Open | M | `FINDINGS.md` S2 |
-| E1 Script corpus and safety | InProgress | Open | M | `POLICY.md` S3.1 |
-| F1 Regression gate on validate | ToDo | Open | S | this file, F1 |
+| E1 Script corpus and safety | **Finished** | Finished | M | `POLICY.md` S3.1 |
+| F1 Regression gate on validate | **InTest** | Open | S | `validate.sh` |
 | F1b A2d stamp at write time | ToDo | Open | S-M | this file, F1b |
 | F2 CI wiring | -- | **Postponed** | S | needs repo settings |
 | GROTH | -- | Postponed | L-XL | `../PerfGroth.md` |
@@ -62,7 +62,7 @@ Make `lint-perf.sh` the enforcement point, then wire it into CI.
 | b | Add `unicode-docs` to the default `CHECKS` | **Finished** -- scoped to owned docs, `keep/` excluded |
 | c | Add a citation check: a bare figure with no `M-*` id, and an absolute-path check (`POLICY.md` S7.3) | ToDo |
 | d | CI wiring | **Moved** to F2 (Postponed) |
-| e | Gate tool self-tests in `lint-perf.sh` | **Finished** -- 13/15 Python tools plus `perflib.sh` |
+| e | Gate tool self-tests in `lint-perf.sh` | **Finished** -- **16/16** Python tools plus `perflib.sh` |
 | f | Harden `fix_ascii --fix`: scope, formula and blast-radius guards | **Finished** -- `POLICY.md` S7.4 |
 
 (a) without (b) drifts again; (d) is where (b) and (c) stop being advisory.
@@ -210,7 +210,26 @@ Harness: `mine_bench.sh`, `performance-measurements.sh`, KATs in
 
 ## F -- regression gating and CI
 
-### F1. Where the gate attaches (proposal)
+### F1. Where the gate attaches -- **implemented**
+
+`contrib/perf/validate.sh` is the gate. Stages run fastest-first so a broken
+tree fails in seconds:
+
+| Stage | What | Default |
+|-------|------|---------|
+| `lint` | `lint-perf.sh`, failing on any owned-scope finding | on |
+| `selftest` | every tool's `--self-test` plus `perflib` (15 total) | on |
+| `harness` | `contrib/run-tests.sh --strict` | `--with-harness` |
+
+`contrib/run-tests.sh` is Zero400-owned, so `validate.sh` **composes** it
+rather than editing it. Verified to exit 1 on a seeded regression and 0 on a
+clean tree -- a gate that reports FAIL but exits 0 is not a gate, and this one
+did until the summary loop was moved off a pipeline.
+
+**Kanban: InTest.** Exit condition: run it from a clean checkout on another
+machine.
+
+### F1 rationale (as proposed)
 
 Compilation is standalone and slow; a lint/self-test gate should not wait on
 it. Proposal:
@@ -296,17 +315,14 @@ each. It also owns the value guards and the datadir policy.
 | c | Value guards: `require_num`, `nonneg`, `positive`, `safe_div`, `span_blocks` | **Finished** |
 | d | Divide-by-zero guards in `bucket_profile2.py`, `shielded_density.py` | **Finished** |
 | e | Unified datadir mapping (`zeropaths.py`) mirroring `GetDefaultDataDir()`, plus platform-independent production-datadir protection | **Finished** |
-| f | Migrate launchers onto `perflib.sh` | **InProgress** -- 8 of 9 done, **1 to go** |
+| f | Migrate launchers onto `perflib.sh` | **Finished** -- 9 of 9; every datadir wipe routes through `dispose_datadir` |
 | g | `rm -r` by default, `-f` only under `ZERO_PERF_FORCE` / `--force` | **Finished** |
 | h | Rename `check-unicode.py` -> `fix_ascii.py`; `--all-paths` / `--ascii-formula`; Y/n confirm replaces `--yes` | **Finished** |
 
-**Remaining:** `performance-measurements.sh` only -- 5 `rm -rf` sites, no
-`log()`/`cli()` copies. Left last because it is the `zcbenchmark` runner rather
-than a sync launcher, and its datadir handling differs.
-
-Migrated: `bench_matrix.sh`, `capture_sequence.sh`, `mine_bench.sh`,
-`postsapling_reindex.sh`, `tiny_baseline.sh`, `wallet_sync_profile.sh`,
-`witness_lab.sh`, `lint-perf.sh`. All local `log()` copies are gone.
+**All 9 migrated.** The only `rm -rf` calls left on a datadir path are
+`dispose_datadir`'s own implementation, a temp-dir trap in the self-test, and
+two `$SCRATCH/chainstate` subdirectory wipes, which are not datadir resets.
+All local `log()` copies are gone.
 
 **Kanban: InProgress. Effort M**, dominated by (e) and (f).
 
@@ -319,7 +335,7 @@ Stated explicitly so nothing above reads as finished when it is not.
 | Item | State | What is needed |
 |------|-------|----------------|
 | **A2d** stamp helper in launchers | **Open** | See the proposal in F1 below |
-| **E1f** launcher migration | **InProgress** | **1 launcher** left (`performance-measurements.sh`, 5 `rm -rf` sites). Production datadirs are protected regardless -- the guard is in `dispose_datadir` and `debuglog.py` -- but that script's own wipes do not yet honour the disposition policy. (Earlier notes said 13 then 8; measured counts) |
+| **E1f** launcher migration | **Finished** | 9 of 9 |
 | **A2d** stamp helper in launchers | **Open** | Blocks A2 leaving InTest, and blocks B2 (first Linux capture) from being recordable |
 | **GROTH** | **Postponed** | A maintainer's decision; nothing else depends on it |
 | **`Perf.md` retirement** | **Not ready** | Holds detail for B1, B3 and GROTH. Re-run the caveat diff (`MIGRATION.md` S6) before retiring |
@@ -356,11 +372,23 @@ Stated explicitly so nothing above reads as finished when it is not.
 | Shared shell library; 6 duplicated helpers consolidated | `perflib.sh` |
 | Datadir disposition policy, default set-aside | `POLICY.md` S3.1 |
 | `fix_ascii --fix` blast-radius guards | `POLICY.md` S7.4 |
-| Tool self-tests gated; 13/15 Python tools plus `perflib.sh` | `lint-perf.sh` |
+| Tool self-tests gated; **16/16** Python tools plus `perflib.sh` | `lint-perf.sh` |
 | Divide-by-zero and sign-inversion guards | `perflib.sh`, `bucket_profile2.py` |
 | Platform-independent production-datadir protection | `zeropaths.py`, `POLICY.md` S3.1 |
+| Read vs destroy split as separate permissions | `POLICY.md` S3.1 |
+| Regression gate `validate.sh`; 15 self-tests + lint, logged per run | F1 |
+| Run logging: `warn()`/`die()` reach the driver log; `tiny_baseline.sh` and `validate.sh` keep durable logs | `POLICY.md` S3.2 |
+| Full self-test coverage: `collate_cycle.py`, `shielded_density.py` | 16/16 |
+| `collate_cycle`: missing rate no longer counted as 0.0 (dragged a mean from 100.0 to 33.3); malformed ledger line no longer aborts collation | `collate_cycle.py` |
+| `accumulate_bench.collate`: one incomplete row raised `KeyError`, so **no** report could be produced from the whole ledger. Now excluded with a warning; report output verified byte-identical | `accumulate_bench.py` |
+| Grouping keys: a missing height no longer collides with a genuine height-0 window | `accumulate_bench.py` |
+| Real lab cycle: tiny reindex 187417 blk, 175.0 s, 1070.95 blk/s | ledger `labcycle-verify` |
+| `tiny_baseline.sh` now appends to the throughput ledger (`CAMPAIGN` was documented but unused) | E1 |
+| `rm -rf` eliminated outside the explicitly-forced path | E1 |
+| `perflib.sh` resolves its own directory under zsh as well as bash | `perflib.sh` |
+| All 9 launchers on `perflib.sh` | E1f |
 | `fix_ascii.py` rename; Y/n confirm on every file change | `POLICY.md` S7.4 |
-| 8 of 9 launchers on `perflib.sh`; all local `log()` copies gone | `perflib.sh` |
+
 | Unicode backlog cleared and gated | `lint-perf.sh` `unicode-docs`, 0/0 |
 | Absolute paths struck from tracked docs | `POLICY.md` S7.3 |
 | `Perf.md` caveat diff: 0 orphaned rules | `MIGRATION.md` S6 |

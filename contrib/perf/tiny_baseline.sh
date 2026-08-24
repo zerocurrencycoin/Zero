@@ -44,13 +44,31 @@ if [ ! -f "$ARCHIVE_PATH" ]; then
 fi
 
 RUN_ID="${SNAP}-$(date -u +%Y%m%dT%H%M%SZ)"
-mkdir -p "$OUT_DIR" "$LAB"
-echo "LAB=$LAB (disposable)"
-echo "RUN_ID=$RUN_ID"
+# Only OUT_DIR here: creating LAB first would make dispose_datadir always
+# find an existing tree and set aside an empty one on every run.
+mkdir -p "$OUT_DIR"
 
-# Fresh unpack into LAB only
-rm -rf "${LAB:?}"/*
-tar -xzf "$ARCHIVE_PATH" -C "$LAB"
+# Durable run log, keyed by RUN_ID like the artifacts. Without this the whole
+# run existed only on stdout: a backgrounded or piped invocation kept the
+# measures but lost every decision that produced them -- which datadir policy
+# applied, what was unpacked, whether the ledger append succeeded.
+# shellcheck disable=SC2034  # consumed by log() in perflib.sh
+DRIVER_LOG="$OUT_DIR/${RUN_ID}-driver.log"
+: > "$DRIVER_LOG"
+
+log "START run_id=$RUN_ID snap=$SNAP campaign=${CAMPAIGN:-tiny-baseline}"
+log "binary=$ZEROD ($("$ZEROD" --version 2>/dev/null | head -1))"
+log "LAB=$LAB (disposable) policy=${ZERO_PERF_DATADIR_POLICY:-aside}"
+log "archive=$ARCHIVE_PATH"
+
+# Fresh unpack into LAB only. dispose_datadir honours
+# ZERO_PERF_DATADIR_POLICY and refuses a production datadir outright.
+dispose_datadir "${LAB:?}" LAB
+log "unpacking $ARCHIVE -> $LAB"
+if ! tar -xzf "$ARCHIVE_PATH" -C "$LAB"; then
+  die "unpack failed: $ARCHIVE_PATH"
+fi
+log "unpack complete"
 
 # Ensure offline / no sticky reindex in conf if present
 if [ -f "$LAB/zero.conf" ]; then
@@ -84,6 +102,7 @@ for i in $(seq 1 600); do
   sleep 2
 done
 
+log "reindex finished; stopping node"
 # Allow reindex finished line to flush
 sleep 3
 "$ZERO_CLI" -datadir="$LAB" -rpcport="$RPCPORT" stop >/dev/null 2>&1 || true
@@ -105,8 +124,64 @@ python3 "$REPO_ROOT/contrib/perf/extract_measures.py" \
   --csv "$CSV" \
   --md | tee "$MD"
 
+# Append to the durable throughput ledger. CAMPAIGN has always been documented
+# as this script's grouping key, but nothing consumed it: a lab run produced
+# artifacts and no ledger row, so it could not be aggregated or compared.
+CAMPAIGN="${CAMPAIGN:-tiny-baseline}"
+LEDGER_VARS="$(python3 - "$CSV" <<'EOF'
+import csv, sys
+wall = hps = start = end = None
+with open(sys.argv[1], newline="", encoding="utf-8") as fh:
+    for r in csv.DictReader(fh):
+        if r.get("op_class") != "reindex":
+            continue
+        if r.get("metric") == "wall_s":
+            wall = float(r["value"])
+        elif r.get("metric") == "height_per_s":
+            hps = float(r["value"])
+        if r.get("height_start") not in (None, "", "-"):
+            start = int(r["height_start"])
+        if r.get("height_end") not in (None, "", "-"):
+            end = int(r["height_end"])
+# Absent rather than fabricated: a partial run must not look like a full one.
+if None in (wall, hps, start, end):
+    sys.exit(1)
+print("LR_START=%d LR_END=%d LR_BLOCKS=%d LR_WALL=%s LR_HPS=%s"
+      % (start, end, end - start, wall, hps))
+EOF
+)" || LEDGER_VARS=""
+
+if [ -n "$LEDGER_VARS" ]; then
+  eval "$LEDGER_VARS"
+  # `if cmd; then` -- not `A && B || C`, which runs C even when A succeeds.
+  if python3 "$REPO_ROOT/contrib/perf/accumulate_bench.py" \
+    --append \
+    --warmup-height "$LR_START" \
+    --end-height "$LR_END" \
+    --blocks "$LR_BLOCKS" \
+    --elapsed-s "$LR_WALL" \
+    --blocks-per-sec "$LR_HPS" \
+    --campaign "$CAMPAIGN" \
+    --run-id "$RUN_ID" \
+    --mode reindex \
+    --condition "${CONDITION:-stock}" \
+    --trial "${TRIAL:-1}" \
+    --binary "$ZEROD" \
+    --notes "snap=$SNAP" >/dev/null; then
+    log "ledger row appended (campaign=$CAMPAIGN)"
+  else
+    warn "ledger append failed; artifacts are still in $OUT_DIR"
+  fi
+else
+  warn "no complete reindex measure found; ledger row NOT appended"
+fi
+
+log "extracting measures -> $OUT_DIR"
+
 echo "artifacts:"
 echo "  $JSONL"
 echo "  $CSV"
 echo "  $MD"
+echo "  $DRIVER_LOG"
+log "DONE run_id=$RUN_ID"
 echo "LAB left at $LAB (delete when done)"
