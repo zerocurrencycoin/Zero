@@ -56,8 +56,14 @@ mkdir -p "$(dirname "$VALIDATE_LOG")" 2>/dev/null || true
 # shellcheck disable=SC2034  # consumed by log()/warn()/die() in perflib.sh
 DRIVER_LOG="$VALIDATE_LOG"
 : > "$VALIDATE_LOG"
-log "validate START stages=lint,selftest$([ "$WITH_HARNESS" -eq 1 ] && echo ,harness)"
-log "binary=$( [ -x ./src/zerod ] && ./src/zerod --version 2>/dev/null | head -1 || echo 'not built')"
+STAGE_LIST="lint,selftest"
+if [ "$WITH_HARNESS" -eq 1 ]; then STAGE_LIST="$STAGE_LIST,harness"; fi
+log "validate START stages=$STAGE_LIST"
+if [ -x ./src/zerod ]; then
+  log "binary=$(./src/zerod --version 2>/dev/null | head -1)"
+else
+  log "binary=not built"
+fi
 
 FAILED=0
 STAGE_RESULTS=""
@@ -122,7 +128,13 @@ for tool in contrib/perf/*.py; do
     ST_FAIL=1
   fi
 done
-[ "$ST_FAIL" -eq 0 ] && record selftest PASS || record selftest FAIL
+# if/else, not `A && B || C`: the latter would record BOTH results if
+# `record ... PASS` ever returned non-zero.
+if [ "$ST_FAIL" -eq 0 ]; then
+  record selftest PASS
+else
+  record selftest FAIL
+fi
 
 # --- stage 3: product harness (opt-in) --------------------------------------
 # Zero400 owns contrib/run-tests.sh; this composes it rather than editing it.

@@ -82,6 +82,12 @@ run_check() {
                   out=$(python3 "$t" --self-test 2>&1) || \
                     printf '%s: %s\n' "$t" "$(printf '%s' "$out" | tail -1)"
                 done ;;
+    citations)  # Measurement figures must name a source, and no tracked
+                # document may carry an absolute path (docs/POLICY.md S7.1,
+                # S7.3). Scoped to docs/: Perf.md is legacy pending retirement
+                # and would swamp the signal (see docs/MIGRATION.md S6).
+                contrib/perf/check_citations.py \
+                  $(git ls-files 'contrib/perf/docs/*.md') 2>/dev/null ;;
     unicode-docs) # Owned documents only. Inherited src/ and root-level
                   # Zero400-owned docs are out of scope for this gate; run
                   # fix_ascii.py with no args to see the whole tree.
@@ -98,7 +104,7 @@ run_check() {
   esac
 }
 
-CHECKS="self-tests unicode unicode-docs shellcheck whitespace shebang shell-locale
+CHECKS="self-tests unicode unicode-docs citations shellcheck whitespace shebang shell-locale
         python-utf8-encoding include-guards includes locale-dependence
         make-dist cargo-patches"
 

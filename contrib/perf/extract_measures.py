@@ -66,6 +66,66 @@ READ_FD_RE = re.compile(
 BENCH_CONNECT_RE = re.compile(
     r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+- Connect block:\s*([0-9.]+)ms"
 )
+
+# All eleven `-debug=bench` phase lines (src/main.cpp). Only the total was
+# parsed before, so the breakdown that explains it was dropped on the floor.
+#
+# CAUTION -- verify vs connect (contrib/perf/PerfTimers.md S2.2): upstream
+# measures BOTH `nTimeConnect` and `nTimeVerify` from the same origin, so
+# "Verify N txins" INCLUDES the "Connect N transactions" span. They must never
+# be summed. The exclusive value is emitted as `bench_verify_excl_ms`.
+BENCH_PHASE_RES = [
+    ("bench_connect_txs_ms",   re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+- Connect \d+ transactions:\s*([0-9.]+)ms")),
+    ("bench_verify_txins_ms",  re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+- Verify \d+ txins:\s*([0-9.]+)ms")),
+    ("bench_index_write_ms",   re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+- Index writing:\s*([0-9.]+)ms")),
+    ("bench_callbacks_ms",     re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+- Callbacks:\s*([0-9.]+)ms")),
+    ("bench_disconnect_ms",    re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+- Disconnect block:\s*([0-9.]+)ms")),
+    ("bench_readdisk_ms",      re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+- Load block from disk:\s*([0-9.]+)ms")),
+    ("bench_connect_total_ms", re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+- Connect total:\s*([0-9.]+)ms")),
+    ("bench_flush_ms",         re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+- Flush:\s*([0-9.]+)ms")),
+    ("bench_chainstate_ms",    re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+- Writing chainstate:\s*([0-9.]+)ms")),
+    ("bench_postconnect_ms",   re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+- Connect postprocess:\s*([0-9.]+)ms")),
+]
+
+
+def verify_excl_ms(connect_ms, verify_ms):
+    """Script-verification time with the connect span removed.
+
+    Upstream measures `nTimeVerify` from the SAME origin as `nTimeConnect`
+    (main.cpp:3247 vs 3259), so "Verify N txins" already contains
+    "Connect N transactions". Summing the two double-counts connect. Returns
+    None when the relationship does not hold, rather than a negative duration:
+    a negative would silently propagate into a mean.
+    """
+    if connect_ms is None or verify_ms is None:
+        return None
+    excl = verify_ms - connect_ms
+    if excl < 0:
+        return None
+    return round(excl, 3)
+
+
+def parse_bench_phase(line):
+    """(marker, ms) for any bench phase line, or None.
+
+    `bench_verify_txins_ms` is CUMULATIVE from the same origin as
+    `bench_connect_txs_ms`; see the caution above BENCH_PHASE_RES.
+    """
+    for marker, rx in BENCH_PHASE_RES:
+        m = rx.match(line)
+        if m:
+            return marker, m.group(1), float(m.group(2))
+    return None
 RPC_WARMUP_RE = re.compile(
     r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}).*(?:-28|Loading block index|Verifying wallet)",
     re.IGNORECASE,
@@ -192,6 +252,11 @@ def classify_line(line: str) -> Optional[Event]:
     if m:
         return Event(ts=parse_ts(m.group(1)), marker="bench_connect", source=line[:200], ms=float(m.group(2)))
 
+    phase = parse_bench_phase(line)
+    if phase:
+        marker, ts, ms = phase
+        return Event(ts=parse_ts(ts), marker=marker, source=line[:200], ms=ms)
+
     return None
 
 
@@ -240,7 +305,7 @@ def parse_logs(
         ev = classify_line(line)
         if ev is None:
             continue
-        if ev.marker == "bench_connect" and not include_bench:
+        if ev.marker.startswith("bench_") and not include_bench:
             continue
         if ev.marker == "cache_config_budget":
             if ev.ts == datetime.min and last_ts is not None:
@@ -641,6 +706,53 @@ def markdown_table(rows: list[dict[str, Any]]) -> str:
 
 
 def run_self_test() -> int:
+    # B1a: all eleven -debug=bench phase lines parse. Formats copied from the
+    # LogPrint calls in src/main.cpp, not from memory -- a fixture written from
+    # memory already produced one false failure in this program.
+    _bench_lines = [
+        ("bench_connect_txs_ms", 12.34,
+         "2026-08-24 10:00:00       - Connect 42 transactions: 12.34ms (0.294ms/tx, 0.100ms/txin) [1.20s]"),
+        ("bench_verify_txins_ms", 45.67,
+         "2026-08-24 10:00:00     - Verify 99 txins: 45.67ms (0.461ms/txin) [2.30s]"),
+        ("bench_index_write_ms", 1.23,
+         "2026-08-24 10:00:00     - Index writing: 1.23ms [0.10s]"),
+        ("bench_callbacks_ms", 0.45,
+         "2026-08-24 10:00:00     - Callbacks: 0.45ms [0.05s]"),
+        ("bench_disconnect_ms", 5.0,
+         "2026-08-24 10:00:00   - Disconnect block: 5.00ms"),
+        ("bench_readdisk_ms", 2.5,
+         "2026-08-24 10:00:00   - Load block from disk: 2.50ms [0.30s]"),
+        ("bench_connect_total_ms", 60.0,
+         "2026-08-24 10:00:00   - Connect total: 60.00ms [5.00s]"),
+        ("bench_flush_ms", 3.0,
+         "2026-08-24 10:00:00   - Flush: 3.00ms [0.40s]"),
+        ("bench_chainstate_ms", 4.0,
+         "2026-08-24 10:00:00   - Writing chainstate: 4.00ms [0.50s]"),
+        ("bench_postconnect_ms", 1.0,
+         "2026-08-24 10:00:00   - Connect postprocess: 1.00ms [0.20s]"),
+    ]
+    assert len(BENCH_PHASE_RES) == 10, "expected 10 phase patterns"
+    for want_marker, want_ms, line in _bench_lines:
+        got = parse_bench_phase(line)
+        assert got is not None, "unparsed bench line: %s" % line
+        assert got[0] == want_marker, "%s -> %s" % (want_marker, got[0])
+        assert abs(got[2] - want_ms) < 1e-9, "%s ms %s != %s" % (
+            want_marker, got[2], want_ms)
+    # The total keeps its own regex and must not be double-claimed.
+    assert parse_bench_phase(
+        "2026-08-24 10:00:00 - Connect block: 70.00ms [6.00s]") is None, \
+        "the total is matched by BENCH_CONNECT_RE, not a phase pattern"
+    assert parse_bench_phase("2026-08-24 10:00:00 UpdateTip: height=1") is None, \
+        "a non-bench line must not match"
+
+    # B1b: verify INCLUDES connect, so the exclusive value is the difference,
+    # and an impossible relationship yields None rather than a negative.
+    assert verify_excl_ms(12.34, 45.67) == 33.33, "exclusive verify span"
+    assert verify_excl_ms(10.0, 10.0) == 0.0, "equal spans give zero, not None"
+    assert verify_excl_ms(45.67, 12.34) is None, "negative span is rejected"
+    assert verify_excl_ms(None, 45.67) is None, "missing operand yields None"
+    assert verify_excl_ms(12.34, None) is None, "missing operand yields None"
+
     sample = """\
 2026-08-11 01:00:00 init message: Initializing...
 2026-08-11 01:00:01 Cache configuration:

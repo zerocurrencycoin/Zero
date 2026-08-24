@@ -34,6 +34,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import statistics
 import sys
 from collections import defaultdict
@@ -114,6 +115,40 @@ def existing_fps(store_dir: Path) -> set[str]:
     return {r.get("fingerprint", "") for r in load_rows(store_dir)}
 
 
+def _stamp(row: dict) -> dict:
+    """Attach platform / build / features to ROW if absent.
+
+    Stamped HERE rather than in each launcher (docs/TASKS.md F1b): every row
+    reaches a ledger through this function, so an unstamped row becomes
+    unrepresentable. Doing it per launcher would be ten chances to forget with
+    nothing noticing, and back-filling later records a guess rather than an
+    observation.
+
+    Never fatal: a stamp failure must not lose a measurement that already
+    cost lab time. An absent block reads as unknown, which is honest.
+    """
+    if "platform" in row and "build" in row:
+        return row
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import platform_stamp
+        row.setdefault("schema", platform_stamp.SCHEMA_VERSION)
+        row.setdefault("platform", platform_stamp.platform_block())
+        # build.* must describe the binary that RAN, not whatever src/zerod is
+        # now: the writer executes after the node exits.
+        row.setdefault("build", platform_stamp.build_block(row.get("binary") or None))
+        row.setdefault("features", {
+            "build": platform_stamp.detect_build_features(),
+            # workload is the launcher's knowledge, passed in via --notes or
+            # explicit fields; absent rather than guessed.
+            "workload": row.get("workload", {}),
+        })
+    except Exception as exc:  # noqa: BLE001 - never lose a measurement
+        print("WARNING: platform stamp unavailable (%s); row recorded unstamped"
+              % exc, file=sys.stderr)
+    return row
+
+
 def append_row(store_dir: Path, row: dict) -> bool:
     """Append if fingerprint new. Returns True if written."""
     jsonl, tsv = ensure_store(store_dir)
@@ -121,6 +156,7 @@ def append_row(store_dir: Path, row: dict) -> bool:
     row.setdefault("recorded_at", utc_now())
     row.setdefault("binary", "")
     row.setdefault("notes", "")
+    row = _stamp(row)
     row["fingerprint"] = fingerprint(row)
     if row["fingerprint"] in existing_fps(store_dir):
         return False
@@ -382,6 +418,36 @@ def self_test() -> int:
         out = collate([a, b])
     check(len(out) == 2,
           "a missing height does not collapse into a genuine height-0 window")
+
+    # F1b: an unstamped row must be unrepresentable. Stamping at the writer
+    # rather than in each launcher is what makes this an invariant instead of
+    # a convention nobody enforces.
+    with tempfile.TemporaryDirectory() as d:
+        store = Path(d)
+        append_row(store, dict(base))
+        written = json.loads((store / "ledger.jsonl").read_text(
+            encoding="utf-8").strip().splitlines()[0])
+        for block in ("platform", "build", "features"):
+            check(block in written, "a written row carries a %s block" % block)
+        check(written["platform"].get("os") in ("macos", "linux", "windows"),
+              "platform.os is a real value, not a placeholder")
+        check("version" in written["build"], "build.version is present")
+        check(written.get("schema"), "schema version is recorded")
+
+        # An explicit block from the caller wins: a replayed row keeps the
+        # platform it was MEASURED on, not the one replaying it.
+        pre = dict(base)
+        pre["run_id"] = "replayed"
+        pre["platform"] = {"os": "linux", "arch": "x86_64"}
+        pre["build"] = {"version": "v9.9.9"}
+        append_row(store, pre)
+        rows = [json.loads(x) for x in
+                (store / "ledger.jsonl").read_text(encoding="utf-8").splitlines() if x]
+        rep = [r for r in rows if r.get("run_id") == "replayed"][0]
+        check(rep["platform"]["os"] == "linux",
+              "an explicit platform is preserved, not overwritten by the host")
+        check(rep["build"]["version"] == "v9.9.9",
+              "an explicit build is preserved")
 
     # KNOWN GAP (v1): platform, arch and build are absent from the key, so two
     # observations differing only by platform collide and one is silently

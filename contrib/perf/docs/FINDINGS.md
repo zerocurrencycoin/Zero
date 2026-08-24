@@ -174,13 +174,15 @@ On a large wallet, rescan cost is not ConnectBlock -- it is the witness scan.
 | none / p0 / p1 | 0 - 0.32% | p0 rescans in **2 ms**; nothing to profile |
 | fat (749 MB, 801619 tx) | **72 - 99%** in `witness_cache` | Dominated by `SelectWalletTxsForWitnessScan` |
 
-Above h1.6M the scan reaches **97-99%** and throughput falls to ~19 blk/s.
+Above h1.6M the scan reaches **97-99%** and throughput falls to ~19 blk/s
+(M-WAL-RESCAN-FAT).
 Cause: a founders coinbase per block invalidates the note index, forcing an
 O(`mapWallet`) rebuild for 1403/801619 (**0.175%**) note-bearing txs. Fix is
 localised to two call sites -- `TASKS.md` B3.
 
 **NOTEIDX** (iterate note-bearing txs only) gives **35x** on the witness walk:
-0.153 ms/block versus 5.31-5.72 ms/block stock. Shipped, opt-in.
+0.153 ms/block versus 5.31-5.72 ms/block stock (M-WAL-WITNESS-TIP-AB).
+Shipped, opt-in.
 
 **Gap:** no p1 rescan capture, so the curve between 0.32% and 72% is unmeasured.
 
@@ -191,11 +193,14 @@ and it explains a null result rather than merely asserting one.
 
 Throughput by region (n in the ledger):
 
-| Region | Rate |
-|--------|------|
-| pre-Sapling (~h50k-75k) | ~1018-1027 blk/s |
-| Sapling onset (h490k-520k) | 130-140 blk/s |
-| deep post-Sapling (h600k-900k) | ~300-304 blk/s |
+Source for all three: the throughput ledger
+(`reindex-profile/bench-summaries/ledger.jsonl`), n as noted.
+
+| Region | Rate | n |
+|--------|------|---|
+| pre-Sapling (~h50k-75k) | ~1018-1027 blk/s | 11 |
+| Sapling onset (h490k-520k) | 130-140 blk/s | 2 |
+| deep post-Sapling (h600k-900k) | ~300-304 blk/s | 22 |
 
 Same-host repeatability is **4%** (178.0 s vs 171.0 s on an unchanged binary),
 which is the noise floor any claimed improvement must clear.

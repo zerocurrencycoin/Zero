@@ -22,10 +22,10 @@ unless a dependency is named. **D** runs in parallel throughout.
 
 | Item | Kanban | Disposition | Effort | Why |
 |------|--------|-------------|--------|-----|
-| A1 Enforce existing rules | InProgress | Open | S | `FINDINGS.md` S1.3 |
-| A2 Record binary and platform | InTest | Open | M | `FINDINGS.md` S1.2, `SCHEMA.md` |
+| A1 Enforce existing rules | **InTest** | Open | S | `FINDINGS.md` S1.3 |
+| A2 Record binary and platform | **InTest** | Open | M | `FINDINGS.md` S1.2, `SCHEMA.md` |
 | A3 Microbenchmark baseline | ToDo | Open | S | `FINDINGS.md` S4 |
-| B1 Phase timers | ToDo | Open | S-M | `FINDINGS.md` S1.1, `../PerfTimers.md` |
+| B1 Phase timers | **InProgress** | Open | S-M | `FINDINGS.md` S1.1, `../PerfTimers.md` |
 | B2 First non-macOS measurement | ToDo | Open | M | `../PerfPlatforms.md` |
 | B3 NOTEIDX staleness | ToDo | Open | S | `FINDINGS.md` S3.1 |
 | C1 Documentation consolidation | InProgress | Open | M | `MIGRATION.md` |
@@ -60,7 +60,7 @@ Make `lint-perf.sh` the enforcement point, then wire it into CI.
 |------|------|-------|
 | a | Run `fix_ascii.py --fix` | **Finished** -- 693 -> 0 in owned scope |
 | b | Add `unicode-docs` to the default `CHECKS` | **Finished** -- scoped to owned docs, `keep/` excluded |
-| c | Add a citation check: a bare figure with no `M-*` id, and an absolute-path check (`POLICY.md` S7.3) | ToDo |
+| c | Citation + absolute-path checks | **Finished** -- `check_citations.py`, gated as `citations`. Scoped to measurement figures so it is signal, not noise |
 | d | CI wiring | **Moved** to F2 (Postponed) |
 | e | Gate tool self-tests in `lint-perf.sh` | **Finished** -- **16/16** Python tools plus `perflib.sh` |
 | f | Harden `fix_ascii --fix`: scope, formula and blast-radius guards | **Finished** -- `POLICY.md` S7.4 |
@@ -78,7 +78,7 @@ Schema: **`SCHEMA.md`**.
 | a | `platform_stamp.py` | Finished |
 | b | `feature_bundles.json` | Finished |
 | c | Back-annotate existing rows | Finished |
-| d | Call the helper from every launcher | Open -- most of the remaining effort |
+| d | Stamp at write time (**F1b**, not per launcher) | **Finished** -- `append_row` and `cmd_add` stamp; an unstamped row is now unrepresentable |
 | e | Fingerprint v2 with `fingerprint_v` | Open |
 | f | Group-by / filter; refuse cross-platform pooling by default | Open |
 | g | Add `run_id` to CPU rows | Open |
@@ -107,8 +107,8 @@ Spec: **`../PerfTimers.md`**.
 
 | Step | What | Owner |
 |------|------|-------|
-| a | Parse the 10 unparsed `-debug=bench` phase lines | ZeroPerf |
-| b | Fix the verify/connect overlap | ZeroPerf + product |
+| a | Parse the 10 unparsed `-debug=bench` phase lines | **Finished** -- all 11 parse; formats taken from the `LogPrint` calls |
+| b | Fix the verify/connect overlap | **Finished** -- `verify_excl_ms()`; a negative span yields `None`, never a negative duration |
 | c | Add proof-verification counters | Zero400 |
 | d | Emit periodic `BenchSummary` | Zero400 |
 | e | Parse `BenchSummary` | ZeroPerf |
@@ -382,6 +382,11 @@ Stated explicitly so nothing above reads as finished when it is not.
 | `collate_cycle`: missing rate no longer counted as 0.0 (dragged a mean from 100.0 to 33.3); malformed ledger line no longer aborts collation | `collate_cycle.py` |
 | `accumulate_bench.collate`: one incomplete row raised `KeyError`, so **no** report could be produced from the whole ledger. Now excluded with a warning; report output verified byte-identical | `accumulate_bench.py` |
 | Grouping keys: a missing height no longer collides with a genuine height-0 window | `accumulate_bench.py` |
+| A1c: citation + absolute-path lint checks, gated | `check_citations.py` |
+| F1b: stamping moved to the ledger writers, making an unstamped row unrepresentable | `accumulate_bench.py`, `profile_collate.py` |
+| B1a: all 11 `-debug=bench` phase lines parsed (was 1) | `extract_measures.py` |
+| B1b: `verify_excl_ms()` -- verify includes connect, so they are never summed | `extract_measures.py` |
+| `validate.sh`: `A && B \|\| C` could record both PASS and FAIL | `validate.sh` |
 | Real lab cycle: tiny reindex 187417 blk, 175.0 s, 1070.95 blk/s | ledger `labcycle-verify` |
 | `tiny_baseline.sh` now appends to the throughput ledger (`CAMPAIGN` was documented but unused) | E1 |
 | `rm -rf` eliminated outside the explicitly-forced path | E1 |

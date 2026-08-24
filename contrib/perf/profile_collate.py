@@ -75,6 +75,21 @@ def cmd_add(args):
         "note": args.note or "",
         "source": args.json,
     }
+    # Same rule as the throughput ledger (docs/TASKS.md F1b): stamp at the
+    # single write point so an unstamped row cannot exist.
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import platform_stamp
+        entry["schema"] = platform_stamp.SCHEMA_VERSION
+        entry["platform"] = platform_stamp.platform_block()
+        entry["build"] = platform_stamp.build_block(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "..", "..", "src", "zerod"))
+        entry["features"] = {"build": platform_stamp.detect_build_features()}
+    except Exception as exc:  # noqa: BLE001 - never lose a capture
+        print("WARNING: platform stamp unavailable (%s); entry recorded "
+              "unstamped" % exc, file=sys.stderr)
+
     ledger = ledger_path()
     parent = os.path.dirname(ledger)
     if parent:

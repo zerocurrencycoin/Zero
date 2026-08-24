@@ -156,7 +156,7 @@ contrib/perf/witness_walk_cost.py <debug.log> [--tsv]
 Pairs the `height-walk begin` / `height-walk done` lines `BuildWitnessCache`
 already emits. No node change, no new instrumentation. Measured:
 **0.1530 ms/block with NOTEIDX** (380 walks) versus **5.31-5.72 ms/block
-stock** -- a 35x difference, and the stock figure is a range, not a constant.
+stock** (M-WAL-WITNESS-TIP-AB) -- a 35x difference, and the stock figure is a range, not a constant.
 
 ## 1.8 Accumulate and report
 
