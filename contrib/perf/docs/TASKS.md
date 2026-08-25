@@ -31,7 +31,7 @@ unless a dependency is named. **D** runs in parallel throughout.
 | C1 Documentation consolidation | **InTest** | Open | M | `MIGRATION.md` |
 | C2 Remaining measurement gaps | ToDo | Open | M | `FINDINGS.md` S4 |
 | C3 Inherited build/DB defects | ToDo | Open | M | `../BUILD_RECONFIG.md` |
-| D1 Equihash / blake2 integration | ToDo | Open | M | `FINDINGS.md` S2 |
+| D1 Equihash / blake2 integration | **InProgress** | Open | M | `../equ/README.md` |
 | E1 Script corpus and safety | **Finished** | Finished | M | `POLICY.md` S3.1 |
 | F1 Regression gate on validate | **InTest** | Open | S | `validate.sh` |
 | F1b A2d stamp at write time | **Finished** | Finished | S-M | this file, F1b |
@@ -212,16 +212,19 @@ Why it is a separate track, its use cases, and what is established:
 integration seam and holds whatever the parallel work contains. Individual
 optimizations become their own items once landed, each with its own baseline.
 
-| Step | What |
-|------|------|
-| a | Add new build-time options to `feature_bundles.json`; classify each |
-| b | Ensure `features.workload.op` distinguishes solve / verify / sync |
-| c | Record the baseline on the target host before any change |
-| d | Confirm `platform.arch` is carried -- SIMD results are arch-specific |
-| e | Keep the `blake2b` bucket ordered before `equihash` |
+| Step | What | State |
+|------|------|-------|
+| 0 | (192,7) analysis: findings, method, staged plan | **Finished** -- `../equ/` |
+| 0a | (192,7) solver baseline vectors, 5 solutions, each verified | **Finished** -- `solver_baseline_192_7` |
+| 0b | `Xc.reserve()` -- one line, and the most informative single measurement | ToDo, V1 |
+| a | Add new build-time options to `feature_bundles.json`; classify each | ToDo |
+| b | Ensure `features.workload.op` distinguishes solve / verify / sync | ToDo |
+| c | Record the baseline on the target host before any change | ToDo |
+| d | Confirm `platform.arch` is carried -- SIMD results are arch-specific | ToDo |
+| e | Keep the `blake2b` bucket ordered before `equihash` | ToDo |
 
 Harness: `mine_bench.sh`, `performance-measurements.sh`, KATs in
-`src/test/data/`.
+`src/test/data/`. Analysis and plan: **`../equ/`**.
 
 **Kanban: ToDo. Effort M**, dominated by (c).
 
@@ -396,6 +399,8 @@ Stated explicitly so nothing above reads as finished when it is not.
 | Platform-independent production-datadir protection | `zeropaths.py`, `POLICY.md` S3.1 |
 | Read vs destroy split as separate permissions | `POLICY.md` S3.1 |
 | Regression gate `validate.sh`; 15 self-tests + lint, logged per run | F1 |
+| (192,7) Equihash analysis: memory fully explained, 144 MB target refuted, coupling corrected | `../equ/` |
+| (192,7) solver baseline vectors captured and verified (was: none above 512 rows) | `solver_baseline_192_7` |
 | Run logging: `warn()`/`die()` reach the driver log; `tiny_baseline.sh` and `validate.sh` keep durable logs | `POLICY.md` S3.2 |
 | Full self-test coverage: `collate_cycle.py`, `shielded_density.py` | 17/17 |
 | `collate_cycle`: missing rate no longer counted as 0.0 (dragged a mean from 100.0 to 33.3); malformed ledger line no longer aborts collation | `collate_cycle.py` |

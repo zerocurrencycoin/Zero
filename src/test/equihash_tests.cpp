@@ -246,6 +246,81 @@ BOOST_AUTO_TEST_CASE(validator_testvectors_48_5) {
 #ifdef ENABLE_MINING
 // TST-05: (48,5) solver on regtest genesis header state -- finds >=1 valid solution;
 // BasicSolve and OptimisedSolve agree.
+// Capture the (192,7) solver's full solution set as the differential baseline
+// for optimization work (contrib/perf/PerfEqu.md S3.2c).
+//
+// Why this exists: solver_testvectors_48_5 pins the solver only at 512 rows,
+// where no memory hierarchy is exercised. At (192,7) the list is 33,554,432
+// rows, so a tuning can be correct at regtest and wrong in production and pass
+// every other test in this file.
+//
+// The CURRENT OptimisedSolve is treated as definitive: it is the deployed
+// consensus miner, and any later change must reproduce its solution set
+// exactly. Opt-in because one solve is ~60 s:
+//
+//   DUMP_1927_SOLVER=vectors.txt ./src/test/test_bitcoin \
+//       --run_test=equihash_tests/solver_baseline_192_7
+//
+// Re-run after a change and diff the SETS (order-independent). A changed set is
+// a regression even if every emitted solution still verifies -- dropping
+// solutions looks like a speedup on wall-clock and is a loss in Sol/s.
+BOOST_AUTO_TEST_CASE(solver_baseline_192_7) {
+    const char* outPath = getenv("DUMP_1927_SOLVER");
+    if (outPath == nullptr) {
+        return;  // ~60 s per solve; opt-in only
+    }
+    SelectParams(CBaseChainParams::MAIN);
+    const Consensus::Params& consensus = Params().GetConsensus();
+    const unsigned int n = consensus.nEquihashN;
+    const unsigned int k = consensus.nEquihashK;
+    BOOST_REQUIRE_EQUAL(n, 192u);
+    BOOST_REQUIRE_EQUAL(k, 7u);
+    const size_t cBitLen = n / (k + 1);
+    CBlockHeader hdr = Params().GenesisBlock().GetBlockHeader();
+
+    crypto_generichash_blake2b_state state;
+    EhInitialiseState(n, k, state);
+    CEquihashInput I{hdr};
+    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+    ss << I;
+    ss << hdr.nNonce;
+    crypto_generichash_blake2b_update(&state, (unsigned char*)&ss[0], ss.size());
+
+    // Collect EVERY solution, not just the first: the set is the baseline.
+    std::set<std::vector<uint32_t>> sols;
+    EhOptimisedSolveUncancellable(n, k, state, [&](std::vector<unsigned char> soln) {
+        sols.insert(GetIndicesFromMinimal(soln, cBitLen));
+        return false;  // keep going
+    });
+    BOOST_REQUIRE_MESSAGE(!sols.empty(),
+                          "OptimisedSolve found no (192,7) solutions on mainnet genesis");
+
+    // Every emitted solution must independently verify -- V1 inside the vector
+    // capture, so a bad baseline cannot be recorded as good.
+    for (const auto& idx : sols) {
+        std::vector<eh_index> ehidx(idx.begin(), idx.end());
+        bool ok = false;
+        // EhIsValidSolution is a macro with a `ret` out-parameter, not a
+        // function; it dispatches on (n,k) to the right Equihash instance.
+        EhIsValidSolution(n, k, state, GetMinimalFromIndices(ehidx, cBitLen), ok);
+        BOOST_CHECK_MESSAGE(ok, "solver emitted a solution that does not verify");
+    }
+
+    std::ofstream out(outPath);
+    BOOST_REQUIRE_MESSAGE(out.good(), "cannot open DUMP_1927_SOLVER path");
+    out << "# Zero (192,7) solver baseline -- mainnet genesis header\n";
+    out << "# Source: EhOptimisedSolve, treated as definitive (PerfEqu.md S3.2c)\n";
+    out << "# Compare SETS, not order.\n";
+    out << "nsols " << sols.size() << "\n";
+    for (const auto& idx : sols) {
+        out << "sol";
+        for (uint32_t v : idx) out << " " << v;
+        out << "\n";
+    }
+    out.close();
+    BOOST_TEST_MESSAGE("wrote " << sols.size() << " (192,7) solution(s) to " << outPath);
+}
+
 BOOST_AUTO_TEST_CASE(solver_testvectors_48_5) {
     SelectParams(CBaseChainParams::REGTEST);
     const Consensus::Params& consensus = Params().GetConsensus();
