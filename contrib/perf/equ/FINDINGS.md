@@ -218,8 +218,8 @@ row genuinely needs 70 B.
 
 #### The V2 experiments, in implementable detail
 
-Both are V2 (differential vs unmodified solver, S3.2); neither changes which
-solutions are found.
+Both are V2 (differential vs unmodified solver, `METHOD.md` S3.2); neither
+changes which solutions are found.
 
 **Experiment A -- index-permutation sort.** Sort a `u32` array of row indices
 instead of the rows, then materialise the permutation once.
@@ -579,3 +579,329 @@ the right shape.
 
 ---
 
+---
+
+## 3. Solver mechanism: keys, widths, and where the constants live
+
+How the collision key, the row widths and the comparator length actually
+behave in `OptimisedSolve`. Read this before changing any of them; the task
+steps that consume it are `../docs/TASKS.md` D2/D3, which cite this section
+rather than restating it.
+
+### 3.1 The collision key
+
+**What the 3 bytes are, exactly.** `CollisionByteLength = (CollisionBitLength
++ 7)/8 = (24+7)/8 = 3`. `ExpandArray` (`equihash.cpp:61`) writes each 24-bit
+digit into its own 3 bytes with `byte_pad = 0`, so at (192,7) the digits are
+**byte-aligned with no padding** -- 24 bits is exactly 3 bytes, no bit shifting
+at read time. This is a property of (192,7), not of Equihash: at (200,9)
+`CollisionBitLength` is 20 and the same expansion pads into 3 bytes with 4 bits
+wasted. A (200,9)-derived constant would be wrong here.
+
+**Why the key is always at offset 0.** The merge constructor
+(`equihash.cpp:299-313`) XORs from `trim` and writes to `hash[i-trim]`, so each
+round **shifts the row left**, discarding the digit just consumed:
+
+```
+round r:   [ digit_r | digit_r+1 | ... | indices ]
+                 XOR -> zero, trimmed off
+round r+1: [ digit_r+1 | ...     | indices ]     <- key back at offset 0
+```
+
+So the sort key is the first 3 bytes at **every** round, and `HasCollision`
+(`:279`) compares `hash[0..l)`. The row narrows by 3 bytes of hash per round
+while the index tail doubles.
+
+**How the 25-vs-70 numbers arise: computed at runtime, but never in the inner
+loop.** The distinction matters, because "computed per round" and "computed per
+row" differ by a factor of 33.5 million.
+
+Two locals in `OptimisedSolve` carry the per-round shape (`equihash.cpp:519`):
+
+```cpp
+size_t hashLen    = HashLength;        // 24 -> 21 -> 18 ... one subtract per round
+size_t lenIndices = sizeof(eh_trunc);  //  1 ->  2 ->  4 ... one shift per round
+...
+hashLen -= CollisionByteLength;        // :594, once per round
+lenIndices *= 2;                       // :595, once per round
+```
+
+`needed = hashLen + lenIndices` is therefore **derived, not looked up** -- and
+updated **7 times per solve**, at the round boundary. Reproduced exactly by
+arithmetic on the enums:
+
+| Round | `hashLen` | `lenIndices` | needed | allocated | waste |
+|------:|----------:|-------------:|-------:|----------:|------:|
+| 0 | 24 | 1 | **25** | 70 | 45 |
+| 1 | 21 | 2 | 23 | 70 | 47 |
+| 2 | 18 | 4 | 22 | 70 | 48 |
+| 3 | 15 | 8 | 23 | 70 | 47 |
+| 4 | 12 | 16 | 28 | 70 | 42 |
+| 5 | 9 | 32 | 41 | 70 | 29 |
+| 6 | 6 | 64 | **70** | 70 | **0** |
+
+`TruncatedWidth = max(HashLength+1, 2*CollisionByteLength + 1*2^(K-1)) = max(25,
+70) = 70` is a **compile-time enum** (`equihash.h:179`), evaluated by the
+compiler, never at runtime. It is sized for round 6 -- the only round where
+waste is zero.
+
+**Where each is used in the hot path:**
+
+| Value | Kind | Touched per | Hot? |
+|-------|------|-------------|------|
+| `TruncatedWidth` (70) | compile-time enum | never at runtime -- it is the array bound in the type | -- |
+| `hashLen`, `lenIndices` | runtime `size_t` local | **round** (7x per solve) | no |
+| `CollisionByteLength` (3) | compile-time enum, **laundered** through `CompareSR`'s ctor | **comparison** (~840M per round) | **yes -- this item** |
+
+So the row is `TruncatedStepRow<70>`, a fixed-size type: the 70 is baked into
+`unsigned char hash[70]` and there is **no per-row width computation or
+lookup** anywhere. The merge constructor does take `hashLen`/`lenIndices` per
+row (`:559`), but as already-computed arguments, not recomputed values.
+
+#### Why a constant beats an automatic, when both live in a register
+
+The obvious objection: `hashLen` is an automatic `size_t` and
+`CompareSR::len` is a member of a functor `std::sort` copies by value -- both
+end up in a **register**, so there is no per-comparison load. That is correct,
+and it is *not* what this change is about.
+
+Two things it is not:
+
+- **Not a memory-load saving.** `len` is register-resident across the sort.
+  Nothing is fetched per comparison.
+- **Not a substitution of `hashLen` for `CollisionByteLength`.** At the round
+  sort they are different numbers -- 3 versus the whole remaining hash
+  (`equihash.cpp:538` vs `:603`). Swapping them would change what is compared.
+
+What it *is*: **what the compiler can prove about the value.** `memcmp` with a
+runtime length is opaque -- the compiler must call a routine engineered for any
+size, which spends its opening instructions dispatching on a size it turns out
+to be 3. With a literal, `memcmp` is a builtin, and -- decisively -- it becomes
+**inlinable into the sort's inner comparison**, which a call never is.
+
+Measured on this host (arm64, clang `-O2`), compiling both comparator shapes:
+
+| Shape | Emitted for one comparison |
+|-------|----------------------------|
+| Runtime `len` in a register | `stp`/`mov` frame setup, **`bl _memcmp`**, `lsr`, `ldp`, `ret` -- a real call, with a link-register spill and reload |
+| `LEN` as a template parameter | 11 instructions, no call: two `ldrh`+`ldrb` pairs, `orr`, **`rev`** byte-swap, `cmp`, `cset` -- the compiler turns the 3-byte compare into a single big-endian integer compare |
+
+**The question that actually decides the item** is whether the constant already
+propagates through `CompareSR`'s constructor when `std::sort` inlines
+everything -- in which case the fold is already happening and the change
+measures null. Compiling the real call shape
+(`std::sort(..., CompareSR(CollisionByteLength))`, sort fully inlined):
+
+| Version | `bl _memcmp` call sites in the emitted sort |
+|---------|--------------------------------------------:|
+| `CompareSR(CollisionByteLength)` -- today | **72** |
+| `CompareSRFixed<CollisionByteLength>` | **0** |
+
+So the constant does **not** survive the constructor: passing a compile-time
+enum through a `size_t` member launders it, and every one of `std::sort`'s
+comparison sites keeps the call. The fold is real and not already being done.
+
+**Generalises past this case:** a compile-time constant passed as a *function
+argument* and stored in a member is only a constant to the reader. To be one
+for the optimizer it has to reach the use site in the **type**. That is the
+whole difference between `CompareSR` and `CompareSRFixed`, and it is why the
+2016 template refactor mattered and why missing the comparator cost something.
+
+**Measured: the call is the whole gap.** A standalone repro of the round sort
+(70-byte rows, 3-byte key, `std::sort`, clang `-O2`, arm64) at production
+round-0 size [Measured, `test-logs/eqsort-20260826/`, n=5]:
+
+| Variant | `bl memcmp` | med s, 2^25 rows | med s, 2^22 rows |
+|---------|------------:|-----------------:|-----------------:|
+| `CompareSR(CollisionByteLength)` -- today | **72** | **4.490** | 0.500 |
+| `CompareSRFixed<3>` | 0 | **2.631** | 0.297 |
+| hardcoded `memcmp(a,b,3)` | 0 | 2.642 | 0.297 |
+| explicit `key24` integer compare | 0 | 2.631 | 0.294 |
+
+**1.71x on the sort** (1.68x at 1/8 the size, so not a cache artifact), spread
+under 4%. Two results beyond the headline:
+
+- **The constant does not survive the constructor.** Passing a compile-time
+  enum through a `size_t` parameter launders it; all 72 comparison sites keep
+  the call.
+- **Once the length is a constant, clang derives the optimal form itself** --
+  `ldrh`+`ldrb`, `orr`, `rev`, `cmp`, i.e. a big-endian 24-bit integer compare.
+  Hardcoding the literal and hand-writing the key extraction are **within noise
+  of the template** (2.642 and 2.631 vs 2.631). Explicit extraction buys
+  nothing *for the comparison itself*; its value in Experiment B is avoiding
+  the re-read across O(m log m) comparisons, which this microbenchmark does not
+  model.
+
+**Bounds on this number.** It is the sort phase alone, not a solve: a solve is
+~60 s and this is one phase of one round. It is a standalone binary, not the
+tree build -- different flags and `std::sort` instantiation, so the in-tree
+gain must be confirmed before it is cited as a solver result. Keys are uniform
+random, matching BLAKE2b output. One host, arm64, 128 B line.
+
+**The consequence for S1.2.** Per-round sizing is not blocked by any runtime
+cost -- the shape is already tracked in two cheap locals. It is blocked by `W`
+being a **template parameter**, so a narrower round needs either a different
+type per round or a byte array with a runtime stride. That is a typing problem,
+not an arithmetic one, and it is why S1.2 proposes the stride.
+
+### 3.2 Widths, templates, and the comparator length
+
+**Where the templates came from, and why `len` survived.** From git history,
+which settles the question rather than inferring it:
+
+| Date | Commit | Change |
+|------|--------|--------|
+| 2016-02-28 | `22ac8e130` | Original validator + basic solver. `StepRow` holds `unsigned char* hash` and a `unsigned int len` member -- **heap pointer, runtime length** |
+| 2016-05-06 | `487afa1c9` | `CompareSR` extracted from `operator<`, taking `size_t len` in its constructor |
+| **2016-05-07** | **`ded9a873c`** | **`template<size_t WIDTH>`; `hash` becomes `unsigned char hash[WIDTH]` and `len` is deleted from `StepRow`**, pushed into method arguments |
+
+So the templates arrived **one day after** `CompareSR`. `StepRow`'s own `len`
+was removed in that refactor -- `IsZero(size_t len)`, `GetHex(size_t len)` --
+but `CompareSR`'s copy was not. **The runtime `len` is a leftover from the
+pre-template design, not a decision.** That is the honest answer to "why so
+much template magic to stick 3 where `this->len` is now": the surrounding code
+was already templated on width in 2016 and the comparator simply missed the
+sweep.
+
+**Does the length vary?**
+
+| Axis | Varies? | Value |
+|------|---------|-------|
+| Per **iteration** (comparison) | No | 3 -- constant within a sort |
+| Per **round** | No | 3 at every round; the trim keeps the key at offset 0 |
+| Per **Equihash params** | **Yes** | `(N/(K+1)+7)/8`: **3** at (192,7), 3 at (200,9) (20 bits, 4 wasted), **1** at (48,5) |
+
+It is constant everywhere except across parameter sets -- and the parameter set
+is a compile-time template argument (`Equihash<192,7>`, `Equihash<48,5>`,
+`equihash.h:199-200`). So `CollisionByteLength` is **already** a per-
+instantiation compile-time enum; `CompareSRFixed<CollisionByteLength>` just
+stops laundering it. Both instantiations still work, each with its own constant.
+
+**What `CollisionByteLength` controls, and why it is hot.** It is the width of
+one collision digit -- the unit of work per round. It appears in four roles:
+
+| Role | Site | Frequency |
+|------|------|-----------|
+| **Sort comparator length** | `std::sort(..., CompareSR(CollisionByteLength))` `:538` | **~840M/round** |
+| Collision test length | `HasCollision(Xt[i], Xt[i+j], CollisionByteLength)` `:549` | ~33.5M/round |
+| Merge trim amount | `TruncatedStepRow{..., CollisionByteLength}` `:559` | per merged row |
+| Per-round decrement | `hashLen -= CollisionByteLength` `:594` | 7/solve |
+
+Only the first is hot, and only because `std::sort` does `O(m log m)`
+comparisons: 33.5M rows, log2 = 25, so ~840M calls per round and ~5 billion per
+solve. Every one currently pays a call into generic `memcmp` because the length
+is a runtime member. **That is the entire content of this item** -- the other
+three roles already see the enum directly.
+
+**Can `hashLen` come from a lookup table instead?** It could, and it would not
+help. `hashLen` is updated **7 times per solve** by one subtract (`:594`); a
+table lookup would replace an arithmetic op that costs nothing with a memory
+read that costs more. The reason `hashLen` cannot be folded is not its cost --
+it is that it is a *runtime* value, so a comparator templated on it would need
+a different instantiation per round, which is the per-round-width work (S1.2),
+not this item.
+
+The distinction worth keeping: **`CollisionByteLength` is hot and constant**
+(fold it); **`hashLen` is cold and variable** (leave it).
+
+**The template, minimally.** Two parameters, and separating them is what makes
+this look small rather than clever:
+
+| Parameter | Belongs to | Bound at | Value at (192,7) |
+|-----------|-----------|----------|------------------|
+| `W` | `StepRow<W>` -- row width | since 2016-05-07 | 70 |
+| `LEN` | comparator -- bytes compared | this item | 3 |
+
+`W` is not new and is not changing -- `operator()` is **already** a member
+template on `W` in today's `CompareSR`. The only change is `len` moving from a
+constructor argument into a template parameter, finishing the 2016 refactor:
+
+```cpp
+template<size_t LEN>
+struct CompareSRFixed {
+    template<size_t W>
+    inline bool operator()(const StepRow<W>& a, const StepRow<W>& b) const
+    { return memcmp(a.hash, b.hash, LEN) < 0; }
+};
+```
+
+One member function, no state, no constructor -- **shorter than `CompareSR`**,
+which has both. With `LEN` a literal in the instantiated body, `memcmp(a, b, 3)`
+is a compiler builtin expanded inline instead of a call.
+
+**`size_t` is 64-bit here** (verified: `sizeof(size_t) == 8`, LP64 on both
+arm64 macOS and x86-64 Linux). It is the right type for a length and costs
+nothing as a template parameter, since it never exists at runtime. No change
+needed.
+
+**Should 25, 23, 28 round up to a multiple of 4 or 8?** Not for alignment, and
+the arithmetic says why. Two separate questions get conflated here:
+
+- **Scalar load alignment** -- would matter only if the key were read as a
+  `u32`/`u64`. It is not; `memcmp` on 3 bytes does not care. Rounding 25 -> 28
+  or 32 for this reason buys nothing today.
+- **Cache-line straddling** -- the real cost, and rounding *up* makes it worse
+  by adding bytes. Only widths **dividing** the line help: 32 and 64 are
+  single-line on both 64 B (x86) and 128 B (Apple) lines; 72 and 88 are worse
+  than 70.
+
+So the useful rounding target is **32 for rounds 0-4** (needed 22-28, and 32
+divides both line sizes) -- which is per-round sizing, S1.2, gated V2. Rounding
+to 8 (24, 32, 48) is second-best: it helps only if a future key-extraction step
+does aligned wide loads (Experiment B). **Neither is this item**, which changes
+no widths at all.
+
+### 3.3 Why the sort is replaceable: size, range, distribution
+
+The fold is a patch on `std::sort`. The reason `std::sort` is the wrong
+algorithm here is a property of the data, and all three facts are known ahead
+of time rather than measured:
+
+| Property | Value | Consequence |
+|----------|-------|-------------|
+| **Size** | `init_size` = 2^25 = 33,554,432 rows, fixed every round | No unknown *m*; a static bucket layout is safe |
+| **Range** | key is 24 bits -> 2^24 = 16,777,216 distinct values | Small enough to index directly; radix/counting applies |
+| **Distribution** | 24 bits of BLAKE2b output | Effectively independent uniform draws |
+
+**Size and range together give the load factor.** 2^25 rows over 2^24 keys is
+`lambda = 2.0` -- on average two rows per key, which is precisely the birthday
+condition the algorithm needs and why the list does not shrink per round.
+
+**Distribution makes the bucket sizing provable rather than empirical.** Keys
+are uniform, so bucket occupancy is Poisson/binomial and the tail is tight.
+Splitting the 24-bit key by its high bits:
+
+| Buckets | Key bits used | Rows/bucket (mean) | sigma | +5 sigma | Headroom needed | Bytes/bucket at 70 B |
+|--------:|--------------:|-------------------:|------:|---------:|----------------:|---------------------:|
+| 256 | 8 | 131,072 | 361 | 132,879 | **1.4%** | 9.2 MB |
+| 4,096 | 12 | 8,192 | 90 | 8,644 | **5.5%** | 573 KB |
+| 65,536 | 16 | 512 | 22.6 | 625 | **22%** | 36 KB |
+
+Two things follow, and they pull in opposite directions:
+
+- **Fewer buckets are cheaper to provision.** Relative spread is
+  `sigma/mean = 1/sqrt(mean)`, so headroom grows as buckets shrink: 1.4% at
+  256, but 22% at 65,536. Over-provisioning at 65,536 costs more than the
+  cache win is likely to return.
+- **More buckets fit smaller caches.** 9.2 MB fits the M4's 16 MB shared L2 but
+  not a typical 1-2 MB private x86 L2; 573 KB fits both. **This is the concrete
+  reason bucket count is a platform-tuned constant, not a portable one**, and
+  it is a prediction B2 can test.
+
+**Collisions within a bucket are the point, not a problem.** Bucketing on the
+high 8 bits leaves the low 16 bits unsorted inside each bucket. That is fine
+for rounds 0-5: the merge needs rows sharing all 24 bits to be *adjacent*, so
+each bucket still needs an inner grouping -- either a second counting pass on
+the low 16 bits (2 passes total, `O(m)`) or a comparison sort on the now
+cache-resident bucket. What it must **never** do is tromp's fixed-capacity
+variant, which **drops** rows that overflow a bucket: at `lambda = 2.0` with 5
+sigma headroom that is a one-in-3.5-million event per bucket, but a dropped row
+is a lost solution, and lost solutions are exactly what V2 exists to catch
+(`METHOD.md` S3.2). A counting sort derives its offsets from an actual count
+pass, so overflow is impossible by construction -- **that is why counting sort,
+not a hash table, is the right S1.3 step for Zero.**
+
+Sequencing: this section is the argument for **S1.3**, gated **V2** (it changes
+grouping order). D3 is the V1 patch that makes the current sort cheaper and
+measures how much of its cost is call overhead -- which is what says whether
+S1.3 is worth the V2 gate. Do not start S1.3 before D3 reports.

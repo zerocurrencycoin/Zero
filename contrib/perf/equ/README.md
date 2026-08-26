@@ -8,7 +8,7 @@ for making the solver competitive.
 
 | Document | Answers |
 |----------|---------|
-| **[FINDINGS.md](FINDINGS.md)** | What is measured and computed about the current solver |
+| **[FINDINGS.md](FINDINGS.md)** | What is measured and computed about the current solver; S3 is the solver mechanism (keys, widths, comparator) |
 | **[METHOD.md](METHOD.md)** | How to measure a change and how hard to validate it |
 | **[PLAN.md](PLAN.md)** | What to build, in what order, S0 -> S4 |
 
@@ -85,7 +85,7 @@ Opt-in (one solve is ~60 s), so the default `equihash_tests` run is unaffected
 |---|--------|--------|------|
 | 1 | **`Xc.reserve()`** -- one line, and the single most informative measurement in the plan (`PLAN.md` S1.2) | XS | V1 |
 | 2 | **Profile (192,7)** to confirm or refute the sort-dominated hypothesis (`PLAN.md` S1.1) | S | V0 |
-| 3 | **Fold `len` to a compile-time constant** (`FINDINGS.md` S1.2b) | XS | V1 |
+| 3 | **Fold `len` to a compile-time constant** (`PLAN.md` S1.2b; mechanism `FINDINGS.md` S3.2) | XS | V1 |
 | 4 | **x86-64 Linux baseline** -- every number here is macOS/arm64 | S | V4 |
 
 Items 1 and 3 are one-line-scale and V1; item 2 decides the order of everything
