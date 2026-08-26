@@ -29,6 +29,7 @@ unless a dependency is named. **D** runs in parallel throughout.
 | A2 Record binary and platform | **InTest** | Open | M | `FINDINGS.md` S1.2, `SCHEMA.md` |
 | A3 Microbenchmark baseline | ToDo | Open | S | `FINDINGS.md` S4 |
 | A4 Workload taxonomy A-E | ToDo | Open | S-M | this file, A4 |
+| A5 CodexPerf review triage | **InProgress** | Open | M | `../../CodexPerf.md` |
 | B1 Phase timers | **InProgress** | Open | S-M | `FINDINGS.md` S1.1, `../PerfTimers.md` |
 | B2 First non-macOS measurement | ToDo | Open | M | `../PerfPlatforms.md` |
 | B3 NOTEIDX staleness | ToDo | Open | S | `FINDINGS.md` S3.1 |
@@ -40,6 +41,7 @@ unless a dependency is named. **D** runs in parallel throughout.
 | D2 `Xc.reserve()` | ToDo | Open | XS | `../equ/FINDINGS.md` S1.1b |
 | D3 Fold `len` to compile-time | **InTest** | Open | XS | **1.22x solve measured**; `../equ/FINDINGS.md` S3.2 |
 | D4 Fixed-nonce timing harness | **Finished** | Finished | S | `../equ/METHOD.md` S3.2e |
+| D5 Measure the **vendored tromp** path | **InTest** | Open | S | **5.69x, V5 PASSED**; `../equ/FINDINGS.md` S2f.4 |
 | E1 Script corpus and safety | **Finished** | Finished | M | `POLICY.md` S3.1 |
 | F1 Regression gate on validate | **InTest** | Open | S | `validate.sh` |
 | F1b A2d stamp at write time | **Finished** | Finished | S-M | this file, F1b |
@@ -216,6 +218,48 @@ publishes per-class tables and needs the classes to exist first.
 ---
 
 ## B -- after A
+
+### A5. Triage the CodexPerf external review
+
+`CodexPerf.md` (repo root, 2026-08-21, 180 lines) is an independent review of
+the branch. **Verified against source before triage** -- it is accurate on
+every point checked, and two findings are real defects in shipped-by-flag code.
+
+| # | Finding | Verified? | Disposition |
+|---|---------|-----------|-------------|
+| **P0** | FDCACHE: `CacheOpen` releases `LOCK(latch.cs)` at function exit, then the caller deserializes through the shared `FILE*` unlocked | **CONFIRMED** (`main.cpp:4902-4925`) | **Real.** Another thread can `fseek` or `fclose` the same stream mid-read |
+| **P1** | `-mrclogevery=0` divides by zero | **CONFIRMED** (`main.cpp:3232`, `:4950`) | **Real.** `nHeight % logEvery` unvalidated at both sites |
+| P1 | FDCACHE probe always reports false -- flags absent from `HelpMessage` | Not re-checked | Plausible; affects provenance labelling |
+| P1 | CI builds neither `--enable-perf` nor the perf lint | Consistent with F2 | Already tracked as **F2** (Postponed, needs repo settings) |
+| P2 | Evidence set larger than authoritative; doc drift | **CONFIRMED** one case | `POLICY.md:68` said `unicode-docs` was not in default `CHECKS`; it is (`lint-perf.sh:107`). **Fixed** |
+| P2 | Portability unproven, one host | Agrees with `FINDINGS.md` S4 | Already **B2** |
+| P2 | `--enable-perf` couples counters with behaviour change | Accurate reading of `configure.ac` | Worth splitting; see (c) |
+| P3 | Out-of-scope wallet docs in `keep/` | Agrees with `NOTES.md` | Already **C1c** |
+| P3 | `git diff --check` trailing whitespace | Not re-checked | Cheap CI addition |
+
+**The P0 finding contradicts a claim in our own documentation.**
+`Perf.md:1525` calls the implementation "functionally correct"; the lock
+lifetime does not support that. This is the review's most valuable
+contribution and the reason it is worth acting on rather than filing.
+
+| Step | What | State |
+|------|------|-------|
+| a | **Disable `-perffdcache` by default**, or gate it behind an explicit unsafe flag, until the lease design lands. Measured gain is below the noise floor, so risk-adjusted value is negative | ToDo |
+| b | Validate `-mrclogevery` once at startup: positive, bounded; fail with a specific error. Replaces two unguarded `GetArg` lookups | ToDo |
+| c | Split `--enable-perf` into counters (safe) and experimental behaviour (FDCACHE) | ToDo |
+| d | Correct `Perf.md:1525` -- retract "functionally correct" and cite the lock-lifetime defect | ToDo |
+| e | Re-verify the FDCACHE probe and the `HelpMessage` gap | ToDo |
+
+(a) and (b) are the two that touch shipped behaviour. Both are Zero400-owned
+(`src/`), so they are specified here and reviewed there.
+
+**Assessment of the review itself: accurate and useful.** Every claim spot
+checked held up against the source, including one that contradicts our own
+documentation -- which is the kind of finding an internal reviewer is least
+likely to produce. Its P2/P3 items largely restate work already tracked (B2,
+C1c, F2), so its marginal value is concentrated in P0 and the two P1 defects.
+
+**Kanban: InProgress. Effort M.**
 
 ### B1. Phase timers
 
@@ -570,6 +614,48 @@ Harness: `mine_bench.sh`, `performance-measurements.sh`, KATs in
 `src/test/data/`. Analysis and plan: **`../equ/`**.
 
 **Kanban: ToDo. Effort M**, dominated by (c).
+
+### D5. Measure the vendored tromp solver -- priority, may reorder D2/S1
+
+**Zero already ships tromp at (192,7)** and `prod.conf` selects it by default
+(`equihashsolver=tromp`). Full finding: `../equ/FINDINGS.md` S2f.3.
+
+Consequence: **every solver number in this tree measures the wrong binary for a
+default miner.** `zcbenchmark solveequihash` calls `EhOptimisedSolve` directly,
+so the 6.6 GB peak, the 60 s solve and the D3 1.22x all describe the
+`default` path, which `prod.conf` does not select.
+
+Method, and the four compatibility conditions that make the comparison valid:
+**`../equ/METHOD.md` S3.2f**. Summary: identical `blake2b_state` object,
+identical index encoding (both use `cBitLen`/`DIGITBITS` = 24), both
+single-threaded, both verified in-loop. The one real difference --
+tromp's `MAXSOLS = 8` cap -- is **measured, not equalised**.
+
+| Step | What | Est. |
+|------|------|------|
+| a | Add `SOLVE_TIMING_SOLVER=default\|tromp` to the D4 harness; lift the driver verbatim from `miner.cpp:669-684` | ~1 h |
+| b | **Solution-set equality first** -- same nonces, both solvers, compare sorted sets. This is a **V5** cross-implementation check, the strongest oracle in `METHOD.md` S3.2 | ~5 min |
+| c | Paired per-nonce timing, n>=4, plus `nsols` from both | ~10 min |
+| d | Peak `phys_mb` both -- tromp's two heaps vs `Xt`+`Xc`; compare against the ~3.3 GB computed in `../equ/FINDINGS.md` S1.2a | with (c) |
+| e | Decide: continue S1 on `OptimisedSolve`, or shift to updating the vendored copy | -- |
+
+**(b) before (c).** If the solution sets disagree, the timings are
+uninteresting until that is resolved.
+
+The vendored copy is **pre-Cantor** (`RESTBITS 4`, no `CANTOR` define), so it
+predates his later bucket-count and packing work -- updating it is a candidate
+in its own right.
+
+**Result: tromp is 5.69x faster and 3.3 GB vs 6.6 GB** [Measured,
+`../equ/FINDINGS.md` S2f.4]. V5 solution-set equality **passed** -- identical
+sets across 4 nonces. No nonce reached 7-8 solutions, so `MAXSOLS` did not
+truncate.
+
+**So S1.2's memory work does optimise a path production does not select.**
+The useful work moves to (e): the vendored copy is pre-Cantor and predates
+tromp's later bucket-count reductions. Steps (a)-(d) are **Finished**.
+
+**Kanban: ToDo. Effort S.** Measurement only, no product change.
 
 ### D2. `Xc.reserve()` -- steps
 

@@ -11,6 +11,9 @@
 #include "chainparams.h"
 #include "crypto/sha256.h"
 #include "crypto/equihash.h"
+#ifdef ENABLE_MINING
+#include "pow/tromp/equi_miner.h"
+#endif
 #include "pow.h"
 #include "primitives/block.h"
 #include "streams.h"
@@ -322,7 +325,15 @@ BOOST_AUTO_TEST_CASE(solver_baseline_192_7) {
     BOOST_TEST_MESSAGE("wrote " << sols.size() << " (192,7) solution(s) to " << outPath);
 }
 
-// Fixed-nonce (192,7) solve timing. The RPC benchmark
+// Fixed-nonce (192,7) solve timing, for either solver Zero ships.
+//
+// SOLVE_TIMING_SOLVER=default (or unset) -> EhOptimisedSolve, the `default`
+// solver. SOLVE_TIMING_SOLVER=tromp -> the vendored solver in src/pow/tromp,
+// which contrib/conf-templates/prod.conf selects by default. Both arms run the
+// same nonce sequence through the same timing and verification code, so the
+// only difference is the solver (see contrib/perf/equ/METHOD.md S3.2f).
+//
+// The RPC benchmark
 // (`zcbenchmark solveequihash`) draws a RANDOM nonce per trial
 // (`src/zcbenchmarks.cpp`, randombytes_buf), so trials differ in how much work
 // they contain and cannot be paired across builds. This case walks a FIXED
@@ -352,6 +363,20 @@ BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
     BOOST_REQUIRE_EQUAL(k, 7u);
     const size_t cBitLen = n / (k + 1);
 
+    const char* solverEnv = getenv("SOLVE_TIMING_SOLVER");
+    const std::string solverName = (solverEnv == nullptr) ? "default" : solverEnv;
+    BOOST_REQUIRE_MESSAGE(solverName == "default" || solverName == "tromp",
+                          "SOLVE_TIMING_SOLVER must be 'default' or 'tromp'");
+    const bool useTromp = (solverName == "tromp");
+    BOOST_TEST_MESSAGE("solver " << solverName);
+
+    const char* dumpPath = getenv("SOLVE_TIMING_DUMP");
+    std::ofstream dump;
+    if (dumpPath != nullptr) {
+        dump.open(dumpPath);
+        BOOST_REQUIRE_MESSAGE(dump.good(), "cannot open SOLVE_TIMING_DUMP path");
+    }
+
     const char* tsvPath = getenv("SOLVE_TIMING_TSV");
     std::ofstream tsv;
     if (tsvPath != nullptr) {
@@ -376,13 +401,49 @@ BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
         crypto_generichash_blake2b_update(&state, (unsigned char*)&ss[0], ss.size());
 
         std::set<std::vector<uint32_t>> sols;
+        size_t rawSols = 0;      // solutions emitted before de-duplication
         int64_t t0 = GetTimeMicros();
-        EhOptimisedSolveUncancellable(n, k, state, [&](std::vector<unsigned char> soln) {
-            sols.insert(GetIndicesFromMinimal(soln, cBitLen));
-            return false;  // collect every solution
-        });
+        if (useTromp) {
+            // Driver lifted verbatim from miner.cpp so this measures the code
+            // path a miner actually runs, not a reimplementation of it.
+            equi eq(1);                       // single-threaded, as miner.cpp does
+            eq.setstate(&state);              // the SAME state object as the default arm
+            eq.digit0(0);
+            eq.xfull = eq.bfull = eq.hfull = 0;
+            for (u32 r = 1; r < WK; r++) {
+                (r & 1) ? eq.digitodd(r, 0) : eq.digiteven(r, 0);
+                eq.xfull = eq.bfull = eq.hfull = 0;
+            }
+            eq.digitK(0);
+            rawSols = eq.nsols;
+            for (size_t si = 0; si < eq.nsols; si++) {
+                std::vector<eh_index> idx(PROOFSIZE);
+                for (size_t i = 0; i < PROOFSIZE; i++) {
+                    idx[i] = eq.sols[si][i];
+                }
+                // DIGITBITS == n/(k+1) == cBitLen, so the encoding matches the
+                // default arm exactly and the two solution sets are comparable.
+                sols.insert(GetIndicesFromMinimal(GetMinimalFromIndices(idx, cBitLen), cBitLen));
+            }
+        } else {
+            EhOptimisedSolveUncancellable(n, k, state, [&](std::vector<unsigned char> soln) {
+                rawSols++;
+                sols.insert(GetIndicesFromMinimal(soln, cBitLen));
+                return false;  // collect every solution
+            });
+        }
         int64_t t1 = GetTimeMicros();
         const double secs = (t1 - t0) / 1000000.0;
+
+        // tromp stores at most MAXSOLS (8) solutions and silently discards the
+        // rest. Observed counts at (192,7) are 2-5, so 7 or 8 is already
+        // suspicious and 8 may mean the cap truncated the set -- which would
+        // make the two arms incomparable rather than merely different.
+        if (useTromp && rawSols >= 7) {
+            BOOST_TEST_MESSAGE("WARNING: nonce " << t << " emitted " << rawSols
+                               << " solutions; MAXSOLS is 8, so the set may be"
+                               " truncated and this nonce is not comparable");
+        }
 
         // Every solution must verify: a faster solver emitting garbage is not
         // faster. V1 inside the timing loop so a bad number cannot be recorded.
@@ -393,14 +454,27 @@ BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
             BOOST_CHECK_MESSAGE(ok, "solver emitted a solution that does not verify");
         }
 
-        BOOST_TEST_MESSAGE("nonce " << t << " secs " << secs
-                           << " nsols " << sols.size());
+        BOOST_TEST_MESSAGE("solver " << solverName << " nonce " << t
+                           << " secs " << secs << " nsols " << sols.size()
+                           << " raw " << rawSols);
         if (tsv.is_open()) {
-            tsv << t << "\t" << secs << "\t" << sols.size() << "\n";
+            tsv << solverName << "\t" << t << "\t" << secs << "\t"
+                << sols.size() << "\t" << rawSols << "\n";
             tsv.flush();
+        }
+        // Dump the solution SET so the two solvers can be diffed directly.
+        // Order-independent: sols is a std::set of sorted index vectors.
+        if (dump.is_open()) {
+            for (const auto& idx : sols) {
+                dump << t;
+                for (uint32_t v : idx) dump << " " << v;
+                dump << "\n";
+            }
+            dump.flush();
         }
     }
     if (tsv.is_open()) tsv.close();
+    if (dump.is_open()) dump.close();
 }
 
 BOOST_AUTO_TEST_CASE(solver_testvectors_48_5) {

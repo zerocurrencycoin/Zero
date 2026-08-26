@@ -65,7 +65,7 @@ nothing. Four have drifted that way. Current state:
 
 | Rule | Enforcement | State |
 |------|-------------|--------|
-| ASCII only | `fix_ascii.py`, `lint-perf.sh` | Checker exists; `unicode-docs` **not** in default `CHECKS` |
+| ASCII only | `fix_ascii.py`, `lint-perf.sh` | **Enforced** -- `unicode-docs` is in the default `CHECKS` (`lint-perf.sh:107`); backlog cleared, 0/0 |
 | Owned-scope lint clean | `lint-perf.sh` | Enforced, passing |
 | Numbers cited by `M-*` | -- | **Convention only.** Proposed: `TASKS.md` A1c |
 | Full node only | -- | **Convention only.** 475 lines of wallet UI docs present |

@@ -346,6 +346,91 @@ garbage cannot post a number. Opt-in via the env var, ~30-70 s per nonce.
 is the per-nonce ratio; a pooled mean throws away the pairing that makes the
 comparison valid.
 
+### 3.2f Cross-checking the vendored tromp solver, compatibly
+
+Zero ships two (192,7) solvers (`../equ/FINDINGS.md` S2f.3): `EhOptimisedSolve`
+(`default`, what every number in this tree measures) and vendored tromp
+(`src/pow/tromp/`, what `prod.conf` selects). **Comparing them is only
+meaningful if the comparison is compatible**, and four things must be held
+equal or the result is not a solver comparison at all.
+
+#### The four compatibility conditions, and why each already holds
+
+| # | Condition | Status |
+|---|-----------|--------|
+| 1 | **Identical input state** | **Holds.** `equi::setstate(const crypto_generichash_blake2b_state*)` (`equi_miner.h:209`) takes exactly the `state` the D4 harness already builds with `EhInitialiseState` + `blake2b_update`. Pass the same object to both -- do not rebuild it |
+| 2 | **Identical index encoding** | **Holds.** `miner.cpp:693` converts via `GetMinimalFromIndices(index_vector, DIGITBITS)`; `DIGITBITS = WN/(WK+1) = 24`, and the harness uses `cBitLen = n/(k+1) = 24`. Same function, same width, so solution sets are directly comparable |
+| 3 | **Identical thread count** | **Holds if left alone.** `miner.cpp:669` constructs `equi eq(1)` -- single-threaded, matching `EhOptimisedSolve`. Zero builds with `-DEQUIHASH_TROMP_ATOMIC` (`src/Makefile.am:384`), so the atomic path is compiled in; **that is a cost tromp pays and `OptimisedSolve` does not**, and it must be reported, not silently equalised |
+| 4 | **Identical verification** | **Must be added.** Every emitted solution goes through the untouched `CheckEquihashSolution`, same as the D4 harness does |
+
+#### The one incompatibility that must be measured, not hidden
+
+**`MAXSOLS = 8`** (`equi_miner.h:71`): tromp stores at most 8 solutions and
+**silently discards the rest** (`if (soli < MAXSOLS)`). `EhOptimisedSolve` has
+no such cap. Our genesis baseline finds 5 and fixed nonces have yielded 2-4
+(S3.2a), so 8 is not binding *in observed cases* -- but it is a real semantic
+difference and a nonce that produced 9+ would make tromp look correct while
+losing work.
+
+**Record `nsols` from both solvers on every nonce.** A divergence is a finding,
+not noise. Do not raise `MAXSOLS` to make the comparison "fair": the shipped
+value is what a miner runs.
+
+#### Proposed harness: extend D4 rather than write a second one
+
+`solver_timing_192_7` already does fixed nonces, per-nonce timing, `nsols`, and
+in-loop verification. Add a solver selector so both paths run **the same nonce
+sequence through the same timing and verification code**:
+
+```bash
+SOLVE_TIMING_1927=4 SOLVE_TIMING_SOLVER=default ...   # EhOptimisedSolve
+SOLVE_TIMING_1927=4 SOLVE_TIMING_SOLVER=tromp   ...   # vendored tromp
+```
+
+This is the right shape because it makes the two arms differ in **one** thing.
+Writing a separate tromp benchmark would reintroduce exactly the unpaired-input
+problem that inflated the first D3 estimate by 30% (S3.2e).
+
+The tromp driver is the loop already in `miner.cpp:669-684` -- lift it verbatim
+rather than reimplementing:
+
+```cpp
+equi eq(1);
+eq.setstate(&state);          // condition 1: the SAME state object
+eq.digit0(0);
+for (u32 r = 1; r < WK; r++)
+    (r & 1) ? eq.digitodd(r, 0) : eq.digiteven(r, 0);
+eq.digitK(0);
+// then GetMinimalFromIndices(idx, DIGITBITS) per eq.sols[s]  -- condition 2
+```
+
+#### What to record, and the comparisons it enables
+
+| Signal | Why |
+|--------|-----|
+| secs per nonce, both solvers | The headline; **paired**, so per-nonce ratio is the statistic |
+| `nsols` per nonce, both | Guards `MAXSOLS`; a mismatch invalidates the time comparison |
+| **solution set equality** | The real cross-check: two independent algorithms agreeing is **V5** evidence (S3.2), the strongest oracle available |
+| peak `phys_mb`, both | tromp's two heaps vs `Xt`+`Xc`; the memory claim in S1.2 depends on which solver is meant |
+| Build/platform stamp | Both arms are the same binary here, so only the selector differs |
+
+#### Why this is worth more than a benchmark
+
+A tromp-vs-default run on identical nonces is simultaneously:
+
+1. **A performance comparison** -- which solver a miner should run.
+2. **A V5 cross-implementation check** (S3.2) -- two structurally different
+   algorithms, one bucket-based and one sort-based, agreeing on the solution
+   set is far stronger evidence than either verifying alone. `../equ/README.md`
+   lists a tromp port as the strongest available V5 oracle; **it is already in
+   the tree**, so that oracle is available now at no porting cost.
+3. **A validation of the analysis in S1/S2d** -- if tromp's measured peak is
+   near the ~3.3 GB computed for a tromp-class solver at (192,7) (S1.2a), the
+   model is confirmed from a second direction.
+
+**Order:** (2) first. If the solution sets disagree, the timing numbers are
+uninteresting until that is resolved.
+
 ### 3.3 What to record every time
 
 Beyond wall time, capture what the measured baseline says matters:

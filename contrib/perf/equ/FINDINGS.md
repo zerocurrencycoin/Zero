@@ -581,6 +581,599 @@ the right shape.
 
 ---
 
+## 2b. Tree tags, Cantor pairing, and the (192,7) 32-bit wall
+
+Technique #4 (compact index-pointer storage) in the reference implementation,
+and what blocks a direct port. Source read locally at
+`~/Work/ZK/ZKs/equihash-tromp/equi_miner.h`.
+
+### 2b.1 Why the tag replaces accumulated indices
+
+Zero stores every accumulated index tag, so a row grows as the hash shrinks
+(S1.1a). tromp stores a fixed back-pointer to the **pair** that formed the row
+and reconstructs the 128 indices once, at the end, only for rows that became
+solutions:
+
+| Round | Zero: hash + indices | tromp: hash + tag |
+|------:|---------------------:|------------------:|
+| 0 | 24 + 1 = 25 B | 24 + 4 = 28 B |
+| 3 | 15 + 8 = 23 B | 15 + 4 = 19 B |
+| 6 | 6 + 64 = **70 B** | 6 + 4 = **10 B** |
+
+Zero's rows grow after round 4; tromp's shrink monotonically. **Round 6 sets
+peak memory, and it is irreducible without this change** -- which is why
+per-round widths alone cannot lower the peak (S1.1a).
+
+### 2b.2 Cantor pairing: the bit arithmetic
+
+A merged row's two parent slots are **unordered**, so storing them as two
+independent fields wastes the half of the code space where `s0 > s1`.
+Cantor pairing `c(s0,s1) = s1*(s1+1)/2 + s0` for `s0 < s1` is a bijection onto
+a range roughly half as large -- a **2-bit** saving:
+
+```
+plain:  bid_s0_s1 = ((bid << SLOTBITS | s0) << SLOTBITS) | s1   // 2*SLOTBITS
+cantor: bid_s0_s1 = (bid << CANTORBITS) | c(s0,s1)              // 2*SLOTBITS-2
+```
+
+**The 2 bits are not free.** `NSLOTPAIRS ~ NSLOTS^2/2` must fit
+`2^(2*SLOTBITS-2) = SLOTRANGE^2/4`, so `NSLOTS <= SLOTRANGE/sqrt(2) =
+0.707*SLOTRANGE` -- tromp's source comment, "must be under sqrt(2)/2 with
+-DCANTOR", enforced by `static_assert(NSLOTPAIRS <= 1<<CANTORBITS)`.
+
+**Buckets must therefore be deliberately underfilled.** This is what `SAVEMEM`
+does. Bucket capacity is `SLOTRANGE = 2^SLOTBITS`, but only `NSLOTS =
+SLOTRANGE * SAVEMEM` slots are usable [Computed, (200,9) RESTBITS=10]:
+
+| Quantity | Value |
+|----------|------:|
+| SLOTRANGE (2^12) | 4096 |
+| SAVEMEM | 9/14 = 0.643 |
+| **NSLOTS** | **2633** |
+| NSLOTPAIRS | 3,467,660 |
+| CANTORBITS capacity (2^22) | 4,194,304 -- fits |
+
+Underfilling is safe only because occupancy is tight: his comment notes an
+expected bucket size of 512+ has "such relatively small standard deviation that
+we can reduce capacity with negligible discarding". The same Poisson property
+computed in S3.2a. **Overflow discards rows, and a discarded row is a lost
+solution** -- so the margin is a correctness parameter, not just a memory one.
+
+So Cantor is a **conditional** 6% saving on a 4-byte tag, bought with a 36%
+bucket-capacity reduction. His own README calls it "a small gain".
+
+### 2b.3 The (192,7) wall: the tag does not fit 32 bits
+
+`TREEMINBITS = BUCKBITS + CANTORBITS`, and the code hard-fails with
+`#error tree doesnt fit in 32 bits` above 32. At (192,7) `DIGITBITS` is **24**
+rather than 20, so `BUCKBITS = DIGITBITS - RESTBITS` is 4 bits wider for the
+same RESTBITS [Computed]:
+
+| Params | RESTBITS | BUCKBITS | SLOTBITS | TREEMINBITS | Fits u32 |
+|--------|---------:|---------:|---------:|------------:|:--------:|
+| (200,9) | 10 (his default) | 10 | 12 | **32** | yes |
+| (192,7) | 4 | 20 | 6 | 30 | yes |
+| (192,7) | 6 | 18 | 8 | **32** | yes |
+| (192,7) | 7 | 17 | 9 | 33 | **no** |
+| (192,7) | **10** | 14 | 12 | **36** | **no** |
+| (192,7) | 12 | 12 | 14 | 38 | **no** |
+
+**A tromp port at (192,7) requires RESTBITS <= 6**, far below his tuned 10, or
+a 64-bit `tree_t` that doubles tag cost. RESTBITS <= 6 also trips the
+`RESTBITS < 8` branch that forces `SAVEMEM 1`, removing the underfill that
+Cantor depends on -- so at (192,7) the two settings pull against each other.
+
+**This is a checkable blocker not documented in the plan**, and it should be
+resolved before any port is scoped (S2a lists the port as the strongest V5
+oracle).
+
+### 2b.4 Alternatives to Cantor for Zero
+
+For Zero the win is 70 B -> ~10 B. Two bits of a 4-byte tag is rounding error
+against that, and the constraint chain (Cantor -> underfill -> discard risk)
+is real complexity.
+
+| Option | Saving vs plain | Cost |
+|--------|----------------:|------|
+| **Plain two slot fields** | 0 | None. **Start here** |
+| Widen `tree_t` to `u64` | -4 B/row | Simplest (192,7) fix; rows ~14 B, still 5x better than 70 |
+| Cantor | 2 bits | Forces `SAVEMEM <= 0.707`; discard risk; **no benefit at (192,7)**, S2b.5 |
+
+### 2b.5 Is Cantor desirable for Zero? No -- and the reason is arithmetic
+
+Cantor saves **2 bits**. Two bits only matter if they move the tag across a
+**storage-class boundary** -- 32 bits to 16, or 64 to 32. Anywhere else the
+saving is absorbed by padding and buys literally nothing. So the question is
+narrow and answerable [Computed].
+
+**Case A -- Zero keeps its flat sorted array (no buckets).** A tag identifies a
+pair of row indices; rows number 2^25, so an index is 25 bits:
+
+| | bits | storage |
+|---|---:|---|
+| plain pair | 50 | `u64` |
+| cantor | ~49 | `u64` |
+
+**No change.** Both land in `u64`; Cantor saves nothing at all.
+
+**Case B -- Zero adopts a bucket architecture.** Tag is `bucket + pair-of-slots`,
+and the boundary is crossed in exactly one configuration:
+
+| RESTBITS | plain | cantor | Effect |
+|---------:|------:|-------:|--------|
+| 4 | 32 (`u32`) | 30 (`u32`) | none |
+| **6** | **34 (`u64`)** | **32 (`u32`)** | **Cantor halves the tag** |
+| 8 | 36 (`u64`) | 34 (`u64`) | none |
+| 10 | 38 (`u64`) | 36 (`u64`) | none |
+| 12 | 40 (`u64`) | 38 (`u64`) | none |
+
+So there is **one** viable case: RESTBITS=6. **And that case fails its own
+constraint.** At RESTBITS=6, `BUCKBITS`=18 gives 262,144 buckets holding 2^25
+rows -- mean occupancy **128**, sd **11.3**. Cantor caps usable capacity at
+`0.707 x SLOTRANGE` = **181 slots**:
+
+| Quantity | Value |
+|----------|------:|
+| mean occupancy | 128.0 |
+| capacity for a 50% zero-drop solve (S2d.1) | **188** |
+| Cantor permits (0.707 x 256) | **181** |
+| shortfall | **7 slots -- does not fit** |
+
+(The earlier version of this table used an inherited 5-sigma figure, 185.
+Deriving the target properly makes the requirement **stricter**, 188, so the
+conclusion is unchanged and slightly stronger.)
+
+Expected overflowing buckets: ~0.37 per round, **~2.6 across 7 rounds**. Every
+overflow **discards rows**, and a discarded row can be a lost solution. At ~2
+solutions per nonce (S3.2a) that is not a rounding error -- it is exactly the
+failure mode V2 exists to catch (`METHOD.md` S3.2).
+
+This is also why tromp's own code forces `SAVEMEM 1` when `RESTBITS < 8`
+("can't save much memory in such small buckets"): small buckets have a large
+*relative* standard deviation, so they cannot be underfilled safely. **Cantor
+needs underfilling; small buckets forbid it. At (192,7) the only RESTBITS where
+Cantor would pay is in the range where it is unsafe.**
+
+**Verdict: skip Cantor for Zero.** It is optional in tromp's design and
+undesirable in Zero's. The whole prize is 70 B -> ~10-14 B per row; 2 bits of a
+4-byte tag is under 1% of that, contingent on a constraint chain
+(Cantor -> underfill -> discard risk) that does not hold at these parameters.
+Implement plain fields, and revisit only if a measured profile shows tag width
+binding -- which the arithmetic above says it will not.
+
+## 2c. Bitfields: a 2016 decision that modern compilers have inverted
+
+`struct tree` (`equi_miner.h:167`) carries the comment:
+
+> formerly i had these bitfields ... but these were poorly optimized by the
+> compiler so now we do things "manually"
+
+**That was true in 2016. On the 2026 toolchain it is reversed.** Compiling both
+forms, construct-then-read-all-three-fields, clang `-O2`
+[Measured, macOS/arm64, `test-logs/cantor-bitfield-20260826/`]:
+
+| Form | Instructions | Emitted |
+|------|-------------:|---------|
+| Manual pack/unpack (his) | **7** | `lsl`, `orr`, `orr`, `ubfx`, `and`, `add`, `add` |
+| Bitfield (rejected) | **5** | `and`, `and`, `and`, `add`, `add` |
+
+The manual form packs the word and immediately unpacks it; the compiler cannot
+see through the round trip. The bitfield form never materialises the packed
+word, and clang emits `ubfx`/`bfi` natively where a real field extract is
+needed. **Clearer and fewer instructions.**
+
+**Platform caveat: arm64 macOS only.** `ubfx`/`bfi` are AArch64 bitfield
+instructions. x86-64 has `BEXTR`/`SHRX` under BMI1/BMI2 but different codegen
+rules, and GCC's bitfield handling differs from clang's. **x86-64 and GCC are
+TBD** -- do not generalise this result. It is the same warning as the cache-line
+and page-size findings (S1.1a1): a codegen conclusion from one architecture
+predicts nothing about the other.
+
+**Generalisable lesson:** a performance comment that names compiler behaviour
+has an expiry date. Zero's tree carries several 2016-era decisions of this kind;
+each is cheap to re-test and at least one has already flipped.
+
+### 2c.1 A readable tag type
+
+If the tag is implemented for Zero, the manual `bid_s0_s1` packing is worth
+neither its opacity nor (on arm64) its instruction count. Field order is
+**bucket first, then slots**, matching the packing order so the bucket id
+occupies the high bits: bucket is the coarse key used to address the bucket
+array, and keeping it in the high bits means a single shift recovers it,
+with no mask. Slots are the low-order detail within that bucket.
+
+```cpp
+// Identifies a merged row by the pair of parent slots that produced it.
+// One 32-bit word; reconstructed into full indices only at solution time.
+struct TreeTag {
+    // Low bits first: bit-field allocation order is implementation-defined,
+    // so the static_assert below is what actually pins the size.
+    uint32_t slot1  : SLOTBITS;   // second parent slot, within the bucket
+    uint32_t slot0  : SLOTBITS;   // first  parent slot, within the bucket
+    uint32_t bucket : BUCKBITS;   // coarse key: which bucket on the prior layer
+
+    TreeTag() = default;
+
+    TreeTag(uint32_t bucketId, uint32_t s0, uint32_t s1)
+        : slot1(s1)
+        , slot0(s0)
+        , bucket(bucketId)
+    {}
+};
+
+static_assert(sizeof(TreeTag) == 4, "TreeTag must stay one word");
+static_assert(BUCKBITS + 2 * SLOTBITS <= 32, "tag does not fit 32 bits");
+```
+
+The two `static_assert`s replace the `#error` and make the (192,7) constraint
+(S2b.3) a compile-time failure with a readable message rather than a silent
+mis-size. **Round-0 tags store a leaf index instead of a pair** -- keep that as
+a separate named constructor or a distinct type rather than overloading the
+same fields, which is the least readable part of the original.
+
+## 2d. Bucket capacity: deriving the target instead of inheriting it
+
+### 2d.1 Why 5 sigma was the wrong question
+
+Earlier sizing in this document used **5 sigma**, taken from the convention in
+the surrounding literature rather than derived. It is the wrong shape of
+target: sigma is a *per-bucket* statement, but what matters is **no bucket
+overflowing anywhere, across every bucket and every round**.
+
+State the goal directly: **a 50% chance of losing no row at all over the whole
+solve.** With `N = NBUCKETS x 7` independent bucket-rounds, the per-bucket
+tolerance is
+
+```
+p_bucket = 1 - 0.5^(1/N)
+```
+
+and the capacity is the Poisson quantile at `1 - p_bucket`. Poisson is
+right-skewed, so a plain normal quantile understates the tail; the figures
+below use a Cornish-Fisher correction (`skew = 1/sqrt(lambda)`) [Computed]:
+
+| BUCKBITS | buckets | lambda | z | capacity | overprovision |
+|---------:|--------:|-------:|--:|---------:|--------------:|
+| 18 | 262,144 | 128 | 5.29 | 188 | **1.468x** |
+| 16 | 65,536 | 512 | 4.79 | 621 | 1.213x |
+| 14 | 16,384 | 2,048 | 4.44 | 2,250 | 1.098x |
+| 12 | 4,096 | 8,192 | 4.09 | 8,563 | **1.045x** |
+| 10 | 1,024 | 32,768 | 3.74 | 33,445 | 1.021x |
+| 8 | 256 | 131,072 | 3.37 | 132,291 | **1.009x** |
+
+**The 5-sigma convention lands near-correct only at many small buckets** (18
+bits needs 5.29) and is increasingly wasteful as buckets grow -- at 8 bits the
+honest requirement is 3.37 sigma. Using 5 there would over-provision by ~1.5%
+of a multi-GB array for nothing.
+
+**The real lesson is that the cost of safety collapses with bucket size**:
+1.468x at 262k buckets versus **1.009x** at 256. Relative spread is
+`1/sqrt(lambda)`, so large buckets are nearly free to make safe.
+
+Verified against measurement [Measured,
+`test-logs/bucketsort-20260826/`]: at the benchmark's lambda=1024 the model
+predicts **1.114x** for a 50% zero-drop target. Observed: 1.045x dropped
+0.10%, **1.10x dropped 0.0007%**, 1.20x dropped nothing. Model and measurement
+agree.
+
+### 2d.2 Bucket size: safety and cache pull the same way
+
+Cache fit was previously argued as a separate tuning axis from overflow safety.
+It is not -- **they agree**. Assuming 32 B rows after per-round sizing:
+
+| BUCKBITS | overprovision | bytes/bucket | Fits |
+|---------:|--------------:|-------------:|------|
+| 18 | 1.468x | 0.01 MB | L1 |
+| 14 | 1.098x | 0.07 MB | L1 |
+| **12** | **1.045x** | **0.27 MB** | **L2 (x86 private)** |
+| 10 | 1.021x | 1.07 MB | L2 (M-series shared) |
+| 8 | 1.009x | 4.23 MB | L2 (M-series only) |
+
+**BUCKBITS=12 is the defensible default**: 4.5% overprovision, and 0.27 MB fits
+a 1-2 MB private x86 L2 *and* an M-series shared L2. Below 12 the memory saving
+is small (4.5% -> 2.1%) while the working set stops fitting commodity x86 L2.
+Above 12 the overprovision cost climbs fast for no cache benefit, since L1 is
+already exceeded by the *stream* rather than the bucket.
+
+This supersedes the earlier framing in S3.3, which treated bucket count purely
+as a cache question and left overflow as a separate concern.
+
+### 2d.3 Sorting vs hashing vs approximate grouping -- measured
+
+The merge needs rows sharing 24 bits to be **adjacent**. Total order is an
+artifact of using a comparison sort to get there. Three strategies, same
+workload, 70 B rows, 2^22 rows [Measured, n=3, arm64]:
+
+| Strategy | Passes | Time | vs sort | Produces |
+|----------|-------:|-----:|--------:|----------|
+| **A** `std::sort` + `CompareSRFixed<3>` (today, post-D3) | O(m log m) | 0.316 s | 1.00x | total order |
+| **B** counting sort on the full 24-bit key | 2 (count, scatter) | **0.084 s** | **3.8x** | exact grouping |
+| **C** bucket insert on the high 12 bits | 1 (insert) | **0.021 s** | **15.0x** | approximate grouping |
+
+Three conclusions:
+
+1. **Exact grouping is 3.8x cheaper than total order and loses nothing.**
+   Counting sort is `O(m)`, needs no layout change, and drops in behind the
+   same interface. Its cost is a 2^24-entry count array (64 MB) plus one output
+   buffer -- the second buffer Zero already pays for as `Xc`.
+2. **Approximate grouping is 15x but is not a drop-in.** Bucketing on the high
+   12 bits leaves the low 12 unsorted *within* each bucket, so the merge must
+   then group inside the bucket -- either a second counting pass or a
+   comparison sort on a now cache-resident bucket. The 15x is the *first* pass
+   only; it is not the complete replacement cost.
+3. **Overflow is the price of the single pass.** C drops rows when a bucket
+   fills: measured 0.10% at 1.045x, 0.0007% at 1.10x, 0 at 1.20x. **A dropped
+   row can be a lost solution** (`METHOD.md` S3.2), so C requires either
+   over-provisioning to the S2d.1 target or an overflow path.
+
+**Recommended order: B before C.** Counting sort captures 3.8x with **no
+correctness risk at all** -- it cannot drop a row, because its offsets come
+from an actual count pass. C's further gain is real but buys a class of bug
+(silent solution loss) that V2 exists to catch and that would need
+over-provisioning to suppress. Take the safe 3.8x first, then measure whether
+the residual is worth the overflow machinery.
+
+## 2e. Cross-implementation survey: trees, grouping, and sizing
+
+Read from the local clones under `~/Work/ZK/ZKs/` (out of tree). The question
+is not "who ran (192,7)" (S2a) but **which structural choices recur**, since a
+choice five independent implementations converge on is likely forced by the
+algorithm rather than by taste.
+
+| Implementation | Grouping | Tag / back-pointer | Overflow |
+|----------------|----------|--------------------|----------|
+| **Zero** (this tree) | `std::sort`, comparison | **none** -- accumulates all indices | impossible |
+| **tromp** | bucket insert, atomic slot counter | `bid_s0_s1`, 32-bit, **Cantor optional** | **drops** |
+| **silentarmy** (OpenCL) | bucket insert, `atomic_add` on row counter | `ENCODE_INPUTS(row,slot0,slot1)`, **plain packing** | **drops**, counted |
+| **Khovratovich reference** | direct index into `tupleList[index]`, `filledList` counter | `Tuple::reference` / `Fork{ref1,ref2}` | capacity `FORK_MULTIPLIER` |
+| **BTCGPU / nheqminer** | tromp fork | tromp's | tromp's |
+
+### 2e.1 What everyone else does that Zero does not
+
+**Nobody else sorts.** Four of five group by **writing rows into a bucket
+addressed by the collision digit** -- one pass, `O(m)`, no comparisons. Zero is
+alone in paying `O(m log m)` for a total order the merge does not need. That is
+the strongest external support for S2d.3's counting-sort recommendation.
+
+**Everybody else stores a back-pointer.** All four alternatives keep a fixed
+reference to the *parent pair* and reconstruct indices at the end. The
+Khovratovich reference -- the paper author's own code -- is explicit about it:
+`class Fork { Input ref1, ref2; }` and `Tuple::reference`. **Zero's accumulated
+index tail is the outlier**, and it is the direct cause of the 70 B row (S1.1a)
+and of round 6 setting peak memory (S2b.1).
+
+**Everybody else accepts overflow.** Bucket insert cannot resize, so all three
+production solvers drop rows when a bucket fills; silentarmy tracks a `dropped`
+counter through every kernel. Zero's in-place merge cannot lose a row. **That
+is a real property Zero currently has and would give up** -- worth stating,
+because S2d.3's counting sort keeps it while bucket insert does not.
+
+### 2e.2 Cantor is the minority choice
+
+Of the implementations using a `(row, slot0, slot1)` tag, **only tromp packs
+with Cantor**, and there it is an `#ifdef` added late. silentarmy uses plain
+shifts and masks, hand-specialised per configuration
+(`input.cl:385-406`), with one variant even noting "1 spare bit" rather than
+reaching for a denser encoding. This corroborates S2b.5 from a second
+direction: the 2 bits are not worth the constraint chain, and the field's own
+practice reflects that.
+
+### 2e.3 Independent confirmation of the sizing model
+
+silentarmy's `param.h` sets bucket overhead by hand per configuration, with
+this comment:
+
+> The actual number of elements per row is closer to the theoretical average
+> (less variance) when NR_ROWS_LOG is small. So accordingly OVERHEAD can be
+> smaller.
+
+That is exactly the `1/sqrt(lambda)` result derived in S2d.1, stated
+qualitatively. Their tuned constants against the model's 50%-zero-drop capacity
+at (200,9), 2^21 elements, 9 rounds [Computed]:
+
+| NR_ROWS_LOG | lambda | their NR_SLOTS | derived capacity | theirs / derived |
+|------------:|-------:|---------------:|-----------------:|-----------------:|
+| 18 | 8.0 | 24 | 26.1 | **0.92** |
+| 19 | 4.0 | 20 | 18.5 | **1.08** |
+| 20 (simplified) | 2.0 | 12 | 13.9 | **0.87** |
+| 20 | 2.0 | 18 | 13.9 | 1.30 |
+
+**Three of four land within ~10% of the derived target**, from independent hand
+tuning. That is meaningful validation of the model in S2d.1 -- and the two
+sitting *below* 1.00 are consistent with their design accepting a small drop
+rate, which they measure rather than forbid.
+
+One caution their comment adds that the model does not capture: *"Even (as
+opposed to odd) values of OVERHEAD sometimes significantly decrease performance
+as they cause VRAM channel conflicts."* A capacity that is statistically ideal
+can be an alignment pessimum. **Sweep the neighbourhood of the derived value
+rather than adopting it exactly** -- the same lesson as the row-width finding,
+where 72 B is worse than 70 B (S1.1a1).
+
+#### VRAM channel conflicts vs cache associativity conflicts
+
+These are the **same failure in different hardware**, and the distinction
+matters because only one of them applies to Zero's CPU solver.
+
+| | GPU: memory channel conflict | CPU: cache set conflict |
+|---|---|---|
+| Resource contended | DRAM **channels** (and banks) | Cache **sets** (ways per set) |
+| Selector | low-order address bits pick the channel | mid-order address bits pick the set |
+| Failure | many concurrent accesses land on one channel; its bandwidth serialises while others idle | more than `ways` live lines map to one set; each eviction is a miss |
+| Trigger | a **power-of-two** stride aligns every lane onto the same channel | a stride whose period against `sets x line` is small |
+| Typical fix | make the stride **odd** or non-power-of-two -- hence silentarmy's "even values decrease performance" | pad or skew the stride so the set index rotates |
+
+**Why silentarmy hits it and Zero probably does not.** A GPU issues a warp of
+32-64 lanes *simultaneously*, each at `base + lane*stride`. If `stride` is a
+power of two the low bits are identical across lanes, so every lane addresses
+the same channel and the access serialises. An even `OVERHEAD` makes
+`NR_SLOTS x SLOT_LEN` power-of-two-aligned, which is exactly that case.
+
+A CPU issues those accesses **sequentially**, so there is no simultaneous
+channel contention -- the equivalent risk is associativity. Computed for this
+workload [Computed]:
+
+| Cache | sets x line | rows before a set repeats, W=70 | W=32 | W=128 |
+|-------|------------:|--------------------------------:|-----:|------:|
+| M4 L1d (128 KB, 8-way, 128 B) | 16,384 B | 8,192 | 512 | 128 |
+| x86 L1d (48 KB, 8-way, 64 B) | 6,144 B | 3,072 | 192 | 48 |
+| x86 L2 (1 MB, 16-way, 64 B) | 65,536 B | 32,768 | 2,048 | 512 |
+
+Every period is far larger than the associativity (8-16 ways), so **a
+sequential sweep never conflicts** -- the lines are consumed and retired long
+before the set index wraps. This holds for 70 B and for the 32 B target alike.
+
+**Where it could still bite: the scatter.** Counting sort's second pass and any
+bucket insert write to `NBUCKETS` cursors at once. If bucket capacity is a
+power of two, those cursors are separated by a power-of-two stride, and with
+enough live buckets they collide in the same cache sets -- the CPU analogue of
+the channel problem, and the reason the same odd-stride fix applies.
+
+**Practical rule for S1.3:** size buckets so the per-bucket span is **not** a
+power of two -- the derived capacity (S2d.1) is already an awkward number
+(8,563 at BUCKBITS=12), and it should be left awkward rather than rounded up to
+8,192 or 16,384. **Measure both**, since the effect is real but its magnitude on
+a CPU is unverified here.
+
+### 2e.4 What this survey changes
+
+| Item | Effect |
+|------|--------|
+| Counting sort (S2d.3) | **Strengthened** -- no other implementation sorts |
+| Back-pointer tag (S2b) | **Strengthened** -- universal; Zero is the outlier |
+| Cantor (S2b.5) | **Strengthened** -- minority choice even among tag users |
+| Bucket sizing (S2d.1) | **Independently corroborated** within ~10% |
+| Overflow tolerance | **New caution** -- Zero has a no-loss property others lack |
+
+## 2f. How Zero got this solver -- lineage, and a correction
+
+### 2f.1 Zero did not write it, and has not touched it
+
+Every commit to `src/crypto/equihash.{h,cpp}` predates Zero
+[Verified, `git log --follow`]:
+
+| Date | Commit | Change |
+|------|--------|--------|
+| 2016-02-28 | `22ac8e130` | Original validator + basic solver |
+| 2016-04-19 | `5c4bf96f6` | Index-truncation optimisation |
+| 2016-05-04 | `479c0d317` | Truncated indices in the same buffer ("H/T tromp for the idea!") |
+| 2016-05-06 | `487afa1c9` | `CompareSR` extracted |
+| 2016-05-07 | `ded9a873c` | Templates; `hash[WIDTH]`; `len` dropped from `StepRow` |
+| 2016-06-01 | `559ceca99` | `HasCollision` branchless -> early exit |
+
+**Nothing after 2016-06-01**, and nothing authored by Zero. The file is
+upstream `zcashd` frozen at that point, inherited through the fork. The 70 B
+row and the accumulated index tail are **not Zero decisions**; they are the
+state of zcashd's own solver when the fork was taken.
+
+### 2f.2 The formula is identical across the family
+
+`TruncatedWidth` is **byte-identical** in Zcash, Zclassic, Ycash and Zero
+[Verified, source diff]:
+
+```
+TruncatedWidth = max(HashLength + sizeof(eh_trunc),
+                     2*CollisionByteLength + sizeof(eh_trunc)*(1 << (K-1)))
+```
+
+What differs is only which parameter sets are instantiated:
+
+| Fork | Instantiated |
+|------|--------------|
+| Zcash | 96/3, 200/9, 96/5, 48/5 |
+| **Zclassic** | 96/3, 200/9, 96/5, 48/5, **192/7** |
+| Ycash | 96/3, 200/9, 96/5, 48/5, 144/5, **192/7** |
+| **Zero** | **192/7**, 48/5 |
+
+**Zclassic already carried (192,7)**, and Zero descends from Zclassic. So Zero
+did not add the parameter set to a solver that could not handle it -- it
+inherited both. The "unusual implementation" is the **shared** zcashd solver;
+what is unusual is only that Zero *runs* it at (192,7) in production, where
+`TruncatedWidth` evaluates to 70 rather than 200/9's 262 (S1.2a).
+
+### 2f.3 Correction: Zero already ships tromp, configured for (192,7)
+
+Earlier sections of this document treated a tromp port as prospective work
+(S2a calls it "reachable by recompiling"; S2b.3 derived a RESTBITS constraint
+for a hypothetical port). **That understated what is already in the tree.**
+
+`src/pow/tromp/` exists in Zero, exactly as in current Zcash
+(`src/miner.cpp:8`), and is compiled at **`WN 192 / WK 7`**
+(`src/pow/tromp/equi.h:20,24`). `miner.cpp:539` dispatches on
+`-equihashsolver`, and **`contrib/conf-templates/prod.conf` sets
+`equihashsolver=tromp` by default.**
+
+Its constants land exactly where S2b.3's arithmetic predicted a port would have
+to sit:
+
+| | Value |
+|---|---|
+| RESTBITS | **4** (S2b.3 derived: must be <= 6) |
+| BUCKBITS | 20 -> 1,048,576 buckets |
+| SLOTBITS | 6 -> SLOTRANGE 64 |
+| tag width | 20 + 2x6 = **32 bits exactly** |
+| CANTOR | **not defined** -- pre-Cantor vintage |
+
+This is independent confirmation of the 32-bit wall: the vendored copy sits at
+RESTBITS=4 because that is what fits, not by tuning preference.
+
+**What this changes:**
+
+- The (192,7) memory and sort analysis in S1/S2d describes
+  `EhOptimisedSolve` -- the **`default`** solver. It is what
+  `zcbenchmark solveequihash` measures (`src/zcbenchmarks.cpp` calls
+  `EhOptimisedSolve` directly) and therefore what the 6.6 GB peak and the D3
+  1.22x result apply to.
+- **A miner running the shipped `prod.conf` is using tromp, not this code
+  path.** The optimisation targets in S1.2 (per-round widths, index pointers)
+  address a solver that production configs do not select by default.
+- **Priority question, now open:** measure tromp at (192,7) on this host before
+  investing further in `OptimisedSolve`. If the vendored solver is already
+  materially faster and leaner, the S1 memory work is optimising the wrong
+  binary, and the useful work shifts to updating the vendored copy (it predates
+  Cantor and his later bucket-count reductions).
+
+### 2f.4 Measured: tromp is 5.7x faster and half the memory
+
+**D5 run** [Measured, `test-logs/tromp-crosscheck-20260826/`, n=4 paired
+nonces, arm64, both single-threaded]:
+
+| nonce | nsols | default s | tromp s | speedup |
+|------:|------:|----------:|--------:|--------:|
+| 0 | 4 | 59.54 | 9.83 | 6.06x |
+| 1 | 2 | 45.86 | 8.74 | 5.25x |
+| 2 | 3 | 54.38 | 8.68 | 6.26x |
+| 3 | 2 | 45.66 | 8.79 | 5.20x |
+
+**mean 5.69x, median 5.65x.** Peak physical footprint **6.6 GB -> 3.3 GB**.
+
+**V5 cross-implementation check PASSED**: sorted solution sets are **identical**
+across all 4 nonces. Two structurally different algorithms -- bucket-insert with
+tree tags versus comparison sort with accumulated indices -- agree exactly. This
+is the strongest oracle in `METHOD.md` S3.2, and it was available without the
+port `README.md` assumed was needed.
+
+**No nonce emitted 7 or 8 solutions**, so tromp's `MAXSOLS = 8` cap did not
+truncate and the arms are comparable. The harness warns at `rawSols >= 7`; it
+did not fire. Counts (2-4) were identical in both arms.
+
+**The 3.3 GB confirms the memory model.** S1.2a computed ~3328 MB for a
+tromp-class two-heap solver at (192,7) *without measuring one*. The measurement
+matches -- a prediction validated from an independent direction.
+
+**Consequences:**
+
+1. **A default miner is already ~5.7x faster and uses half the memory** than
+   every solver figure previously recorded in this tree.
+2. **S1's optimisation targets address the slower path.** `Xc.reserve()`,
+   per-round widths and index-pointer storage all target `EhOptimisedSolve`,
+   which `prod.conf` does not select.
+3. **D3's 1.22x stands but scopes to the default solver** -- `zcbenchmark` and
+   `equihashsolver=default`.
+4. The vendored copy is **pre-Cantor** and predates tromp's later bucket-count
+   reductions, so **updating it is now the higher-value line of work** than
+   optimising `OptimisedSolve`.
+
 ## 3. Solver mechanism: keys, widths, and where the constants live
 
 How the collision key, the row widths and the comparator length actually
@@ -930,6 +1523,65 @@ the per-call difference.
 **Consequence: the sort is the only site in the round loop worth changing.**
 That is why D3 is one line rather than a sweep, and why `HasCollision` is
 explicitly out of scope despite comparing the identical bytes.
+
+### 3.2c Preserved for later review: remaining C++ fold candidates
+
+D3 folded the sort comparator's length (1.22x solve). The same pattern -- **a
+compile-time constant reaching the use site as data rather than as a type** --
+appears elsewhere in `equihash.cpp`. **None of these are measured**; they are
+recorded so the list is not re-derived.
+
+| Site | Pattern | Est. calls/round | Gate |
+|------|---------|-----------------:|------|
+| `GetTruncatedIndices(len, lenIndices)` | Allocates a `shared_ptr<eh_trunc>` **per candidate row** | ~m | V1 |
+| `TruncatedStepRow` ctor `len`/`lenIndices`/`trim` | Three runtime args per merged row; the merge is the second-hottest loop | ~m | V1 |
+| `IsZero(size_t len)` | Runtime length, called per merged row (`:554`, `:561`) | ~m | V1 |
+| `ExpandArray(bit_len, byte_pad)` | Runtime, generation only | 33.5M x 1 | V1 |
+| `HasCollision(a, b, int l)` | Same fold as D3 | ~m + runs | **Measured 1.02x -- declined** |
+
+**Start with `GetTruncatedIndices`.** It is a heap allocation in the merge
+inner loop, and D3 established that call overhead in that region is worth ~20%
+at solve level. An allocation is more expensive than a call.
+
+#### Why `HasCollision` folded to nothing, and what is still open there
+
+The fold measured **1.02x** [Measured] because there is no call to eliminate:
+`HasCollision` is a hand-written byte loop, not a `memcmp`. It was made that
+way deliberately -- upstream `559ceca99` (2016-06-01) replaced a **branchless**
+form with an early exit:
+
+```cpp
+// before 2016-06:                      // after, and still current:
+bool res = true;                        // "This doesn't need to be constant time."
+for (int j = 0; j < l; j++)             for (int j = 0; j < l; j++) {
+    res &= a.hash[j] == b.hash[j];          if (a.hash[j] != b.hash[j])
+return res;                                     return false;
+                                        }
+                                        return true;
+```
+
+**Open question, worth re-testing on modern hardware.** That trade assumed an
+early exit beats a branchless scan. Whether it still does depends on branch
+predictability, and the key distribution is computable (S3.2a): a comparison
+mismatches on the **first byte** roughly 255/256 of the time in the
+non-colliding case, so the branch is highly predictable -- which favours the
+early exit. But within a run of colliding rows all `l` bytes match, and run
+lengths follow the Poisson profile (13.5% of keys empty, 27.1% singleton,
+27.1% pairs, 5.2% five-or-more), so the branch alternates on run boundaries.
+
+Three variants worth measuring together, all V1 (none can change results):
+
+| Variant | Rationale |
+|---------|-----------|
+| Early exit (today) | Baseline |
+| Branchless `res &=` (pre-2016) | No misprediction; always reads `l` bytes -- only 3 |
+| Constant-length `LEN=3` + branchless | Fully unrolled 3-byte compare, no loop, no branch |
+
+At `l = 3` the loop is short enough that the early exit may save nothing while
+costing a mispredict. **This is the same class of finding as the bitfield
+inversion (S2c): a 2016 decision about hardware behaviour, cheap to re-test,
+and at least one such decision has already flipped.** Not scheduled; recorded
+so the reasoning is not lost.
 
 ### 3.3 Why the sort is replaceable: size, range, distribution
 
