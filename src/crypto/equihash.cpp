@@ -535,7 +535,7 @@ bool Equihash<N,K>::OptimisedSolve(const eh_HashState& base_state,
             LogPrint("pow", "Round %d:\n", r);
             // 2a) Sort the list
             LogPrint("pow", "- Sorting list\n");
-            std::sort(Xt.begin(), Xt.end(), CompareSR(CollisionByteLength));
+            std::sort(Xt.begin(), Xt.end(), CompareSRFixed<CollisionByteLength>());
             if (cancelled(ListSorting)) throw solver_cancelled;
 
             LogPrint("pow", "- Finding collisions\n");

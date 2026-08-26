@@ -79,17 +79,32 @@ definitive; any later change must reproduce all 5.
 Opt-in (one solve is ~60 s), so the default `equihash_tests` run is unaffected
 -- 10 cases, no errors.
 
+Fixed-nonce timing harness (added; the V4 instrument):
+
+```bash
+SOLVE_TIMING_1927=4 SOLVE_TIMING_TSV=test-logs/<run>/timing.tsv \
+  ./src/test/test_bitcoin --run_test=equihash_tests/solver_timing_192_7 \
+  --log_level=message
+```
+
+Walks nonces 0,1,2,... so two builds solve **identical work**; emits
+`nonce, secs, nsols` and verifies every solution inside the timing loop. Use it
+instead of `zcbenchmark solveequihash` for any A/B -- that RPC randomises the
+nonce per trial, giving 29-49% spread and unpairable samples
+(`METHOD.md` S3.2e).
+
 ## Next actions
 
 | # | Action | Effort | Gate |
 |---|--------|--------|------|
 | 1 | **`Xc.reserve()`** -- one line, and the single most informative measurement in the plan (`PLAN.md` S1.2) | XS | V1 |
 | 2 | **Profile (192,7)** to confirm or refute the sort-dominated hypothesis (`PLAN.md` S1.1) | S | V0 |
-| 3 | **Fold `len` to a compile-time constant** (`PLAN.md` S1.2b; mechanism `FINDINGS.md` S3.2) | XS | V1 |
+| ~~3~~ | **Fold `len` to a compile-time constant** -- **DONE, 1.22x solve** (`FINDINGS.md` S3.2) | XS | V4 passed |
 | 4 | **x86-64 Linux baseline** -- every number here is macOS/arm64 | S | V4 |
 
-Items 1 and 3 are one-line-scale and V1; item 2 decides the order of everything
-after. Item 4 matters because two findings are architecture-specific: the cache
+Item 3 is **done**: 1.22x on the solve, paired fixed-nonce, V2 and V4 passed.
+Item 1 is the remaining one-line-scale change; item 2 decides the order of
+everything after. Item 4 matters because two findings are architecture-specific: the cache
 line is 128 B here versus 64 B on x86, and the base page is 16 KB versus 4 KB.
 
 ## Open, and deliberately not started

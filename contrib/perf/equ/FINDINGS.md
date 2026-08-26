@@ -738,6 +738,31 @@ tree build -- different flags and `std::sort` instantiation, so the in-tree
 gain must be confirmed before it is cited as a solver result. Keys are uniform
 random, matching BLAKE2b output. One host, arm64, 128 B line.
 
+**Solve-level, paired and settled** [Measured,
+`test-logs/eqsolve-fixednonce-20260826/`]. Applied in-tree (one line,
+`equihash.cpp:538`) and measured with a fixed-nonce harness so both arms solve
+identical work:
+
+| Nonce | nsols | baseline s | D3 s | ratio |
+|------:|------:|-----------:|-----:|------:|
+| 0 | 4 | 67.55 | 56.87 | 1.188x |
+| 1 | 2 | 55.98 | 43.85 | 1.276x |
+| 2 | 3 | 62.06 | 52.55 | 1.181x |
+| 3 | 2 | 54.24 | 43.87 | 1.236x |
+
+**mean 1.220x, median 1.212x**, all four nonces improving, `nsols` identical
+per nonce in both arms. Total 239.83 -> 197.14 s, 17.8% saved.
+
+**1.22x solve against 1.71x sort is the expected relationship**: the solve also
+spends time generating 33.5M leaves and running the merge, neither of which
+this change touches. Peak footprint unchanged at 6.6 GB.
+
+**An unpaired estimate of the same change read 1.30x mean / 1.51x median /
+1.59x min** -- inflated by a favourable random-nonce draw. Random-nonce spread
+is 29-49%; the same nonce re-run repeats to **0.2%**. The lesson generalises:
+when the benchmark randomises its input, pair the runs or the input variance
+swamps the effect (`METHOD.md` S3.2e).
+
 **The consequence for S1.2.** Per-round sizing is not blocked by any runtime
 cost -- the shape is already tracked in two cheap locals. It is blocked by `W`
 being a **template parameter**, so a narrower round needs either a different
@@ -850,6 +875,61 @@ divides both line sizes) -- which is per-round sizing, S1.2, gated V2. Rounding
 to 8 (24, 32, 48) is second-best: it helps only if a future key-extraction step
 does aligned wide loads (Experiment B). **Neither is this item**, which changes
 no widths at all.
+
+### 3.2a Collision distribution, and why the list is self-sustaining
+
+The per-round key is 24 bits, so 2^25 rows land in 2^24 buckets:
+**lambda = 2.0** rows per key. Keys are BLAKE2b output, so occupancy is
+Poisson [Computed]:
+
+| Rows sharing a key | Probability | Keys (of 2^24) |
+|-------------------:|------------:|---------------:|
+| **0** | **13.5%** | 2,270,549 |
+| 1 | 27.1% | 4,541,099 |
+| **2** | **27.1%** | 4,541,099 |
+| 3 | 18.0% | 3,027,399 |
+| 4 | 9.0% | 1,513,700 |
+| 5 | 3.6% | 605,480 |
+| 6 | 1.2% | 201,827 |
+| >=7 | 0.45% | -- |
+
+**A key with 0 or 1 rows yields no pair; a key with j rows yields C(j,2)
+pairs.** Expected pairs per key is `lambda^2/2 = 2.0`, so expected pairs per
+round is `2.0 x 2^24 = 2^25` -- **exactly the input row count**.
+
+That is the property the whole algorithm rests on: the list neither grows nor
+collapses across rounds. It is why `Xt` stays near `init_size` for all 7 rounds
+(so `reserve(init_size)` is the right ceiling, D2), and why memory does not
+fall as the rounds progress even though each row gets narrower.
+
+It also bounds what a bucket-based rewrite may do: at 13.5% empty and 5.2% of
+keys holding 5+, any fixed-capacity scheme must either over-provision or drop
+rows -- and dropping rows loses solutions (`METHOD.md` S3.2).
+
+### 3.2b `HasCollision` versus the sort: why only one is worth changing
+
+Both compare the same 3 bytes, in the same round, on the same rows. They differ
+by **how many times**:
+
+| | Calls per round | Form | Cost, 2^22 rows, n=5 |
+|---|---:|---|---:|
+| `std::sort` comparator | `m log2 m` = **8.4e8** | `memcmp`, runtime length -> **call** | **0.314 s** |
+| `HasCollision` (`:279`) | `m` = **3.4e7** | hand-written byte loop, **already inlined** | **0.0033 s** |
+
+Two independent factors, and they compound:
+
+1. **25x more calls.** The sort compares every row against ~log2(m) = 25
+   others; `HasCollision` walks the sorted list once, comparing neighbours.
+2. **Per-call cost.** `HasCollision` is `for (j=0; j<l; j++)` over bytes --
+   no library call to fold, so making its length constant is **1.02x**
+   [Measured]. The sort's `memcmp` is a call, which is the whole D3 effect.
+
+Measured ratio is **95x**, above the 25x call-count ratio -- the remainder is
+the per-call difference.
+
+**Consequence: the sort is the only site in the round loop worth changing.**
+That is why D3 is one line rather than a sweep, and why `HasCollision` is
+explicitly out of scope despite comparing the identical bytes.
 
 ### 3.3 Why the sort is replaceable: size, range, distribution
 

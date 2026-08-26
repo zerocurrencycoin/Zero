@@ -38,7 +38,8 @@ unless a dependency is named. **D** runs in parallel throughout.
 | C4 Per-workload utilization profile | ToDo | Open | L | this file, C4 |
 | D1 Equihash / blake2 integration | **InProgress** | Open | M | `../equ/README.md` |
 | D2 `Xc.reserve()` | ToDo | Open | XS | `../equ/FINDINGS.md` S1.1b |
-| D3 Fold `len` to compile-time | ToDo | Open | XS | `../equ/PLAN.md` S1.2b |
+| D3 Fold `len` to compile-time | **InTest** | Open | XS | **1.22x solve measured**; `../equ/FINDINGS.md` S3.2 |
+| D4 Fixed-nonce timing harness | **Finished** | Finished | S | `../equ/METHOD.md` S3.2e |
 | E1 Script corpus and safety | **Finished** | Finished | M | `POLICY.md` S3.1 |
 | F1 Regression gate on validate | **InTest** | Open | S | `validate.sh` |
 | F1b A2d stamp at write time | **Finished** | Finished | S-M | this file, F1b |
@@ -56,7 +57,7 @@ is also what would validate the cross-platform schema work.
 |------|------|----------------|
 | 1 | **B2** first non-macOS capture | Now recordable (A2/F1b landed). Would move A1, A2, F1 and C1 out of InTest together, since a clean-checkout Linux run exercises all four |
 | 2 | **A3** microbenchmark baseline | Effort S, no decision needed, and worth more the longer GROTH stays postponed: a batching result needs a per-proof baseline taken beforehand |
-| 3 | **D2** `Xc.reserve()` | One line, V1, and the most informative single measurement in the Equihash plan: it changes exactly one thing and discriminates between competing explanations of the 7.15 GB peak. Steps: D2 below |
+| 3 | **D2** `Xc.reserve()` | One line, V1, and the most informative single measurement in the Equihash plan. The harness and paired method now exist (D4), so this is a ~30 min run. Steps: D2 below |
 | 4 | **B1c/d** proof counters + `BenchSummary` | Product change, Zero400 review. B1a/b (parser side) are Finished |
 
 **Do not start** GROTH (maintainer's decision) or F2 (needs repository
@@ -558,7 +559,7 @@ optimizations become their own items once landed, each with its own baseline.
 | 0 | (192,7) analysis: findings, method, staged plan | **Finished** -- `../equ/` |
 | 0a | (192,7) solver baseline vectors, 5 solutions, each verified | **Finished** -- `solver_baseline_192_7` |
 | 0b | `Xc.reserve()` -- promoted to its own item; steps in **D2** | ToDo, V1 |
-| 0c | Fold `len` to a compile-time constant -- own item; steps in **D3** | ToDo, V1 |
+| 0c | Fold `len` to a compile-time constant -- own item; steps in **D3** | **Done, V1+V2+V4** -- 1.22x |
 | a | Add new build-time options to `feature_bundles.json`; classify each | ToDo |
 | b | Ensure `features.workload.op` distinguishes solve / verify / sync | ToDo |
 | c | Record the baseline on the target host before any change | ToDo |
@@ -746,32 +747,31 @@ friend. That removes a friend line per comparator rather than adding one, and
 it is a prerequisite for the S1.2 per-round-width work, which will need several
 more row-touching helpers.
 
-| Step | What | Gate | Est. |
-|------|------|------|------|
-| a | Make `StepRow::hash` public; drop `friend class CompareSR` | -- | ~5 min |
-| b | Add `CompareSRFixed`; convert **538 only** | -- | ~5 min |
-| c | `--run_test=equihash_tests` (10 cases, no errors) | V0 | **~10 s** |
-| d | Confirm the fold happened in the **real build** -- no `bl memcmp` in the sort loop (isolated repro says 72 -> 0; the tree uses different flags and a different `std::sort` instantiation) | -- | **~10 min** |
-| e | `solver_baseline_192_7` differential, all 5 solutions | V2 | **~2 min** |
-| f | n>=4 timed solves against the **post-D2** baseline | V4 | **~6 min** |
-| g | Optionally convert 359, re-run (c) | V0 | ~5 min |
+| Step | What | Gate | Result |
+|------|------|------|--------|
+| a | `StepRow::hash` public; drop `friend class CompareSR` | -- | **Done** |
+| b | Add `CompareSRFixed`; convert **538 only** | -- | **Done** -- 1 line in `equihash.cpp`, +17 in `equihash.h` |
+| c | `equihash_tests` (10 cases) | V0 | **PASS** |
+| d | Confirm the fold in the real build | -- | **PASS** -- 46 `memcmp` sites -> 0 in the `CompareSRFixed` path; the 44 left are `:603`'s runtime `hashLen`. Emits inlined `ldrh`/`ldrb`/`orr`/`rev`/`cmp` |
+| e | `solver_baseline_192_7` differential | V2 | **PASS** -- sha256 identical, all 5 solutions |
+| f | Paired fixed-nonce timing vs baseline arm | V4 | **1.220x mean, 1.212x median**, 4/4 nonces improving |
+| g | Optionally convert 359 (`BasicSolve`, not used by mining) | V0 | Not done -- optional |
 
-Total lab time excluding builds: **~25 min**.
+**Measured:** 1.22x on the solve, 1.71x on the sort phase in isolation. The
+gap between them is expected: the solve also generates 33.5M leaves and runs
+the merge, neither of which this touches. Peak footprint unchanged (6.6 GB) --
+D3 alters no allocation. Detail: `../equ/FINDINGS.md` S3.2,
+`test-logs/eqsolve-fixednonce-20260826/`.
 
-**The fold is confirmed at the compiler level, in isolation** -- an isolated
-repro of the real call shape emits **72** `bl _memcmp` sites today and **0**
-with `CompareSRFixed` (`../equ/FINDINGS.md` S3.2). So the constant does not
-survive `CompareSR`'s constructor, and the change does something.
+**Remaining before Finished:** review on Zero400, which owns `src/`.
 
-**Step (d) is still not optional**, because that repro is not this build: the
-tree compiles with its own flags and a different `std::sort` instantiation.
-Confirm in the real binary before believing any timing. A fold that silently
-did not happen measures as a null and reads as a refutation.
-
-**What remains genuinely open** is not whether the calls disappear but whether
-removing them moves wall time -- which depends on whether the sort is bound by
-call overhead or by the 70-byte swap traffic. D3 is built to tell those apart,
-and a small win is a real answer, not a failure.
+**Lesson recorded, because it nearly published a wrong number.** An unpaired
+random-nonce measurement of this same change read **1.30x mean / 1.51x median /
+1.59x min** -- all inflated by a favourable nonce draw. `zcbenchmark
+solveequihash` randomises its input per trial, so spread is 29-49% and samples
+cannot be paired across builds. The same nonce re-run repeats to **0.2%**.
+Generalised: **when a benchmark randomises its input, pair the runs or the
+input variance swamps the effect** (`../equ/METHOD.md` S3.2e).
 
 **Interpreting the result.** This is a diagnostic as much as a fix: measured
 alone it says how much of the sort cost is **call overhead** versus **data
@@ -977,4 +977,6 @@ the next investigation rather than only describing the last one.
 | **A reference oracle stored once, writable, is not a reference** | Anything later changes are validated against gets archived and made read-only *before* the work starts | V2 solver baseline sat at the path its regenerator writes to |
 | **Restartability, not duration, decides whether a long run is safe** | Checkpoint and collate separately: the trial appends, a later pass reads | ~20 min heuristic misapplied to an unrestartable multi-hour trial |
 | **Sequence changes so each one's effect is attributable** | Two changes measured together answer neither question | D2 before D3; both against the preceding baseline |
+| **If the benchmark randomises its input, pair the runs** | Otherwise input variance swamps the effect and the difference of means is partly the draw | Random-nonce solve read 1.30-1.59x; paired read **1.22x** |
+| **A constant passed as an argument is not a constant to the optimizer** | To be folded it must reach the use site in the **type**, not in a member | `CompareSR`'s `size_t len`: 46 `memcmp` calls survived |
 | **Prefer finishing an old refactor to adding a new mechanism** | Check whether the surrounding code already solved the problem and the site was missed | `CompareSR`'s runtime `len` is a leftover from the day before templates landed |

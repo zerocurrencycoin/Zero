@@ -235,6 +235,7 @@ to start**:
 | `validator_testvectors_48_5` | (48,5) | Regtest verifier |
 | `solver_testvectors_48_5` | (48,5) | Solver at regtest scale (512 rows) |
 | **`solver_baseline_192_7`** | **(192,7)** | **Full solution set, production scale -- the V2 baseline** |
+| **`solver_timing_192_7`** | **(192,7)** | **Fixed-nonce solve timing -- the V4 harness** |
 | `src/test/data/1927EQ.txt`, `1927EQ_h1.hex` | (192,7) | The raw KAT data |
 
 **That gap is now closed.** `solver_baseline_192_7`
@@ -308,6 +309,42 @@ merge bugs -- if round 3's row count diverges from the reference, that is the
 round to look at. **Revisit full snapshots only if a bug survives the
 checksums**, which would mean two implementations agree on counts and
 checksums yet differ on solutions -- rare, and worth 15 GB when it happens.
+
+### 3.2e Fixed-nonce timing: why the RPC benchmark cannot pair runs
+
+`zcbenchmark solveequihash` draws a **random nonce per trial**
+(`src/zcbenchmarks.cpp`, `randombytes_buf(nonce.begin(), 32)`). Each nonce is a
+different search problem, so trials differ in **how much work they contain**,
+not only in how fast that work runs.
+
+Consequences, and they are not small:
+
+- **Runs cannot be paired.** An A build and a B build draw different nonces, so
+  a difference of means mixes the code change with the nonce draw.
+- **Spread is dominated by the input, not the machine.** Measured n=4 baseline
+  spread **29.3%**, n=10 spread **49.0%** -- against **0.2%** repeatability when
+  the same nonce is re-run [Measured, `test-logs/eqsort-20260826/`].
+- **Solution count varies per nonce** (2 to 4 observed), and a solve that finds
+  more solutions does more work. Time without `nsols` is not interpretable.
+
+So `zcbenchmark solveequihash` answers "what does a solve cost on average"
+-- an honest question -- but it **cannot** answer "did this change help". For
+that, use the fixed-nonce harness:
+
+```bash
+SOLVE_TIMING_1927=4 SOLVE_TIMING_TSV=test-logs/<run>/timing.tsv \
+  ./src/test/test_bitcoin --run_test=equihash_tests/solver_timing_192_7 \
+  --log_level=message
+```
+
+It walks nonces 0,1,2,... deterministically, so **run A and run B solve
+identical work**; emits `nonce, secs, nsols` per trial; and verifies every
+emitted solution inside the timing loop, so a "faster" solver that emits
+garbage cannot post a number. Opt-in via the env var, ~30-70 s per nonce.
+
+**Compare per nonce, not by pooled mean.** With paired data the right statistic
+is the per-nonce ratio; a pooled mean throws away the pairing that makes the
+comparison valid.
 
 ### 3.3 What to record every time
 

@@ -45,12 +45,12 @@ class StepRow
 {
     template<size_t W>
     friend class StepRow;
-    friend class CompareSR;
-
-protected:
-    unsigned char hash[WIDTH];
 
 public:
+    // Public: an internal solver row with no invariant to protect. Comparators
+    // and helpers read it directly rather than each needing a friend line.
+    unsigned char hash[WIDTH];
+
     StepRow(const unsigned char* hashIn, size_t hInLen,
             size_t hLen, size_t cBitLen);
     ~StepRow() { }
@@ -75,6 +75,17 @@ public:
 
     template<size_t W>
     inline bool operator()(const StepRow<W>& a, const StepRow<W>& b) { return memcmp(a.hash, b.hash, len) < 0; }
+};
+
+// Same comparison as CompareSR, but with the length as a template parameter so
+// memcmp() is expanded inline instead of calling the runtime routine. Use where
+// the length is a compile-time constant (CollisionByteLength); CompareSR remains
+// for the sites that pass a varying hashLen.
+template<size_t LEN>
+struct CompareSRFixed
+{
+    template<size_t W>
+    inline bool operator()(const StepRow<W>& a, const StepRow<W>& b) const { return memcmp(a.hash, b.hash, LEN) < 0; }
 };
 
 template<size_t WIDTH>

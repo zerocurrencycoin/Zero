@@ -17,6 +17,7 @@
 #include "test/test_bitcoin.h"
 #include "uint256.h"
 #include "utilstrencodings.h"
+#include "utiltime.h"
 #include "version.h"
 
 #include "sodium.h"
@@ -319,6 +320,87 @@ BOOST_AUTO_TEST_CASE(solver_baseline_192_7) {
     }
     out.close();
     BOOST_TEST_MESSAGE("wrote " << sols.size() << " (192,7) solution(s) to " << outPath);
+}
+
+// Fixed-nonce (192,7) solve timing. The RPC benchmark
+// (`zcbenchmark solveequihash`) draws a RANDOM nonce per trial
+// (`src/zcbenchmarks.cpp`, randombytes_buf), so trials differ in how much work
+// they contain and cannot be paired across builds. This case walks a FIXED
+// nonce sequence, so run A and run B solve identical work and the difference
+// is attributable to the code under test.
+//
+// Opt-in (each solve is ~30-70 s):
+//   SOLVE_TIMING_1927=4 ./src/test/test_bitcoin \
+//     --run_test=equihash_tests/solver_timing_192_7
+//
+// Optional: SOLVE_TIMING_TSV=<path> appends one row per nonce.
+// Emits nsols per nonce as well as seconds -- a "speedup" that drops solutions
+// is a loss in Sol/s, so the count travels with the time.
+BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
+    const char* nEnv = getenv("SOLVE_TIMING_1927");
+    if (nEnv == nullptr) {
+        return;  // opt-in only
+    }
+    const int trials = atoi(nEnv);
+    BOOST_REQUIRE_MESSAGE(trials > 0, "SOLVE_TIMING_1927 must be a positive count");
+
+    SelectParams(CBaseChainParams::MAIN);
+    const Consensus::Params& consensus = Params().GetConsensus();
+    const unsigned int n = consensus.nEquihashN;
+    const unsigned int k = consensus.nEquihashK;
+    BOOST_REQUIRE_EQUAL(n, 192u);
+    BOOST_REQUIRE_EQUAL(k, 7u);
+    const size_t cBitLen = n / (k + 1);
+
+    const char* tsvPath = getenv("SOLVE_TIMING_TSV");
+    std::ofstream tsv;
+    if (tsvPath != nullptr) {
+        tsv.open(tsvPath, std::ios::app);
+        BOOST_REQUIRE_MESSAGE(tsv.good(), "cannot open SOLVE_TIMING_TSV path");
+    }
+
+    for (int t = 0; t < trials; t++) {
+        // Fixed, reproducible nonce: trial index in an otherwise zero uint256.
+        // Same sequence every run, so runs are directly comparable.
+        CBlockHeader hdr = Params().GenesisBlock().GetBlockHeader();
+        uint256 nonce;
+        nonce.begin()[0] = (unsigned char)(t & 0xff);
+        nonce.begin()[1] = (unsigned char)((t >> 8) & 0xff);
+
+        crypto_generichash_blake2b_state state;
+        EhInitialiseState(n, k, state);
+        CEquihashInput I{hdr};
+        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+        ss << I;
+        ss << nonce;
+        crypto_generichash_blake2b_update(&state, (unsigned char*)&ss[0], ss.size());
+
+        std::set<std::vector<uint32_t>> sols;
+        int64_t t0 = GetTimeMicros();
+        EhOptimisedSolveUncancellable(n, k, state, [&](std::vector<unsigned char> soln) {
+            sols.insert(GetIndicesFromMinimal(soln, cBitLen));
+            return false;  // collect every solution
+        });
+        int64_t t1 = GetTimeMicros();
+        const double secs = (t1 - t0) / 1000000.0;
+
+        // Every solution must verify: a faster solver emitting garbage is not
+        // faster. V1 inside the timing loop so a bad number cannot be recorded.
+        for (const auto& idx : sols) {
+            std::vector<eh_index> ehidx(idx.begin(), idx.end());
+            bool ok = false;
+            EhIsValidSolution(n, k, state, GetMinimalFromIndices(ehidx, cBitLen), ok);
+            BOOST_CHECK_MESSAGE(ok, "solver emitted a solution that does not verify");
+        }
+
+        BOOST_TEST_MESSAGE("nonce " << t << " secs " << secs
+                           << " nsols " << sols.size());
+        if (tsv.is_open()) {
+            tsv << t << "\t" << secs << "\t" << sols.size() << "\n";
+            tsv.flush();
+        }
+    }
+    if (tsv.is_open()) tsv.close();
 }
 
 BOOST_AUTO_TEST_CASE(solver_testvectors_48_5) {
