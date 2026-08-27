@@ -349,6 +349,21 @@ struct equi {
     }
   };
 
+  // Second-stage grouping: within one bucket, group slots by their RESTBITS
+  // "x-hash" so only same-xhash pairs are XORed.
+  //
+  // This is the LINKING form (upstream tromp fc72754, 2016-10-27, from a
+  // suggestion by judge Solardiz): xhashslots[xh] holds the head of a list and
+  // nextxhashslot[] chains the rest, most-recent first. It replaces a
+  // xhashslots[NRESTS][XFULL] array-per-xhash, which had two drawbacks:
+  //   - clear() touched NRESTS*XFULL entries per bucket instead of
+  //     NRESTS+NSLOTS;
+  //   - a bucket whose xhash list exceeded XFULL dropped the excess pairs
+  //     (counted in xfull), losing potential solutions.
+  // A chain has no per-xhash capacity, so the XFULL overflow class disappears.
+  // addslot() keeps its bool return -- now always true -- so the callers'
+  // overflow branches stay in place for the array form and for any future
+  // capacity-bounded variant.
   struct collisiondata {
 
 #if RESTBITS <= 6
@@ -356,30 +371,35 @@ struct equi {
 #else
     typedef u16 xslot;
 #endif
-    xslot nxhashslots[NRESTS];
-    xslot xhashslots[NRESTS][XFULL];
-    xslot *xx;
-    u32 n0;
-    u32 n1;
+    // xnil is the all-ones sentinel, so it must not be a reachable slot index.
+    // uchar holds 0..255 and NSLOTS is 2^(RESTBITS+2), so RESTBITS 6 would give
+    // NSLOTS 256 and make slot 255 indistinguishable from nil. Assert rather
+    // than rely on RESTBITS staying at 4.
+    static const xslot xnil = ~(xslot)0;
+    static_assert(NSLOTS <= (size_t)xnil,
+                  "xslot too narrow: NSLOTS must be < the all-ones sentinel");
+    xslot xhashslots[NRESTS];     // head slot of each xhash list, or xnil
+    xslot nextxhashslot[NSLOTS];  // next slot in the same list, or xnil
+    xslot nextslot;               // cursor for the current walk
     u32 s0;
 
     void clear() {
-      memset(nxhashslots, 0, NRESTS * sizeof(xslot));
+      memset(xhashslots, xnil, NRESTS * sizeof(xslot));
+      memset(nextxhashslot, xnil, NSLOTS * sizeof(xslot));
     }
     bool addslot(u32 s1, u32 xh) {
-      n1 = (u32)nxhashslots[xh]++;
-      if (n1 >= XFULL)
-        return false;
-      xx = xhashslots[xh];
-      xx[n1] = s1;
-      n0 = 0;
+      nextslot = xhashslots[xh];
+      nextxhashslot[s1] = nextslot;
+      xhashslots[xh] = (xslot)s1;
       return true;
     }
     bool nextcollision() const {
-      return n0 < n1;
+      return nextslot != xnil;
     }
     u32 slot() {
-      return (u32)xx[n0++];
+      const u32 ns = (u32)nextslot;
+      nextslot = nextxhashslot[ns];
+      return ns;
     }
   };
 

@@ -519,6 +519,54 @@ BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
     if (dump.is_open()) dump.close();
 }
 
+// Vendored tromp solver: structural invariants, ALWAYS ON.
+//
+// Zero ships two solvers and contrib/conf-templates/prod.conf selects tromp,
+// but every other case in this file exercises only EhBasicSolve and
+// EhOptimisedSolve. A change under src/pow/tromp/ passed the entire suite
+// while being unvalidated against the solver a miner actually runs.
+//
+// tromp is compiled for (192,7) only (src/pow/tromp/equi.h), and one solve is
+// ~9 s, so a full cross-solver differential cannot run by default. That gate
+// is solver_timing_192_7 with SOLVE_TIMING_DUMP, diffed between
+// SOLVE_TIMING_SOLVER=default and =tromp (contrib/perf/equ/METHOD.md S3.2f).
+//
+// What this case pins cheaply are the compile-time invariants that a tuning
+// change (RESTBITS, tag width, slot type) can silently violate -- each of
+// which corrupts results rather than failing to build.
+BOOST_AUTO_TEST_CASE(tromp_solver_invariants) {
+#ifdef ENABLE_MINING
+    // 1. The tag must fit its storage. Exceeding this silently truncates the
+    //    bucket id, so reconstruction returns wrong indices.
+    BOOST_CHECK_MESSAGE(BUCKBITS + 2 * SLOTBITS <= 32,
+                        "tromp tree tag exceeds 32 bits: "
+                        "BUCKBITS + 2*SLOTBITS must fit u32 bid_s0_s1");
+
+    // 2. Parameters must match consensus. A mismatch means the miner solves a
+    //    different problem than the chain validates.
+    SelectParams(CBaseChainParams::MAIN);
+    const Consensus::Params& consensus = Params().GetConsensus();
+    BOOST_CHECK_EQUAL((unsigned int)WN, consensus.nEquihashN);
+    BOOST_CHECK_EQUAL((unsigned int)WK, consensus.nEquihashK);
+
+    // 3. PROOFSIZE must equal 2^k: it sizes the index vector miner.cpp copies
+    //    out of eq.sols[], so a mismatch reads past the end or truncates.
+    BOOST_CHECK_EQUAL((size_t)PROOFSIZE, (size_t)1 << WK);
+
+    // 4. DIGITBITS is the encoding width miner.cpp passes to
+    //    GetMinimalFromIndices; it must equal the consensus collision length
+    //    or emitted solutions are encoded wrongly.
+    BOOST_CHECK_EQUAL((size_t)DIGITBITS,
+                      (size_t)(consensus.nEquihashN / (consensus.nEquihashK + 1)));
+
+    // 5. Bucket capacity must exceed the expected occupancy by a real margin.
+    //    NSLOTS below the mean guarantees systematic row loss.
+    const double expected_rows_per_bucket = (double)(1ULL << (DIGITBITS + 1)) / NBUCKETS;
+    BOOST_CHECK_MESSAGE((double)NSLOTS > expected_rows_per_bucket,
+                        "NSLOTS below expected bucket occupancy: rows will be dropped");
+#endif
+}
+
 BOOST_AUTO_TEST_CASE(solver_testvectors_48_5) {
     SelectParams(CBaseChainParams::REGTEST);
     const Consensus::Params& consensus = Params().GetConsensus();

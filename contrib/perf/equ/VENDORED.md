@@ -264,9 +264,32 @@ Accumulating the drop counters across all rounds [Measured,
   capacity question (`SOLVER.md` S3.1), not the xhash list.
 - `hfull` counts duplicate-hash rejects, which are correct behaviour, not loss.
 
-**Consequence:** adopting linking is a **modest clearing-cost win in the merge
-phase (33% of runtime)**, not a correctness fix for Zero. It ranks below
-multi-way BLAKE2b by a wide margin.
+**Consequence:** adopting linking is a clearing-cost change, not a correctness
+fix for Zero.
+
+**Implemented and measured: no detectable effect** [Measured,
+`test-logs/linking-20260827/`]. The listing form was replaced with upstream's
+linking form (`fc72754`), V0 and the full 323-case suite pass, and the (192,7)
+solution sets are **byte-identical** across 4 nonces.
+
+| nonce | listing | linking (n=2) | ratio |
+|------:|--------:|--------------:|------:|
+| 0 | 8.673 | 8.699 | 0.997x |
+| 1 | 8.140 | 8.116 | 1.003x |
+| 2 | 8.110 | 8.150 | 0.995x |
+| 3 | 8.197 | 8.140 | 1.007x |
+
+Median **1.000x**, range 0.995-1.007x -- **flat**, and far inside the ~10%
+resolution floor (`METHOD.md` S3.2g), so this is "no measurable difference"
+rather than a measured zero.
+
+**Why the null is unsurprising in hindsight:** the saving is per-bucket
+`clear()` work, 272 bytes versus 80 at Zero's parameters (S3.3). With 2^20
+buckets over 7 rounds that is real traffic, but it is dwarfed by the merge scan
+itself -- and `xfull=0` measurements already showed the capacity advantage does
+not bind here. **The change is retained** because it removes an overflow class
+that would bind at other RESTBITS, and because it matches upstream -- not
+because it made anything faster.
 
 **A real defect found while measuring this:** `equi`'s constructor never
 initialises `xfull`/`hfull`/`bfull` -- only the threaded worker resets them
