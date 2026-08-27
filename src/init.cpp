@@ -1075,6 +1075,10 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 #ifdef ZERO_FDCACHE
     InitPerfFdCache();
 #endif
+#if defined(ZERO_PERF) || defined(ZERO_FDCACHE)
+    // Must run before any block is connected: nPerfLogEvery is a modulo divisor.
+    InitPerfLogEvery();
+#endif
 
     fDebug = !mapMultiArgs["-debug"].empty();
     // Special-case: if -debug=0/-nodebug is set, turn off debugging messages

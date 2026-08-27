@@ -65,8 +65,10 @@ until the work they specify lands, then their durable content moves to
 | `../PerfTimers.md` | Phase-timer design and spec | Live until `TASKS.md` B1 lands |
 | `../PerfPlatforms.md` | Cross-platform tooling survey | Live until `TASKS.md` B2 lands |
 | `../BUILD_RECONFIG.md` | Autotools reconfigure options | Live until `TASKS.md` C3 lands |
-| `../equ/README.md` | Equihash (192,7) mining: entry point, status, next actions | Live; the plan for `TASKS.md` D1 |
-| `../equ/FINDINGS.md` | What is measured and computed about the (192,7) solver | Live |
+| `../equ/README.md` | Equihash (192,7): entry point, status, inclusion rules | Live; the plan for `TASKS.md` D1 |
+| `../equ/FINDINGS.md` | What is measured and computed at (192,7) | Live |
+| `../equ/SOLVER.md` | Solver internals: keys, widths, tags, buckets | Live |
+| `../equ/VENDORED.md` | Which solver runs, its lineage, and the default-vs-tromp comparison | Live |
 | `../equ/METHOD.md` | How to measure a solver change and how hard to validate it | Live |
 | `../equ/PLAN.md` | Staged optimization plan, S0 -> S4, across three platforms | Live |
 | `../Measures.md` | `M-*` inventory | Live; the numbers authority |

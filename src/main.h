@@ -250,6 +250,16 @@ private:
     bool fRelease;
 };
 
+#if defined(ZERO_PERF) || defined(ZERO_FDCACHE)
+/** Default and upper bound for -mrclogevery (blocks between perf log lines). */
+static const int64_t PERF_LOG_EVERY_DEFAULT = 16384;
+static const int64_t PERF_LOG_EVERY_MAX = 100000000;
+/** Validate -mrclogevery once into nPerfLogEvery. Throws on 0, negative or huge.
+ *  Call from init before any block is connected: it is a modulo divisor. */
+void InitPerfLogEvery();
+extern int64_t nPerfLogEvery;
+#endif
+
 #ifdef ZERO_FDCACHE
 // Read-side disk-I/O optimizations (-perffdcache, -perfbufsize).
 enum class BlockFileKind { BLK, REV };

@@ -345,6 +345,12 @@ BOOST_AUTO_TEST_CASE(solver_baseline_192_7) {
 //     --run_test=equihash_tests/solver_timing_192_7
 //
 // Optional: SOLVE_TIMING_TSV=<path> appends one row per nonce.
+// Optional: SOLVE_TIMING_DUMP=<path> writes the solution SET, for diffing two
+// solvers or two builds (order-independent).
+//
+// Build with -DPERF_PROBE to add solver diagnostics: leaf-generation time and
+// share, and the accumulated xfull/bfull/hfull drop counters. Off by default --
+// these are investigation aids, not part of the timing contract.
 // Emits nsols per nonce as well as seconds -- a "speedup" that drops solutions
 // is a loss in Sol/s, so the count travels with the time.
 BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
@@ -402,19 +408,49 @@ BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
 
         std::set<std::vector<uint32_t>> sols;
         size_t rawSols = 0;      // solutions emitted before de-duplication
+#ifdef PERF_PROBE
+        double genSecs = -1.0;   // tromp only: time in digit0 (leaf generation)
+#endif
         int64_t t0 = GetTimeMicros();
         if (useTromp) {
             // Driver lifted verbatim from miner.cpp so this measures the code
             // path a miner actually runs, not a reimplementation of it.
             equi eq(1);                       // single-threaded, as miner.cpp does
             eq.setstate(&state);              // the SAME state object as the default arm
+            // equi's constructor does not initialise xfull/hfull/bfull; only the
+            // threaded worker (equi_miner.h:585) resets them. Zero them here so
+            // a single-threaded caller never reads uninitialised memory.
+            eq.xfull = eq.bfull = eq.hfull = 0;
+#ifdef PERF_PROBE
+            // Diagnostic only. genSecs isolates leaf generation (all the
+            // blake2b) from the merge rounds; sumX/sumB/sumH accumulate the
+            // drop counters that are otherwise reset and discarded per round:
+            // xfull = xhash list (XFULL) overflow, bfull = bucket (NSLOTS)
+            // overflow, hfull = duplicate-hash rejects. Nonzero xfull/bfull
+            // mean pairs were dropped and solutions may be lost.
+            u32 sumX = 0, sumB = 0, sumH = 0;
+            const int64_t g0 = GetTimeMicros();
+#endif
             eq.digit0(0);
+#ifdef PERF_PROBE
+            const int64_t g1 = GetTimeMicros();
+            genSecs = (g1 - g0) / 1000000.0;
+            sumX += eq.xfull; sumB += eq.bfull; sumH += eq.hfull;
+#endif
             eq.xfull = eq.bfull = eq.hfull = 0;
             for (u32 r = 1; r < WK; r++) {
                 (r & 1) ? eq.digitodd(r, 0) : eq.digiteven(r, 0);
+#ifdef PERF_PROBE
+                sumX += eq.xfull; sumB += eq.bfull; sumH += eq.hfull;
+#endif
                 eq.xfull = eq.bfull = eq.hfull = 0;
             }
             eq.digitK(0);
+#ifdef PERF_PROBE
+            sumX += eq.xfull; sumB += eq.bfull; sumH += eq.hfull;
+            BOOST_TEST_MESSAGE("  tromp drops: xfull=" << sumX
+                               << " bfull=" << sumB << " hfull=" << sumH);
+#endif
             rawSols = eq.nsols;
             for (size_t si = 0; si < eq.nsols; si++) {
                 std::vector<eh_index> idx(PROOFSIZE);
@@ -456,7 +492,13 @@ BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
 
         BOOST_TEST_MESSAGE("solver " << solverName << " nonce " << t
                            << " secs " << secs << " nsols " << sols.size()
-                           << " raw " << rawSols);
+                           << " raw " << rawSols
+#ifdef PERF_PROBE
+                           << (genSecs >= 0 ? " gen " + std::to_string(genSecs)
+                                              + " genpct " + std::to_string(100.0*genSecs/secs)
+                                            : "")
+#endif
+                           );
         if (tsv.is_open()) {
             tsv << solverName << "\t" << t << "\t" << secs << "\t"
                 << sols.size() << "\t" << rawSols << "\n";

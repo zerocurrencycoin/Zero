@@ -230,7 +230,61 @@ which is the noise floor any claimed improvement must clear.
 1.7-4.5% noise -- indistinguishable from nothing. Profiling the same workload
 afterwards showed why an I/O knob had nothing to act on. **Profile first when
 the bottleneck is unknown; benchmark when it is known and a delta needs
-proving.** Set `Aside`.
+proving.**
+
+#### What "disk_syscall 4.91%" bounds, and why buffer size cannot move it
+
+The 4.91% figure is a **ceiling on everything an I/O knob can reach**, and the
+arithmetic makes the null result predictable rather than surprising [Computed
+from M-RX-POSTSAP-STOCK's ~300 blk/s]:
+
+| Quantity | Value |
+|----------|------:|
+| Block reads/s at 300 blk/s | ~300 |
+| Plus undo (`rev*.dat`) reads/s | ~300 |
+| **Total reads/s** | **~600** |
+| Syscalls per read today (open, seek, read, close) | 4 |
+| **Syscalls/s** | **~2,400** |
+
+The fd cache removes the open/close pair on a cache hit, halving that to ~1,200.
+Applying that to the measured 4.91%:
+
+| Syscall reduction | Runtime recovered | Speedup |
+|------------------:|------------------:|--------:|
+| 25% | 1.23% | 1.012x |
+| **50% (fd cache best case)** | **2.46%** | **1.025x** |
+
+**2.5% is the theoretical maximum, against a 4% same-host repeatability floor.**
+The measurement could not have resolved it even if the mechanism worked
+perfectly -- which is the real reason the A/B was uninformative, and a stronger
+statement than "we measured no difference".
+
+**Why buffer size specifically has nothing to act on.** Zero's read pattern is
+already the best case for the OS:
+
+- `blk*.dat` are written **sequentially** in ~128 MB files.
+- Reindex and IBD consume blocks in **height order**, so reads are sequential
+  within a file and files are consumed in order.
+- The OS readahead heuristic detects exactly this pattern and prefetches
+  regardless of the userspace `setvbuf` size.
+
+So `-perfbufsize` tunes a buffer sitting **on top of** an already-effective
+kernel readahead, for a workload where the page cache holds the working set
+after first touch. There is no random access for a larger buffer to amortise.
+
+**Where an I/O knob *would* matter, and why those are different workloads:**
+
+| Workload | Pattern | Would buffering help? |
+|----------|---------|----------------------|
+| Reindex / IBD (measured) | sequential, height order | **No** -- readahead already covers it |
+| Wallet rescan on a fat wallet | still sequential block reads; bottleneck is `witness_cache` (S3.1) | No -- not I/O bound at all |
+| **Random `getblock` RPC serving** | scattered across 42 files | **Plausibly** -- the fd cache's open/close saving is real when consecutive reads hit different files |
+| **Cold cache / slow storage** | first touch, network or spinning disk | **Plausibly** -- untested |
+
+The last two are why the flag is retained rather than deleted: the null is
+established for *one workload on one platform*, and the two cases where the
+mechanism could pay have not been measured. **`Aside` applies to the buffer-size
+sweep on the sync track, not to the instrumentation.**
 
 ### 3.3 Bucketing is load-bearing, and has been wrong before
 

@@ -244,14 +244,71 @@ contribution and the reason it is worth acting on rather than filing.
 
 | Step | What | State |
 |------|------|-------|
-| a | **Disable `-perffdcache` by default**, or gate it behind an explicit unsafe flag, until the lease design lands. Measured gain is below the noise floor, so risk-adjusted value is negative | ToDo |
-| b | Validate `-mrclogevery` once at startup: positive, bounded; fail with a specific error. Replaces two unguarded `GetArg` lookups | ToDo |
+| a | **FDCACHE retained** pending x86-64 Linux and Windows validation (B2). Fix the lock lifetime **before enabling** it with concurrent readers: RAII lease across seek+read, or positional `pread` | **Deferred to B2** |
+| a2 | Measure FDCACHE on the two workloads where the mechanism could pay: **random `getblock` RPC** and **cold cache / slow storage** | ToDo |
+| b | Validate `-mrclogevery` at startup | **Finished** -- `InitPerfLogEvery()`; 3 build configs clean |
 | c | Split `--enable-perf` into counters (safe) and experimental behaviour (FDCACHE) | ToDo |
 | d | Correct `Perf.md:1525` -- retract "functionally correct" and cite the lock-lifetime defect | ToDo |
 | e | Re-verify the FDCACHE probe and the `HelpMessage` gap | ToDo |
 
 (a) and (b) are the two that touch shipped behaviour. Both are Zero400-owned
 (`src/`), so they are specified here and reviewed there.
+
+#### Reachability, and the disposition of each
+
+Verified: `src/config/bitcoin-config.h` has `/* #undef ZERO_PERF */` and
+`/* #undef ZERO_FDCACHE */`. **A default build compiles out both.**
+
+| Defect | Reachable in a release build? |
+|--------|-------------------------------|
+| FDCACHE lock lifetime (P0) | **No** -- needs `--enable-perf` **and** `-perffdcache=1` (default false) |
+| `-mrclogevery=0` (P1) | **No** -- both modulo sites are inside `#ifdef ZERO_PERF` |
+
+**`-mrclogevery`: FIXED.** One validated read at startup replaces two unguarded
+`GetArg` lookups:
+
+- `InitPerfLogEvery()` (`main.cpp`) reads once, rejects `< 1` and
+  `> PERF_LOG_EVERY_MAX`, and throws a specific message at startup rather than
+  dividing by zero mid-sync.
+- Called from `init.cpp` before any block is connected.
+- Both call sites now read `nPerfLogEvery`.
+
+Verified in **three** configurations: default build, `-DZERO_PERF`, and
+`-DZERO_PERF -DZERO_FDCACHE`, all 0 errors. **The perf-only build caught a real
+bug the default build could not**: the first version of the declaration was
+nested inside `#ifdef ZERO_FDCACHE`, so a `ZERO_PERF`-only build failed with
+`use of undeclared identifier`. That is precisely the class of breakage F2/A5
+flags as invisible to current CI -- and an argument for the `--enable-perf` CI
+job, independent of FDCACHE's disposition.
+
+**FDCACHE: RETAINED, by owner decision.** It is optional perf instrumentation,
+not shipped behaviour, and it stays **at least until results are validated on
+x86-64 Linux and Windows**. The null result (S3.2) is one platform, and macOS
+stdio behaviour does not predict either target -- the same reasoning that keeps
+B2 open. The P0 lock-lifetime issue remains **real and documented**, and is a
+prerequisite for *enabling* the flag in any multi-reader context, not a reason
+to delete a compiled-out research path.
+
+#### FDCACHE: the untested cases where it could pay
+
+The null (S3.2) is established for **sequential reindex on macOS/arm64 with a
+warm page cache**. Two workloads have the opposite access pattern and are
+unmeasured. Recorded so the flag's retention has a stated purpose:
+
+| Workload | Why the mechanism could matter | Measurable how |
+|----------|-------------------------------|----------------|
+| **Random `getblock` / REST / explorer serving** | Consecutive requests hit **different** `blk*.dat` files, so every read pays `fopen`+`fclose` that the latch would elide. Sequential reindex hits the same file repeatedly, which is why the cache had nothing to save there | Drive `getblock` over a random height sample against a synced node, with and without `-perffdcache`; compare RPC latency percentiles, not throughput |
+| **Cold cache / slow storage** | The 4.91% syscall share assumes the page cache already holds the data. On first touch, or on network/spinning storage, the read itself dominates and buffer size becomes relevant | Same reindex window with the page cache dropped between trials; **Linux only** (`/proc/sys/vm/drop_caches`), which makes this a B2 item |
+
+**Both are latency questions, not throughput questions**, which is why the
+existing throughput harness measured nothing: it was the wrong instrument for
+the case where the mechanism helps. The reindex null stands and is not
+contradicted by either.
+
+**Prerequisite for the RPC case:** concurrent readers are exactly the P0
+condition (`main.cpp:4902`), so the lock-lifetime fix must land **before** any
+multi-client `getblock` measurement -- otherwise the experiment is measuring an
+unsafe path.
 
 **Assessment of the review itself: accurate and useful.** Every claim spot
 checked held up against the source, including one that contradicts our own
@@ -1023,9 +1080,11 @@ Stated explicitly so nothing above reads as finished when it is not.
 each was set down because something else was worth more at the time, or because
 the evidence then available said the return was small. That is a **judgement
 against a snapshot**, and several of the snapshots are already stale -- the
-Equihash analysis (`../equ/`) reopened NEON on the mining track after it had
-been set aside on the sync track, which is exactly the pattern this rename
-anticipates.
+the Equihash analysis (`../equ/`) re-examined NEON on the mining track after it
+had been set aside on the sync track -- and found the share larger but the work
+harder, leaving it on hold rather than reopened. That is the pattern this rename
+anticipates: the snapshot changes, so the judgement is revisited, not that every
+revisit reverses.
 
 Each item states the condition that would reopen it. An item with no such
 condition is either genuinely closed or has not been thought through -- both
@@ -1035,8 +1094,8 @@ worth knowing.
 |------|-----------------|----------------------|
 | Drop `cs_main` during the witness height walk | Abort-and-restart cannot converge once walk time exceeds block spacing | A design that checkpoints rather than restarts; or NOTEIDX reducing walk time below spacing |
 | CleanIndex gtest harness | Needs anchors and disk-backed blocks the gtest harness lacks | `reindex_shielded.py` proving insufficient, or the gtest harness gaining disk-backed fixtures |
-| FDCACHE buffer-size sweep | Measured null: 1.1% spread against 1.7-4.5% noise (`FINDINGS.md` S3.2) | A workload that is **not** CPU-bound -- e.g. a slower-storage host, or post-Groth-batching when CPU stops dominating |
-| NEON blake2b **on the sync track** | 3-4% of post-Sapling sync (`FINDINGS.md` S2.5) | Already reopened **on the mining track** (D1/`../equ/` S1.4), where the 33.5M-leaf list makes blake2b a live target. Sync-track judgement unchanged |
+| FDCACHE buffer-size sweep | Measured null (`FINDINGS.md` S3.2) | A workload that is **not** CPU-bound -- a slower-storage host, random `getblock` serving (A5-a2), or post-Groth-batching |
+| NEON blake2b | Sync track: 3-4% of post-Sapling cost (`FINDINGS.md` S2.5). Mining track: share is larger but no upstream NEON kernel exists, so it is new development | **On hold.** Revisit if an arm64 mining target becomes real; the measured basis is in `../equ/VENDORED.md` S3.1/S3.7 |
 | Halo / Orchard | Not Zero consensus | A deliberate NU that adopts them. Not a lab decision |
 | Post-Sapling bootstrap / sync captures **as a comparison** | A and B agree within ~3 points (`FINDINGS.md` S3.4) | Superseded in part: C4 schedules these as **utilization** cells, which is a different question than re-proving the equivalence |
 | Remove dead `nNotarizations` | Not worth a commit of its own | `chain.h` being touched for another reason |
@@ -1057,7 +1116,7 @@ the next investigation rather than only describing the last one.
 | **A rule nobody checks is a comment** | Every written rule needs an enforcement point or an explicit note that it is advisory | ASCII rule drifted to 693 violations; `M-*` citation rule to 5 restatements |
 | **A tool that has never failed a test has never been tested** | Self-tests gate the harness, not just the product. Five number-corrupting defects surfaced only when coverage was completed | `FINDINGS.md` S1.4 |
 | **Measure a null and it becomes evidence; assume it and it stays a guess** | A measured negative result is publishable and stops work. Two did | FDCACHE; I/O tuning |
-| **Profile when the bottleneck is unknown; benchmark when it is known** | Benchmarking an unknown bottleneck measures noise against noise | FDCACHE A/B: 1.1% spread vs 1.7-4.5% noise |
+| **Profile when the bottleneck is unknown; benchmark when it is known** | Benchmarking an unknown bottleneck measures noise against noise | FDCACHE A/B (`FINDINGS.md` S3.2) |
 | **First-match-wins attribution makes ordering load-bearing** | Any classifier whose rules overlap must have its order treated as code, not formatting | Four published figures wrong from bucket order |
 | **A number without its window, platform and build is not comparable** | Record the conditions with the measurement or it cannot be aggregated later | Every pre-schema row came from one host and nothing said so |
 | **A reference oracle stored once, writable, is not a reference** | Anything later changes are validated against gets archived and made read-only *before* the work starts | V2 solver baseline sat at the path its regenerator writes to |

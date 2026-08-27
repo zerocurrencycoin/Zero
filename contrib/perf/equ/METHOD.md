@@ -279,10 +279,10 @@ Additional oracles, in increasing cost:
   sorted index sets. Catches dropped solutions -- the failure mode the verifier
   cannot see.
 - **Ycash cross-check (V5).** Same lineage, already instantiates (192,7)
-  (S2a); an independent binary agreeing on the solution set is strong
+  (`FINDINGS.md` S2a); an independent binary agreeing on the solution set is strong
   evidence.
 - **tromp at `-DWN=192 -DWK=7` (V5).** A genuinely different algorithm
-  agreeing is the strongest available check, and doubles as the S2a evaluation.
+  agreeing is the strongest available check, and doubles as the `FINDINGS.md` S2a evaluation.
 
 ### 3.2d Round-by-round snapshots -- deferred, with the reason
 
@@ -348,7 +348,7 @@ comparison valid.
 
 ### 3.2f Cross-checking the vendored tromp solver, compatibly
 
-Zero ships two (192,7) solvers (`../equ/FINDINGS.md` S2f.3): `EhOptimisedSolve`
+Zero ships two (192,7) solvers (`../equ/FINDINGS.md` `VENDORED.md` S1.3): `EhOptimisedSolve`
 (`default`, what every number in this tree measures) and vendored tromp
 (`src/pow/tromp/`, what `prod.conf` selects). **Comparing them is only
 meaningful if the comparison is compatible**, and four things must be held
@@ -424,12 +424,51 @@ A tromp-vs-default run on identical nonces is simultaneously:
    set is far stronger evidence than either verifying alone. `../equ/README.md`
    lists a tromp port as the strongest available V5 oracle; **it is already in
    the tree**, so that oracle is available now at no porting cost.
-3. **A validation of the analysis in S1/S2d** -- if tromp's measured peak is
+3. **A validation of the analysis in S1/`SOLVER.md` S3** -- if tromp's measured peak is
    near the ~3.3 GB computed for a tromp-class solver at (192,7) (S1.2a), the
    model is confirmed from a second direction.
 
 **Order:** (2) first. If the solution sets disagree, the timing numbers are
 uninteresting until that is resolved.
+
+### 3.2g Resolution limits: what this harness can and cannot decide
+
+**Standing constraint on every conclusion in this document set.** Measurements
+here run on a live workstation, at n=4 or less, with ~60 s (default solver) or
+~9 s (tromp) per trial. That bounds what may be concluded, and the bound is
+tighter than the numbers look.
+
+| Source of variance | Magnitude | Controlled? |
+|--------------------|-----------|-------------|
+| **Random nonce** (RPC benchmark) | **29-49%** | Yes -- fixed-nonce harness (S3.2e) |
+| Same-nonce repeatability | **~0.2%** | -- the floor |
+| Same-host run-to-run, throughput ledger | **~4%** | No |
+| Live system load (browser, builds, indexing) | unquantified | **No** |
+| Thermal | never observed non-Nominal, but no long run checked | **No** |
+
+**Practical rule: at n=4 on a loaded workstation, do not decide anything on a
+difference under ~10%.** Differences of 1.2x or more (D3, tromp-vs-default) are
+safely outside that; a 5% result is not, regardless of how tidy the table looks.
+
+**What this forbids:**
+
+- Ranking two candidate optimisations that differ by less than ~10% from each
+  other.
+- Treating a single tight-looking n=3 or n=4 spread as precision. The
+  `HasCollision` 1.02x and the row-width 1.15x are **microbenchmark** figures
+  (isolated, no node, thousands of iterations) and are *not* subject to this
+  bound; solve-level figures are.
+- Concluding anything about *absolute* throughput that transfers to another
+  machine.
+
+**What it permits:** large ratios, codegen facts (call counts, instruction
+counts), correctness results (solution-set equality, drop counters), and
+computed quantities (memory arithmetic, distribution). **These are the classes
+of result this document set should lean on, and mostly does.**
+
+When a decision genuinely needs better resolution, the fix is not more trials
+on this host -- it is a quiet host, n>=10, and the spread published. Do not
+substitute repetition on a busy machine for resolution.
 
 ### 3.3 What to record every time
 

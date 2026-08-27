@@ -6,14 +6,23 @@ for making the solver competitive.
 
 ## The set
 
-| Document | Answers |
-|----------|---------|
-| **[FINDINGS.md](FINDINGS.md)** | What is measured and computed about the current solver; S3 is the solver mechanism (keys, widths, comparator) |
-| **[METHOD.md](METHOD.md)** | How to measure a change and how hard to validate it |
-| **[PLAN.md](PLAN.md)** | What to build, in what order, S0 -> S4 |
+| Document | Single subject | Read when |
+|----------|----------------|-----------|
+| **[FINDINGS.md](FINDINGS.md)** | **What is measured**: current numbers, and the size of the gap | Deciding what is worth doing |
+| **[SOLVER.md](SOLVER.md)** | **How the solvers work**: keys, widths, tags, buckets, and the constants that size them | Changing a data structure |
+| **[VENDORED.md](VENDORED.md)** | **Which solver runs**: lineage, the default-vs-tromp comparison, and what updating the vendored copy would buy | Deciding which code path to invest in |
+| **[METHOD.md](METHOD.md)** | **How to measure and validate** a change | Running anything |
+| **[PLAN.md](PLAN.md)** | **What to build**, in what order, S0 -> S4 | Picking up work |
 
-Split from one 1500-line file along the same seam the perf docs use: facts,
-method, plan. Related tracks: `../docs/FINDINGS.md` S2 (why Equihash is a
+**Inclusion rules.** A number goes in `FINDINGS`. A data-structure explanation
+goes in `SOLVER`. A statement about provenance or solver choice goes in
+`VENDORED`. A gate or procedure goes in `METHOD`. A proposal goes in `PLAN`.
+Nothing is restated across two of them -- the owning document is cited by
+section id instead.
+
+Split along the seam the perf docs use -- facts, method, plan -- with the
+solver internals and the vendored-copy question separated out once each grew
+past the point where `FINDINGS` could be read as one subject. Related tracks: `../docs/FINDINGS.md` S2 (why Equihash is a
 parallel track, not sync work), `../docs/SCHEMA.md` (recording results so they
 aggregate across platforms).
 
@@ -115,4 +124,4 @@ line is 128 B here versus 64 B on x86, and the base page is 16 KB versus 4 KB.
   per-round counts plus key checksums proposed instead (`METHOD.md` S3.2d).
 - **A tromp port at `-DWN=192 -DWK=7`** -- reachable (his generic
   `digitodd`/`digiteven` path exists) and the strongest available V5 oracle
-  (`FINDINGS.md` S2a).
+  (`FINDINGS.md` `FINDINGS.md` S2a).

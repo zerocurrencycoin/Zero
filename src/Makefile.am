@@ -380,8 +380,12 @@ EQUIHASH_TROMP_SOURCES = \
   pow/tromp/equi.h \
   pow/tromp/osx_barrier.h
 
-crypto_libbitcoin_crypto_a_CPPFLAGS += \
-  -DEQUIHASH_TROMP_ATOMIC
+# EQUIHASH_TROMP_ATOMIC makes equi::getslot() and the solution counter use
+# atomic_fetch_add. That is only required when equi is constructed with
+# nthreads > 1; miner.cpp constructs equi eq(1), so the atomics are paid for
+# and never used. Left undefined until a threaded solver is actually wired up
+# -- re-add it in the same commit that passes nthreads > 1, or the slot
+# allocator will hand two threads the same slot.
 crypto_libbitcoin_crypto_a_SOURCES += \
   ${EQUIHASH_TROMP_SOURCES}
 endif

@@ -87,6 +87,29 @@ bool fInsightExplorer = false;  // insightexplorer
 bool fAddressIndex = false;     // insightexplorer
 bool fSpentIndex = false;       // insightexplorer
 bool fTimestampIndex = false;   // insightexplorer
+#if defined(ZERO_PERF) || defined(ZERO_FDCACHE)
+// -mrclogevery, validated once in InitPerfLogEvery(). Used as a modulo divisor
+// on two hot paths, so it must never be 0 and must never be negative.
+int64_t nPerfLogEvery = PERF_LOG_EVERY_DEFAULT;
+#endif
+
+#if defined(ZERO_PERF) || defined(ZERO_FDCACHE)
+void InitPerfLogEvery()
+{
+    // Read once at startup and validate: nPerfLogEvery is a modulo divisor on
+    // per-block paths, so 0 would divide by zero and a negative value has no
+    // defined meaning for "log every N blocks". Fail loudly at startup rather
+    // than crashing mid-sync.
+    const int64_t n = GetArg("-mrclogevery", PERF_LOG_EVERY_DEFAULT);
+    if (n < 1 || n > PERF_LOG_EVERY_MAX) {
+        throw std::runtime_error(strprintf(
+            "-mrclogevery must be between 1 and %d (got %d)",
+            PERF_LOG_EVERY_MAX, n));
+    }
+    nPerfLogEvery = n;
+}
+#endif
+
 #ifdef ZERO_FDCACHE
 bool fPerfFdCache = false;   // -perffdcache, read once in InitPerfFdCache()
 #endif
@@ -3228,8 +3251,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     // interval; kept coarse so the LogPrintf/modulo cost is negligible next
     // to the per-block validation work being measured.
     {
-        static const int64_t logEvery = GetArg("-mrclogevery", 16384);
-        if (pindex->nHeight % logEvery == 0) {
+        if (pindex->nHeight % nPerfLogEvery == 0) {
             uint64_t calls = libzcash::MerkleRootCacheStats::calls.load(std::memory_order_relaxed);
             uint64_t no_matches = libzcash::MerkleRootCacheStats::no_matches.load(std::memory_order_relaxed);
             uint64_t matches = calls - no_matches;
@@ -4946,8 +4968,7 @@ void InitPerfFdCache()
 
 void LogReadFdCacheStats(int height)
 {
-    static const int64_t logEvery = GetArg("-mrclogevery", 16384);
-    if (height % logEvery != 0)
+    if (height % nPerfLogEvery != 0)
         return;
     uint64_t opens, hits;
     {
