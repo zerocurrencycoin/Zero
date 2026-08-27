@@ -482,6 +482,63 @@ independent and measured; the achievable speedup is not.**
 
 ---
 
+## 3.9 What else is worth pulling in, excluding BLAKE2b
+
+Audited the 81 post-vintage upstream commits, filtering out documentation,
+build files, benchmarks and CUDA-only changes.
+
+**Already present in Zero's copy** -- so the vintage is not purely
+pre-deadline; at least one later fix was back-ported when it was vendored:
+
+| Upstream fix | Date | Status |
+|--------------|------|--------|
+| **elbandi verify bug**: `verifyrec` accepted a non-zero final digit | 2016-11-03 | **PRESENT** (`equi.h:68` has `r < WK ? r*DIGITBITS : WN`) |
+| const-correctness on the hash state | 2016-11-04 | PRESENT |
+| Slot linking (Solardiz) | 2016-10-27 | **Adopted this session** (S3.3) |
+
+**Not applicable:**
+
+| Change | Why not |
+|--------|---------|
+| `cudaMemset` on `nslots` (nicehashdev) | CUDA path only; Zero vendors the CPU solver |
+| "remove fake addslot() branch" | `equi_miner.cu` only |
+| MERGESORT removal | Removes an experiment tromp measured as a **slowdown**; Zero never had it |
+| `-mavx2` build flags, `NBLAKES` | BLAKE2b work, excluded by scope |
+
+**The one real candidate: duplicate detection.**
+
+Zero's `candidate()` (`equi_miner.h:272`) does:
+
+```cpp
+listindices1(WK, t, prf);                      // full reconstruction
+qsort(prf, PROOFSIZE, sizeof(u32), &compu32);  // sort 128 indices
+for (i=1..PROOFSIZE) if (prf[i] <= prf[i-1]) return;   // dupe test
+...
+if (soli < MAXSOLS) listindices1(WK, t, sols[soli]);   // reconstruct AGAIN
+```
+
+Current upstream (2016-11-16, "ultimately simplify and speed up duplicate
+test") does:
+
+```cpp
+if (listindices1(WK, t, prf) || duped(prf)) return;    // dupe found DURING reconstruction
+if (soli < MAXSOLS) memcpy(sols[soli], prf, sizeof(proof));  // no second walk
+```
+
+Two savings per candidate: **no `qsort` of 128 elements**, and **no second
+reconstruction** on the success path. `listindices1` returning a dupe flag lets
+the walk abort early rather than completing and then sorting.
+
+**Whether this matters depends on how often `candidate()` runs**, which is
+unmeasured. It is called once per surviving pair in the final round; the
+measured 2-5 solutions per nonce is the count that *passes*, not the count
+*tested*. **Instrument `candidate()` call count before porting** -- if it runs a
+handful of times per solve, this is noise; if it runs thousands, the `qsort` is
+real work. That is a `PERF_PROBE` counter, not an estimate.
+
+**Nothing else in the 81 commits is both applicable and substantive.** The
+remainder is BLAKE2b (excluded), CUDA, build plumbing, or documentation.
+
 ## 4. Cross-implementation survey
 
 Read from the local clones under `~/Work/ZK/ZKs/` (out of tree). The question

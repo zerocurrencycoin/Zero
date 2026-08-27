@@ -27,7 +27,15 @@
 typedef uint16_t u16;
 typedef uint64_t u64;
 
-#ifdef EQUIHASH_TROMP_ATOMIC
+// EQUIHASH_TROMP_THREADED enables the multi-threaded solver: worker threads,
+// the round barrier, and the atomic slot/solution counters those threads
+// require. The three are one feature and must move together -- threads without
+// atomics hand two workers the same slot; atomics without threads pay for a
+// capability nothing uses.
+//
+// miner.cpp constructs equi eq(1) (single-threaded), so this is OFF. Define it
+// in the same change that passes nthreads > 1, never separately.
+#ifdef EQUIHASH_TROMP_THREADED
 #include <atomic>
 typedef std::atomic<u32> au32;
 #else
@@ -191,12 +199,20 @@ struct equi {
   u32 xfull;
   u32 hfull;
   u32 bfull;
+#ifdef EQUIHASH_TROMP_THREADED
   pthread_barrier_t barry;
+#endif
   equi(const u32 n_threads) {
     assert(sizeof(hashunit) == 4);
     nthreads = n_threads;
+#ifdef EQUIHASH_TROMP_THREADED
     const int err = pthread_barrier_init(&barry, NULL, nthreads);
     assert(!err);
+#else
+    // Single-threaded build: the digit loops stride by nthreads, so anything
+    // other than 1 would silently skip work.
+    assert(nthreads == 1);
+#endif
     hta.alloctrees();
     nslots = (bsizes *)hta.alloc(2 * NBUCKETS, sizeof(au32));
     sols   =  (proof *)hta.alloc(MAXSOLS, sizeof(proof));
@@ -212,7 +228,7 @@ struct equi {
     nsols = 0;
   }
   u32 getslot(const u32 r, const u32 bucketi) {
-#ifdef EQUIHASH_TROMP_ATOMIC
+#ifdef EQUIHASH_TROMP_THREADED
     return std::atomic_fetch_add_explicit(&nslots[r&1][bucketi], 1U, std::memory_order_relaxed);
 #else
     return nslots[r&1][bucketi]++;
@@ -260,7 +276,7 @@ struct equi {
     for (u32 i=1; i<PROOFSIZE; i++)
       if (prf[i] <= prf[i-1])
         return;
-#ifdef EQUIHASH_TROMP_ATOMIC
+#ifdef EQUIHASH_TROMP_THREADED
     u32 soli = std::atomic_fetch_add_explicit(&nsols, 1U, std::memory_order_relaxed);
 #else
     u32 soli = nsols++;
@@ -578,6 +594,7 @@ nc++,       candidate(tree(bucketid, s0, s1));
   }
 };
 
+#ifdef EQUIHASH_TROMP_THREADED
 typedef struct {
   u32 id;
   pthread_t thread;
@@ -626,3 +643,4 @@ void *worker(void *vp) {
   pthread_exit(NULL);
   return 0;
 }
+#endif // EQUIHASH_TROMP_THREADED

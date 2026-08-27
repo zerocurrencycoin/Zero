@@ -479,6 +479,66 @@ S1.3 is worth the V2 gate. Do not start S1.3 before D3 reports.
 
 ---
 
+## 1.7 Parameter reference: what each constant is, at all three sets
+
+Every constant below is derived from `(n, k)`; none is independently tunable
+except `RESTBITS`, and that only within the range the tag width permits (S2.3).
+
+**Base parameters** -- fixed by the parameter set [Computed]:
+
+| Constant | Meaning | (48,5) | **(192,7)** | (200,9) |
+|----------|---------|-------:|------------:|--------:|
+| `WN` / `n` | Hash bits the solution must cancel | 48 | **192** | 200 |
+| `WK` / `k` | Merge rounds | 5 | **7** | 9 |
+| `NDIGITS` = `k+1` | Digits the hash is cut into | 6 | **8** | 10 |
+| **`DIGITBITS`** = `n/(k+1)` | **Bits per collision digit** -- the width matched each round | 8 | **24** | 20 |
+| `init_size` = `2^(DIGITBITS+1)` | Leaf rows generated | 512 | **33,554,432** | 2,097,152 |
+| `PROOFSIZE` = `2^k` | Indices in a solution | 32 | **128** | 512 |
+
+`DIGITBITS` is the one to hold onto: it is **larger at (192,7) than at
+(200,9)** (24 vs 20) despite `n` being smaller, because `k` is smaller too.
+Everything awkward about Zero's parameters follows from that single fact --
+a 16x larger leaf list, and a bucket space 16x wider.
+
+**Bucket geometry** -- derived from `DIGITBITS` and the one tunable,
+`RESTBITS` [Computed, at each tree's actual setting]:
+
+| Constant | Meaning | (48,5) RB=4 | **(192,7) RB=4** | (200,9) RB=10 |
+|----------|---------|------------:|-----------------:|--------------:|
+| **`RESTBITS`** | **Bits left unbucketed** within a digit; the tuning knob | 4 | **4** | 10 |
+| `BUCKBITS` = `DIGITBITS-RESTBITS` | Bits selecting the bucket | 4 | **20** | 10 |
+| `NBUCKETS` = `2^BUCKBITS` | Buckets per round | 16 | **1,048,576** | 1,024 |
+| `SLOTBITS` = `RESTBITS+2` | Bits addressing a slot in a bucket | 6 | **6** | 12 |
+| `SLOTRANGE` = `2^SLOTBITS` | Addressable slots | 64 | **64** | 4,096 |
+| `SAVEMEM` | Fraction of `SLOTRANGE` actually used | 1 | **1** | 9/14 |
+| `NSLOTS` = `SLOTRANGE x SAVEMEM` | **Real bucket capacity** | 64 | **64** | 2,633 |
+| tag bits = `BUCKBITS + 2*SLOTBITS` | Must fit `tree_t` | 16 | **32** | 34 (Cantor: 32) |
+
+**How the two halves interact.** `RESTBITS` splits each digit: `BUCKBITS`
+chooses the bucket, the remaining `RESTBITS` are the "x-hash" used for
+second-stage grouping *within* a bucket (S2.5). Raising `RESTBITS` gives fewer,
+larger buckets; lowering it gives more, smaller ones. `NBUCKETS x SLOTRANGE` is
+**invariant** under `RESTBITS` -- it only changes the shape, not the total.
+
+**Occupancy, which is what the shape actually controls** [Computed]:
+
+| | (48,5) RB=4 | **(192,7) RB=4** | (200,9) RB=10 |
+|---|------------:|-----------------:|--------------:|
+| Rows | 512 | 33,554,432 | 2,097,152 |
+| Buckets | 16 | 1,048,576 | 1,024 |
+| **Expected rows/bucket** | **32.0** | **32.0** | **2,048** |
+| Capacity (`NSLOTS`) | 64 | 64 | 2,633 |
+| **Over-provision** | **2.00x** | **2.00x** | **1.29x** |
+
+This table is the whole memory story. (200,9) at RESTBITS 10 has ~2,048 rows per
+bucket, so relative spread is small and capacity can sit at 1.29x. **(192,7) at
+RESTBITS 4 has 32 rows per bucket**, where spread is large and `SAVEMEM 1` is
+forced -- costing **2.00x**, which is where the 3.3 GB goes
+(`VENDORED.md` S3.6).
+
+And RESTBITS 4 is not a choice: at (192,7) anything above 6 pushes the tag past
+32 bits (S2.3). **The memory cost traces directly back to `DIGITBITS` = 24.**
+
 ## 2. Tree tags: the DAG representation
 
 Technique #4 (compact index-pointer storage) in the reference implementation,
