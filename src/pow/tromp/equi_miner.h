@@ -80,28 +80,53 @@ static const u32 MAXSOLS = 8;
 
 // tree node identifying its children as two different slots in
 // a bucket on previous layer with the same rest bits (x-tra hash)
+//
+// tree_t is the packed field. It must hold BUCKBITS + 2*SLOTBITS bits, which
+// at (192,7) is 32 exactly at RESTBITS 4 and overflows above RESTBITS 6
+// (DIGITBITS is 24 here, not (200,9)'s 20, so BUCKBITS is 4 bits wider for the
+// same RESTBITS).
+//
+// tree_t CANNOT simply be widened to u64. alloctrees() lays the per-round tree
+// arrays into the heaps with `(bucket0 *)(heap0 + r/2)`, where heap0 is u32* --
+// xenoncat's interleaved layout, where each round's tree word occupies space
+// the previous round's hash has vacated. That pointer arithmetic hard-codes
+// sizeof(tree) == sizeof(u32); with a u64 tag the round arrays overlap and the
+// solver faults. Raising RESTBITS therefore requires reworking alloctrees(),
+// not just the tag type. See contrib/perf/equ/SOLVER.md S2.3.
+//
+// The static_assert below enforces the fit, replacing upstream's
+// "#error tree doesnt fit in 32 bits".
+typedef u32 tree_t;
+
 struct tree {
-  u32 bid_s0_s1; // manual bitfields
+  tree_t bid_s0_s1; // manual bitfields
 
   tree(const u32 idx) {
     bid_s0_s1 = idx;
   }
   tree(const u32 bid, const u32 s0, const u32 s1) {
-    bid_s0_s1 = (((bid << SLOTBITS) | s0) << SLOTBITS) | s1;
+    // Cast BEFORE shifting: (bid << SLOTBITS) in u32 truncates silently once
+    // BUCKBITS + SLOTBITS exceeds 32, and the result would then be widened
+    // after the damage. This is the one place a width change goes wrong
+    // invisibly.
+    bid_s0_s1 = (((tree_t)bid << SLOTBITS) | s0) << SLOTBITS | s1;
   }
   u32 getindex() const {
-    return bid_s0_s1;
+    return (u32)bid_s0_s1;
   }
   u32 bucketid() const {
-    return bid_s0_s1 >> (2 * SLOTBITS);
+    return (u32)(bid_s0_s1 >> (2 * SLOTBITS));
   }
   u32 slotid0() const {
-    return (bid_s0_s1 >> SLOTBITS) & SLOTMASK;
+    return (u32)((bid_s0_s1 >> SLOTBITS) & SLOTMASK);
   }
   u32 slotid1() const {
-    return bid_s0_s1 & SLOTMASK;
+    return (u32)(bid_s0_s1 & SLOTMASK);
   }
 };
+
+static_assert(BUCKBITS + 2 * SLOTBITS <= 8 * sizeof(tree_t),
+              "tree tag does not fit tree_t: raise tree_t or lower RESTBITS");
 
 union hashunit {
   u32 word;
@@ -121,6 +146,17 @@ struct slot1 {
   tree attr;
   hashunit hash[HASHWORDS1];
 };
+
+// The slot is the unit the heaps are sized in, so its size is the memory
+// story. alignof(tree) propagates: widening tree_t to u64 gives slot1 an
+// 8-byte alignment over a 28-byte payload, so it pads to 32 -- a jump of 8,
+// not 4. Assert the expected sizes rather than discover a silent regression
+// in a memory measurement.
+static_assert(sizeof(slot0) == sizeof(tree) + HASHWORDS0 * sizeof(hashunit)
+                               + (sizeof(tree) - (HASHWORDS0 * sizeof(hashunit)) % sizeof(tree)) % sizeof(tree),
+              "slot0 size unexpected: check tree_t width and padding");
+static_assert(sizeof(slot0) % alignof(tree) == 0, "slot0 not tree-aligned");
+static_assert(sizeof(slot1) % alignof(tree) == 0, "slot1 not tree-aligned");
 
 // a bucket is NSLOTS treenodes
 typedef slot0 bucket0[NSLOTS];

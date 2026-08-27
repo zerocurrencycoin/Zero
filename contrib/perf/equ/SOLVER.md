@@ -630,7 +630,7 @@ a tuning choice.
 | Option | Effect | Cost |
 |--------|--------|------|
 | **`RESTBITS <= 6`** (today) | Fits `u32` | 2^20 buckets of 64 slots -- small buckets force **2.0x over-provision** (S1.1) |
-| **`u64 tree_t`** | Any RESTBITS | Costed in S2.7 |
+| **`u64 tree_t`** | Any RESTBITS | **Blocked: requires reworking `alloctrees()`** -- S2.3a |
 | **Split the tag**: bucket implied by position | `2*SLOTBITS` -> `u16` | Row's bucket must be recoverable from where it sits; a layout change |
 | Cantor | 2 bits | Does not reach (S2.2) |
 
@@ -705,9 +705,52 @@ computable and are computed here.
 | Option | Effect | Cost |
 |--------|--------|------|
 | **`RESTBITS <= 6`** (what the vendored copy does at 4) | Fits 32 bits today | 2^20 buckets of 64 slots -- small buckets, so **2.0x over-provision** is forced (`VENDORED.md` S3.6) |
-| **`u64 tree_t`** | Any RESTBITS; removes the constraint entirely | Costed below |
+| **`u64 tree_t`** | Any RESTBITS; removes the constraint entirely | **Blocked: requires reworking `alloctrees()`** -- S2.3a |
 | **Split the tag**: bucket implied by position, only slots stored | `2*SLOTBITS` = 12-16 bits -> `u16` | Requires the row's bucket to be recoverable from where it sits; a real layout change |
 | Cantor | Saves 2 bits | **Does not reach**: 34 -> 32 only at RESTBITS=6, where the fit then fails on capacity (S2.2) |
+
+#### S2.3a `u64 tree_t` is not a drop-in: the heap layout hard-codes 4 bytes
+
+**Attempted and reverted** [Measured: the solver faults with a memory access
+violation at the first (192,7) solve]. The tag type is coupled to the heap
+layout in a way the type system does not express.
+
+`alloctrees()` places each round's tree array with:
+
+```cpp
+heap0 = (u32 *)alloc(1, sizeof(digit0));
+for (int r = 0; r < WK; r++)
+  if ((r & 1) == 0) trees0[r/2] = (bucket0 *)(heap0 + r/2);
+  else              trees1[r/2] = (bucket1 *)(heap1 + r/2);
+```
+
+`heap0` is `u32 *`, so `heap0 + r/2` advances **4 bytes per round**. This is
+xenoncat's interleaved layout, documented in the comment above that code: each
+round's tree word occupies space the previous round's hash has vacated, which
+is what keeps the two heaps flat rather than growing (S2.4).
+
+**It hard-codes `sizeof(tree) == sizeof(u32)`.** With an 8-byte tag the
+per-round arrays overlap by 4 bytes each and the solve faults immediately.
+
+**What this changes about the memory plan:**
+
+- The `u64` tag is **not** a 30-40 line change. `alloctrees()` must advance in
+  `sizeof(tree)` units, and the layout arithmetic that keeps the heaps flat has
+  to be re-derived -- the vacated-hash-space interleave is what the 4-byte
+  stride encodes.
+- **RESTBITS above 6 is gated on that rework**, not on the tag type alone. The
+  sequence "widen the tag, then retune buckets" does not work.
+- The memory arithmetic in `VENDORED.md` S3.6 still holds as *arithmetic*; what
+  changed is the implementation cost of reaching it.
+
+**Retained from the attempt**, all useful without the widening:
+
+- The constructor casts to `tree_t` **before** shifting, so the expression
+  cannot truncate if the type is ever widened.
+- `static_assert(BUCKBITS + 2*SLOTBITS <= 8*sizeof(tree_t))` replaces upstream's
+  `#error`, with a readable message and coverage for any future width.
+- Slot-alignment asserts, which would have caught the `slot1` 24 -> 32 padding
+  jump at compile time.
 
 #### `u64 tree_t`: what actually changes
 
