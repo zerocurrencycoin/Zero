@@ -1,7 +1,8 @@
 // Equihash solver
 // Copyright (c) 2016-2016 John Tromp, The Zcash developers
 
-#include "sodium.h"
+#include "uniblake/prefix.h"
+#include "uniblake/uniblake.h"
 #ifdef __APPLE__
 #include "pow/tromp/osx_barrier.h"
 #endif
@@ -39,16 +40,15 @@ typedef u32 proof[PROOFSIZE];
 enum verify_code { POW_OK, POW_DUPLICATE, POW_OUT_OF_ORDER, POW_NONZERO_XOR };
 const char *errstr[] = { "OK", "duplicate index", "indices out of order", "nonzero xor" };
 
-void genhash(const crypto_generichash_blake2b_state *ctx, u32 idx, uchar *hash) {
-  crypto_generichash_blake2b_state state = *ctx;
+void genhash(const ub_state *ctx, u32 idx, uchar *hash) {
+  // No state copy: ub_hash_tail reads the shared prefix and writes the digest.
   u32 leb = htole32(idx / HASHESPERBLAKE);
-  crypto_generichash_blake2b_update(&state, (uchar *)&leb, sizeof(u32));
   uchar blakehash[HASHOUT];
-  crypto_generichash_blake2b_final(&state, blakehash, HASHOUT);
+  ub_hash_tail(ctx, &leb, sizeof(u32), blakehash, HASHOUT);
   memcpy(hash, blakehash + (idx % HASHESPERBLAKE) * WN/8, WN/8);
 }
 
-int verifyrec(const crypto_generichash_blake2b_state *ctx, u32 *indices, uchar *hash, int r) {
+int verifyrec(const ub_state *ctx, u32 *indices, uchar *hash, int r) {
   if (r == 0) {
     genhash(ctx, *indices, hash);
     return POW_OK;
@@ -90,7 +90,7 @@ bool duped(proof prf) {
 }
 
 // verify Wagner conditions
-int verify(u32 indices[PROOFSIZE], const crypto_generichash_blake2b_state *ctx) {
+int verify(u32 indices[PROOFSIZE], const ub_state *ctx) {
   if (duped(indices))
     return POW_DUPLICATE;
   uchar hash[WN/8];

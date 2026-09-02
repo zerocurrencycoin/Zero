@@ -293,7 +293,7 @@ u32 min(const u32 a, const u32 b) {
 }
 
 struct equi {
-  crypto_generichash_blake2b_state blake_ctx;
+  const ub_state *blake_ctx;   // borrowed prefix state, not owned
   htalloc hta;
   bsizes *nslots; // PUT IN BUCKET STRUCT
   proof *sols;
@@ -325,8 +325,8 @@ struct equi {
     free(nslots);
     free(sols);
   }
-  void setstate(const crypto_generichash_blake2b_state *ctx) {
-    blake_ctx = *ctx;
+  void setstate(const ub_state *ctx) {
+    blake_ctx = ctx;   // borrowed: the caller owns the prefix state
     memset(nslots, 0, NBUCKETS * sizeof(au32)); // only nslots[0] needs zeroing
     nsols = 0;
   }
@@ -528,14 +528,13 @@ struct equi {
 
   void digit0(const u32 id) {
     uchar hash[HASHOUT];
-    crypto_generichash_blake2b_state state;
     htlayout htl(this, 0);
     const u32 hashbytes = hashsize(0);
+    // block advances by nthreads, so the counters this thread hashes are not
+    // consecutive and the batch entry point does not apply here.
     for (u32 block = id; block < NBLOCKS; block += nthreads) {
-      state = blake_ctx;
       u32 leb = htole32(block);
-      crypto_generichash_blake2b_update(&state, (uchar *)&leb, sizeof(u32));
-      crypto_generichash_blake2b_final(&state, hash, HASHOUT);
+      ub_hash_tail(blake_ctx, &leb, sizeof(u32), hash, HASHOUT);
       for (u32 i = 0; i<HASHESPERBLAKE; i++) {
         const uchar *ph = hash + i * WN/8;
 #if BUCKBITS == 16 && RESTBITS == 4

@@ -663,7 +663,7 @@ void static BitcoinMiner(const CChainParams& chainparams)
                 if (solver == "tromp") {
                     // Create solver and initialize it.
                     equi eq(1);
-                    eq.setstate(&curr_state);
+                    eq.setstate(curr_state.get());
 
                     // Initialization done, start algo driver.
                     eq.digit0(0);
