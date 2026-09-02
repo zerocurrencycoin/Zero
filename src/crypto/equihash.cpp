@@ -335,6 +335,30 @@ bool Equihash<N,K>::BasicSolve(const eh_HashState& base_state,
     size_t lenIndices = sizeof(eh_index);
     std::vector<FullStepRow<FullWidth>> X;
     X.reserve(init_size);
+#ifdef EQUIHASH_BATCH_HASH
+    // Whole range in one call. Every digest here derives from the same prefix
+    // and consecutive counters, which is exactly what ub_hash_n takes, and a
+    // batch entry point is where a multi-message SIMD kernel can be applied.
+    //
+    // Cancellation moves outside: the check costs an indirect call per digest
+    // and the range takes well under a second to hash, which is negligible
+    // against the block interval.
+    {
+        const size_t nHashes = (init_size + IndicesPerHashOutput - 1) / IndicesPerHashOutput;
+        std::vector<unsigned char> batch(nHashes * HashOutput);
+        if (ub_hash_n(base_state.get(), sizeof(eh_index), 0, nHashes,
+                      0, 0, batch.data(), HashOutput) != UB_OK)
+            throw std::runtime_error("ub_hash_n failed");
+        if (cancelled(ListGeneration)) throw solver_cancelled;
+        for (eh_index g = 0; X.size() < init_size; g++) {
+            const unsigned char* tmpHash = batch.data() + (size_t)g * HashOutput;
+            for (eh_index i = 0; i < IndicesPerHashOutput && X.size() < init_size; i++) {
+                X.emplace_back(tmpHash+(i*N/8), N/8, HashLength,
+                               CollisionBitLength, (g*IndicesPerHashOutput)+i);
+            }
+        }
+    }
+#else
     unsigned char tmpHash[HashOutput];
     for (eh_index g = 0; X.size() < init_size; g++) {
         GenerateHash(base_state, g, tmpHash, HashOutput);
@@ -344,6 +368,7 @@ bool Equihash<N,K>::BasicSolve(const eh_HashState& base_state,
         }
         if (cancelled(ListGeneration)) throw solver_cancelled;
     }
+#endif
 
     // 3) Repeat step 2 until 2n/(k+1) bits remain
     for (int r = 1; r < K && X.size() > 0; r++) {
