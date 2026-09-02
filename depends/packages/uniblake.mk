@@ -1,15 +1,31 @@
 package=uniblake
-$(package)_version=0.1.1
-$(package)_download_path=https://github.com/wkarshat/$(package)/archive/
-$(package)_file_name=$(package)-$($(package)_git_commit).tar.gz
-$(package)_download_file=$($(package)_git_commit).tar.gz
-$(package)_sha256_hash=2a30a6b0e4a90920de1fab6e66f33925d0d11ce93e56903b488cddd72067cea6
-$(package)_git_commit=5bf129e39e2ed5a43fe7c4271f4cd2ea140a2729
+$(package)_version=dev
 $(package)_dependencies=
 
+# Built from a local checkout, not a pinned tarball. uniblake and this tree
+# move together; a hash here means bumping two lines every time either does,
+# and a tag that silently drifts out of step with what is actually built.
+#
+# UNIBLAKE_SRC selects the checkout. $(package)_version carries the source's
+# HEAD so the build id changes when uniblake does and depends rebuilds on its
+# own; a dirty tree gets -dirty, so uncommitted work is never mistaken for a
+# committed state.
+UNIBLAKE_SRC ?= $(HOME)/Work/ZK/uniblake
+$(package)_version:=$(shell cd $(UNIBLAKE_SRC) 2>/dev/null && \
+    printf '%s%s' "$$(git rev-parse --short HEAD 2>/dev/null || echo nogit)" \
+                  "$$(git diff --quiet 2>/dev/null || echo -dirty)")
+
+define $(package)_fetch_cmds
+endef
+
+define $(package)_extract_cmds
+  mkdir -p $$($(package)_extract_dir) && \
+  cp -R $(UNIBLAKE_SRC)/Makefile $(UNIBLAKE_SRC)/include $(UNIBLAKE_SRC)/src \
+        $$($(package)_extract_dir)/
+endef
+
 # No autotools: a plain Makefile producing one static library and two headers.
-# libsodium is the library's test oracle, not a dependency -- `make` builds
-# the library alone and links nothing, so no SODIUM is passed here.
+# libsodium is uniblake's test oracle, not a dependency, so none is passed.
 define $(package)_build_cmds
   $(MAKE) CC="$($(package)_cc)" CFLAGS="$($(package)_cflags) $($(package)_cppflags)" AR="$($(package)_ar)"
 endef
