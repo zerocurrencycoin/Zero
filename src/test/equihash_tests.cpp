@@ -98,7 +98,7 @@ static std::vector<uint32_t> ParseIndicesBlock(std::istream& in)
 }
 
 BOOST_AUTO_TEST_CASE(unsupported_equihash_params_throw) {
-    crypto_generichash_blake2b_state state;
+    eh_HashState state;
     BOOST_CHECK_THROW(EhInitialiseState(1, 1, state), std::invalid_argument);
 }
 
@@ -282,13 +282,12 @@ BOOST_AUTO_TEST_CASE(solver_baseline_192_7) {
     const size_t cBitLen = n / (k + 1);
     CBlockHeader hdr = Params().GenesisBlock().GetBlockHeader();
 
-    crypto_generichash_blake2b_state state;
-    EhInitialiseState(n, k, state);
+    // state built by the shared helper below
     CEquihashInput I{hdr};
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << I;
     ss << hdr.nNonce;
-    crypto_generichash_blake2b_update(&state, (unsigned char*)&ss[0], ss.size());
+    eh_HashState state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
     // Collect EVERY solution, not just the first: the set is the baseline.
     std::set<std::vector<uint32_t>> sols;
@@ -398,13 +397,12 @@ BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
         nonce.begin()[0] = (unsigned char)(t & 0xff);
         nonce.begin()[1] = (unsigned char)((t >> 8) & 0xff);
 
-        crypto_generichash_blake2b_state state;
-        EhInitialiseState(n, k, state);
+        // state built by the shared helper below
         CEquihashInput I{hdr};
         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
         ss << I;
         ss << nonce;
-        crypto_generichash_blake2b_update(&state, (unsigned char*)&ss[0], ss.size());
+        eh_HashState state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
         std::set<std::vector<uint32_t>> sols;
         size_t rawSols = 0;      // solutions emitted before de-duplication
@@ -416,7 +414,7 @@ BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
             // Driver lifted verbatim from miner.cpp so this measures the code
             // path a miner actually runs, not a reimplementation of it.
             equi eq(1);                       // single-threaded, as miner.cpp does
-            eq.setstate(&state);              // the SAME state object as the default arm
+            eq.setstate(state.get());              // the SAME state object as the default arm
             // equi's constructor does not initialise xfull/hfull/bfull; only the
             // threaded worker (equi_miner.h:585) resets them. Zero them here so
             // a single-threaded caller never reads uninitialised memory.
@@ -577,17 +575,15 @@ BOOST_AUTO_TEST_CASE(solver_testvectors_48_5) {
     const size_t cBitLen = n / (k + 1);
     CBlockHeader hdr = Params().GenesisBlock().GetBlockHeader();
 
-    auto init_state = [&](crypto_generichash_blake2b_state& state) {
-        EhInitialiseState(n, k, state);
+    auto init_state = [&]() {
         CEquihashInput I{hdr};
         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
         ss << I;
         ss << hdr.nNonce;
-        crypto_generichash_blake2b_update(&state, (unsigned char*)&ss[0], ss.size());
+        return EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
     };
 
-    crypto_generichash_blake2b_state state_basic;
-    init_state(state_basic);
+    eh_HashState state_basic = init_state();
     std::set<std::vector<uint32_t>> basic;
     EhBasicSolveUncancellable(n, k, state_basic, [&](std::vector<unsigned char> soln) {
         basic.insert(GetIndicesFromMinimal(soln, cBitLen));
@@ -595,8 +591,7 @@ BOOST_AUTO_TEST_CASE(solver_testvectors_48_5) {
     });
     BOOST_REQUIRE_MESSAGE(!basic.empty(), "BasicSolve found no (48,5) solutions on regtest genesis");
 
-    crypto_generichash_blake2b_state state_opt;
-    init_state(state_opt);
+    eh_HashState state_opt = init_state();
     std::set<std::vector<uint32_t>> opt;
     EhOptimisedSolveUncancellable(n, k, state_opt, [&](std::vector<unsigned char> soln) {
         opt.insert(GetIndicesFromMinimal(soln, cBitLen));
@@ -625,8 +620,7 @@ BOOST_AUTO_TEST_CASE(solver_testvectors_48_5) {
         std::cerr << "\n";
     }
 
-    crypto_generichash_blake2b_state state_v;
-    init_state(state_v);
+    eh_HashState state_v = init_state();
     for (const auto& idx : basic) {
         BOOST_REQUIRE_EQUAL(idx.size(), 32u);
         bool isValid = false;

@@ -210,17 +210,13 @@ UniValue generate(const UniValue& params, bool fHelp)
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
 
-        // Hash state
-        crypto_generichash_blake2b_state eh_state;
-        EhInitialiseState(n, k, eh_state);
-
         // I = the block header minus nonce and solution.
         CEquihashInput I{*pblock};
         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
         ss << I;
 
         // H(I||...
-        crypto_generichash_blake2b_update(&eh_state, (unsigned char*)&ss[0], ss.size());
+        eh_HashState eh_state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
         while (true) {
             // Yes, there is a chance every nonce could fail to satisfy the -regtest
@@ -228,9 +224,9 @@ UniValue generate(const UniValue& params, bool fHelp)
             pblock->nNonce = ArithToUint256(UintToArith256(pblock->nNonce) + 1);
 
             // H(I||V||...
-            crypto_generichash_blake2b_state curr_state;
+            eh_HashState curr_state;
             curr_state = eh_state;
-            crypto_generichash_blake2b_update(&curr_state,
+            ub_update(curr_state.get(),
                                               pblock->nNonce.begin(),
                                               pblock->nNonce.size());
 

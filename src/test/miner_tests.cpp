@@ -55,18 +55,16 @@ static void MineOneRegtestBlock(CScript scriptPubKey)
         IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
     }
 
-    crypto_generichash_blake2b_state eh_state;
-    EhInitialiseState(n, k, eh_state);
     CEquihashInput I{*pblock};
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << I;
-    crypto_generichash_blake2b_update(&eh_state, (unsigned char*)&ss[0], ss.size());
+    eh_HashState eh_state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
     bool found = false;
     while (!found) {
         pblock->nNonce = ArithToUint256(UintToArith256(pblock->nNonce) + 1);
-        crypto_generichash_blake2b_state curr_state = eh_state;
-        crypto_generichash_blake2b_update(&curr_state, pblock->nNonce.begin(), pblock->nNonce.size());
+        eh_HashState curr_state = eh_state;
+        ub_update(curr_state.get(), pblock->nNonce.begin(), pblock->nNonce.size());
         std::function<bool(std::vector<unsigned char>)> validBlock =
             [&](std::vector<unsigned char> soln) {
                 pblock->nSolution = soln;
