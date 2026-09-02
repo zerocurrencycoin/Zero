@@ -26,7 +26,7 @@
 // The Equihash prefix state: the block header absorbed once, then shared
 // read-only while every leaf digest is derived from it. EhHashState gives
 // uniblake's opaque state the value semantics this code already assumes.
-typedef EhHashState eh_HashState;
+typedef EhHashState EhHashState;
 typedef uint32_t eh_index;
 typedef uint8_t eh_trunc;
 
@@ -198,16 +198,16 @@ public:
 
     Equihash() { }
 
-    int InitialiseState(eh_HashState& base_state);
+    int InitialiseState(EhHashState& base_state);
 #ifdef ENABLE_MINING
-    bool BasicSolve(const eh_HashState& base_state,
+    bool BasicSolve(const EhHashState& base_state,
                     const std::function<bool(std::vector<unsigned char>)> validBlock,
                     const std::function<bool(EhSolverCancelCheck)> cancelled);
-    bool OptimisedSolve(const eh_HashState& base_state,
+    bool OptimisedSolve(const EhHashState& base_state,
                         const std::function<bool(std::vector<unsigned char>)> validBlock,
                         const std::function<bool(EhSolverCancelCheck)> cancelled);
 #endif
-    bool IsValidSolution(const eh_HashState& base_state, std::vector<unsigned char> soln);
+    bool IsValidSolution(const EhHashState& base_state, std::vector<unsigned char> soln);
 };
 
 #include "equihash.tcc"
@@ -219,10 +219,10 @@ static Equihash<48,5> Eh48_5;
 // serialized header. pow.cpp, miner.cpp and zcbenchmarks.cpp all did this
 // three-line preamble verbatim; what differs between them is only what they
 // absorb next, which is why the nonce is not part of it.
-inline eh_HashState EhPrefixState(unsigned int n, unsigned int k,
+inline EhHashState EhPrefixState(unsigned int n, unsigned int k,
                                   const unsigned char* header, size_t len)
 {
-    eh_HashState s;
+    EhHashState s;
     if (n == 192 && k == 7) {
         Eh192_7.InitialiseState(s);
     } else if (n == 48 && k == 5) {
@@ -244,7 +244,7 @@ inline eh_HashState EhPrefixState(unsigned int n, unsigned int k,
     }
 
 #ifdef ENABLE_MINING
-inline bool EhBasicSolve(unsigned int n, unsigned int k, const eh_HashState& base_state,
+inline bool EhBasicSolve(unsigned int n, unsigned int k, const EhHashState& base_state,
                     const std::function<bool(std::vector<unsigned char>)> validBlock,
                     const std::function<bool(EhSolverCancelCheck)> cancelled)
 {
@@ -257,14 +257,14 @@ inline bool EhBasicSolve(unsigned int n, unsigned int k, const eh_HashState& bas
     }
 }
 
-inline bool EhBasicSolveUncancellable(unsigned int n, unsigned int k, const eh_HashState& base_state,
+inline bool EhBasicSolveUncancellable(unsigned int n, unsigned int k, const EhHashState& base_state,
                     const std::function<bool(std::vector<unsigned char>)> validBlock)
 {
     return EhBasicSolve(n, k, base_state, validBlock,
                         [](EhSolverCancelCheck pos) { return false; });
 }
 
-inline bool EhOptimisedSolve(unsigned int n, unsigned int k, const eh_HashState& base_state,
+inline bool EhOptimisedSolve(unsigned int n, unsigned int k, const EhHashState& base_state,
                     const std::function<bool(std::vector<unsigned char>)> validBlock,
                     const std::function<bool(EhSolverCancelCheck)> cancelled)
 {
@@ -277,7 +277,7 @@ inline bool EhOptimisedSolve(unsigned int n, unsigned int k, const eh_HashState&
     }
 }
 
-inline bool EhOptimisedSolveUncancellable(unsigned int n, unsigned int k, const eh_HashState& base_state,
+inline bool EhOptimisedSolveUncancellable(unsigned int n, unsigned int k, const EhHashState& base_state,
                     const std::function<bool(std::vector<unsigned char>)> validBlock)
 {
     return EhOptimisedSolve(n, k, base_state, validBlock,

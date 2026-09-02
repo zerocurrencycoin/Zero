@@ -156,7 +156,7 @@ double benchmark_solve_equihash()
     auto params = Params(CBaseChainParams::MAIN).GetConsensus();
     unsigned int n = params.nEquihashN;
     unsigned int k = params.nEquihashK;
-    eh_HashState eh_state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
+    EhHashState eh_state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
     uint256 nonce;
     randombytes_buf(nonce.begin(), 32);

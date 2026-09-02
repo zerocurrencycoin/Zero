@@ -114,7 +114,7 @@ bool CheckEquihashSolution(const CBlockHeader *pblock, const Consensus::Params& 
     ss << pblock->nNonce;
 
     // H(I||V||...  -- one block, one known nonce, so both go in the prefix.
-    eh_HashState state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
+    EhHashState state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
     bool isValid;
     EhIsValidSolution(n, k, state, pblock->nSolution, isValid);

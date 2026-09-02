@@ -83,7 +83,7 @@ TEST(equihash_tests, is_probably_duplicate) {
 #ifdef ENABLE_MINING
 TEST(equihash_tests, check_basic_solver_cancelled) {
     Equihash<48,5> Eh48_5;
-    eh_HashState state;
+    EhHashState state;
     Eh48_5.InitialiseState(state);
     uint256 V = uint256S("0x00");
     ub_update(state.get(), V.begin(), V.size());
@@ -187,7 +187,7 @@ TEST(equihash_tests, check_basic_solver_cancelled) {
 
 TEST(equihash_tests, check_optimised_solver_cancelled) {
     Equihash<48,5> Eh48_5;
-    eh_HashState state;
+    EhHashState state;
     Eh48_5.InitialiseState(state);
     uint256 V = uint256S("0x00");
     ub_update(state.get(), V.begin(), V.size());

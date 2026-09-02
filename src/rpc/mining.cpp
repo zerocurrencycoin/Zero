@@ -216,7 +216,7 @@ UniValue generate(const UniValue& params, bool fHelp)
         ss << I;
 
         // H(I||...
-        eh_HashState eh_state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
+        EhHashState eh_state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
         while (true) {
             // Yes, there is a chance every nonce could fail to satisfy the -regtest
@@ -224,7 +224,7 @@ UniValue generate(const UniValue& params, bool fHelp)
             pblock->nNonce = ArithToUint256(UintToArith256(pblock->nNonce) + 1);
 
             // H(I||V||...
-            eh_HashState curr_state;
+            EhHashState curr_state;
             curr_state = eh_state;
             ub_update(curr_state.get(),
                                               pblock->nNonce.begin(),

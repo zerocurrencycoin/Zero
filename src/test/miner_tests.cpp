@@ -58,12 +58,12 @@ static void MineOneRegtestBlock(CScript scriptPubKey)
     CEquihashInput I{*pblock};
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << I;
-    eh_HashState eh_state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
+    EhHashState eh_state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
     bool found = false;
     while (!found) {
         pblock->nNonce = ArithToUint256(UintToArith256(pblock->nNonce) + 1);
-        eh_HashState curr_state = eh_state;
+        EhHashState curr_state = eh_state;
         ub_update(curr_state.get(), pblock->nNonce.begin(), pblock->nNonce.size());
         std::function<bool(std::vector<unsigned char>)> validBlock =
             [&](std::vector<unsigned char> soln) {

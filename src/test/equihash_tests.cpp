@@ -98,7 +98,7 @@ static std::vector<uint32_t> ParseIndicesBlock(std::istream& in)
 }
 
 BOOST_AUTO_TEST_CASE(unsupported_equihash_params_throw) {
-    eh_HashState state;
+    EhHashState state;
     BOOST_CHECK_THROW(EhInitialiseState(1, 1, state), std::invalid_argument);
 }
 
@@ -287,7 +287,7 @@ BOOST_AUTO_TEST_CASE(solver_baseline_192_7) {
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
     ss << I;
     ss << hdr.nNonce;
-    eh_HashState state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
+    EhHashState state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
     // Collect EVERY solution, not just the first: the set is the baseline.
     std::set<std::vector<uint32_t>> sols;
@@ -402,7 +402,7 @@ BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
         ss << I;
         ss << nonce;
-        eh_HashState state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
+        EhHashState state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
         std::set<std::vector<uint32_t>> sols;
         size_t rawSols = 0;      // solutions emitted before de-duplication
@@ -583,7 +583,7 @@ BOOST_AUTO_TEST_CASE(solver_testvectors_48_5) {
         return EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
     };
 
-    eh_HashState state_basic = init_state();
+    EhHashState state_basic = init_state();
     std::set<std::vector<uint32_t>> basic;
     EhBasicSolveUncancellable(n, k, state_basic, [&](std::vector<unsigned char> soln) {
         basic.insert(GetIndicesFromMinimal(soln, cBitLen));
@@ -591,7 +591,7 @@ BOOST_AUTO_TEST_CASE(solver_testvectors_48_5) {
     });
     BOOST_REQUIRE_MESSAGE(!basic.empty(), "BasicSolve found no (48,5) solutions on regtest genesis");
 
-    eh_HashState state_opt = init_state();
+    EhHashState state_opt = init_state();
     std::set<std::vector<uint32_t>> opt;
     EhOptimisedSolveUncancellable(n, k, state_opt, [&](std::vector<unsigned char> soln) {
         opt.insert(GetIndicesFromMinimal(soln, cBitLen));
@@ -620,7 +620,7 @@ BOOST_AUTO_TEST_CASE(solver_testvectors_48_5) {
         std::cerr << "\n";
     }
 
-    eh_HashState state_v = init_state();
+    EhHashState state_v = init_state();
     for (const auto& idx : basic) {
         BOOST_REQUIRE_EQUAL(idx.size(), 32u);
         bool isValid = false;

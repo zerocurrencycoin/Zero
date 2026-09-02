@@ -610,10 +610,10 @@ void static BitcoinMiner(const CChainParams& chainparams)
 
                 // H(I||...  -- the header is absorbed once and reused for
                 // every nonce, which is why the nonce is not in the prefix.
-                eh_HashState state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
+                EhHashState state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
                 // H(I||V||...
-                eh_HashState curr_state;
+                EhHashState curr_state;
                 curr_state = state;
                 ub_update(curr_state.get(), pblock->nNonce.begin(), pblock->nNonce.size());
 
