@@ -50,10 +50,15 @@ typedef u32 au32;
 #define BUCKBITS (DIGITBITS-RESTBITS)
 
 #ifndef SAVEMEM
-#if RESTBITS == 4
-// can't save memory in such small buckets
+#if RESTBITS <= 7
+// Can't save memory in such small buckets. Expected occupancy is NSLOTS/2, and
+// at these sizes the per-bucket variance is too large to under-allocate: a
+// bucket that overruns drops rows (bfull) and silently loses solutions.
+// Upstream wrote `RESTBITS == 4` here; the bound is the sample count, not the
+// exact value, so 5..7 belong on this arm too rather than leaving SAVEMEM
+// undefined (which fails to compile at NSLOTS).
 #define SAVEMEM 1
-#elif RESTBITS >= 8
+#else
 // take advantage of law of large numbers (sum of 2^8 random numbers)
 // this reduces (200,9) memory to under 144MB, with negligible discarding
 #define SAVEMEM 9/14
@@ -81,22 +86,38 @@ static const u32 MAXSOLS = 8;
 // tree node identifying its children as two different slots in
 // a bucket on previous layer with the same rest bits (x-tra hash)
 //
-// tree_t is the packed field. It must hold BUCKBITS + 2*SLOTBITS bits, which
-// at (192,7) is 32 exactly at RESTBITS 4 and overflows above RESTBITS 6
-// (DIGITBITS is 24 here, not (200,9)'s 20, so BUCKBITS is 4 bits wider for the
-// same RESTBITS).
+// tree_t is the packed field. It must hold BUCKBITS + 2*SLOTBITS bits. That
+// sum has a closed form -- the RESTBITS terms do NOT cancel:
 //
-// tree_t CANNOT simply be widened to u64. alloctrees() lays the per-round tree
-// arrays into the heaps with `(bucket0 *)(heap0 + r/2)`, where heap0 is u32* --
-// xenoncat's interleaved layout, where each round's tree word occupies space
-// the previous round's hash has vacated. That pointer arithmetic hard-codes
-// sizeof(tree) == sizeof(u32); with a u64 tag the round arrays overlap and the
-// solver faults. Raising RESTBITS therefore requires reworking alloctrees(),
-// not just the tag type. See contrib/perf/equ/SOLVER.md S2.3.
+//   (DIGITBITS - RB) + 2*(RB + 2) = DIGITBITS + RB + 4
+//
+// so the tag grows one bit per RESTBITS step. At (192,7) that is 28 + RB:
+// exactly 32 at RB 4, and 33 at RB 5 -- it overflows u32 AT 5, not above 6.
+// At (200,9) it is 24 + RB, fitting u32 through RB 8, which is why upstream
+// ships RESTBITS 4/8/9 arms there and only 4 here: Zero's DIGITBITS is 24 to
+// (200,9)'s 20, costing four bits of tag headroom at equal RESTBITS.
+//
+// Widening tree_t to u64 used to corrupt the heap: alloctrees() laid the
+// per-round arrays out with `(bucket0 *)(heap0 + r/2)` where heap0 was u32*,
+// hard-coding sizeof(tree) == 4. heap0/heap1 are now tree*, so that arithmetic
+// carries the right unit, and SLOTPAD0/SLOTPAD1 buy the extra room the final
+// round needs. Build the u64 layout with -DEQUIHASH_TREE_T64.
+//
+// Note the tag width is not the only constraint on raising RESTBITS: getxhash0,
+// getxhash1 and the bucketid extraction are all #if-gated on (WN, RESTBITS) and
+// #error on unhandled combinations. See contrib/perf/equ/SOLVER.md S2.3.
 //
 // The static_assert below enforces the fit, replacing upstream's
 // "#error tree doesnt fit in 32 bits".
+// EQUIHASH_TREE_T64 builds the experimental u64-tag layout. Default stays u32:
+// the shipped (192,7) RESTBITS-4 config needs exactly 32 bits, and the wider
+// tag costs 1.38x heap (3.25 -> 4.50 GiB). Only useful as groundwork for
+// RESTBITS >= 5, where the tag no longer fits 32 bits.
+#ifdef EQUIHASH_TREE_T64
+typedef u64 tree_t;
+#else
 typedef u32 tree_t;
+#endif
 
 struct tree {
   tree_t bid_s0_s1; // manual bitfields
@@ -137,14 +158,32 @@ union hashunit {
 #define HASHWORDS0 WORDS(WN - DIGITBITS + RESTBITS)
 #define HASHWORDS1 WORDS(WN - 2*DIGITBITS + RESTBITS)
 
+// Slot padding, in 4-byte hash units, added to the hash array.
+//
+// The slot must hold, at the LAST round it participates in, one tree word per
+// round so far PLUS the residual hash. Natural size satisfies that with a u32
+// tag but not a u64 one (see the static_asserts in alloctrees). SLOTPAD0 /
+// SLOTPAD1 buy the shortfall explicitly, so the requirement is a number in one
+// place rather than a property of struct padding.
+//
+// Sized from the same inequality alloctrees asserts, so raising sizeof(tree)
+// re-derives them instead of silently overflowing. Both are 0 for a u32 tag,
+// which keeps the shipped layout byte-identical.
+#define SLOT_NEED0 (((WK + 1) / 2) * sizeof(tree) + 4)
+#define SLOT_NEED1 (((WK) / 2) * sizeof(tree) + 4)
+#define SLOT_NAT0  (sizeof(tree) + HASHWORDS0 * 4)
+#define SLOT_NAT1  (sizeof(tree) + HASHWORDS1 * 4)
+#define SLOTPAD0 (SLOT_NEED0 > SLOT_NAT0 ? (SLOT_NEED0 - SLOT_NAT0 + 3) / 4 : 0)
+#define SLOTPAD1 (SLOT_NEED1 > SLOT_NAT1 ? (SLOT_NEED1 - SLOT_NAT1 + 3) / 4 : 0)
+
 struct slot0 {
   tree attr;
-  hashunit hash[HASHWORDS0];
+  hashunit hash[HASHWORDS0 + SLOTPAD0];
 };
 
 struct slot1 {
   tree attr;
-  hashunit hash[HASHWORDS1];
+  hashunit hash[HASHWORDS1 + SLOTPAD1];
 };
 
 // The slot is the unit the heaps are sized in, so its size is the memory
@@ -152,9 +191,13 @@ struct slot1 {
 // 8-byte alignment over a 28-byte payload, so it pads to 32 -- a jump of 8,
 // not 4. Assert the expected sizes rather than discover a silent regression
 // in a memory measurement.
-static_assert(sizeof(slot0) == sizeof(tree) + HASHWORDS0 * sizeof(hashunit)
-                               + (sizeof(tree) - (HASHWORDS0 * sizeof(hashunit)) % sizeof(tree)) % sizeof(tree),
+static_assert(sizeof(slot0) == sizeof(tree)
+                               + (HASHWORDS0 + SLOTPAD0) * sizeof(hashunit)
+                               + (sizeof(tree) - ((HASHWORDS0 + SLOTPAD0) * sizeof(hashunit)) % sizeof(tree)) % sizeof(tree),
               "slot0 size unexpected: check tree_t width and padding");
+// The padding must actually close the gap it exists to close.
+static_assert(SLOT_NEED0 <= sizeof(slot0), "SLOTPAD0 too small");
+static_assert(SLOT_NEED1 <= sizeof(slot1), "SLOTPAD1 too small");
 static_assert(sizeof(slot0) % alignof(tree) == 0, "slot0 not tree-aligned");
 static_assert(sizeof(slot1) % alignof(tree) == 0, "slot1 not tree-aligned");
 
@@ -177,9 +220,19 @@ u32 hashwords(u32 bytes) {
 }
 
 // manages hash and tree data
+//
+// Heap layout (xenoncat's, via tromp): a slot at round r is
+//     [tree_0][tree_2]...[tree_r][remaining hash words]
+// so each successive even round PREPENDS one tree word, occupying space the
+// shortening hash has vacated. trees0[r/2] therefore begins r/2 TREE WORDS
+// into the heap -- not r/2 machine words, and not r/2 bytes.
+//
+// The heap pointers are typed `tree *` so that pointer arithmetic carries the
+// unit. Typing them `u32 *` (as upstream does) silently hard-codes
+// sizeof(tree) == 4 and corrupts the layout the moment the tag widens.
 struct htalloc {
-  u32 *heap0;
-  u32 *heap1;
+  tree *heap0;
+  tree *heap1;
   bucket0 *trees0[(WK+1)/2];
   bucket1 *trees1[WK/2];
   u32 alloced;
@@ -199,13 +252,27 @@ struct htalloc {
 // 7      0 2 4 6 . G G   1 3 5 7 H H
 // 8      0 2 4 6 8 . I   1 3 5 7 H H
     assert(DIGITBITS >= 16); // ensures hashes shorten by 1 unit every 2 digits
-    heap0 = (u32 *)alloc(1, sizeof(digit0));
-    heap1 = (u32 *)alloc(1, sizeof(digit1));
-    for (int r=0; r<WK; r++)
-      if ((r&1) == 0)
-        trees0[r/2]  = (bucket0 *)(heap0 + r/2);
+    // Each slot must be able to hold one tree word per even (resp. odd) round
+    // ahead of its hash, or the prepend walks past the slot.
+    // Per-round capacity, which is far tighter than "enough room for all the
+    // tree words". At round r a slot holds (r/2+1) tree words PLUS the hash
+    // still in flight, and the hash only shrinks by one 4-byte unit every two
+    // rounds -- so the binding case is the LAST round, not the total.
+    // At (192,7) with a u32 tag, round 6 needs 4*4 + 4 = 20 B of a 28 B slot.
+    // With a u64 tag it needs 4*8 + 4 = 36 B of a 32 B slot: overflow, and the
+    // solver emits solutions that do not verify rather than crashing.
+    static_assert(((WK + 1) / 2) * sizeof(tree) + 4 <= sizeof(slot0),
+                  "slot0 overflows at the final even round: tree words plus "
+                  "residual hash exceed the slot");
+    static_assert((WK / 2) * sizeof(tree) + 4 <= sizeof(slot1),
+                  "slot1 overflows at the final odd round");
+    heap0 = static_cast<tree *>(alloc(1, sizeof(digit0)));
+    heap1 = static_cast<tree *>(alloc(1, sizeof(digit1)));
+    for (int r = 0; r < WK; r++)
+      if ((r & 1) == 0)
+        trees0[r/2] = reinterpret_cast<bucket0 *>(heap0 + r/2);  // r/2 tree words in
       else
-        trees1[r/2]  = (bucket1 *)(heap1 + r/2);
+        trees1[r/2] = reinterpret_cast<bucket1 *>(heap1 + r/2);
   }
   void dealloctrees() {
     free(heap0);
@@ -373,10 +440,13 @@ struct equi {
       return (pslot->hash->bytes[prevbo] & 0xf) << 4 | pslot->hash->bytes[prevbo+1] >> 4;
 #elif WN == 200 && RESTBITS == 9
       return (pslot->hash->bytes[prevbo] & 0x1f) << 4 | pslot->hash->bytes[prevbo+1] >> 4;
-#elif WN == 144 && RESTBITS == 4
-      return pslot->hash->bytes[prevbo] & 0xf;
-#elif WN == 192 && RESTBITS == 4
-      return pslot->hash->bytes[prevbo] & 0xf;
+#elif (WN == 144 || WN == 192) && RESTBITS <= 8
+      // DIGITBITS is 24 here, a whole number of bytes, so each round strips an
+      // exact byte count and the residual stays byte-aligned. The RESTBITS are
+      // therefore the low bits of a SINGLE byte -- no straddle, no shift, for
+      // any RESTBITS up to 8. Contrast (200,9), where DIGITBITS 20 puts the
+      // field across a byte boundary and forces the two-byte arms above.
+      return pslot->hash->bytes[prevbo] & ((1u << RESTBITS) - 1);
 #else
 #error non implemented
 #endif
@@ -388,10 +458,8 @@ struct equi {
       return pslot->hash->bytes[prevbo];
 #elif WN == 200 && RESTBITS == 9
       return (pslot->hash->bytes[prevbo]&1) << 8 | pslot->hash->bytes[prevbo+1];
-#elif WN == 144 && RESTBITS == 4
-      return pslot->hash->bytes[prevbo] & 0xf;
-#elif WN == 192 && RESTBITS == 4
-      return pslot->hash->bytes[prevbo] & 0xf;
+#elif (WN == 144 || WN == 192) && RESTBITS <= 8
+      return pslot->hash->bytes[prevbo] & ((1u << RESTBITS) - 1);
 #else
 #error non implemented
 #endif
@@ -418,15 +486,18 @@ struct equi {
   // capacity-bounded variant.
   struct collisiondata {
 
-#if RESTBITS <= 6
+// xslot indexes a slot within a bucket and must also represent the all-ones
+// nil sentinel, so it needs NSLOTS < 2^bits -- strictly less, not <=.
+// NSLOTS is 2^(RESTBITS+2), so uchar (nil=255) holds RESTBITS <= 5 and clashes
+// at 6, where NSLOTS is exactly 256. Upstream's `<= 6` was off by one; the
+// static_assert below caught it.
+#if RESTBITS <= 5
     typedef uchar xslot;
 #else
     typedef u16 xslot;
 #endif
     // xnil is the all-ones sentinel, so it must not be a reachable slot index.
-    // uchar holds 0..255 and NSLOTS is 2^(RESTBITS+2), so RESTBITS 6 would give
-    // NSLOTS 256 and make slot 255 indistinguishable from nil. Assert rather
-    // than rely on RESTBITS staying at 4.
+    // Assert rather than rely on the #if above staying in sync with NSLOTS.
     static const xslot xnil = ~(xslot)0;
     static_assert(NSLOTS <= (size_t)xnil,
                   "xslot too narrow: NSLOTS must be < the all-ones sentinel");
@@ -478,8 +549,16 @@ struct equi {
 #elif BUCKBITS == 12 && RESTBITS == 4
         const u32 bucketid = ((u32)ph[0] << 4) | ph[1] >> 4;
         const u32 xhash = ph[1] & 0xf;
-#elif BUCKBITS == 20 && RESTBITS == 4
-        const u32 bucketid = ((((u32)ph[0] << 8) | ph[1]) << 4) | ph[2] >> 4;
+#elif BUCKBITS <= 24
+        // General form: bucketid is simply the top BUCKBITS bits of the hash.
+        // Read ceil(BUCKBITS/8)+1 bytes big-endian and shift the surplus off
+        // the bottom. Verified to reproduce every specific arm above bit-for-
+        // bit, so those remain only as hand-tuned equivalents.
+        const u32 BUCKET_BYTES = (BUCKBITS + 7) / 8 + 1;
+        u32 bucketid = 0;
+        for (u32 bi = 0; bi < BUCKET_BYTES; bi++)
+          bucketid = (bucketid << 8) | ph[bi];
+        bucketid >>= 8 * BUCKET_BYTES - BUCKBITS;
 #else
 #error not implemented
 #endif
@@ -534,6 +613,17 @@ struct equi {
           xorbucketid = ((((u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) << 8)
                               | (bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2])) << 4)
                               | (bytes0[htl.prevbo+3] ^ bytes1[htl.prevbo+3]) >> 4;
+#elif (WN == 144 || WN == 192) && BUCKBITS <= 24
+          // General form, mirroring the digit0 bucketid extraction: the next
+          // bucket index is the top BUCKBITS bits of the XOR, starting one byte
+          // past prevbo. Verified bit-for-bit against the specific arms above.
+          {
+            const u32 XB = (BUCKBITS + 7) / 8 + 1;
+            u32 acc = 0;
+            for (u32 xi = 0; xi < XB; xi++)
+              acc = (acc << 8) | (u32)(bytes0[htl.prevbo+1+xi] ^ bytes1[htl.prevbo+1+xi]);
+            xorbucketid = acc >> (8 * XB - BUCKBITS);
+          }
 #else
 #error not implemented
 #endif
@@ -590,6 +680,17 @@ struct equi {
           xorbucketid = ((((u32)(bytes0[htl.prevbo+1] ^ bytes1[htl.prevbo+1]) << 8)
                               | (bytes0[htl.prevbo+2] ^ bytes1[htl.prevbo+2])) << 4)
                               | (bytes0[htl.prevbo+3] ^ bytes1[htl.prevbo+3]) >> 4;
+#elif (WN == 144 || WN == 192) && BUCKBITS <= 24
+          // General form, mirroring the digit0 bucketid extraction: the next
+          // bucket index is the top BUCKBITS bits of the XOR, starting one byte
+          // past prevbo. Verified bit-for-bit against the specific arms above.
+          {
+            const u32 XB = (BUCKBITS + 7) / 8 + 1;
+            u32 acc = 0;
+            for (u32 xi = 0; xi < XB; xi++)
+              acc = (acc << 8) | (u32)(bytes0[htl.prevbo+1+xi] ^ bytes1[htl.prevbo+1+xi]);
+            xorbucketid = acc >> (8 * XB - BUCKBITS);
+          }
 #else
 #error not implemented
 #endif

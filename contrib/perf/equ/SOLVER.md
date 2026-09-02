@@ -709,48 +709,72 @@ computable and are computed here.
 | **Split the tag**: bucket implied by position, only slots stored | `2*SLOTBITS` = 12-16 bits -> `u16` | Requires the row's bucket to be recoverable from where it sits; a real layout change |
 | Cantor | Saves 2 bits | **Does not reach**: 34 -> 32 only at RESTBITS=6, where the fit then fails on capacity (S2.2) |
 
-#### S2.3a `u64 tree_t` is not a drop-in: the heap layout hard-codes 4 bytes
+#### S2.3a `u64 tree_t` does not fit at (192,7): per-round slot capacity
 
-**Attempted and reverted** [Measured: the solver faults with a memory access
-violation at the first (192,7) solve]. The tag type is coupled to the heap
-layout in a way the type system does not express.
+**Attempted twice, both reverted.** The first attempt faulted; the second, after
+a type-safe layout rewrite, produced solutions that **did not verify**. Both
+have the same root cause, and it is a hard capacity limit rather than a coding
+error.
 
-`alloctrees()` places each round's tree array with:
+**The layout.** A slot at round r holds
+`[tree_0][tree_2]...[tree_r][remaining hash]` -- each even round *prepends* one
+tree word into space the shrinking hash has vacated. `alloctrees()` expresses
+this as `trees0[r/2] = (bucket0 *)(heap0 + r/2)`, where `heap0` is `u32 *`, so
+the offset is r/2 **tree words** -- correct only while `sizeof(tree) == 4`.
+
+**Step 1 -- type-safe rewrite (kept).** Typing the heap pointers `tree *` makes
+the pointer arithmetic carry the unit, so the offset stays correct under any
+tag width. Verified as a **no-op with the u32 tag**: solution sets byte-identical
+(V2). This is a strict improvement and is retained.
+
+**Step 2 -- widen to u64 (reverted).** With the layout now correct, the solver
+no longer faults -- and instead emits solutions that fail
+`CheckEquihashSolution`. The reason is per-round capacity [Computed]:
+
+| Round | tree words | hash still live | needed | `slot0` (u64 tag) |
+|------:|-----------:|----------------:|-------:|------------------:|
+| 0 | 1 x 8 | 24 B | 32 B | 32 B -- fits |
+| 2 | 2 x 8 | 16 B | 32 B | 32 B -- fits |
+| **4** | **3 x 8** | **12 B** | **36 B** | **32 B -- OVERFLOW** |
+| **6** | **4 x 8** | **4 B** | **36 B** | **32 B -- OVERFLOW** |
+
+**The hash shrinks by one 4-byte unit every *two* rounds while a tree word is
+added every round it is that heap's turn.** With a 4-byte tag the two rates
+balance and the slot never overflows; with an 8-byte tag they do not, and rounds
+4 and 6 write 4 bytes past the slot into the next slot's tree word -- corrupting
+the reconstruction of a *different* row. Hence valid-looking indices that fail
+verification.
+
+**This is the real reason (192,7) is pinned to RESTBITS <= 6**, and it is a
+stronger constraint than "the tag must fit 32 bits" (S2.3): the tag must fit
+32 bits **because the slot geometry cannot absorb a wider one**.
+
+**A wider tag therefore requires widening the slots**, i.e. `HASHWORDS0/1`
+gaining a unit -- which costs the memory the wider tag was meant to save. That
+is the trade in full:
+
+| | slot0 | slot1 | heaps at 2.0x |
+|---|------:|------:|--------------:|
+| u32 tag (today) | 28 | 24 | **3.25 GB** |
+| u64 tag + widened slots | 40 | 36 | **4.75 GB** |
+
+**So the `u64` path costs +46% memory to enable a bucket retune that was
+supposed to save 40%.** The two do not compose, and the "widen the tag, then
+raise RESTBITS" sequence is dead at these parameters.
+
+**The assert that now guards it** (kept, and verified to reject `u64` while
+accepting `u32`):
 
 ```cpp
-heap0 = (u32 *)alloc(1, sizeof(digit0));
-for (int r = 0; r < WK; r++)
-  if ((r & 1) == 0) trees0[r/2] = (bucket0 *)(heap0 + r/2);
-  else              trees1[r/2] = (bucket1 *)(heap1 + r/2);
+static_assert(((WK + 1) / 2) * sizeof(tree) + 4 <= sizeof(slot0), ...);
+static_assert((WK / 2)       * sizeof(tree) + 4 <= sizeof(slot1), ...);
 ```
 
-`heap0` is `u32 *`, so `heap0 + r/2` advances **4 bytes per round**. This is
-xenoncat's interleaved layout, documented in the comment above that code: each
-round's tree word occupies space the previous round's hash has vacated, which
-is what keeps the two heaps flat rather than growing (S2.4).
-
-**It hard-codes `sizeof(tree) == sizeof(u32)`.** With an 8-byte tag the
-per-round arrays overlap by 4 bytes each and the solve faults immediately.
-
-**What this changes about the memory plan:**
-
-- The `u64` tag is **not** a 30-40 line change. `alloctrees()` must advance in
-  `sizeof(tree)` units, and the layout arithmetic that keeps the heaps flat has
-  to be re-derived -- the vacated-hash-space interleave is what the 4-byte
-  stride encodes.
-- **RESTBITS above 6 is gated on that rework**, not on the tag type alone. The
-  sequence "widen the tag, then retune buckets" does not work.
-- The memory arithmetic in `VENDORED.md` S3.6 still holds as *arithmetic*; what
-  changed is the implementation cost of reaching it.
-
-**Retained from the attempt**, all useful without the widening:
-
-- The constructor casts to `tree_t` **before** shifting, so the expression
-  cannot truncate if the type is ever widened.
-- `static_assert(BUCKBITS + 2*SLOTBITS <= 8*sizeof(tree_t))` replaces upstream's
-  `#error`, with a readable message and coverage for any future width.
-- Slot-alignment asserts, which would have caught the `slot1` 24 -> 32 padding
-  jump at compile time.
+An earlier version asserted only that the slot could hold *all* the tree words
+(`32 >= 4*8`), which passes while the layout still overflows -- the residual
+hash is what the `+ 4` accounts for. **The weaker assert let a corrupting build
+compile**, which is the lesson worth keeping: assert the binding case, not the
+aggregate.
 
 #### `u64 tree_t`: what actually changes
 

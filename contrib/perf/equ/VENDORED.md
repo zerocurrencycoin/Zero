@@ -539,6 +539,136 @@ real work. That is a `PERF_PROBE` counter, not an estimate.
 **Nothing else in the 81 commits is both applicable and substantive.** The
 remainder is BLAKE2b (excluded), CUDA, build plumbing, or documentation.
 
+## 3.10 Requihash research: what applies to Zero, and what does not
+
+`~/Work/ZK/Requihash` is a research project building a repaired Equihash
+(`Req/`), a solver corpus, and a unified BLAKE library. Reviewed for
+transferable findings. **It is research, not a dependency**: `Req/` targets a
+Zebra-style verifier seam, not zcashd-lineage C++.
+
+### 3.10a Findings that Zero's own measurements confirm
+
+Two of its claims were independently reproduced here **before** reading it,
+which is the strongest form of corroboration available:
+
+| Requihash finding | Zero's independent measurement |
+|-------------------|--------------------------------|
+| **F-A5**: naive solver is ~59% allocation, ~24% comparison sort; arena + incomplete bucket sort recovers **1.86x** | `SOLVER.md` S1.6 measured counting sort at **3.8x** and bucket insert at **15x** over `std::sort` on the same workload -- same direction, and the allocation half does not apply because Zero's rows are already inline arrays (S1.1) |
+| **F-A1**: the index-pointer representation is what collapsed peak memory and enabled ASICs | `VENDORED.md` S2 measured **6.6 GB -> 3.3 GB** for exactly that representation change (accumulated indices -> DAG tags) |
+
+The 59%-allocation figure specifically **does not transfer to Zero** and this
+document already said so (`FINDINGS.md` S1.1): the reference implementations it
+profiles use `vector<vector<Tuple>>`, one heap allocation per row, whereas
+Zero's `StepRow` is a fixed inline array in one reserved vector. Requihash's
+own `SOLVERS.md` confirms the reference design is the nested-vector one --
+so the two accounts agree on the mechanism and on why Zero is exempt.
+
+### 3.10b The central claim, and why it does not apply to Zero
+
+Requihash's thesis is that Equihash binds a **loose single-list** generalized
+birthday problem while its security argument imported **regular k-list**
+complexity (F-A2, Alcock-Ren 2017, formalized 2025), and that the
+index-pointer optimization -- the very thing that makes tromp fast -- is what
+cost ASIC resistance (F-A1). Its repair (F-A4) adds one sequential constraint
+(`i mod k` leaf keying) restoring regularity, which **disables** the
+single-list optimization and roughly doubles peak memory.
+
+**This is a consensus change.** It alters which solutions are valid, so it is
+a hard fork, not an optimization. It is out of scope for this document set,
+which is explicitly bounded to changes that "accept exactly the proofs the
+per-proof path accepts" (`../docs/OVERVIEW.md` S6).
+
+**Recorded because the direction is opposite to ours.** Zero's mining track is
+trying to make the solver *faster and leaner*; Requihash argues that the
+leanness is precisely the ASIC vulnerability. Both can be true: F-A3 notes the
+self-merge problem still resists single-chip ASICs even in the weakened state.
+But it is worth stating plainly that **every memory reduction in `SOLVER.md`
+S2-S3 moves Zero further along the axis Requihash identifies as the failure**,
+and that is a governance question rather than an engineering one.
+
+### 3.10c Assertions worth flagging
+
+- **F-A4's "12x ASIC memory penalty" is `[Reported]`**, derived from the
+  k/2-steepness argument applied to the repaired problem. Requihash's own
+  F-A10 concedes that no steepness claim in this family was a theorem before
+  2025 and that its number "can now be measured empirically rather than
+  asserted". Treat as a modeled figure.
+- **F-A9 (governance latency) is `[Reported plus interpretive]`** and is the
+  document's own framing. Accurate as history; not a technical input.
+- **The 1.86x arena+bucket figure is from Requihash's own Rust solver**, not
+  from Zero's parameters. Zero measured 3.8x for the safe form of the same
+  change at (192,7) -- consistent, but the parameter sets differ enough that
+  neither number predicts the other.
+
+## 3.11 UniBlake: evaluation for Zero
+
+`~/Work/ZK/Requihash/BLAKE/UniBlake.md` designs a unified C/C++ BLAKE2b/3 with
+runtime CPU dispatch, personalization in the reference path, a forced-implementation
+override, and self-test gating. **Status: DESIGN + PoC**, green on arm64 macOS,
+with SIMD kernels (U2), batch (U4) and BLAKE3 (U6) explicitly **unbuilt**.
+
+### 3.11a Its central finding, verified against Zero's build
+
+UniBlake's justification is that for BLAKE2b the intersection of
+**runtime dispatch + modern x86 + NEON is empty** across the entire field. Its
+table asserts libsodium has "SSSE3/SSE4.1/**AVX2** compress TUs (verified)" but
+**no NEON**.
+
+**Checked against Zero's actual dependency** [Verified, `nm` on the built
+`libsodium.a` for `aarch64-apple-darwin`]:
+
+| Symbol | Present? |
+|--------|----------|
+| `blake2b_compress_ref` | **yes** -- the only compress implementation |
+| `blake2b_compress_ssse3/sse41/avx2` | no (x86 TUs, not built for this target) |
+| **`sodium_runtime_has_neon`** | **yes -- a probe with no kernel behind it** |
+
+So libsodium ships a NEON *detector* and no NEON *kernel*. That is UniBlake's
+claim confirmed from a second direction, and it explains the live profile
+(S3.1): `blake2b_compress_ref` is the leaf on a machine that has NEON.
+
+### 3.11b What it would buy Zero, and at what cost
+
+Zero's consensus surface constrains this tightly. The solver needs
+`ZERO_PoW` personalization and a **48-byte** digest
+(`../equ/VENDORED.md` S3.4); UniBlake's R2 requirement -- personalization in
+the reference path from day one -- is exactly right for that, and is the
+requirement that disqualifies OpenSSL EVP in its own table.
+
+| | Benefit | Cost |
+|---|---|---|
+| **arm64 (this host)** | A NEON kernel where none exists today. Generation is ~72% of solve time (S3.1), so a working NEON single-message kernel is the only change that reaches the dominant phase | **U2 is unbuilt.** Adopting today gets dispatch scaffolding around the same `_ref` kernel -- no speedup, plus the ~3.5% API overhead unchanged |
+| **x86-64** | Would engage AVX2 where libsodium already does; no gain over status quo | Nil to negative |
+| **Either** | Removes the `sodium_memzero` scrub if a raw compress path is exposed | ~1.8% (S3.1) |
+
+### 3.11c Verdict: track, do not adopt yet
+
+**Not adoptable now** -- the part Zero needs (U2 SIMD kernels, specifically
+NEON) is the part not built. Adopting the design without kernels means new
+dispatch machinery around the identical reference compress.
+
+**Worth tracking closely**, because the requirement set is unusually
+well-matched: personalization-carrying reference, runtime dispatch with forced
+override for differential testing, and self-test gating are precisely what a
+consensus-critical hash swap needs (`VENDORED.md` S3.4 sets the same bar
+independently -- bit-exact differential before trusting any kernel).
+
+**Two things Zero can take from it immediately, at no dependency cost:**
+
+1. **The `UB_FORCE_IMPL` pattern.** A forced-implementation override turns
+   "does the SIMD kernel match the reference bit-for-bit" into a runtime
+   differential rather than a build-configuration exercise. That is directly
+   applicable to `METHOD.md` S3.2's requirement for BLAKE2b kernel swaps.
+2. **Compiling the vendored reference under a renamed symbol prefix** as a
+   zero-edit in-tree oracle -- their PoC finding (2). Zero has the same need
+   for any solver or hash change and currently satisfies it by rebuild-and-diff,
+   which is slower and cannot run both paths in one process.
+
+**Prerequisite before any of this matters:** an x86-64 baseline
+(`../docs/TASKS.md` B2). On arm64 both libsodium and tromp's bundled BLAKE2
+lack a kernel, so the swap question is moot; on x86-64 tromp's SSE4.1 would
+engage while libsodium's would not, and that gap is unmeasured.
+
 ## 4. Cross-implementation survey
 
 Read from the local clones under `~/Work/ZK/ZKs/` (out of tree). The question

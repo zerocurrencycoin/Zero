@@ -81,7 +81,7 @@ build_depends_native() {
 
 run_configure_native() {
   export_config_site
-  ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" $PROTON_CONFIGURE $DAEMON_ARG $CONFIGURE_FLAGS CXXFLAGS='-g'
+  ./configure "$HARDENING_ARG" "$LCOV_ARG" "$TEST_ARG" "$MINING_ARG" $PROTON_CONFIGURE $DAEMON_ARG $CONFIGURE_FLAGS CXXFLAGS='-g -O2'
 }
 
 run_make_native() {

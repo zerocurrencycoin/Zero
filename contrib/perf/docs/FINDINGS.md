@@ -333,6 +333,64 @@ review burden than batch verification would.
 
 ---
 
+## 3.6 Thread pool sizing: where the 32 threads come from
+
+A mining node shows **32 threads with one doing all the work** (`test-logs/
+mainnet-mining-20260827/`). The sizing is entirely static and reconciles
+exactly [Verified: source and `ps -M`]:
+
+| Thread | n | Sized by |
+|--------|--:|----------|
+| `zcash-scriptch` | **13** | `init.cpp:1364` -- `for (i=0; i<nScriptCheckThreads-1; i++)` |
+| `zcash-httpworker` | 6 | `httpserver.cpp:461` -- `rpcthreads` (default 4) |
+| `threadHTTP` | 1 | libevent loop |
+| `net`, `msghand`, `opencon`, `addcon` | 4 | `net.cpp:1782-1791`, one each, unconditional |
+| `scheduler`, `wallet`, `txnotify`, `zero-obfuscation` | 4 | `init.cpp:1371, 2327, 2299, 2278` |
+| `zcash-miner` | 1 | `gen=1`, `genproclimit=1` |
+| main + runtime | 3 | main thread, dispatch, alert |
+| **Total** | **32** | matches observation |
+
+### 3.6a Script-check threads: autodetect, minus one
+
+```cpp
+nScriptCheckThreads = GetArg("-par", DEFAULT_SCRIPTCHECK_THREADS);  // default 0
+if (nScriptCheckThreads <= 0) nScriptCheckThreads += GetNumCores();  // 0 -> 14
+if (nScriptCheckThreads <= 1) nScriptCheckThreads = 0;
+else if (nScriptCheckThreads > MAX_SCRIPTCHECK_THREADS) nScriptCheckThreads = 16;
+...
+for (int i = 0; i < nScriptCheckThreads - 1; i++) create_thread(&ThreadScriptCheck);
+```
+
+`DEFAULT_SCRIPTCHECK_THREADS = 0` means **autodetect**, so on a 14-core host it
+becomes 14 and **13 are spawned** -- the log line says "Using 14 threads for
+script verification" while 13 appear, because the caller joins the queue as the
+14th during block connection. Cap is `MAX_SCRIPTCHECK_THREADS = 16`.
+
+`GetNumCores()` is `boost::thread::physical_concurrency()`, so it counts
+**physical** cores. On SMT hardware that halves the count relative to logical
+CPUs -- worth knowing before reading a thread count as a bug.
+
+**Consequence for a mining node:** those 13 threads are sized for **IBD
+parallelism** and are idle at tip -- they hold stacks and scheduler entries but
+consume no CPU (measured: under 2 s accumulated each, against the miner's
+324 min). Setting `-par=1` disables the pool entirely and would free ~13
+threads, at the cost of serial script checking whenever a block is connected.
+**Not recommended without measuring**: a follow-tip node still connects a block
+every ~2 minutes, and script checking is exactly what the pool exists for.
+
+### 3.6b The pools do not scale with load
+
+None of these counts respond to actual demand:
+
+- `rpcthreads` is fixed at startup; the queue (`DEFAULT_HTTP_WORKQUEUE = 16`)
+  absorbs bursts, not the pool.
+- Script-check threads are sized from core count, not from block rate.
+- The four net threads are unconditional, independent of peer count.
+
+So thread count is a **configuration fact, not a load signal** -- an idle node
+and a saturated one show the same 32. Reading Activity Monitor's thread column
+as evidence of activity is a mistake this section exists to prevent.
+
 ## 4. Known blind spots
 
 Bounds on everything above.
