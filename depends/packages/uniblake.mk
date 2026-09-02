@@ -27,8 +27,20 @@ endef
 
 # No autotools: a plain Makefile producing one static library and two headers.
 # libsodium is uniblake's test oracle, not a dependency, so none is passed.
+# depends names the compiler $(HOST)-gcc, which exists for a cross build and
+# not for a native one: on Ubuntu x86_64-pc-linux-gnu-gcc is absent and gcc is
+# what there is. Packages with autotools do not notice because configure falls
+# back on its own; uniblake has no configure step, so it would run a compiler
+# that is not there, produce nothing, and let depends stamp the step as built.
+#
+# Resolve at build time rather than assuming either name.
 define $(package)_build_cmds
-  $(MAKE) CC="$($(package)_cc)" CFLAGS="$($(package)_cflags) $($(package)_cppflags)" AR="$($(package)_ar)"
+  CC_REAL="$($(package)_cc)"; \
+  command -v $$$$(echo $$$$CC_REAL | cut -d' ' -f1) >/dev/null 2>&1 || CC_REAL="$(default_build_CC)"; \
+  AR_REAL="$($(package)_ar)"; \
+  command -v $$$$AR_REAL >/dev/null 2>&1 || AR_REAL=ar; \
+  $(MAKE) CC="$$$$CC_REAL" CFLAGS="$($(package)_cflags) $($(package)_cppflags)" AR="$$$$AR_REAL" && \
+  test -f build/libuniblake.a
 endef
 
 define $(package)_stage_cmds
