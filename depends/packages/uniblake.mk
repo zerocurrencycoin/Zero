@@ -18,10 +18,11 @@ $(package)_version:=$(shell cd $(UNIBLAKE_SRC) 2>/dev/null && \
 define $(package)_fetch_cmds
 endef
 
+# depends has already cd'd into the extract directory, so copy into `.`.
+# Copying into $(package)_extract_dir instead nests a second copy inside it and
+# the build step then finds no Makefile.
 define $(package)_extract_cmds
-  mkdir -p $$($(package)_extract_dir) && \
-  cp -R $(UNIBLAKE_SRC)/Makefile $(UNIBLAKE_SRC)/include $(UNIBLAKE_SRC)/src \
-        $$($(package)_extract_dir)/
+  cp -R $(UNIBLAKE_SRC)/Makefile $(UNIBLAKE_SRC)/include $(UNIBLAKE_SRC)/src .
 endef
 
 # No autotools: a plain Makefile producing one static library and two headers.
