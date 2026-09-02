@@ -156,15 +156,11 @@ double benchmark_solve_equihash()
     auto params = Params(CBaseChainParams::MAIN).GetConsensus();
     unsigned int n = params.nEquihashN;
     unsigned int k = params.nEquihashK;
-    crypto_generichash_blake2b_state eh_state;
-    EhInitialiseState(n, k, eh_state);
-    crypto_generichash_blake2b_update(&eh_state, (unsigned char*)&ss[0], ss.size());
+    eh_HashState eh_state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
     uint256 nonce;
     randombytes_buf(nonce.begin(), 32);
-    crypto_generichash_blake2b_update(&eh_state,
-                                    nonce.begin(),
-                                    nonce.size());
+    ub_update(eh_state.get(), nonce.begin(), nonce.size());
 
     struct timeval tv_start;
     timer_start(tv_start);

@@ -21,7 +21,12 @@
 
 #include <boost/static_assert.hpp>
 
-typedef crypto_generichash_blake2b_state eh_HashState;
+#include "crypto/eh_hashstate.h"
+
+// The Equihash prefix state: the block header absorbed once, then shared
+// read-only while every leaf digest is derived from it. EhHashState gives
+// uniblake's opaque state the value semantics this code already assumes.
+typedef EhHashState eh_HashState;
 typedef uint32_t eh_index;
 typedef uint8_t eh_trunc;
 
@@ -209,6 +214,25 @@ public:
 
 static Equihash<192,7> Eh192_7;
 static Equihash<48,5> Eh48_5;
+
+// The prefix every caller builds: initialise for (n,k), then absorb the
+// serialized header. pow.cpp, miner.cpp and zcbenchmarks.cpp all did this
+// three-line preamble verbatim; what differs between them is only what they
+// absorb next, which is why the nonce is not part of it.
+inline eh_HashState EhPrefixState(unsigned int n, unsigned int k,
+                                  const unsigned char* header, size_t len)
+{
+    eh_HashState s;
+    if (n == 192 && k == 7) {
+        Eh192_7.InitialiseState(s);
+    } else if (n == 48 && k == 5) {
+        Eh48_5.InitialiseState(s);
+    } else {
+        throw std::invalid_argument("Unsupported Equihash parameters");
+    }
+    ub_update(s.get(), header, len);
+    return s;
+}
 
 #define EhInitialiseState(n, k, base_state)  \
     if ((n) == 192 && (k) == 7) {            \

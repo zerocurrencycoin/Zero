@@ -106,10 +106,6 @@ bool CheckEquihashSolution(const CBlockHeader *pblock, const Consensus::Params& 
     unsigned int n = params.nEquihashN;
     unsigned int k = params.nEquihashK;
 
-    // Hash state
-    crypto_generichash_blake2b_state state;
-    EhInitialiseState(n, k, state);
-
     // I = the block header minus nonce and solution.
     CEquihashInput I{*pblock};
     // I||V
@@ -117,8 +113,8 @@ bool CheckEquihashSolution(const CBlockHeader *pblock, const Consensus::Params& 
     ss << I;
     ss << pblock->nNonce;
 
-    // H(I||V||...
-    crypto_generichash_blake2b_update(&state, (unsigned char*)&ss[0], ss.size());
+    // H(I||V||...  -- one block, one known nonce, so both go in the prefix.
+    eh_HashState state = EhPrefixState(n, k, (unsigned char*)&ss[0], ss.size());
 
     bool isValid;
     EhIsValidSolution(n, k, state, pblock->nSolution, isValid);
