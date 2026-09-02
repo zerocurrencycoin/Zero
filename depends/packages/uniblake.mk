@@ -1,3 +1,58 @@
+# uniblake: built from a local checkout, not a pinned tarball.
+#
+# --- how depends drives a package ---------------------------------------
+#
+# Six ordered steps, each guarded by a stamp file in the build directory:
+#
+#   .stamp_fetched  .stamp_extracted  .stamp_preprocessed
+#   .stamp_configured  .stamp_built  .stamp_staged
+#
+# The dependencies between them are ORDER-ONLY (`|` in funcs.mk). Make will
+# not rerun a step whose stamp exists, regardless of whether that step
+# produced anything. A stamp is a claim, not evidence.
+#
+# The build directory is named <version>-<build_id>, where build_id hashes the
+# recipe files and the version. Editing this file changes the id and creates a
+# fresh directory; deleting the directory without changing the recipe recreates
+# the same name, so any stamp written by a previous failed run applies again.
+#
+# --- how to debug a failure here ----------------------------------------
+#
+# The log tells you which step ran by what it echoes: "Extracting uniblake...",
+# "Building uniblake...", "Staging uniblake...". A missing line means the step
+# was SKIPPED because its stamp existed, not that it succeeded quietly.
+#
+#   cp: cannot stat 'build/libuniblake.a'   -- staging ran, build did not, or
+#                                              build ran and produced nothing
+#
+# Look in the build directory:
+#
+#   D=depends/work/build/$HOST/uniblake/*/
+#   ls -a $D            # Makefile, include, src, and which stamps exist
+#   ls $D/build         # the objects and the archive, if the build worked
+#
+# Then remove the specific stamp rather than the whole tree, so the step reruns
+# without discarding the rest:
+#
+#   rm $D/.stamp_built && make -C depends uniblake HOST=$HOST
+#
+# --- two failures this recipe has already had ---------------------------
+#
+# 1. extract_cmds copied into $(package)_extract_dir. depends has already cd'd
+#    there, so that nested a second copy one level down and the build found no
+#    Makefile. Copy into `.`.
+#
+# 2. depends names the compiler $(HOST)-gcc. That exists for a cross build and
+#    not for a native one: on Ubuntu x86_64-pc-linux-gnu-gcc is absent and gcc
+#    is what there is. Autotools packages never notice, because configure
+#    probes and falls back by itself. uniblake has no configure step, so it ran
+#    a compiler that was not there, produced nothing, and depends stamped the
+#    step as built -- leaving .stamp_built beside an empty directory and a
+#    staging error that named the wrong step.
+#
+# Both were silent. Hence the `test -f` at the end of build_cmds: a build that
+# produces no library must fail at the build step, where the message is true.
+#
 package=uniblake
 $(package)_version=dev
 $(package)_dependencies=
