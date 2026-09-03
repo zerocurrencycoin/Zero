@@ -1,10 +1,9 @@
 # uniblake: BLAKE2b for Equihash. Built from a local checkout by default, not
 # a pinned tarball, because this tree and uniblake are developed together.
 #
-# Stamps: depends guards each step with .stamp_<step> in the build dir and its
-# ordering is order-only, so a step whose stamp exists is skipped whether or not
-# it produced anything -- which is why both bugs noted at the build step below
-# were silent. To rerun one step, delete its stamp rather than the tree:
+# Stamps: a step whose .stamp_<step> exists is skipped, whether or not it ever
+# produced anything -- step ordering is order-only. Both bugs at the build step
+# below were silent for that reason. To rerun one step, delete its stamp:
 #
 #   D=depends/work/build/$HOST/uniblake/*/
 #   rm $D/.stamp_built && make -C depends uniblake HOST=$HOST
@@ -22,12 +21,12 @@ $(package)_dependencies=
 #   2. UNIBLAKE_COMMIT=<sha> UNIBLAKE_SHA256=<hash>  pinned tarball; CI/release
 #   3. neither                                  first checkout found beside this tree
 #
-# Case 3 is what lets a plain ./zcutil/build.sh work unconfigured. The version
-# stamp carries the checkout's HEAD (plus -dirty), so a uniblake commit changes
-# the build id and depends rebuilds on its own; no cache clearing.
-#
-# A pin must be at or after the uniblake commit renaming its output knob to
+# A pin (2) must be at or after the uniblake commit renaming its output knob to
 # UB_BUILD -- see the build step below.
+#
+# For (1) and (3) the version is the checkout's HEAD, plus -dirty, so a uniblake
+# commit changes the build id and depends rebuilds on its own. (3) is what lets
+# a plain ./zcutil/build.sh work unconfigured.
 UNIBLAKE_COMMIT ?=
 UNIBLAKE_SHA256 ?=
 
@@ -87,8 +86,7 @@ endif
 # knob `BUILD ?= build`, so the triplet won and the archive landed in
 # ./<triplet>/ while this recipe staged an empty prefix without erroring.
 # uniblake renamed it to UB_BUILD and now rejects a command-line BUILD. Naming
-# it here keeps the staged path a property of this recipe, not of whichever
-# uniblake is pinned.
+# it here keeps the staged path this recipe's, not the pinned uniblake's.
 #
 # The trailing `test -f` makes a build that produces no library fail at the
 # build step, where the message is true.
