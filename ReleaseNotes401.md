@@ -1,8 +1,8 @@
 # ReleaseNotes401 -- v4.0.1 release notes (draft contract + outline)
 
-**Status:** Draft. Intended to become the **GitHub Release** body for **v4.0.1** and, if kept in-tree, a short public file in the ship set. Not a substitute for README / BUILD_ZERO / TEST_ZERO / ZERO_COIN.
+**Status:** Draft. Becomes the **GitHub Release** body for **v4.0.1**, and a short public file in the ship set if kept in-tree.
 
-**Tag / tip (this tree):** `v4.0.1` / `fe59146a3` (detached or `testfix-401`). Fill **Highlights** and **Upgrade** from the merge set before GA; do not paste git log.
+**Tag:** `v4.0.1`
 
 ---
 

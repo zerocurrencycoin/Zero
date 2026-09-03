@@ -204,7 +204,7 @@ Failures in the Zero-specific cases usually mean **`chainparams.cpp`** / **`pow.
 
 `--strict` proves the contributor gate on **one** OS. v4.0.1 needs an honest matrix plus a few node-lifecycle soaks. Do not treat a green macOS gate as Linux ELF, Windows, mining, or Zerowallet coverage.
 
-Do **not** copy the ZeroPerf campaign set into this tree. Receipts live in gitignored **`.build/`**. Scratch chain data stays outside the repo.
+Receipts live in gitignored **`.build/`**. Scratch chain data stays outside the repo.
 
 ### 8.1 What has actually been run
 
@@ -222,6 +222,39 @@ Do **not** copy the ZeroPerf campaign set into this tree. Receipts live in gitig
 
 **RC bar:** macOS `--strict` on the **tag commit**; Linux `--strict` + `--suite` strongly recommended; Windows = first successful MXE build at minimum, then `--strict` when a Win/WSL2 runner exists. **Signing:** `SHA256SUMS` plus platform signatures (BUILD_ZERO §2.6) on every shipped artifact; unsigned CI output is not a release. Record hashes/signatures as present or **explicitly missing**. Maintainer decides which OS gates are hard blocks. Darwin also skips full `rpcbind`; keep serial `--strict` (`--jobs>1` can hang `paymentdisclosure`).
 
+### 8.1.1 macOS retest at the current tip
+
+Linux is green on `perf_b1b2` at the current tip: build, 218 gtest, 324 boost,
+49/49 rpc `-all`. macOS has not been rebuilt there. Run the same three suites on
+the Mac and record each as pass, fail, or not run.
+
+```bash
+./zcutil/build.sh -j"$(sysctl -n hw.ncpu)"
+./src/zerod --version                                   # must NOT end in -dirty
+
+source qa/zcash/test_filters.sh
+./src/zero-gtest --gtest_filter="$GTEST_PASS_EXCLUDE"   # expect 218 passed
+./src/test/test_bitcoin -p                              # expect 324, no errors
+./qa/pull-tester/rpc-tests.sh -all                      # expect 49/49
+```
+
+Confirm the rpc run by its own marker rather than an exit code: `Tests
+completed:` must be present, and the `--- Success` count must match the reported
+successes.
+
+Not macOS defects:
+
+- **Uniblake** resolves to the sibling checkout at `../uniblake` with no
+  configuration; its short HEAD is the package version, so a uniblake commit
+  rebuilds it on its own.
+- **`WalletTests.CachedWitnessesCleanIndex`** is held in
+  `qa/zcash/test_filters.sh` and fails unfiltered on every platform. Its reindex
+  scenario needs the `pcoinsTip` + `ReadBlockFromDisk` path the gtest harness
+  cannot provide.
+- **A `Permission denied` test failure is a file mode**, not a port problem.
+  `core.fileMode=true` strips a local `+x` on checkout; check `git ls-files -s`
+  first.
+
 ### 8.2 Automating beyond the harness
 
 | Layer | What | Exists |
@@ -229,7 +262,7 @@ Do **not** copy the ZeroPerf campaign set into this tree. Receipts live in gitig
 | **0 -- merge gate** | `--strict` | `contrib/run-tests.sh` |
 | **1 -- widen** | `--all`, Linux `--suite`, `release-linux.sh` smoke | Same runner |
 | **2 -- node lifecycle** | COLD / RESTART / ATTACH on a scratch datadir | `contrib/ops-validate.sh smoke` |
-| **3 -- clients / mining** | Zerowallet visual; Equihash verify/solve; regtest mine | GUI in the wallet repo. `verifyeq` / `solveeq` / `mine` here; campaign harnesses in ZeroPerf |
+| **3 -- clients / mining** | Zerowallet visual; Equihash verify/solve; regtest mine | GUI in the wallet repo. `verifyeq` / `solveeq` / `mine` here |
 
 Receipts: **`.build/`** (`ready-*.txt`, `ready-latest.txt`, build logs, `test-logs/`, `ops-status.jsonl`). Scratch chain data: **`ZERO_OPS_LAB`** (default `/tmp/zero-ops-validate`), never the default user datadir, never this tree unless `--force`. Conf: `contrib/zero-conf.sh` from `contrib/conf-templates/` (default template **prod**, default file `/tmp/zero.conf`). Never sticky `reindex=1`. Sapling params are system setup (`BUILD_ZERO` §3), not this cycle.
 
@@ -279,21 +312,15 @@ Isolated tests in this tree (scratch LAB, not the operator datadir):
 
 Operator CPU miner on **mainnet (192,7)** is `gen=1` / `setgenerate`. Template **prod** ships `gen=0`. Mainnet and testnet set `fMiningRequiresPeers`, so the miner waits until there are peers and the node is not in IBD. Coinbase needs a wallet or `-mineraddress`. `setgenerate` is the RPC for mainnet/testnet; on regtest use `generate` (that is what `mine` calls). One OptimisedSolve is on the order of a minute; finding a mainnet block at current difficulty is not expected. Watch `getmininginfo` (`generate`, `localsolps`) and `debug.log` (`Using Equihash solver`, `Running ZeroMiner`). `setgenerate false` turns it off.
 
-Tier B `getblocktemplate` is the pool/template claim (`-B` / `--all`). Live pool hash and `contrib/perf/` campaigns stay ZeroPerf.
+Tier B `getblocktemplate` is the pool/template claim (`-B` / `--all`). Live pool hash is out of scope here.
 
 ### 8.6 Explorer consumer
 
 Template `insight`. Flags must match the copied index. Optional `getaddressbalance` / `getaddresstxids` on a disposable copy. No `reindex=` in conf.
 
-### 8.7 Pull from ZeroPerf
+### 8.7 After a branch merge
 
-Do not merge `perf-401` wholesale. `from-perf-401` is the RC line. Path-limited pulls already on this branch: FIX-LBI / FIX-IMPORT-POLL, PIR-03 status allowlist, `reindex_shielded.py`, `ops-validate.sh`, root latch, `shielded_survive_dummy`, TST-05 KATs under `src/test/data/`, witness flags **defaults off**, Equihash dispatch **(192,7)** / **(48,5)** only, `ops-validate` `short` / `smoke`.
-
-Leave on `perf-401`: `contrib/perf/`, Measures campaigns, FDCACHE / Groth / STALE experiments, TNT-02/03, witness default-on. Keep Zero400 `ClearNoteWitnessCache` two-outpoint gtest.
-
-ZeroPerf rebase/update steps wait until this RC is wrapped and validated.
-
-After this branch: `zcutil/check-setup.sh`, `zcutil/check-release.sh`, and `contrib/run-tests.sh --strict`. Compare `.build/setup-latest.txt` and `.build/ready-latest.txt` to copies of the pre-pull receipts (latest is overwritten each run).
+Run `zcutil/check-setup.sh`, `zcutil/check-release.sh`, and `contrib/run-tests.sh --strict`. Compare `.build/setup-latest.txt` and `.build/ready-latest.txt` to copies of the pre-merge receipts (latest is overwritten each run).
 
 ---
 
