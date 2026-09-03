@@ -54,18 +54,53 @@
 # produces no library must fail at the build step, where the message is true.
 #
 package=uniblake
-$(package)_version=dev
 $(package)_dependencies=
 
-# Built from a local checkout, not a pinned tarball. uniblake and this tree
-# move together; a hash here means bumping two lines every time either does,
-# and a tag that silently drifts out of step with what is actually built.
+# Three ways to select uniblake, in precedence order. The default tracks the
+# latest local checkout rather than a pin, because this tree and uniblake move
+# together: pinning during co-development means tag, push, re-hash and edit two
+# lines for every experiment.
 #
-# UNIBLAKE_SRC selects the checkout. $(package)_version carries the source's
-# HEAD so the build id changes when uniblake does and depends rebuilds on its
-# own; a dirty tree gets -dirty, so uncommitted work is never mistaken for a
-# committed state.
-UNIBLAKE_SRC ?= $(HOME)/Work/ZK/uniblake
+#   1. UNIBLAKE_SRC=/path   an explicit checkout
+#   2. UNIBLAKE_COMMIT=<sha> a pinned tarball, fetched and SHA-256 verified
+#      (with UNIBLAKE_SHA256=<hash>); for CI and release builds
+#   3. neither              the first checkout found next to this tree
+#
+# Case 3 is what makes a plain `./zcutil/build.sh` work with no setup. It looks
+# beside this tree first, so a sibling clone is found without configuration,
+# then falls back to the historical location.
+#
+# The version stamp carries the checkout's HEAD, so a uniblake commit changes
+# the build id and depends rebuilds on its own -- no manual cache clearing. A
+# dirty tree reads -dirty, so uncommitted work is never mistaken for committed.
+#
+# A pin, if used, must be at or after the commit renaming uniblake's output
+# knob to UB_BUILD. Earlier commits spell it `BUILD ?= build`, the build
+# triplet this tree exports as BUILD wins, the archive lands in ./<triplet>/,
+# and the build step's `test -f build/libuniblake.a` catches it.
+UNIBLAKE_COMMIT ?=
+UNIBLAKE_SHA256 ?=
+
+# Search order for an unconfigured checkout. First hit wins.
+UNIBLAKE_SEARCH := $(CURDIR)/../../uniblake $(CURDIR)/../uniblake $(HOME)/Work/ZK/uniblake
+UNIBLAKE_SRC ?= $(firstword $(foreach d,$(UNIBLAKE_SEARCH),$(if $(wildcard $(d)/Makefile),$(d))))
+
+ifneq ($(UNIBLAKE_COMMIT),)
+
+# Pinned: reproducible, no local checkout needed.
+$(package)_version=$(UNIBLAKE_COMMIT)
+$(package)_download_path=https://github.com/wkarshat/$(package)/archive/
+$(package)_file_name=$(package)-$(UNIBLAKE_COMMIT).tar.gz
+$(package)_download_file=$(UNIBLAKE_COMMIT).tar.gz
+$(package)_git_commit=$(UNIBLAKE_COMMIT)
+$(package)_sha256_hash=$(UNIBLAKE_SHA256)
+
+else
+
+ifeq ($(UNIBLAKE_SRC),)
+$(error no uniblake checkout found. Looked for a Makefile in: $(UNIBLAKE_SEARCH). Clone uniblake beside this tree, pass UNIBLAKE_SRC=/path, or pin with UNIBLAKE_COMMIT=<sha> UNIBLAKE_SHA256=<hash>)
+endif
+
 $(package)_version:=$(shell cd $(UNIBLAKE_SRC) 2>/dev/null && \
     printf '%s%s' "$$(git rev-parse --short HEAD 2>/dev/null || echo nogit)" \
                   "$$(git diff --quiet 2>/dev/null || echo -dirty)")
@@ -79,6 +114,8 @@ endef
 define $(package)_extract_cmds
   cp -R $(UNIBLAKE_SRC)/Makefile $(UNIBLAKE_SRC)/include $(UNIBLAKE_SRC)/src .
 endef
+
+endif
 
 # No autotools: a plain Makefile producing one static library and two headers.
 # libsodium is uniblake's test oracle, not a dependency, so none is passed.
