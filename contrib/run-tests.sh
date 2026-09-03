@@ -35,6 +35,22 @@ LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
 
 # Default exclude: qa/zcash/test_filters.sh (GTest CachedWitnessesCleanIndex). --fail runs GTEST_FAIL_ONLY.
 . "$REPO_ROOT/qa/zcash/test_filters.sh"
+. "$REPO_ROOT/contrib/perf/perflib.sh"
+
+# Exit status alone does not prove a suite ran: a harness can exit 0 having
+# skipped everything. verify_suite re-checks each log for the marker the suite
+# prints on completion, so a silent no-run is reported as a failure.
+# Returns 1 without exiting, so all suites are still checked.
+verify_suite() {
+    local name="$1" log="$2" marker="$3"
+    [ -f "$log" ] || { echo "FAIL: $name produced no log ($log)"; return 1; }
+    if ! grep -Eq -- "$marker" "$log"; then
+        echo "FAIL: $name log has no completion marker '$marker' (see $log)"
+        return 1
+    fi
+    echo "VERIFIED: $name completed"
+    return 0
+}
 
 # Tier A basenames for --jobs=N parallel runs only. Canonical list: testScriptsTierA in qa/pull-tester/rpc-tests.sh.
 # Serial gate uses: rpc-tests.sh -A
@@ -314,13 +330,21 @@ if [ "$QUICK" -eq 0 ]; then
     echo "zero-gtest PID: $GTEST_PID"
     echo "test_bitcoin PID: $BTEST_PID"
     echo "Waiting for background tests..."
-    if [ -n "$GTEST_PID" ] && ! wait "$GTEST_PID" 2>/dev/null; then
-        echo "FAIL: zero-gtest (see $LOG_PREFIX-zero-gtest.log)"
-        bump_fail
+    if [ -n "$GTEST_PID" ]; then
+        if ! wait "$GTEST_PID" 2>/dev/null; then
+            echo "FAIL: zero-gtest (see $LOG_PREFIX-zero-gtest.log)"
+            bump_fail
+        fi
+        verify_suite "zero-gtest" "$LOG_PREFIX-zero-gtest.log" \
+            '^\[==========\] .* tests? from .* ran' || bump_fail
     fi
-    if [ -n "$BTEST_PID" ] && ! wait "$BTEST_PID" 2>/dev/null; then
-        echo "FAIL: test_bitcoin (see $LOG_PREFIX-test_bitcoin.log)"
-        bump_fail
+    if [ -n "$BTEST_PID" ]; then
+        if ! wait "$BTEST_PID" 2>/dev/null; then
+            echo "FAIL: test_bitcoin (see $LOG_PREFIX-test_bitcoin.log)"
+            bump_fail
+        fi
+        verify_suite "test_bitcoin" "$LOG_PREFIX-test_bitcoin.log" \
+            'No errors detected|errors? detected' || bump_fail
     fi
 fi
 
@@ -342,6 +366,13 @@ if [ "$NO_PYTHON" -eq 0 ]; then
                 env PYTHON="$PY3" "$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -all; then
                 bump_fail
             fi
+            # The runner reports its own totals; cross-check them against the
+            # per-script lines so a lost or skipped test cannot pass silently.
+            # require_counts_agree die()s on a mismatch, so run it in a subshell
+            # to keep the remaining stages reporting.
+            verify_suite "rpc-all" "$LOG_PREFIX-rpc-all.log" '^Tests completed:' || bump_fail
+            ( require_counts_agree "$LOG_PREFIX-rpc-all.log" \
+                '^=== Running testscript' '^--- Success' '^!!! FAIL' "rpc-all" ) || bump_fail
         elif [ "$PYTHON_JOBS" -gt 1 ]; then
             echo "--- Python RPC (pass-only: ${#PYTHON_PASSING[@]} tests, jobs=$PYTHON_JOBS) ---"
             PIDS=()
