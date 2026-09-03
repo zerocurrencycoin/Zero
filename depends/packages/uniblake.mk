@@ -89,12 +89,22 @@ endef
 # that is not there, produce nothing, and let depends stamp the step as built.
 #
 # Resolve at build time rather than assuming either name.
+#
+# UB_BUILD is uniblake's output directory. It is passed explicitly rather than
+# left to default because zcutil/build-native.sh puts BUILD -- the build triplet
+# -- in the environment for depends, and uniblake once spelled this knob `BUILD
+# ?= build`: the inherited triplet won, the archive landed in ./<triplet>/, and
+# this recipe staged an empty prefix without erroring. uniblake renamed the knob
+# to UB_BUILD to end that collision, and rejects a command-line BUILD outright.
+#
+# Naming it here keeps the staged path a property of this recipe rather than of
+# whatever default the pinned uniblake happens to carry.
 define $(package)_build_cmds
   CC_REAL="$($(package)_cc)"; \
   command -v $$$$(echo $$$$CC_REAL | cut -d' ' -f1) >/dev/null 2>&1 || CC_REAL="$(default_build_CC)"; \
   AR_REAL="$($(package)_ar)"; \
   command -v $$$$AR_REAL >/dev/null 2>&1 || AR_REAL=ar; \
-  $(MAKE) CC="$$$$CC_REAL" CFLAGS="$($(package)_cflags) $($(package)_cppflags)" AR="$$$$AR_REAL" && \
+  $(MAKE) UB_BUILD=build CC="$$$$CC_REAL" CFLAGS="$($(package)_cflags) $($(package)_cppflags)" AR="$$$$AR_REAL" && \
   test -f build/libuniblake.a
 endef
 
