@@ -46,6 +46,9 @@ RESULT_FILES = re.compile(
 # Large regenerable raw capture data.
 BULK_SUFFIX = (".trace", ".xml", ".jsonl.gz", ".tar.gz", ".tgz")
 
+# Bulk below this is not worth a command in the trim script.
+BULK_MIN = 5 * 1024 * 1024
+
 
 def read_text(path):
     try:
@@ -75,10 +78,12 @@ def cited_names():
     # cited from anywhere. Missing a citation is the expensive error --
     # it marks real evidence as reclaimable.
     docs = [os.path.join(TEST_LOGS, "DATA_INDEX.md")]
-    for d in (HERE, os.path.join(HERE, "docs")):
-        if os.path.isdir(d):
-            docs += [os.path.join(d, f) for f in os.listdir(d)
-                     if f.endswith(".md")]
+    # Recurse: subdirectories hold evidence citations too (equ/, mine/), and
+    # listing only the top two silently marked eight cited artifacts
+    # reclaimable. keep/ is archived and cites nothing current, but scanning it
+    # costs nothing and a false PROTECTED is the cheap error.
+    for dirpath, _dirs, files in os.walk(HERE):
+        docs += [os.path.join(dirpath, f) for f in files if f.endswith(".md")]
     for doc in docs:
         txt = read_text(doc)
         for m in re.findall(r"test-logs/([A-Za-z0-9._-]+)", txt):
@@ -113,9 +118,18 @@ def has_result_files(path):
 
 
 def bulk_bytes(path):
-    """Regenerable raw capture bytes inside an otherwise-protected artifact."""
+    """Regenerable raw capture bytes inside an otherwise-protected artifact.
+
+    A .trace is a bundle -- a directory, not a file. Matching only filenames
+    walked straight past four 14 MB Instruments traces and reported 0, so the
+    one number this tool exists to surface counted only the archive it can
+    never reclaim anyway."""
     total = 0
-    for dirpath, _dirs, files in os.walk(path):
+    for dirpath, dirs, files in os.walk(path):
+        for d in list(dirs):
+            if d.endswith(BULK_SUFFIX):
+                total += dir_size(os.path.join(dirpath, d))
+                dirs.remove(d)          # counted whole; do not descend
         for f in files:
             if f.endswith(BULK_SUFFIX):
                 try:
@@ -232,12 +246,22 @@ def main(argv):
             if r["status"] == "CANDIDATE":
                 print("rm -r %-59s # %.1f MB" % (
                     os.path.relpath(r["path"], ROOT), mb(r["size"])))
+        # A citation protects the *finding*, not the raw capture behind it. An
+        # artifact whose summary is kept stays citable after its .trace bundle
+        # is removed, so bulk is offered as a runnable command rather than a
+        # comment -- reporting reclaimable bytes and emitting nothing to
+        # reclaim them is how 32 MB sat here being counted every run.
         for r in rows:
             if r["name"] in NEVER_RECLAIM:
                 continue
-            if r["status"] == "PROTECTED" and r["bulk"] > 5 * 1024 * 1024:
-                print("# trim raw capture only, keep the summary: %s (%.1f MB bulk)"
-                      % (os.path.relpath(r["path"], ROOT), mb(r["bulk"])))
+            if r["status"] != "PROTECTED" or r["bulk"] <= BULK_MIN:
+                continue
+            rel = os.path.relpath(r["path"], ROOT)
+            keeps = ("distilled result kept" if r["results"]
+                     else "NO distilled result -- review: the finding lives only in a doc")
+            print("# %s (%.1f MB raw; %s)" % (rel, mb(r["bulk"]), keeps))
+            for suf in BULK_SUFFIX:
+                print("find %s -name '*%s' -prune -exec rm -r {} +" % (rel, suf))
         return 0
 
     shown = [r for r in rows if not a.candidates or r["status"] == "CANDIDATE"]

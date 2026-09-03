@@ -116,14 +116,27 @@ exactly where measurement is sensitive. Same argument for containers and VMs.
 Detection: `microsoft` in `/proc/version` (wsl2); `/.dockerenv` (docker);
 hypervisor hints (vm); else `native`.
 
-### 3.2 `host_id` -- comparable without identifying
+### 3.2 `hostname` and `host_id`
 
-Trials compared against each other must come from the same machine. That needs
-a stable token, not a hostname: these files are committed to a public
-repository, and the existing `binary` field already leaks a real user path.
+Both are recorded, because they answer different questions.
 
-Salted hash, salt stored locally and uncommitted, truncated to 8 hex.
-Same machine gives the same token; the token discloses nothing.
+`hostname` is the machine's own name, in plain. A result nobody can trace to a
+machine is hard to re-run, and re-running is the usual reason to look one up.
+It is a weak identifier -- it changes on rename and collides across networks --
+so it labels a row for a human and takes no part in comparability.
+
+`host_id` is a salted hash of the hostname, truncated to 8 hex, with the salt
+stored locally and uncommitted. It is stable across renames, so it groups a
+machine's own trials.
+
+Neither is in `context_id`: two identical machines should compare as one
+context, and re-imaging one should not orphan its history.
+
+An earlier revision hashed the hostname *instead of* recording it, on the
+grounds that ledgers are committed to a public repository. They are not --
+`reindex-profile/` is gitignored and has never been tracked on any branch --
+and the same block already carries `binary`, a real user path. The hash was
+protecting nothing while costing traceability.
 
 ---
 
@@ -158,7 +171,7 @@ A raw feature map is precise but unusable as a grouping key: nobody groups by
 a nine-key dictionary. A **bundle** is a short name for a combination that is
 declared once and referenced by every run.
 
-Bundles are defined in `contrib/perf/feature_bundles.json`:
+Bundles are defined in `RecBench bundles (`recbench/RecBench.md`)`:
 
 | Bundle | Build features | Meaning |
 |--------|---------------|---------|
@@ -313,7 +326,7 @@ Ordered so no step depends on a later one. Detail in `TASKS.md` **A2**.
    where recoverable, `date_confidence: estimated`. **Write a new file, keep
    the original.**
 2. Add the blocks to both ledgers (`schema: 2`).
-3. One `platform_stamp.py` helper, called by every launcher.
+3. One RecBench helper, called by every launcher.
 4. Fingerprint v2 with `fingerprint_v`.
 5. Teach collators the S5 group-by/filter and the S5.1 guard.
 6. Add `run_id` to CPU rows so the two ledgers join.

@@ -453,7 +453,7 @@ Doc ownership: **BENCH-/FIX-/IMP-***, **L0-L7**, Stages, **G**/**P1-P4**, lab ma
 | **BENCH-WIN-SIG** | Windows stop / Ctrl+C | Document teardown | RPC stop + Ctrl+C; inspect `debug.log` for `Shutdown` / flush | Written expected-behavior note | Win host/VM | **Plan** |
 | **BENCH-LOGROT** | Linux debug.log HUP | Validate `create`+HUP | mv/touch/HUP or logrotate `create`; `-debug=rpc` | New file grows; rotated frozen | Linux host | **Plan** (macOS done) |
 
-**Harness rules (all BENCH-*):** never write default Application Support / `%APPDATA%\zero`; refuse that path; cite Measures vocabulary; append ledger via `accumulate_bench.py`. Do **not** batch trials expected to exceed **~20 minutes each** unless each trial can be restarted alone (separate command / resume from trial index). Long windows (e.g. post-Sap 600k-900k) run as one trial per invocation, or with explicit `TRIAL=` / resume support.
+**Harness rules (all BENCH-*):** never write default Application Support / `%APPDATA%\zero`; refuse that path; cite Measures vocabulary; append ledger via RecBench. Do **not** batch trials expected to exceed **~20 minutes each** unless each trial can be restarted alone (separate command / resume from trial index). Long windows (e.g. post-Sap 600k-900k) run as one trial per invocation, or with explicit `TRIAL=` / resume support.
 
 **Extractor extensions (non-blocking):** rotation-aware multi-file `debugN.log`; optional `-debug=bench` / xctrace into the same Measures vocabulary; witness/init duration fields so tip-hour contradictions can be cross-checked in structured form. Do not block these on Groth16 product work.
 
@@ -1437,7 +1437,7 @@ Canonical home for lab inputs and scratch locations (not duplicated in Measures)
 | Full chain snap | macOS Application Support `zero/` | Live tip **2518018** (verified); `blocks/` ~10G + `chainstate` ~619M + `blocks/index` ~4.7G. Live tree may have **xattrs** (`com.apple.provenance`) with **no** on-disk `._*` (`find . -name '._*'` empty) -- macOS `tar` still emits AppleDouble into archives unless `COPYFILE_DISABLE=1`. Prefer **`chainblocks812-clean.tgz`** (~8.5G) or rsync. Older `chainblocks812.tgz` may include `._*`. Tip transplant needs `insightexplorer=1`. |
 | Short / tiny snaps | same datadir | `chainblocks-short.tgz` ~342M; `chainblocks-tiny.tgz` ~228M; sha256 sidecar |
 | Disposable full tip scratch | `reindex-profile/fulltip-812-datadir` | rsync from live (or clean archive); `zero.conf` must include `experimentalfeatures=1` + `insightexplorer=1` or node **reindexes from genesis** |
-| Bench ledger / reports | `reindex-profile/bench-summaries/` | `ledger.*` via `accumulate_bench.py`; historical TSV / memprofile |
+| Bench ledger / reports | `reindex-profile/bench-summaries/` | `ledger.*` via RecBench; historical TSV / memprofile |
 | Post-Sapling scratch | `reindex-profile/postsapling-datadir` | From `postsapling_reindex.sh` |
 | DevFee ops wallets | out-of-tree DevFeeWallets | Fat-address getalldata; not ConnectBlock CPU |
 

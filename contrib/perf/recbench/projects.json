@@ -1,0 +1,22 @@
+{
+  "_comment": "Projects RecBench can record for. Selected by RB_PROJECT (default: 'default'). 'root' is the project tree; paths are relative to it. Adding a project means adding an entry here, not editing a module.",
+  "default": "zero",
+  "projects": {
+    "zero": {
+      "root": "../../..",
+      "store": "reindex-profile/bench-summaries",
+      "paths": {
+        "binary": "src/zerod",
+        "build_header": "src/obj/build.h",
+        "config_header": "src/config/bitcoin-config.h"
+      }
+    },
+    "uniblake": {
+      "root": "~/Work/ZK/uniblake",
+      "store": "bench-summaries",
+      "paths": {
+        "binary": "build/libuniblake.a"
+      }
+    }
+  }
+}

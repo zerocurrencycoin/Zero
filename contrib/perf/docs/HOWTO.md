@@ -18,7 +18,7 @@ so it aggregates is `SCHEMA.md`; lab rules and cleanup are `POLICY.md`.
 **Before recording anything**, stamp the run so it can be grouped later:
 
 ```bash
-contrib/perf/platform_stamp.py --op reindex --snap tiny --disablewallet
+RecBench (`recbench/RecBench.md`) --op reindex --snap tiny --disablewallet
 ```
 
 ---
@@ -123,7 +123,7 @@ Writes `test-logs/measures_<run>.csv` and appends to
 **Run procedure.** Fixed height window, one condition per invocation, four
 trials per condition, same binary and same host for every trial in a
 comparison. Record the condition name in `CAMPAIGN=` so the collation groups
-correctly. `accumulate_bench.py` writes n, mean, stdev, min and max per
+correctly. RecBench writes n, mean, stdev, min and max per
 condition into `REPORT.md`; report those fields as produced rather than
 summarising them.
 
@@ -283,7 +283,7 @@ Per-tool invocation detail lives in `../README.md`; this is the index.
 | `wallet_sync_profile.sh` | `tiny\|short\|full` | env `ZERO_PERF_WALLET_FILE` |
 | `shielded_density.py` | see header | note density by height band |
 | `extract_measures.py` | `--bench` ingests `-debug=bench` lines | |
-| `accumulate_bench.py` | `--store-dir --md --json` | throughput ledger |
+| RecBench | `--store-dir --md --json` | throughput ledger |
 | `decode_captures.py` | `<capture dir>` | batch-decode a capture sequence |
 | `stall_check.py`, `debuglog.py` | see headers | log analysis |
 | `measure_dbcache_utxo.py` | env `ZERO_MEASURE_DBCACHE`, `_MATRIX`, `_BLOCKS`, `_INSIGHT` | dbcache/UTXO matrix (M-CACHE-MATRIX) |

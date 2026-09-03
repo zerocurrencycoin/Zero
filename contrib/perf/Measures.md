@@ -367,7 +367,7 @@ Correctness vs throughput are separate questions: fd-cache **99.9%** hits (latch
 
 ## 7. Duration extraction
 
-Shipped filter-then-process path: `contrib/perf/extract_measures.py` (plus `tiny_baseline.sh`, `postsapling_reindex.sh`, `accumulate_bench.py`). Outputs under `test-logs/` / `reindex-profile/bench-summaries/` (gitignored). Launch recipes: **contrib/perf/README.md**. Non-blocking extractor extensions: **Perf.md** §0.13 harness notes.
+Shipped filter-then-process path: `contrib/perf/extract_measures.py` (plus `tiny_baseline.sh`, `postsapling_reindex.sh`, RecBench). Outputs under `test-logs/` / `reindex-profile/bench-summaries/` (gitignored). Launch recipes: **contrib/perf/README.md**. Non-blocking extractor extensions: **Perf.md** §0.13 harness notes.
 
 ### 7.1 Pipeline
 
@@ -409,7 +409,7 @@ Shipped filter-then-process path: `contrib/perf/extract_measures.py` (plus `tiny
 
 ## 8. Ledger campaigns
 
-`accumulate_bench.py` stores `CAMPAIGN=` strings in `reindex-profile/bench-summaries/ledger.*`. Cite numbers only through the bound **`M-*`** ID. How to run a campaign: **Perf.md** §0.13 + **contrib/perf/README.md**.
+RecBench stores `CAMPAIGN=` strings in `reindex-profile/bench-summaries/ledger.*`. Cite numbers only through the bound **`M-*`** ID. How to run a campaign: **Perf.md** §0.13 + **contrib/perf/README.md**.
 
 | Ledger `CAMPAIGN=` | Mode | Window | Bound `M-*` | Notes |
 |--------------------|------|--------|-------------|-------|

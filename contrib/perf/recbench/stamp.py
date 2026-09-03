@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Emit the platform / build / features blocks for a measurement row.
+"""
+RecBench stamp: read platform, build and compiled features into a row.
+
+System overview: contrib/perf/recbench/RecBench.md
 
 Schema and rationale: contrib/perf/docs/SCHEMA.md.
 
@@ -33,8 +36,9 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BUNDLES_PATH = os.path.join(HERE, "feature_bundles.json")
-SALT_PATH = os.path.join(HERE, ".host_salt")
+import rbpaths
+BUNDLES_PATH = rbpaths.rb_file("features.json")
+SALT_PATH = rbpaths.salt_path()
 
 SCHEMA_VERSION = 2
 FINGERPRINT_VERSION = 2
@@ -93,6 +97,11 @@ def detect_runtime():
     return "native"
 
 
+def hostname():
+    """The machine's own name. Labels a row; see RecBench.md for why."""
+    return platform.node() or "unknown"
+
+
 def host_id():
     """Stable, comparable, non-identifying token (SCHEMA.md S3.2)."""
     salt = ""
@@ -124,6 +133,8 @@ def platform_block():
         "cpu_threads": 0,
         "mem_gb": 0.0,
         "host_id": host_id(),
+        "hostname": hostname(),
+        "run_label": os.environ.get("RB_RUN_LABEL") or None,
     }
     if osname == "macos":
         blk["os_version"] = _sh("sw_vers -productVersion")
@@ -181,7 +192,10 @@ def build_block(binary=None, tag=None):
             blk.update(parse_version(m.group(1)))
             blk["tag"] = tag
     # BUILD_DATE is compiled in, so it travels with the binary.
-    bh = os.path.join(HERE, "..", "..", "src", "obj", "build.h")
+    # None when the project binds no build header: absent stays unknown.
+    bh = rbpaths.build_header()
+    if not bh:
+        return blk
     try:
         with open(os.path.abspath(bh), encoding="utf-8") as fh:
             for ln in fh:
@@ -193,9 +207,25 @@ def build_block(binary=None, tag=None):
     return blk
 
 
-CONFIG_H = os.path.join(HERE, "..", "..", "src", "config", "bitcoin-config.h")
-BUILD_DEFINES = ("ZERO_PERF", "ZERO_FDCACHE", "ENABLE_WALLET",
-                 "ENABLE_MINING", "ENABLE_ZMQ")
+CONFIG_H = rbpaths.config_header()
+def _build_defines():
+    """Compile-time defines to look for, from features.json.
+
+    Derived rather than duplicated: the two drifted once, and a flag listed in
+    one place but not the other is either never detected or searched for and
+    never found.
+    """
+    try:
+        classes = (load_bundles().get("_flag_classes") or {}).values()
+        flags = sorted({f for c in classes for f in (c.get("flags") or [])})
+        return tuple(flags) if flags else _FALLBACK_DEFINES
+    except Exception:  # noqa: BLE001 - detection must never break a stamp
+        return _FALLBACK_DEFINES
+
+
+_FALLBACK_DEFINES = ("ZERO_PERF", "ZERO_FDCACHE", "ENABLE_WALLET",
+                     "ENABLE_MINING", "ENABLE_ZMQ")
+BUILD_DEFINES = _build_defines()
 
 
 def detect_build_features():
@@ -207,6 +237,8 @@ def detect_build_features():
     silently reported as "off".
     """
     feats = {k: None for k in BUILD_DEFINES}
+    if not CONFIG_H:
+        return feats           # unbound: every define stays unknown
     try:
         with open(os.path.abspath(CONFIG_H), encoding="utf-8") as fh:
             for ln in fh:
@@ -352,7 +384,14 @@ def self_test():
     check(p["os"] in ("macos", "linux", "windows"), "os detected")
     check(p["arch"] in ("arm64", "x86_64") or p["arch"] != "", "arch detected")
     check(p["host_id"].startswith("h-") and len(p["host_id"]) == 10, "host_id shape")
-    check(platform.node() not in json.dumps(p), "hostname must not leak")
+    # hostname IS recorded, in plain. The rule it replaces assumed ledgers are
+    # committed to a public repository; they are not -- reindex-profile/ is
+    # gitignored and has never been tracked on any branch. The same block
+    # already carries `binary`, a real user path, so the hash was protecting
+    # nothing while costing traceability. host_id stays for comparability
+    # across renames; hostname is the human label.
+    check(p["hostname"] == (platform.node() or "unknown"), "hostname recorded")
+    check(p["host_id"].startswith("h-"), "host_id still present for grouping")
 
     check(host_id() == host_id(), "host_id stable across calls")
 
@@ -391,7 +430,7 @@ def self_test():
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--binary", default=os.path.join(HERE, "..", "..", "src", "zerod"))
+    ap.add_argument("--binary", default=rbpaths.target_binary())
     ap.add_argument("--tag", default=None, help="release/baseline tag, if any")
     ap.add_argument("--bundle", default=None, help="override bundle name")
     ap.add_argument("--self-test", action="store_true")

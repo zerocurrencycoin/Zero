@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # BENCH-MINE: Equihash *solve* profile env (regtest / mainnet-template / neon-stock).
-# Does not replace ConnectBlock rematch. Assign M-* via accumulate_bench when measured.
+# Does not replace ConnectBlock rematch. Assign M-* via recbench when measured.
 #
 # Usage (repo root):
 #   contrib/perf/mine_bench.sh regtest
@@ -191,9 +191,16 @@ case "$MODE" in
 esac
 
 # Append to ledger if accumulate helper exists
-if [ -f "$REPO_ROOT/contrib/perf/accumulate_bench.py" ]; then
-  python3 "$REPO_ROOT/contrib/perf/accumulate_bench.py" --import-tsv "$RESULTS" \
-    --campaign "$CAMPAIGN" 2>/dev/null || log "ledger import skipped/failed (ok for stub rows)"
+if [ -f "$REPO_ROOT/contrib/perf/recbench/recbench.py" ]; then
+  # Record the solver actually in effect, not a default assumed here: it
+  # changes the measurement without changing the binary. Read from the scratch
+  # conf; unset means the compiled default.
+  SOLVER=$(grep -E '^equihashsolver=' "$SCRATCH/zero.conf" 2>/dev/null | tail -1 | cut -d= -f2)
+  python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" --import-tsv "$RESULTS" \
+    --campaign "$CAMPAIGN" \
+    --workload "op=solve" \
+    --runtime "solver=${SOLVER:-default}" \
+    2>/dev/null || log "ledger import skipped/failed (ok for stub rows)"
 fi
 
 log "done OUT_DIR=$OUT_DIR RESULTS=$RESULTS CAMPAIGN=$CAMPAIGN"

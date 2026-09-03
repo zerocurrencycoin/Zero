@@ -27,6 +27,7 @@ per-tool caveats. It is deliberately the only place those live in long form.
 | Numbers bound to `M-*` | `Measures.md` |
 | Task state and what to do next | `docs/TASKS.md`, `docs/TASKS.md` |
 | Governance, ownership, lab discipline | `docs/POLICY.md` |
+| Recording results so they compare | `recbench/RecBench.md` |
 
 `docs/HOWTO.md` S4.1 lists the same 13 tools as a one-line index; the detail
 below is not repeated there. When adding a tool, add the row there and the
@@ -363,19 +364,14 @@ python3 contrib/perf/shielded_density.py \
 # --mode fine|coarse|all ; resumes by skipping eras already in the CSV
 ```
 
-## accumulate_bench.py
+## RecBench -- recording results
 
-Append-only store + collation across campaigns/runs:
+Benchmark results are recorded by **RecBench**, a separate subsystem with its
+own documentation: **`recbench/RecBench.md`**. Store layout, row identity,
+invocation and its task list live there, not here.
 
-- `reindex-profile/bench-summaries/ledger.jsonl` / `ledger.tsv`
-- `REPORT.md` / `REPORT-<campaign>.md`
-
-```bash
-python3 contrib/perf/accumulate_bench.py --import-tsv \
-  reindex-profile/bench-summaries/bench_postsapling_results.tsv \
-  --campaign postsapling-historical
-python3 contrib/perf/accumulate_bench.py --report \
-  --md reindex-profile/bench-summaries/REPORT.md
+Launchers in this directory hand rows to it; nothing else in `contrib/perf/`
+should reference its internals by path.
 
 ## ops-campaign.sh
 

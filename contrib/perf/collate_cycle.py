@@ -23,6 +23,18 @@ DEFAULT_STORE = REPO / "reindex-profile" / "bench-summaries"
 DEFAULT_STATUS = REPO / "reindex-profile" / "cycle-campaign" / "status.jsonl"
 
 
+def drop_superseded(rows: list[dict]) -> list[dict]:
+    """Exclude rows a later row replaced.
+
+    Applied here rather than in each report, so a collator cannot forget it
+    and quietly average a retired number back in. Nothing is deleted on disk;
+    RecBench.md S6 explains why retirement is a statement about which row to
+    use, not which existed.
+    """
+    retired = {r.get("superseded") for r in rows if r.get("superseded")}
+    return [r for r in rows if r.get("fingerprint") not in retired]
+
+
 def load_jsonl(path: Path) -> list[dict]:
     if not path.is_file() or path.stat().st_size == 0:
         return []
@@ -40,7 +52,7 @@ def load_jsonl(path: Path) -> list[dict]:
                 # silently changes every mean computed below.
                 print("WARNING: %s:%d: malformed JSON, skipped (%s)"
                       % (path, lineno, exc.msg), file=sys.stderr)
-    return rows
+    return drop_superseded(rows)
 
 
 def cycle_rows(store_dir: Path) -> list[dict]:

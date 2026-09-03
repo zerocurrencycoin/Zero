@@ -154,8 +154,8 @@ EOF
 if [ -n "$LEDGER_VARS" ]; then
   eval "$LEDGER_VARS"
   # `if cmd; then` -- not `A && B || C`, which runs C even when A succeeds.
-  if python3 "$REPO_ROOT/contrib/perf/accumulate_bench.py" \
-    --append \
+  if python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" \
+    --record \
     --warmup-height "$LR_START" \
     --end-height "$LR_END" \
     --blocks "$LR_BLOCKS" \
@@ -167,6 +167,8 @@ if [ -n "$LEDGER_VARS" ]; then
     --condition "${CONDITION:-stock}" \
     --trial "${TRIAL:-1}" \
     --binary "$ZEROD" \
+    --workload "op=reindex" \
+    --workload "snap=$SNAP" \
     --notes "snap=$SNAP" >/dev/null; then
     log "ledger row appended (campaign=$CAMPAIGN)"
   else

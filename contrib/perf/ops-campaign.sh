@@ -193,8 +193,8 @@ ledger_append() {
     blocks=0
     bps=0
   fi
-  python3 "$REPO_ROOT/contrib/perf/accumulate_bench.py" --store-dir "$STORE_DIR" \
-    --append \
+  python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" --store-dir "$STORE_DIR" \
+    --record \
     --campaign "cycle-${CYCLE}" \
     --run-id "$run_id" \
     --mode "$mode" \

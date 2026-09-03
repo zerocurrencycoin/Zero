@@ -65,7 +65,8 @@ run_check() {
     unicode)    # Gate on code only. Perf .md and captured .txt are a separate
                 # concern (see UpdateZero.md DOC-UNICODE); --all shows them.
                 contrib/perf/fix_ascii.py \
-                  $(git ls-files 'contrib/perf/*.sh' 'contrib/perf/*.py') 2>/dev/null ;;
+                  $(git ls-files 'contrib/perf/*.sh' 'contrib/perf/*.py' \
+                    'contrib/perf/*/*.py') 2>/dev/null ;;
     self-tests) # Shell library first: it owns the datadir policy and the
                 # value guards, so a regression there is destructive.
                 if [ -x contrib/perf/perflib_selftest.sh ]; then
@@ -77,7 +78,7 @@ run_check() {
                 # that has been wrong before (bucket ordering, fingerprint
                 # dedup), so a silent regression here corrupts published
                 # numbers rather than crashing.
-                for t in $(git ls-files 'contrib/perf/*.py'); do
+                for t in $(git ls-files 'contrib/perf/*.py' 'contrib/perf/*/*.py'); do
                   grep -q -- '--self-test' "$t" || continue
                   out=$(python3 "$t" --self-test 2>&1) || \
                     printf '%s: %s\n' "$t" "$(printf '%s' "$out" | tail -1)"
@@ -96,10 +97,10 @@ run_check() {
                   contrib/perf/fix_ascii.py \
                     $(git ls-files 'contrib/perf/*.md' 'contrib/perf/**/*.md' \
                       | grep -v '^contrib/perf/keep/') 2>/dev/null ;;
-    json)       # Tracked JSON must parse. feature_bundles.json is read by
-                # every launcher through platform_stamp.py, so a syntax error
+    json)       # Tracked JSON must parse. recbench/features.json is read by
+                # every launcher through recbench/stamp.py, so a syntax error
                 # there fails a campaign after the run rather than before it.
-                for f in $(git ls-files 'contrib/perf/*.json'); do
+                for f in $(git ls-files 'contrib/perf/*.json' 'contrib/perf/*/*.json'); do
                   python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" 2>/dev/null \
                     || printf '%s: invalid JSON\n' "$f"
                 done ;;

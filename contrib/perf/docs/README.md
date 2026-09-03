@@ -16,6 +16,10 @@ section.
 | 5 | [POLICY.md](POLICY.md) | What are the rules, and what enforces them? | Editing docs or lab runs |
 | 6 | [NOTES.md](NOTES.md) | What did we evaluate once, at a point in time? | Wondering why a frozen note exists |
 
+**RecBench** -- the benchmark record system (store, identity, collation) -- is
+documented separately in `../recbench/RecBench.md`. `SCHEMA.md` owns the row
+shape; RecBench.md owns the system around it.
+
 `OVERVIEW.md` is the front door and is linkable from the repo root: it states
 the problem, the goals and the routing, and does not churn as findings change.
 

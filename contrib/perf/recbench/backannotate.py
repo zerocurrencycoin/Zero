@@ -31,9 +31,10 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import platform_stamp as ps  # noqa: E402
+import stamp as ps  # noqa: E402
 
-STORE = os.path.join(HERE, "..", "..", "reindex-profile", "bench-summaries")
+import rbpaths
+STORE = rbpaths.store_dir()
 LEDGERS = ("ledger.jsonl", "cpu_ledger.jsonl")
 
 # run_id shapes seen in the ledgers, e.g. tiny-20260819T234958Z
@@ -139,7 +140,7 @@ def main(argv):
         ap.error("pass --dry-run or --write")
 
     plat = ps.platform_block()
-    build = ps.build_block(os.path.join(HERE, "..", "..", "src", "zerod"))
+    build = ps.build_block(rbpaths.target_binary())
     for name in LEDGERS:
         p = os.path.join(STORE, name)
         if not os.path.exists(p):

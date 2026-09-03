@@ -205,7 +205,7 @@ that is well-judged; some is reinvention. An honest split:
 
 ### 5.1 Worth keeping hand-rolled
 
-`accumulate_bench.py` / `profile_collate.py` are append-only JSONL ledgers with
+RecBench / `profile_collate.py` are append-only JSONL ledgers with
 campaign grouping and n/mean/stdev/min/max. That is a small amount of code
 closely fitted to the comparability rules in `Measures.md`, and those rules are
 the actual asset. A general framework would not know that a capture needs a

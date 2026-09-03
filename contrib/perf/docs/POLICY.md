@@ -66,10 +66,37 @@ nothing. Four have drifted that way. Current state:
 | Rule | Enforcement | State |
 |------|-------------|--------|
 | ASCII only | `fix_ascii.py`, `lint-perf.sh` | **Enforced** -- `unicode-docs` is in the default `CHECKS` (`lint-perf.sh:107`); backlog cleared, 0/0 |
+
+### ASCII policy: what the checker tolerates, and why
+
+`fix_ascii.py` splits non-ASCII into four classes rather than rewriting
+everything, because two of them must not be rewritten:
+
+| Setting | Contents | Why |
+|---------|----------|-----|
+| `REPLACE` | em/en dash, arrows, curly quotes, ellipsis, middle dot, bullet, multiplication sign, almost-equal, NBSP | An exact ASCII equivalent exists; `--fix` rewrites these |
+| `FLAG_ONLY_RANGES` | emoji and pictographs, misc symbols and dingbats, variation selectors | No safe equivalent. Reported for a human, never auto-rewritten |
+| `TOLERATED` | section sign | Conventional section notation in these documents, not decoration |
+| `SKIP_PATH` | vendored source, `depends/`, captured data under `mine/` and `dis-nodes.txt` | Captures preserve what was captured; normalising them corrupts the record |
+| `EXEMPT` | `README.md` in any directory | `AGENTS.md` exempts it |
+
+**Node source is deliberately not normalised.** Three classes were audited and
+kept:
+
+- **Mathematical and spec notation** -- Groth16 proof elements in
+  `zcash/JoinSplit.hpp`, ZIP-208 notation in `consensus/params.cpp`. These tie
+  the code to the protocol spec; ASCII substitutes lose that.
+- **Quoted data** -- `wallet/paymentdisclosure.h` renders byte `0xFF` as a
+  literal. Rewriting it makes the comment factually wrong.
+- **Inherited curly apostrophes** -- an NDSS citation in `equihash.cpp` and two
+  verbatim-Zcash strings in `rpcwallet.cpp`. Those two are **RPC help text**,
+  not comments: they reach operator terminals, so changing them is a product
+  decision, not a lint fix.
+
 | Owned-scope lint clean | `lint-perf.sh` | Enforced, passing |
 | Numbers cited by `M-*` | -- | **Convention only.** Proposed: `TASKS.md` A1c |
 | Full node only | -- | **Convention only.** 475 lines of wallet UI docs present |
-| One host per comparison | `platform_stamp.py` + aggregation guard | Helper exists; guard is `TASKS.md` A2f |
+| One host per comparison | RecBench + aggregation guard | Helper exists; guard is `TASKS.md` A2f |
 | Import idempotency | `fingerprint` | Enforced, but v1 omits platform/build -- `TASKS.md` A2e |
 
 Backlog counts are regenerated into `contrib/perf/lint_backlog.json` rather
@@ -81,7 +108,7 @@ than restated in prose, so they cannot go stale.
 
 Not all compile-time flags mean the same thing, and treating them uniformly
 produced a wrong result: an early bundle matcher classified this stock build as
-`custom`. Defined in `contrib/perf/feature_bundles.json`:
+`custom`. Defined in `RecBench bundles (`recbench/RecBench.md`)`:
 
 | Class | Flags | Property | In bundle key |
 |-------|-------|----------|---------------|

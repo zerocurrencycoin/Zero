@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Accumulate bucket_profile2 JSON outputs into a durable CPU-share ledger.
 
-Companion to accumulate_bench.py (which accumulates throughput). This does the
+Companion to recbench/recbench.py (which accumulates throughput). This does the
 same for CPU attribution, so consecutive captures build a comparable series
 instead of one-off text files.
 
@@ -54,7 +54,10 @@ def load(path=None):
                     # this file. Report it and keep going.
                     print(f"WARNING: {path}:{lineno}: malformed JSON, skipped "
                           f"({exc.msg})", file=sys.stderr)
-    return out
+    # A row a later row replaced is excluded here, not in each report, so a
+    # caller cannot forget and average a retired capture back in.
+    retired = {r.get("superseded") for r in out if r.get("superseded")}
+    return [r for r in out if r.get("fingerprint") not in retired]
 
 
 def cmd_add(args):
@@ -64,6 +67,10 @@ def cmd_add(args):
         "recorded_at": datetime.datetime.now(datetime.timezone.utc)
                         .strftime("%Y-%m-%dT%H:%M:%SZ"),
         "scenario": args.scenario,
+        # The join key to the throughput ledger. Without it the two ledgers
+        # describe the same run and cannot be related: CPU shares here,
+        # blocks/s there, with nothing in common but a timestamp.
+        "run_id": getattr(args, "run_id", "") or "",
         "window": args.window,
         "thread_filter": data.get("thread_filter"),
         "total_s": round(data.get("total_s", 0), 3),
@@ -79,7 +86,8 @@ def cmd_add(args):
     # single write point so an unstamped row cannot exist.
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        import platform_stamp
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "recbench"))
+        import stamp as platform_stamp
         entry["schema"] = platform_stamp.SCHEMA_VERSION
         entry["platform"] = platform_stamp.platform_block()
         entry["build"] = platform_stamp.build_block(
@@ -179,7 +187,8 @@ def self_test():
             check(load(led) == [], "absent ledger reads as empty, not an error")
 
             with contextlib.redirect_stdout(io.StringIO()):
-                rc = cmd_add(A(json=cap, scenario="S-test", window="1-2", note="n"))
+                rc = cmd_add(A(json=cap, scenario="S-test", window="1-2", note="n",
+                               run_id="run-test-1"))
             check(rc == 0, "add returns 0")
             rows = load(led)
             check(len(rows) == 1, "one row after one add")
@@ -189,6 +198,8 @@ def self_test():
             # figures without any error surfacing.
             check(r["bucket_pct"]["groth16_proof"] == 88.46, "bucket_pct rounds to 2dp")
             check(r["buckets_s"]["groth16_proof"] == 53.012, "buckets_s rounds to 3dp")
+            check(r.get("run_id") == "run-test-1",
+                  "run_id is recorded, so the two ledgers can be joined")
             check(r["scenario"] == "S-test" and r["window"] == "1-2",
                   "scenario and window stored")
             check(r["source"] == cap, "provenance recorded -- a row must name its capture")
@@ -250,6 +261,9 @@ def main(argv):
     a.add_argument("--scenario", required=True)
     a.add_argument("--window", required=True, help="height range, e.g. 600000-900000")
     a.add_argument("--note", default="")
+    a.add_argument("--run-id", default="",
+                   help="the launcher run this capture belongs to; joins to "
+                        "the throughput ledger")
     r = sub.add_parser("report", help="summarise accumulated captures")
     r.add_argument("--scenario")
     args = p.parse_args(argv)

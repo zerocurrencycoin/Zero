@@ -156,7 +156,7 @@ When the parallel Equihash/blake2 work lands, it is measured through the same
 structures as everything else, with these specifics:
 
 - **Bundle first.** Any new build-time option gets an entry in
-  `feature_bundles.json` before a trial is recorded, or every row reads
+  RecBench bundles before a trial is recorded, or every row reads
   `custom` and cannot be grouped (`POLICY.md` S3).
 - **Classify the flag.** Is it architectural, scenario, or perf? That decides
   whether it belongs in the bundle key.
@@ -334,8 +334,8 @@ review burden than batch verification would.
 
 ## 3.6 Thread pool sizing: where the 32 threads come from
 
-A mining node shows **32 threads with one doing all the work** (`test-logs/
-mainnet-mining-20260827/`). The sizing is entirely static and reconciles
+A mining node shows **32 threads with one doing all the work**
+(`test-logs/mainnet-mining-20260827/`). The sizing is entirely static and reconciles
 exactly [Verified: source and `ps -M`]:
 
 | Thread | n | Sized by |

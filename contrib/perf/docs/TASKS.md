@@ -26,13 +26,13 @@ unless a dependency is named. **D** runs in parallel throughout.
 | Item | Kanban | Disposition | Effort | Why |
 |------|--------|-------------|--------|-----|
 | A1 Enforce existing rules | **InTest** | Open | S | `FINDINGS.md` S1.3 |
-| A2 Record binary and platform | **InTest** | Open | M | `FINDINGS.md` S1.2, `SCHEMA.md` |
+| A2 Record binary and platform | **Finished** | Finished | M | `FINDINGS.md` S1.2, `SCHEMA.md` |
 | A3 Microbenchmark baseline | ToDo | Open | S | `FINDINGS.md` S4 |
 | A4 Workload taxonomy A-E | ToDo | Open | S-M | this file, A4 |
 | A5 CodexPerf review triage | **InProgress** | Open | M | `../../CodexPerf.md` |
-| B1 Phase timers | **InProgress** | Open | S-M | `FINDINGS.md` S1.1, `../PerfTimers.md` |
+| B1 Phase timers | **Finished** | Finished | S-M | parser done; product part -> `TODO.md` |
 | B2 First non-macOS measurement | ToDo | Open | M | `../PerfPlatforms.md` |
-| B3 NOTEIDX staleness | ToDo | Open | S | `FINDINGS.md` S3.1 |
+| B3 NOTEIDX staleness | -- | **Moved** | S | Product handoff, P2 |
 | C1 Documentation consolidation | **InTest** | Open | M | `MIGRATION.md` |
 | C2 Remaining measurement gaps | ToDo | Open | M | `FINDINGS.md` S4 |
 | C3 Inherited build/DB defects | ToDo | Open | M | `../BUILD_RECONFIG.md` |
@@ -106,17 +106,16 @@ Schema: **`SCHEMA.md`**.
 
 | Step | What | State |
 |------|------|-------|
-| a | `platform_stamp.py` | Finished |
-| b | `feature_bundles.json` | Finished |
-| c | Back-annotate existing rows | **Partial** -- `platform` populated on all 49 rows (`*.v2.jsonl`); `features` is `{}` on every one, so no row carries `workload.op`. Completing it is A4f |
+| a | RecBench | Finished |
+| b | RecBench bundles | Finished |
+| c | Back-annotate existing rows | **Dropped** -- those rows are archived outside the tree (RecBench.md S6). New rows are stamped at write time, so there is nothing left to back-annotate |
 | d | Stamp at write time (**F1b**, not per launcher) | **Finished** -- `append_row` and `cmd_add` stamp; an unstamped row is now unrepresentable |
-| e | Fingerprint v2 with `fingerprint_v` | Open |
-| f | Group-by / filter; refuse cross-platform pooling by default | Open |
-| g | Add `run_id` to CPU rows | Open |
+| e | Fingerprint v2 with `fingerprint_v` | **Superseded** -- identity is four ids (`platform_id`, `build_id`, `config_id`, `dataset_id`) composed into `context_id`, which the fingerprint includes. A version counter on top would name the same thing twice |
+| f | Group-by / filter; refuse cross-platform pooling by default | **Finished** -- `context_id` leads the collation key (RecBench.md S2) |
+| g | Add `run_id` to CPU rows | **Finished** -- `profile_collate.py add --run-id`; the two ledgers join on it |
 
-a-b must precede any non-macOS run and are Finished. (c) is partial -- see A4f.
-
-**Kanban: InTest. Effort M.**
+**Kanban: Finished. Effort M.** Every substep is closed: (a), (b), (d), (f)
+and (g) landed; (c) and (e) were dropped as obsolete or superseded.
 
 ### A3. Record the microbenchmark baseline
 
@@ -132,7 +131,7 @@ taken beforehand, so this is worth more during the postponement than after.
 
 `features.workload.op` is the field that keeps a solve trial from pooling with
 a reindex trial (`SCHEMA.md` S5). It is currently a **free-text string** --
-`platform_stamp.py --op` has no enum and no validation -- so the guard that
+`stamp.py --op` has no enum and no validation -- so the guard that
 refuses cross-workload pooling has nothing to key on. Every existing row reads
 `reindex`.
 
@@ -185,7 +184,7 @@ is labelled rather than silently misread.
 | Step | What | State |
 |------|------|-------|
 | a | Define the `op` enum -- **accepted**: `sync`, `bootstrap`, `reindex`, `rescan`, `solve`, `verify`. Confirm each against real runs as they are taken | ToDo |
-| b | Validate `--op` against it in `platform_stamp.py`; refuse an unknown value rather than recording it | ToDo |
+| b | Validate `--op` against it in RecBench; refuse an unknown value rather than recording it | ToDo |
 | c | Add `workload.wallet_shape` for class C; `null` when `wallet: none` | ToDo |
 | d | Derive `workload.era` from the height window, including `mixed` | ToDo |
 | e | Extend the S5.1 pooling guard to refuse differing `op` and `era` by default | ToDo |
@@ -327,14 +326,16 @@ Spec: **`../PerfTimers.md`**.
 |------|------|-------|
 | a | Parse the 10 unparsed `-debug=bench` phase lines | **Finished** -- all 11 parse; formats taken from the `LogPrint` calls |
 | b | Fix the verify/connect overlap | **Finished** -- `verify_excl_ms()`; a negative span yields `None`, never a negative duration |
-| c | Add proof-verification counters | Zero400 |
-| d | Emit periodic `BenchSummary` | Zero400 |
-| e | Parse `BenchSummary` | ZeroPerf |
+| c | Add proof-verification counters | **Moved** -- Product handoff, P1 |
+| d | Emit periodic `BenchSummary` | **Struck** -- every field is derivable from the phase lines (a/b), which already parse with the overlap corrected |
+| e | Parse `BenchSummary` | **Struck** with (d) |
 
 Order is forced: (b) with or before (a), or the double-count is frozen into
 stored data. (c) before (d) -- reason in `FINDINGS.md` S1.1.
 
-**Kanban: ToDo. Effort S-M.** (a) and (b) need no node change.
+**Kanban: Finished for ZeroPerf. Effort S-M.** (a) and (b) landed and needed no
+node change; the parser emits `bench_verify_excl_ms` with the overlap
+corrected. What remained was product code and is now in `TODO.md`.
 
 ### B2. First non-macOS measurement
 
@@ -344,19 +345,45 @@ Survey: **`../PerfPlatforms.md`**.
 |------|------|
 | a | State the platform caveat wherever CPU numbers are published |
 | b | Document the `parse()` input contract in `bucket_profile2.py` |
-| c | Linux `perf record` + folded-stack parser, reusing `classify()` / `BUCKETS` |
-| d | Port `res_sample.sh` to `psutil` |
+| c | Linux `perf record` + folded-stack parser | **Finished** -- `bucket_profile2.py` parses folded stacks; format detected by content, self-tested |
+| d | Port `res_sample.sh` to `psutil` | ToDo -- needs a Linux host to validate against |
 
-**Requires A2** so the result is recordable. Native Windows ETW is Aside.
+**Requires A2** so the result is recordable -- now satisfied: A2f landed, and
+RecBench records platform, build, config and dataset identity, so a Linux row
+cannot pool with a macOS one or be dropped as a duplicate.
 
-**Kanban: ToDo. Effort M.**
+**Running it on Linux.** Everything below is a command; nothing needs a design
+decision first.
+
+```bash
+# 1. capture (perf, root or perf_event_paranoid<=1)
+perf record -F 999 -g -p $(pgrep -f 'zerod') -- sleep 300
+perf script | stackcollapse-perf.pl > out.folded
+
+# 2. bucket it, same tool and buckets as the macOS path
+python3 contrib/perf/bucket_profile2.py out.folded all --json out.json
+
+# 3. record the result
+python3 contrib/perf/recbench/recbench.py --append \
+  --campaign linux-baseline --run-id linux-$(date -u +%Y%m%dT%H%M%SZ) \
+  --workload op=reindex --workload snap=tiny ...
+```
+
+The parser takes folded stacks or xctrace XML and decides by content, so a
+Linux capture and a macOS capture bucket through the same `classify()` and
+compare directly. `--thread all` is needed on the Linux path: folded stacks
+carry no thread name.
+
+**What still needs the host:** (d), because `psutil` sampling behaviour cannot
+be validated against a `ps` path that does not exist on macOS. (a) is doable
+anywhere and is folded into C5.
+
+**Kanban: InProgress. Effort M.**
 
 ### B3. NOTEIDX staleness
 
-Invalidate the note index only on note-membership change. Defect, cost and
-call sites: `FINDINGS.md` S3.1.
-
-**Kanban: ToDo. Effort S.** Product change, Zero400 review.
+**Moved** to Product handoff P2: the invalidation call sites are wallet code,
+so the fix belongs in the product tree. Evidence stays here.
 
 ---
 
@@ -502,7 +529,7 @@ utc  height  elapsed_s  blk_s_since_last  rss_mb  phys_mb  peers
 
 *Collating* -- a separate pass, after the run, reads `progress.tsv` and emits
 ledger rows. It never runs in-process, so a crash cannot corrupt it and a
-killed trial still leaves a readable file. `accumulate_bench.py --import-tsv`
+killed trial still leaves a readable file. `recbench.py --import-tsv`
 already does exactly this shape of import.
 
 The split is the point: **the trial writes, the collator reads.** An
@@ -570,7 +597,7 @@ repeated by hand.
 
 | Mechanism | Guarantee | Where |
 |-----------|-----------|-------|
-| `append_row` | Append-only, and a re-append of an identical trial is **skipped**, not duplicated | `accumulate_bench.py:152` |
+| `append_row` | Append-only, and a re-append of an identical trial is **skipped**, not duplicated | RecBench `append_row` |
 | Datadir `aside` default | A re-run renames the old tree to `<path>.aside-<utc>` rather than deleting it | `POLICY.md` S3.1 |
 | `archives/` never reclaimed | Hard-coded non-reclaimable, independent of age or size | `retention.py`, `POLICY.md` S6.4 |
 | Per-run logs | `validate.sh` logs per run, so a failure is not overwritten by the next green run | `POLICY.md` S3.2 |
@@ -598,7 +625,7 @@ is archived under `test-logs/archives/` and the working copy is `0444`, so
 | New need | Existing helper |
 |----------|-----------------|
 | Checkpoint sampling | `res_sample.sh` interval sampler + `phys_mb` (E1o) |
-| Progress -> ledger | `accumulate_bench.py --import-tsv` (E1p) |
+| Progress -> ledger | `recbench.py --import-tsv` (E1p) |
 | Stall classification | `stall_check.py` -- `tip_gap`, `tip_silent`, `timeout_burst` |
 | Campaign resume | `ops-campaign.sh` catalog + `status.jsonl` |
 | Height parsing | `debuglog.py` path spec, `extract_measures.py --elapsed-heights` |
@@ -700,9 +727,23 @@ than to edit it in place.
 | # | What | Where |
 |---|------|-------|
 | 1 | 34 `NEON` mentions and the bulk of the tree's stale SIMD claims | `../Perf.md` |
-| 2 | tromp and solver-internal material at a depth no Zero reader needs; S4 is a survey of other projects' implementations | `../equ/` |
+| 2 | tromp and solver-internal material at a depth no Zero reader needs | `../equ/` |
 | 3 | Transient shares inline in profile notes rather than cited from a capture | `../mine/*.md` |
 | 4 | NEON-era wording | `../Measures.md`, `../README.md` |
+| 5 | **RecBench is named in 10 documents, 25 times.** A subsystem with its own directory and document should be referenced from a routing table and one owner section, not restated per file. The spread is the redundancy symptom, not the cause | all of `.` and `..` |
+| 6 | Sweep remaining source line numbers cited as evidence -- the most transient citation there is; name the function instead | all of `.` |
+| 7 | Ordering: items are numbered by creation, not by topic or dependency. A reader cannot see what blocks what | this file |
+
+**Editing discipline** -- the recurring defects this item exists to stop, each
+observed in this tree:
+
+| # | Defect | Rule |
+|---|--------|------|
+| ED1 | Migration traces left behind: "there is no `X` form", "renamed from `Y`", "formerly `Z`" | State what is, not what was. A reader wanting history has git |
+| ED2 | Design rationale, rejected alternatives and re-evaluation notes written into source comments | Code says what it does; documents say why, and which options lost |
+| ED3 | Transient citations -- source line numbers, "today", percentage shares, enabled/disabled status | Name functions, not lines. No status in a document meant to stay true |
+| ED4 | One fact restated across many documents, so renaming a thing edits ten files | One owner section, referenced from a routing table |
+| ED5 | A claim written from inference rather than read from the tree | If it is not read from source or measured, it does not go in |
 
 **Correction on record (2026-09-03).** `PLAN.md` S5 claimed the merge loop
 vectorises via "XOR and compare over 24-bit keys". That mechanism was never
@@ -735,7 +776,7 @@ optimizations become their own items once landed, each with its own baseline.
 | 0a | (192,7) solver baseline vectors, 5 solutions, each verified | **Finished** -- `solver_baseline_192_7` |
 | 0b | `Xc.reserve()` -- promoted to its own item; steps in **D2** | ToDo, V1 |
 | 0c | Fold `len` to a compile-time constant -- own item; steps in **D3** | **Done, V1+V2+V4** -- 1.22x |
-| a | Add new build-time options to `feature_bundles.json`; classify each | ToDo |
+| a | Add new build-time options to RecBench bundles; classify each | ToDo |
 | b | Ensure `features.workload.op` distinguishes solve / verify / sync | ToDo |
 | c | Record the baseline on the target host before any change | ToDo |
 | d | Confirm `platform.arch` is carried -- SIMD results are arch-specific | ToDo |
@@ -748,7 +789,7 @@ Harness: `mine_bench.sh`, `performance-measurements.sh`, KATs in
 
 ### D5. Measure the vendored tromp solver -- priority, may reorder D2/S1
 
-**Zero already ships tromp at (192,7)** and `prod.conf` selects it by default
+**Zero already ships tromp at (192,7)** and `prod.conf` selects it (the compiled default is `default`)
 (`equihashsolver=tromp`). Full finding: `../equ/FINDINGS.md` S2f.3.
 
 Consequence: **every solver number in this tree measures the wrong binary for a
@@ -1032,7 +1073,7 @@ machine.
 ### F1b. Where the stamp is emitted -- **decided, shipped**
 
 Three options were weighed for A2d; **B was chosen and has landed**. Stamping
-happens in `accumulate_bench.py` / `profile_collate.py` at row-append, not in
+happens in RecBench / `profile_collate.py` at row-append, not in
 each of the 10 launchers, which makes the invariant structural rather than
 procedural: an unstamped row is unrepresentable. Per-launcher calls would have
 been ten chances to forget; post-hoc backfill would have recorded a guess.
@@ -1122,7 +1163,7 @@ Steps:
 | k | Add `utc_iso()` beside `utc_stamp()`; migrate ad-hoc `date -u` sites | ToDo |
 | n | `checkpoint_row()` in `perflib.sh` -- append-only `progress.tsv` writer | ToDo |
 | o | `res_sample.sh` gains a `progress.tsv` output mode calling it | ToDo |
-| p | Collate `progress.tsv` -> ledger post-run via `accumulate_bench.py --import-tsv` | ToDo |
+| p | Collate `progress.tsv` -> ledger post-run via `recbench.py --import-tsv` | ToDo |
 | q | State the restartability axis in `POLICY.md` S4 beside the ~20 min heuristic | ToDo |
 | m | Source `perflib.sh` in the remaining 3 scripts for `log`/`die`/`run_id` | ToDo |
 
@@ -1145,6 +1186,45 @@ Stated explicitly so nothing above reads as finished when it is not.
 | **C4** two empty cells | **Blocked, not slow** | `many-utxo-few-tx` needs a wallet that does not exist; the x86-64 column needs B2 |
 | **GROTH** | **Postponed** | A maintainer's decision; nothing else depends on it |
 | **`Perf.md` retirement** | **Not ready** | Holds detail for B1, B3 and GROTH. Re-run the caveat diff (`MIGRATION.md` S6) before retiring |
+
+---
+
+## Product handoff
+
+Changes this investigation identified that are **node code**, not lab tooling.
+They cannot be done from ZeroPerf, but they are tracked here, with the rest of
+the perf work, rather than in the product backlog: the evidence for each lives
+in this tree and splitting the item from its evidence is how both get stale.
+
+Same labels as the board above. Owner is the product tree; disposition is
+whether ZeroPerf still needs it.
+
+| Item | Kanban | Disposition | Effort | Evidence |
+|------|--------|-------------|--------|----------|
+| P1 Proof-verification counters | ToDo | Open | S-M | `../PerfTimers.md` S3, `FINDINGS.md` S1.1 |
+| P2 NOTEIDX staleness | ToDo | Open | S | `FINDINGS.md` S3.1 |
+
+### P1. Proof-verification counters
+
+Sprout JoinSplit verification runs in `CheckBlock`, 67 lines before the first
+timer starts; Sapling spend/output verification runs in `ContextualCheckBlock`,
+outside `ConnectTip` entirely. The largest post-Sapling cost is therefore
+invisible to `-debug=bench`, and a phase summary built from today's counters
+would omit **88-91% of post-Sapling cost while appearing complete**.
+
+Placement caution: `ContextualCheckTransaction` is also called from
+`AcceptToMemoryPool`, so a naive counter conflates mempool admission with block
+validation. Keep them separate -- mempool proof cost is worth knowing on its
+own.
+
+**Why it is still open for ZeroPerf:** without it, no phase attribution of a
+post-Sapling reindex can be complete, so C2 and C4 both inherit the gap.
+
+### P2. NOTEIDX staleness
+
+The note index is invalidated more often than note membership changes. Defect,
+cost and call sites: `FINDINGS.md` S3.1. Wallet code, so the fix needs product
+review.
 
 ---
 

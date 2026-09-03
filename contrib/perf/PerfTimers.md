@@ -156,6 +156,14 @@ both unreadable.
 
 ### 3.3 Emission
 
+**Struck (2026-09-03).** The per-block phase lines parse and `verify_excl_ms()`
+corrects the overlap, so every field this line would carry is already derivable
+from what the node logs. It would buy only a default-log-level signal and
+in-node interval accumulation -- neither needed in a lab where `-debug=bench`
+is on and the whole log is kept.
+
+The shape below is kept as a record of what was specified, not as work.
+
 A single line, on an interval, at default log level. Shape:
 
 ```

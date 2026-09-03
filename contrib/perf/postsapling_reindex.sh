@@ -273,14 +273,15 @@ run_one() {
   if [ "$SAMPLE_UTIL" = "1" ] && [ -f "$UTIL_TSV" ]; then
     notes="${notes};util=$(basename "$trial_dir")/util.tsv"
   fi
-  python3 "$REPO_ROOT/contrib/perf/accumulate_bench.py" \
+  python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" \
     --store-dir "$STORE_DIR" \
-    --append \
+    --record \
     --campaign "$CAMPAIGN" \
     --run-id "$RUN_ID" \
     --mode "$MODE" \
     --condition "$condition" \
     --trial "$trial" \
+    --workload "op=$MODE" \
     --warmup-height "$WARMUP_HEIGHT" \
     --end-height "$end_h" \
     --blocks "$nblocks" \
@@ -315,7 +316,7 @@ log "done. per-run=$RESULTS ledger=$STORE_DIR/ledger.tsv"
 cat "$RESULTS"
 
 # Single-line invocations avoid fragile backslash continuations under tee/pipefail.
-python3 "$REPO_ROOT/contrib/perf/accumulate_bench.py" --store-dir "$STORE_DIR" --report --campaign "$CAMPAIGN" --md "$STORE_DIR/REPORT-${CAMPAIGN}.md" --json "$OUT_DIR/collation.json" | tee -a "$DRIVER"
-python3 "$REPO_ROOT/contrib/perf/accumulate_bench.py" --store-dir "$STORE_DIR" --report --md "$STORE_DIR/REPORT.md" --json "$STORE_DIR/collation.json" >/dev/null
+python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" --store-dir "$STORE_DIR" --report --campaign "$CAMPAIGN" --md "$STORE_DIR/REPORT-${CAMPAIGN}.md" --json "$OUT_DIR/collation.json" | tee -a "$DRIVER"
+python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" --store-dir "$STORE_DIR" --report --md "$STORE_DIR/REPORT.md" --json "$STORE_DIR/collation.json" >/dev/null
 
 log "collation: $STORE_DIR/REPORT-${CAMPAIGN}.md and $STORE_DIR/REPORT.md"

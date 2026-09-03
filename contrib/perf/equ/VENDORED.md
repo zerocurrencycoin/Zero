@@ -69,7 +69,10 @@ for a hypothetical port). **That understated what is already in the tree.**
 (`src/miner.cpp:8`), and is compiled at **`WN 192 / WK 7`**
 (`src/pow/tromp/equi.h:20,24`). `miner.cpp:539` dispatches on
 `-equihashsolver`, and **`contrib/conf-templates/prod.conf` sets
-`equihashsolver=tromp` by default.**
+`equihashsolver=tromp`.** The compiled default is `default`
+(`src/miner.cpp`, `GetArg("-equihashsolver", "default")`); tromp is selected by
+that shipped config, not by the code. A node started with no `equihashsolver`
+line runs `EhOptimisedSolve`.
 
 Its constants land exactly where `SOLVER.md` S2.3's arithmetic predicted a port would have
 to sit:

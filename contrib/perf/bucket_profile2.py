@@ -116,6 +116,48 @@ LAYERS = collections.OrderedDict([
 ])
 
 
+def parse_folded(path):
+    """Parse folded stacks: `frame;frame;frame<TAB or space>count` per line.
+
+    The format `perf script | stackcollapse-perf.pl` emits, and what FlameGraph
+    consumes. Chosen over `perf script` output directly because collapsing is
+    the part that varies between perf versions, and because a folded file is
+    plain text -- so this parser is testable anywhere, including on a host with
+    no perf.
+
+    Thread is not in the format. Every sample is attributed to one synthetic
+    thread name, which the caller filters on; use --thread all to keep them.
+    """
+    out = []
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            stack, sep, count = line.rpartition(" ")
+            if not sep:
+                stack, sep, count = line.rpartition("\t")
+            if not sep:
+                continue
+            try:
+                weight = int(count)
+            except ValueError:
+                continue
+            frames = [f for f in stack.split(";") if f]
+            if not frames:
+                continue
+            # Folded stacks are leaf-last; the xctrace path yields leaf-first.
+            out.append(("folded", weight, list(reversed(frames))))
+    return out
+
+
+def parse_any(path):
+    """Dispatch on content, not on a flag: an XML file starts with '<'."""
+    with open(path, "rb") as fh:
+        head = fh.read(64).lstrip()
+    return parse(path) if head.startswith(b"<") else parse_folded(path)
+
+
 def parse(path):
     """Resolve xctrace id/ref backreferences; yield (thread, weight_ns, frames)."""
     tree = ET.parse(path)
@@ -223,6 +265,24 @@ def self_test():
           "disk_syscall / disk_decode split must be preserved")
     check("disk_io" not in BUCKETS, "the merged disk_io bucket must not return")
 
+    # Folded stacks: the Linux path. Testable here because the format is text,
+    # so the parser does not need perf or a Linux host to be exercised.
+    import os
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        f = os.path.join(d, "out.folded")
+        with open(f, "w", encoding="utf-8") as fh:
+            fh.write("main;ConnectBlock;blake2b_compress_ref 120\n")
+            fh.write("main;ConnectBlock;bls12_381_pairing 30\n")
+            fh.write("\n# comment\n")
+            fh.write("main;ReadBlockFromDisk;__read 10\t\n")
+        rows = parse_folded(f)
+        check(len(rows) == 3, "folded: three sample lines parsed")
+        check(rows[0][1] == 120, "folded: weight read")
+        check(rows[0][2][0] == "blake2b_compress_ref", "folded: leaf first")
+        check(classify(rows[0][2]) == "blake2b", "folded: leaf classifies")
+        check(parse_any(f) == rows, "parse_any dispatches folded by content")
+
     # Unmatched frames are attributed, not dropped.
     check(classify(["some::unknown::frame"]) == "other",
           "unmatched stack must bucket as 'other'")
@@ -254,7 +314,7 @@ def main(argv):
     if "--json" in argv:
         jsonout = argv[argv.index("--json") + 1]
 
-    rows = parse(path)
+    rows = parse_any(path)
     if not rows:
         print("no samples parsed", file=sys.stderr)
         return 1
