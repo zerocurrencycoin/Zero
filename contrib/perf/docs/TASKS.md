@@ -32,6 +32,7 @@ unless a dependency is named. **D** runs in parallel throughout.
 | A5 CodexPerf review triage | **InProgress** | Open | M | `../../CodexPerf.md` |
 | B1 Phase timers | **Finished** | Finished | S-M | parser done; product part -> `TODO.md` |
 | B2 First non-macOS measurement | ToDo | Open | M | `../PerfPlatforms.md` |
+| B2a Suite-run gotchas | ToDo | Open | S | four results that look like defects |
 | B3 NOTEIDX staleness | -- | **Moved** | S | Product handoff, P2 |
 | C1 Documentation consolidation | **InTest** | Open | M | `MIGRATION.md` |
 | C2 Remaining measurement gaps | ToDo | Open | M | `FINDINGS.md` S4 |
@@ -379,6 +380,20 @@ be validated against a `ps` path that does not exist on macOS. (a) is doable
 anywhere and is folded into C5.
 
 **Kanban: InProgress. Effort M.**
+
+### B2a. Suite-run gotchas to carry into any platform run
+
+Four results that look like platform defects and are not. Each cost time once.
+
+| Item | What |
+|------|------|
+| a | **`Tests completed:`, not just exit code.** A runner can exit 0 having run nothing: a guard that declines to start the payload, or a killed waiter, is indistinguishable from a clean pass. Confirm the marker, then cross-check the totals against the per-script lines (`require_marker`, `require_counts_agree`) |
+| b | **uniblake sibling.** Resolves to the checkout beside this tree with no configuration; its short HEAD is the package version, so a uniblake commit rebuilds it on its own |
+| c | **Deliberately held.** `WalletTests.CachedWitnessesCleanIndex` is excluded in `qa/zcash/test_filters.sh` and fails unfiltered on every platform -- its reindex scenario needs the `pcoinsTip` + `ReadBlockFromDisk` path the gtest harness cannot provide |
+| d | **`Permission denied` is a file mode**, not a port problem. `core.fileMode=true` strips a local `+x` on checkout, so a test committed `100644` fails before it runs. Check `git ls-files -s` first |
+
+**Kanban: ToDo. Effort S.** Documentation only; (a) is already wired into
+`contrib/run-tests.sh`.
 
 ### B3. NOTEIDX staleness
 

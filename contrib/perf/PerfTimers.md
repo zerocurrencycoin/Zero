@@ -9,8 +9,7 @@ be checked against.
 `docs/TASKS.md` B1. Findings that motivate it: `docs/FINDINGS.md` S1.1.
 
 Numbers cited by `M-*` id live in `Measures.md`. Line numbers are
-`src/main.cpp` at the commit this was written against
-(`b1a37bffc`); re-confirm before editing, they drift.
+`src/main.cpp` as of writing; re-confirm before editing, they drift.
 
 ---
 

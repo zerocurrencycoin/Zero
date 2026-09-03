@@ -222,5 +222,40 @@ ok_if "utc_stamp returns a value" test -n "$(utc_stamp)"
 case "$(run_id tiny)" in tiny-*Z) ;; *) echo "FAIL: run_id shape" >&2; FAILED=1 ;; esac
 ok_if "log emits without DRIVER_LOG set" test -n "$(log hello)"
 
+# ------------------------------------------------------ run verification ---
+
+VERDIR="$(mktemp -d)"
+trap 'rm -rf "$VERDIR"' EXIT
+
+: > "$VERDIR/empty.log"
+printf 'Running testscript a\n--- Success: a ---\nTests completed: 1\n' \
+  > "$VERDIR/good.log"
+printf 'Running testscript a\nRunning testscript b\n--- Success: a ---\n' \
+  > "$VERDIR/partial.log"
+
+expect_fail "require_file rejects a missing artifact" \
+  bash -c ". '$HERE/perflib.sh'; require_file '$VERDIR/nosuch.log' run"
+expect_fail "require_file rejects an empty artifact" \
+  bash -c ". '$HERE/perflib.sh'; require_file '$VERDIR/empty.log' run"
+expect_ok   "require_file accepts a written artifact" \
+  bash -c ". '$HERE/perflib.sh'; require_file '$VERDIR/good.log' run"
+
+expect_ok   "require_marker finds the completion marker" \
+  bash -c ". '$HERE/perflib.sh'; require_marker '$VERDIR/good.log' '^Tests completed:' rpc"
+# A suite killed part-way exits without its marker; that must not read as success.
+expect_fail "require_marker rejects an incomplete run" \
+  bash -c ". '$HERE/perflib.sh'; require_marker '$VERDIR/partial.log' '^Tests completed:' rpc"
+
+eq "$(count_matches "$VERDIR/good.log" '^Running testscript')" 1 "count_matches counts"
+eq "$(count_matches "$VERDIR/nosuch.log" 'anything')" 0 "count_matches is 0 when absent"
+
+expect_ok "counts agree on a clean run" \
+  bash -c ". '$HERE/perflib.sh'; require_counts_agree '$VERDIR/good.log' \
+           '^Running testscript' '^--- Success' '^!!! FAIL' rpc"
+# 2 started, 1 passed, 0 failed: the suite lost a test without reporting it.
+expect_fail "counts disagree when a test vanished" \
+  bash -c ". '$HERE/perflib.sh'; require_counts_agree '$VERDIR/partial.log' \
+           '^Running testscript' '^--- Success' '^!!! FAIL' rpc"
+
 if [ "$FAILED" -eq 0 ]; then echo "self-test OK" >&2; else echo "self-test FAILED" >&2; fi
 exit "$FAILED"

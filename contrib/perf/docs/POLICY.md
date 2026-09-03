@@ -233,6 +233,18 @@ Two rules, each of which failed in practice before being written down:
   `datadir_guard.sh`. Override only via `ZERO_PERF_ALLOW_LIVE_DATADIR=1`.
 - **Effort in bands (S/M/L/XL)**, never calendar estimates without measured
   evidence.
+- **Verify by artifact, not by exit code.** A wrapper's status is not the
+  wrapped command's: a guard that declines, a killed waiter, or a pipeline whose
+  first stage failed all exit 0 with no work done. Check the suite's own
+  completion marker, then cross-check its totals against its per-test lines
+  (`require_marker`, `require_counts_agree` in `perflib.sh`). A guard that
+  declines to run its payload exits non-zero.
+- **One sample is not a measurement.** Report repeat counts for intermittent
+  failures; a negative over few trials is not evidence of absence. State what
+  was not established as plainly as what was.
+- **Source `perflib.sh`; do not reimplement it.** Run
+  `perflib_selftest.sh` after changing it and `lint-perf.sh` before proposing
+  shell changes.
 
 ---
 

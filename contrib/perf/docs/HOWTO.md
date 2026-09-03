@@ -289,10 +289,35 @@ Per-tool invocation detail lives in `../README.md`; this is the index.
 | `measure_dbcache_utxo.py` | env `ZERO_MEASURE_DBCACHE`, `_MATRIX`, `_BLOCKS`, `_INSIGHT` | dbcache/UTXO matrix (M-CACHE-MATRIX) |
 | `performance-measurements.sh` | `<benchmark> [args]`, run from repo root | `zcbenchmark` / valgrind runner (M-ZCB-SUITE); 19 named benchmarks |
 | `collate_cycle.py` | `--md <out.md>` | collate an `ops-campaign` cycle |
+| `perflib.sh` | sourced, not executed | shared helpers; see 4.1.1 |
+| `perflib_selftest.sh` | no args | tests `perflib.sh`; must print `self-test OK` |
 | `datadir_guard.sh` | sourced, not executed | `refuse_live_datadir`; env `ZERO_PERF_ALLOW_LIVE_DATADIR` to override |
 | `fix_ascii.py` | `[--fix] [--all] [paths]` | non-ASCII policy |
 | `lint-perf.sh` | `[--all] [--summary] [--list]` | gated to `contrib/perf/` |
 | `zcash-lint/` | vendored Zcash linters | see `ZEROPERF.md` |
+
+## 4.1.1 perflib.sh
+
+Shared helpers, one copy instead of the per-script versions that had drifted.
+Source by full path once `REPO_ROOT` is known; the file header lists the full
+set with signatures.
+
+```bash
+. "$REPO_ROOT/contrib/perf/perflib.sh"
+```
+
+They cover logging (`log`, `warn`, `die`), numeric guards, `safe_div`,
+`span_blocks`, datadir disposition, node shutdown, and run verification.
+Verifying a run means checking what it produced, not the exit status of
+whatever wrapped it (POLICY.md S4):
+
+```bash
+require_marker "$LOG" '^Tests completed:' "rpc -all"
+require_counts_agree "$LOG" '^=== Running testscript' '^--- Success' '^!!! FAIL' "rpc -all"
+```
+
+`contrib/run-tests.sh` uses both against each suite log. Run
+`perflib_selftest.sh` after any change; it must exit 0.
 
 ## 4.2 Node flags that matter
 

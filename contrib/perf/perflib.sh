@@ -12,6 +12,10 @@
 #   nonneg NAME VAL               reject negative where negative is meaningless
 #   dispose_datadir PATH [LABEL]  existing-datadir policy (see below)
 #   stop_node CLI DATADIR PORT    graceful stop, then escalate
+#   require_file PATH [LABEL]     artifact exists and is non-empty
+#   require_marker PATH RE [LBL]  artifact carries a completion marker
+#   count_matches PATH RE         matching line count; 0 if absent
+#   require_counts_agree ...      suite summary vs its own per-test lines
 #
 # shellcheck shell=bash
 
@@ -265,4 +269,55 @@ stop_node() {
   done
   warn "node on '$datadir' did not stop within 30s; escalating"
   pkill -f "zerod .*-datadir=$datadir" 2>/dev/null || true
+}
+
+# ------------------------------------------------------- run verification ---
+# Rationale and usage: README.md, "Shared shell library".
+
+# require_file PATH [LABEL]
+require_file() {
+  local path="${1:-}" label="${2:-artifact}"
+  [ -n "$path" ] || die "$label: no path given"
+  [ -e "$path" ] || die "$label: '$path' does not exist; the run produced nothing"
+  [ -s "$path" ] || die "$label: '$path' is empty; the run produced no output"
+}
+
+# require_marker PATH REGEX [LABEL]
+require_marker() {
+  local path="${1:-}" pat="${2:-}" label="${3:-run}"
+  require_file "$path" "$label"
+  [ -n "$pat" ] || die "$label: no marker pattern given"
+  if ! grep -Eq -- "$pat" "$path"; then
+    die "$label: completion marker '$pat' absent from '$path'; treat the run as incomplete"
+  fi
+}
+
+# count_matches PATH REGEX -- matching lines; 0 when absent.
+count_matches() {
+  local path="${1:-}" pat="${2:-}" n
+  [ -f "$path" ] || { echo 0; return 0; }
+  # grep -c prints 0 and exits 1 on no match; `|| echo 0` would emit two lines.
+  n="$(grep -Ec -- "$pat" "$path" 2>/dev/null)"
+  case "$n" in
+    ''|*[!0-9]*) echo 0 ;;
+    *)           echo "$n" ;;
+  esac
+}
+
+# require_counts_agree PATH TOTAL_PAT PASS_PAT FAIL_PAT [LABEL]
+# die on disagreement; return 1 when any test failed.
+require_counts_agree() {
+  local path="${1:-}" total_pat="${2:-}" pass_pat="${3:-}" fail_pat="${4:-}"
+  local label="${5:-suite}"
+  require_file "$path" "$label"
+  local ran passed failed
+  ran="$(count_matches "$path" "$total_pat")"
+  passed="$(count_matches "$path" "$pass_pat")"
+  failed="$(count_matches "$path" "$fail_pat")"
+  log "$label: ran=$ran passed=$passed failed=$failed"
+  if [ "$ran" -ne $((passed + failed)) ]; then
+    die "$label: $ran started but $passed passed + $failed failed; counts disagree"
+  fi
+  [ "$failed" -eq 0 ] || return 1
+  return 0
 }
