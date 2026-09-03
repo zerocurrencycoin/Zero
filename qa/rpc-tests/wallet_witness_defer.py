@@ -43,8 +43,53 @@ def reorg_n_blocks(node, n):
     assert_equal(node.getblockcount(), tip)
 
 
+WITNESS_GATE_MSGS = (
+    "until witnesses are built",
+    "building witness cache",
+)
+
+
+def _witness_gated(err):
+    msg = str(err).lower()
+    return any(m in msg for m in WITNESS_GATE_MSGS)
+
+
+def z_sendmany_when_ready(node, *args, **kw):
+    """z_sendmany, retrying while the witness gate is shut.
+
+    ChainTip() calls BuildWitnessCache() for every block connected near tip,
+    and that clears initWitnessesBuilt on entry and sets it again on exit
+    (wallet.cpp). z_sendmany and getalldata are gated on that flag
+    (rpc/server.cpp), so the gate closes briefly after each connected block --
+    including blocks this test mines itself. generate() returns when the block
+    is made, not when the wallet has finished rebuilding, so a spend issued
+    straight afterwards can be rejected with "RPC Command disabled until
+    witnesses are built." That is a race in the test, not a node fault: the
+    node reopens the gate on its own.
+    """
+    timeout = kw.pop("timeout", 900)
+    deadline = time.time() + timeout
+    last_err = None
+    while time.time() < deadline:
+        try:
+            return node.z_sendmany(*args, **kw)
+        except Exception as e:
+            if not _witness_gated(e):
+                raise
+            last_err = e
+            time.sleep(2)
+    raise RuntimeError(
+        "witness gate still shut after %ss: %s" % (timeout, last_err)
+    )
+
+
 def wait_until_witnesses_ready(node, zaddr, timeout=900):
-    """Retry z_getbalance until witness rebuild (-31/-33) is done."""
+    """Wait for the witness rebuild, then return the balance.
+
+    z_getbalance is gated by fBuildingWitnessCache but not by
+    initWitnessesBuilt, so it can succeed while z_sendmany is still refused.
+    Callers that go on to spend should use z_sendmany_when_ready().
+    """
     deadline = time.time() + timeout
     last_err = None
     while time.time() < deadline:
@@ -53,10 +98,7 @@ def wait_until_witnesses_ready(node, zaddr, timeout=900):
         except Exception as e:
             last_err = e
             msg = str(e).lower()
-            if "witness" in msg or "-33" in msg or "-31" in msg:
-                time.sleep(2)
-                continue
-            time.sleep(1)
+            time.sleep(2 if ("witness" in msg or "-33" in msg or "-31" in msg) else 1)
     raise RuntimeError(
         "witnesses not ready within %ss: %s" % (timeout, last_err)
     )
@@ -88,7 +130,7 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
         recipients = [{"address": zaddr, "amount": amount}]
 
         print("Shielding %s to Sapling..." % amount)
-        opid = node.z_sendmany(taddr, recipients, 1, fee)
+        opid = z_sendmany_when_ready(node, taddr, recipients, 1, fee)
         wait_and_assert_operationid_status(node, opid)
         node.generate(1)
         tip_before = node.getblockcount()
@@ -147,7 +189,7 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
         send_amt = Decimal("0.4")
         recipients2 = [{"address": zaddr2, "amount": send_amt}]
         print("Post-rebuild z_sendmany %s -> new sapling..." % send_amt)
-        opid2 = node.z_sendmany(zaddr, recipients2, 1, fee)
+        opid2 = z_sendmany_when_ready(node, zaddr, recipients2, 1, fee)
         wait_and_assert_operationid_status(node, opid2)
         node.generate(1)
         assert_equal(Decimal(node.z_getbalance(zaddr2)), send_amt)
@@ -168,8 +210,8 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
 
         zaddr3 = node.z_getnewaddress("sapling")
         send2 = Decimal("0.1")
-        opid3 = node.z_sendmany(
-            zaddr, [{"address": zaddr3, "amount": send2}], 1, fee
+        opid3 = z_sendmany_when_ready(
+            node, zaddr, [{"address": zaddr3, "amount": send2}], 1, fee
         )
         wait_and_assert_operationid_status(node, opid3)
         node.generate(1)
@@ -210,8 +252,8 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
         send3 = Decimal("0.05")
         bal_ready = wait_until_witnesses_ready(node, zaddr)
         assert_greater_than(bal_ready, Decimal("0"))
-        opid4 = node.z_sendmany(
-            zaddr, [{"address": zaddr4, "amount": send3}], 1, fee
+        opid4 = z_sendmany_when_ready(
+            node, zaddr, [{"address": zaddr4, "amount": send3}], 1, fee
         )
         wait_and_assert_operationid_status(node, opid4)
         node.generate(1)

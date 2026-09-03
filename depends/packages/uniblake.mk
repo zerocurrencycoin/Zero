@@ -1,83 +1,33 @@
-# uniblake: built from a local checkout, not a pinned tarball.
+# uniblake: BLAKE2b for Equihash. Built from a local checkout by default, not
+# a pinned tarball, because this tree and uniblake are developed together.
 #
-# --- how depends drives a package ---------------------------------------
-#
-# Six ordered steps, each guarded by a stamp file in the build directory:
-#
-#   .stamp_fetched  .stamp_extracted  .stamp_preprocessed
-#   .stamp_configured  .stamp_built  .stamp_staged
-#
-# The dependencies between them are ORDER-ONLY (`|` in funcs.mk). Make will
-# not rerun a step whose stamp exists, regardless of whether that step
-# produced anything. A stamp is a claim, not evidence.
-#
-# The build directory is named <version>-<build_id>, where build_id hashes the
-# recipe files and the version. Editing this file changes the id and creates a
-# fresh directory; deleting the directory without changing the recipe recreates
-# the same name, so any stamp written by a previous failed run applies again.
-#
-# --- how to debug a failure here ----------------------------------------
-#
-# The log tells you which step ran by what it echoes: "Extracting uniblake...",
-# "Building uniblake...", "Staging uniblake...". A missing line means the step
-# was SKIPPED because its stamp existed, not that it succeeded quietly.
-#
-#   cp: cannot stat 'build/libuniblake.a'   -- staging ran, build did not, or
-#                                              build ran and produced nothing
-#
-# Look in the build directory:
+# Stamps: depends guards each step with .stamp_<step> in the build dir and its
+# ordering is order-only, so a step whose stamp exists is skipped whether or not
+# it produced anything -- which is why both bugs noted at the build step below
+# were silent. To rerun one step, delete its stamp rather than the tree:
 #
 #   D=depends/work/build/$HOST/uniblake/*/
-#   ls -a $D            # Makefile, include, src, and which stamps exist
-#   ls $D/build         # the objects and the archive, if the build worked
-#
-# Then remove the specific stamp rather than the whole tree, so the step reruns
-# without discarding the rest:
-#
 #   rm $D/.stamp_built && make -C depends uniblake HOST=$HOST
 #
-# --- two failures this recipe has already had ---------------------------
-#
-# 1. extract_cmds copied into $(package)_extract_dir. depends has already cd'd
-#    there, so that nested a second copy one level down and the build found no
-#    Makefile. Copy into `.`.
-#
-# 2. depends names the compiler $(HOST)-gcc. That exists for a cross build and
-#    not for a native one: on Ubuntu x86_64-pc-linux-gnu-gcc is absent and gcc
-#    is what there is. Autotools packages never notice, because configure
-#    probes and falls back by itself. uniblake has no configure step, so it ran
-#    a compiler that was not there, produced nothing, and depends stamped the
-#    step as built -- leaving .stamp_built beside an empty directory and a
-#    staging error that named the wrong step.
-#
-# Both were silent. Hence the `test -f` at the end of build_cmds: a build that
-# produces no library must fail at the build step, where the message is true.
+# The build dir is <version>-<build_id>; build_id hashes the recipe and version,
+# so editing this file yields a fresh dir, while deleting the dir without
+# editing reuses the old name and any stamp left by a failed run.
 #
 package=uniblake
 $(package)_dependencies=
 
-# Three ways to select uniblake, in precedence order. The default tracks the
-# latest local checkout rather than a pin, because this tree and uniblake move
-# together: pinning during co-development means tag, push, re-hash and edit two
-# lines for every experiment.
+# Selection, in precedence order:
 #
-#   1. UNIBLAKE_SRC=/path   an explicit checkout
-#   2. UNIBLAKE_COMMIT=<sha> a pinned tarball, fetched and SHA-256 verified
-#      (with UNIBLAKE_SHA256=<hash>); for CI and release builds
-#   3. neither              the first checkout found next to this tree
+#   1. UNIBLAKE_SRC=/path                       explicit checkout
+#   2. UNIBLAKE_COMMIT=<sha> UNIBLAKE_SHA256=<hash>  pinned tarball; CI/release
+#   3. neither                                  first checkout found beside this tree
 #
-# Case 3 is what makes a plain `./zcutil/build.sh` work with no setup. It looks
-# beside this tree first, so a sibling clone is found without configuration,
-# then falls back to the historical location.
+# Case 3 is what lets a plain ./zcutil/build.sh work unconfigured. The version
+# stamp carries the checkout's HEAD (plus -dirty), so a uniblake commit changes
+# the build id and depends rebuilds on its own; no cache clearing.
 #
-# The version stamp carries the checkout's HEAD, so a uniblake commit changes
-# the build id and depends rebuilds on its own -- no manual cache clearing. A
-# dirty tree reads -dirty, so uncommitted work is never mistaken for committed.
-#
-# A pin, if used, must be at or after the commit renaming uniblake's output
-# knob to UB_BUILD. Earlier commits spell it `BUILD ?= build`, the build
-# triplet this tree exports as BUILD wins, the archive lands in ./<triplet>/,
-# and the build step's `test -f build/libuniblake.a` catches it.
+# A pin must be at or after the uniblake commit renaming its output knob to
+# UB_BUILD -- see the build step below.
 UNIBLAKE_COMMIT ?=
 UNIBLAKE_SHA256 ?=
 
@@ -114,9 +64,9 @@ $(package)_version:=$(shell cd $(UNIBLAKE_SRC) 2>/dev/null && \
 define $(package)_fetch_cmds
 endef
 
-# depends has already cd'd into the extract directory, so copy into `.`.
-# Copying into $(package)_extract_dir instead nests a second copy inside it and
-# the build step then finds no Makefile.
+# depends has already cd'd into the extract dir; copy into `.`. Copying into
+# $(package)_extract_dir nests a second copy inside it and the build finds no
+# Makefile.
 define $(package)_extract_cmds
   cp -R $(UNIBLAKE_SRC)/Makefile $(UNIBLAKE_SRC)/include $(UNIBLAKE_SRC)/src .
 endef
@@ -125,23 +75,23 @@ endif
 
 # No autotools: a plain Makefile producing one static library and two headers.
 # libsodium is uniblake's test oracle, not a dependency, so none is passed.
-# depends names the compiler $(HOST)-gcc, which exists for a cross build and
-# not for a native one: on Ubuntu x86_64-pc-linux-gnu-gcc is absent and gcc is
-# what there is. Packages with autotools do not notice because configure falls
-# back on its own; uniblake has no configure step, so it would run a compiler
-# that is not there, produce nothing, and let depends stamp the step as built.
 #
-# Resolve at build time rather than assuming either name.
+# CC/AR are resolved at build time. depends names the compiler $(HOST)-gcc,
+# which exists when cross-compiling and not natively (Ubuntu has gcc, not
+# x86_64-pc-linux-gnu-gcc). Autotools packages absorb this in configure;
+# uniblake has none, so an unresolved name would run nothing, produce nothing,
+# and still be stamped as built.
 #
-# UB_BUILD is uniblake's output directory. It is passed explicitly rather than
-# left to default because zcutil/build-native.sh puts BUILD -- the build triplet
-# -- in the environment for depends, and uniblake once spelled this knob `BUILD
-# ?= build`: the inherited triplet won, the archive landed in ./<triplet>/, and
-# this recipe staged an empty prefix without erroring. uniblake renamed the knob
-# to UB_BUILD to end that collision, and rejects a command-line BUILD outright.
+# UB_BUILD is uniblake's output dir, passed explicitly: zcutil/build-native.sh
+# exports BUILD (the build triplet) for depends, and uniblake once spelled this
+# knob `BUILD ?= build`, so the triplet won and the archive landed in
+# ./<triplet>/ while this recipe staged an empty prefix without erroring.
+# uniblake renamed it to UB_BUILD and now rejects a command-line BUILD. Naming
+# it here keeps the staged path a property of this recipe, not of whichever
+# uniblake is pinned.
 #
-# Naming it here keeps the staged path a property of this recipe rather than of
-# whatever default the pinned uniblake happens to carry.
+# The trailing `test -f` makes a build that produces no library fail at the
+# build step, where the message is true.
 define $(package)_build_cmds
   CC_REAL="$($(package)_cc)"; \
   command -v $$$$(echo $$$$CC_REAL | cut -d' ' -f1) >/dev/null 2>&1 || CC_REAL="$(default_build_CC)"; \
