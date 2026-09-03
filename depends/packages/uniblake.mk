@@ -101,6 +101,12 @@ ifeq ($(UNIBLAKE_SRC),)
 $(error no uniblake checkout found. Looked for a Makefile in: $(UNIBLAKE_SEARCH). Clone uniblake beside this tree, pass UNIBLAKE_SRC=/path, or pin with UNIBLAKE_COMMIT=<sha> UNIBLAKE_SHA256=<hash>)
 endif
 
+# An explicit UNIBLAKE_SRC skips the search, so check it points at something
+# before the extract step fails on a missing file with no useful message.
+ifeq ($(wildcard $(UNIBLAKE_SRC)/Makefile),)
+$(error UNIBLAKE_SRC=$(UNIBLAKE_SRC) has no Makefile -- not a uniblake checkout)
+endif
+
 $(package)_version:=$(shell cd $(UNIBLAKE_SRC) 2>/dev/null && \
     printf '%s%s' "$$(git rev-parse --short HEAD 2>/dev/null || echo nogit)" \
                   "$$(git diff --quiet 2>/dev/null || echo -dirty)")
