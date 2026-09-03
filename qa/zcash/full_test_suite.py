@@ -24,10 +24,14 @@ def repofile(filename):
 # Same exclusions as contrib/run-tests.sh -- canonical source: qa/zcash/test_filters.sh
 def _load_test_filters():
     script = repofile('qa/zcash/test_filters.sh')
+    # NUL-separated: an empty filter must stay its own field. A newline
+    # separator plus strip() collapsed the two, handing the GTest filter to
+    # Boost (every suite "skipped because disabled") and leaving GTest
+    # unfiltered (the held CachedWitnessesCleanIndex ran, and aborted).
     out = subprocess.check_output(
-        ['bash', '-c', 'source "$1" && printf "%s\\n%s" "$BOOST_PASS_EXCLUDE" "$GTEST_PASS_EXCLUDE"', 'bash', script],
+        ['bash', '-c', 'source "$1" && printf "%s\\0%s" "$BOOST_PASS_EXCLUDE" "$GTEST_PASS_EXCLUDE"', 'bash', script],
         text=True,
-    ).strip().split('\n', 1)
+    ).split('\0')
     return out[0], out[1] if len(out) > 1 else ''
 
 BOOST_PASS_EXCLUDE, GTEST_PASS_FILTER = _load_test_filters()

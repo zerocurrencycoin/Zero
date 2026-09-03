@@ -45,12 +45,19 @@ private:
     // caller. aligned_alloc requires a size that is a multiple of the
     // alignment, which ub_state_size() already satisfies, but round anyway
     // rather than depend on it.
+    //
+    // std::aligned_alloc is C++17. The C feature macros say nothing about
+    // whether it is in namespace std -- glibc's <cstdlib> defines
+    // _ISOC11_SOURCE for its own headers regardless of the C++ standard, so
+    // testing them selects the C++17 branch under -std=c++14 and the name is
+    // not there. __cplusplus is the only thing that answers the question.
+    // posix_memalign covers every other case, and this tree builds as C++14.
     static ub_state* alloc()
     {
         const size_t a = ub_state_align();
         const size_t n = ((ub_state_size() + a - 1) / a) * a;
         void* s = NULL;
-#if defined(_ISOC11_SOURCE) || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L) || __cplusplus >= 201703L
+#if __cplusplus >= 201703L
         s = std::aligned_alloc(a, n);
 #else
         if (posix_memalign(&s, a < sizeof(void*) ? sizeof(void*) : a, n) != 0) s = NULL;

@@ -210,12 +210,12 @@ typedef bucket0 digit0[NBUCKETS];
 typedef bucket1 digit1[NBUCKETS];
 
 // size (in bytes) of hash in round 0 <= r < WK
-u32 hashsize(const u32 r) {
+inline u32 hashsize(const u32 r) {
   const u32 hashbits = WN - (r+1) * DIGITBITS + RESTBITS;
   return (hashbits + 7) / 8;
 }
 
-u32 hashwords(u32 bytes) {
+inline u32 hashwords(u32 bytes) {
   return (bytes + 3) / 4;
 }
 
@@ -288,7 +288,7 @@ struct htalloc {
 
 typedef au32 bsizes[NBUCKETS];
 
-u32 min(const u32 a, const u32 b) {
+inline u32 min(const u32 a, const u32 b) {
   return a < b ? a : b;
 }
 
@@ -737,7 +737,7 @@ typedef struct {
   equi *eq;
 } thread_ctx;
 
-void barrier(pthread_barrier_t *barry) {
+inline void barrier(pthread_barrier_t *barry) {
   const int rc = pthread_barrier_wait(barry);
   if (rc != 0 && rc != PTHREAD_BARRIER_SERIAL_THREAD) {
 //    printf("Could not wait on barrier\n");
@@ -745,7 +745,7 @@ void barrier(pthread_barrier_t *barry) {
   }
 }
 
-void *worker(void *vp) {
+inline void *worker(void *vp) {
   thread_ctx *tp = (thread_ctx *)vp;
   equi *eq = tp->eq;
 

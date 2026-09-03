@@ -38,9 +38,15 @@ typedef u32 proof[PROOFSIZE];
 
 
 enum verify_code { POW_OK, POW_DUPLICATE, POW_OUT_OF_ORDER, POW_NONZERO_XOR };
-const char *errstr[] = { "OK", "duplicate index", "indices out of order", "nonzero xor" };
+// This header is included by more than one translation unit (miner.cpp and the
+// equihash tests), so everything it defines needs internal or inline linkage
+// or the link fails with multiple definitions. An inline variable would be the
+// direct answer but is C++17 and this tree builds as C++14, so errstr gets
+// internal linkage instead: it is a table of string literals for decoding
+// verify_code, read-only and cheap to have one copy of per TU.
+static const char *const errstr[] = { "OK", "duplicate index", "indices out of order", "nonzero xor" };
 
-void genhash(const ub_state *ctx, u32 idx, uchar *hash) {
+inline void genhash(const ub_state *ctx, u32 idx, uchar *hash) {
   // No state copy: ub_hash_tail reads the shared prefix and writes the digest.
   u32 leb = htole32(idx / HASHESPERBLAKE);
   uchar blakehash[HASHOUT];
@@ -48,7 +54,7 @@ void genhash(const ub_state *ctx, u32 idx, uchar *hash) {
   memcpy(hash, blakehash + (idx % HASHESPERBLAKE) * WN/8, WN/8);
 }
 
-int verifyrec(const ub_state *ctx, u32 *indices, uchar *hash, int r) {
+inline int verifyrec(const ub_state *ctx, u32 *indices, uchar *hash, int r) {
   if (r == 0) {
     genhash(ctx, *indices, hash);
     return POW_OK;
@@ -74,12 +80,12 @@ int verifyrec(const ub_state *ctx, u32 *indices, uchar *hash, int r) {
   return POW_OK;
 }
 
-int compu32(const void *pa, const void *pb) {
+inline int compu32(const void *pa, const void *pb) {
   u32 a = *(u32 *)pa, b = *(u32 *)pb;
   return a<b ? -1 : a==b ? 0 : +1;
 }
 
-bool duped(proof prf) {
+inline bool duped(proof prf) {
   proof sortprf;
   memcpy(sortprf, prf, sizeof(proof));
   qsort(sortprf, PROOFSIZE, sizeof(u32), &compu32);
@@ -90,7 +96,7 @@ bool duped(proof prf) {
 }
 
 // verify Wagner conditions
-int verify(u32 indices[PROOFSIZE], const ub_state *ctx) {
+inline int verify(u32 indices[PROOFSIZE], const ub_state *ctx) {
   if (duped(indices))
     return POW_DUPLICATE;
   uchar hash[WN/8];
