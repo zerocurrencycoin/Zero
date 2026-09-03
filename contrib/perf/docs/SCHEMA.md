@@ -7,7 +7,9 @@ rather than silently averaged together.
 Applies to both ledgers under `reindex-profile/bench-summaries/`:
 `ledger.jsonl` (throughput) and `cpu_ledger.jsonl` (CPU attribution).
 
-Status: **specified, not yet implemented.** Migration in `TASKS.md` Track S.
+Status: **specified, partially implemented.** The `*.v2.jsonl` ledgers carry
+`schema`, `platform` and `build`; `features` is still `{}` on every row.
+Migration is tracked as **`TASKS.md` A2** (there is no "Track S").
 
 ---
 
@@ -305,7 +307,7 @@ fabrication.
 
 ## 8. Migration
 
-Ordered so no step depends on a later one. Detail in `TASKS.md` Track S.
+Ordered so no step depends on a later one. Detail in `TASKS.md` **A2**.
 
 1. Back-annotate 49 rows: `schema: 1`, this system's `platform` block, `build`
    where recoverable, `date_confidence: estimated`. **Write a new file, keep

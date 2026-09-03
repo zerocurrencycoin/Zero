@@ -43,7 +43,7 @@ a product of independent factors, and the plan below is organised by them:
 | Factor | Rough contribution | Stage |
 |--------|-------------------:|-------|
 | Algorithm/data-structure (allocation, sort, index storage) | 2-10x | S1 |
-| SIMD (AVX2/AVX-512/NEON) on hash and merge | 2-5x | S2 |
+| SIMD on hash and merge | 2-5x; **hash half is x86-64 AVX2 only** (`VENDORED.md` S3.7) | S2 |
 | Multi-core | 4-16x (core count, memory permitting) | S3 |
 | GPU | 10-100x over one core | S4 |
 

@@ -300,3 +300,130 @@ cleanup_secp256k1_la() {
     fi
   fi
 }
+
+# --- build validation -----------------------------------------------------
+#
+# depends steps are guarded by stamp files and the dependencies between them
+# are order-only, so make will not rerun a step whose stamp exists regardless
+# of whether that step produced anything. A stamp is a claim, not evidence.
+# The checks below verify outcomes rather than trusting exit status alone.
+#
+# Each returns non-zero on failure and prints what was expected and what was
+# found, so a failure names the step that actually broke.
+#
+# Every check opens with `local -; set +x`. The entry scripts run under
+# `set -x`, and these checks read large artefacts -- zerod's symbol table is
+# over 3 MB -- so tracing one dumps the whole artefact into the log and the
+# terminal. `local -` (bash 4.4+) scopes shell options to the function it runs
+# in, restoring them on return by any path, so it must appear in each check
+# rather than in a shared helper.
+
+# Fail unless every named package is installed in the depends prefix.
+# Usage: verify_depends_prefix HOST pkg:relpath [pkg:relpath ...]
+verify_depends_prefix() {
+  local -; set +x
+  local host="$1"; shift
+  local prefix="$REPO_ROOT/depends/$host" missing=0 spec pkg rel
+  if [[ ! -d "$prefix" ]]; then
+    warn "depends prefix absent: $prefix"
+    return 1
+  fi
+  for spec in "$@"; do
+    pkg="${spec%%:*}"; rel="${spec#*:}"
+    if [[ ! -e "$prefix/$rel" ]]; then
+      warn "depends: $pkg did not install $rel"
+      missing=1
+    fi
+  done
+  [[ $missing -eq 0 ]]
+}
+
+# Fail if any depends build directory carries a configured/extracted stamp
+# without a built one. That is an abandoned build: the stamps would be honoured
+# on the next run and the step silently skipped.
+verify_depends_stamps() {
+  local -; set +x
+  local host="$1" base d stale=0
+  base="$REPO_ROOT/depends/work/build/$host"
+  [[ -d "$base" ]] || return 0
+  while IFS= read -r d; do
+    [[ -n "$d" ]] || continue
+    if [[ -e "$d/.stamp_configured" && ! -e "$d/.stamp_built" ]]; then
+      warn "depends: abandoned build (configured, never built): ${d#"$REPO_ROOT"/}"
+      warn "  remove it so the step reruns: rm -rf '${d#"$REPO_ROOT"/}'"
+      stale=1
+    fi
+  done < <(find "$base" -mindepth 2 -maxdepth 2 -type d 2>/dev/null)
+  [[ $stale -eq 0 ]]
+}
+
+# Fail unless every named file exists and is non-empty.
+# Usage: verify_outputs label path [path ...]
+verify_outputs() {
+  local -; set +x
+  local label="$1"; shift
+  local p missing=0
+  for p in "$@"; do
+    if [[ ! -f "$p" ]]; then
+      warn "$label: missing $p"; missing=1
+    elif [[ ! -s "$p" ]]; then
+      warn "$label: empty $p"; missing=1
+    fi
+  done
+  [[ $missing -eq 0 ]]
+}
+
+# Fail unless the binary runs and reports a version. A binary that links but
+# cannot start is a build failure that `make` alone does not report.
+verify_binary_runs() {
+  local -; set +x
+  local bin="$1" out
+  if [[ ! -x "$bin" ]]; then
+    warn "not executable: $bin"; return 1
+  fi
+  if ! out="$("$bin" --version 2>&1 | head -1)"; then
+    warn "$bin --version failed to run"; return 1
+  fi
+  if [[ -z "$out" ]]; then
+    warn "$bin --version produced no output"; return 1
+  fi
+  notice "$out"
+}
+
+# Fail unless the binary resolves every expected symbol from a static library
+# it is supposed to have linked. Catches a library that staged but was not
+# linked, which otherwise surfaces only at runtime.
+# Usage: verify_symbols BINARY sym [sym ...]
+verify_symbols() {
+  local -; set +x
+  local bin="$1"; shift
+  local sym missing=0 tmp
+  [[ -x "$bin" ]] || { warn "not executable: $bin"; return 1; }
+  # nm output goes to a file, not a variable: it is large enough that holding
+  # it in the shell is wasteful even untraced.
+  tmp="$(mktemp)" || { warn "mktemp failed"; return 1; }
+  if ! nm "$bin" >"$tmp" 2>/dev/null; then
+    rm -f "$tmp"; warn "nm failed on $bin"; return 1
+  fi
+  for sym in "$@"; do
+    if ! grep -qE "[TSDB] _?${sym}\$" "$tmp"; then
+      warn "$bin: symbol not linked in: $sym"; missing=1
+    fi
+  done
+  rm -f "$tmp"
+  [[ $missing -eq 0 ]]
+}
+
+# Validate a JSON file parses. Skips silently if no interpreter is available,
+# so the build does not fail on a machine without python3.
+verify_json() {
+  local -; set +x
+  local f="$1"
+  [[ -f "$f" ]] || { warn "missing JSON: $f"; return 1; }
+  command -v python3 >/dev/null 2>&1 || return 0
+  if ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" 2>/dev/null; then
+    warn "invalid JSON: $f"
+    python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" 2>&1 | tail -3 >&2 || true
+    return 1
+  fi
+}

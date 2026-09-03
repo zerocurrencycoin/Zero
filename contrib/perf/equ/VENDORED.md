@@ -454,30 +454,23 @@ the concurrency model, which is a sizing exercise this document does not do.
 `PLAN.md` S1.2's "under 1 GB" predates the DAG measurement and should be read as
 one point on this menu rather than a goal.
 
-### 3.7 The architecture caveat
+### 3.7 BLAKE2b compression kernel
 
-Upstream's fast paths are **`blake2-avx2/blake2bip.h`** and xenoncat's x86
-assembly. Neither exists for NEON. So on this host the realistic near-term gain
-is smaller than 1.5-2.0x, and the honest statement is:
-
-- **x86-64**: 1.5-2.0x is reachable by adopting upstream's existing AVX2 code.
-- **arm64**: requires a NEON `blake2bip` equivalent that **does not exist
-  upstream** -- new work, not a port.
-
-This is the same architecture split flagged in S1.1a1 and `PLAN.md` S5: NEON is
-128-bit and processes 2 lanes where AVX2 does 4, so even a NEON port would
-reach roughly half the lane parallelism. **The 67% share is architecture-
-independent and measured; the achievable speedup is not.**
+The compression kernel comes from uniblake. Kernel selection, per-architecture
+measurement and any SIMD work on it are documented and maintained there
+(`backends/README.md`); this tree does not duplicate them.
 
 ### 3.8 What this reorders
 
 1. **Multi-way BLAKE2b in the tromp path** is now the highest-value Equihash
    item -- above every S1.2 memory target, which address the default solver
    production does not select (S2).
-2. **NEON blake2b: on hold.** The mining-track share is measured (S3.1), but
-   the work itself is deferred -- there is no upstream NEON `blake2bip`, so it
-   is new development rather than a port. The measured basis is recorded here
-   so the decision can be revisited; it is not a queued item.
+2. **NEON blake2b: closed, not deferred.** The kernel was written and measured
+   in uniblake and is **1.8x slower** than the scalar one (S3.7). This is a
+   result, not a postponement: there is nothing to revisit unless the kernel or
+   the hardware changes, and if it does, that happens in uniblake. Broader NEON
+   use -- the round merge, or other compute-intensive algorithms -- is a
+   separate question and is **TBD, on hold**.
 3. **Do not port Cantor.** Third independent confirmation.
 
 ---
@@ -602,72 +595,33 @@ and that is a governance question rather than an engineering one.
 
 ## 3.11 UniBlake: evaluation for Zero
 
-`~/Work/ZK/Requihash/BLAKE/UniBlake.md` designs a unified C/C++ BLAKE2b/3 with
-runtime CPU dispatch, personalization in the reference path, a forced-implementation
-override, and self-test gating. **Status: DESIGN + PoC**, green on arm64 macOS,
-with SIMD kernels (U2), batch (U4) and BLAKE3 (U6) explicitly **unbuilt**.
+> **Obsolete. Zero adopted uniblake; this pre-adoption evaluation is retained
+> only because it records why adoption was gated.** Current state:
+> `depends/packages/uniblake.mk`, and Equihash hashes through the library on
+> every path. The measured gain was structural -- `ub_hash_tail` reads the
+> shared prefix state instead of copying it, **1.15x** per digest -- not
+> kernel-level. Read S3.7 instead; do not use the assessment below for any
+> current claim.
 
-### 3.11a Its central finding, verified against Zero's build
+### 3.11a What is still worth taking
 
-UniBlake's justification is that for BLAKE2b the intersection of
-**runtime dispatch + modern x86 + NEON is empty** across the entire field. Its
-table asserts libsodium has "SSSE3/SSE4.1/**AVX2** compress TUs (verified)" but
-**no NEON**.
+Two patterns from uniblake's design remain useful to Zero independently of the
+adoption decision:
 
-**Checked against Zero's actual dependency** [Verified, `nm` on the built
-`libsodium.a` for `aarch64-apple-darwin`]:
+1. **A forced-implementation override.** Turns "does this kernel match the
+   reference bit-for-bit" into a runtime differential rather than a
+   build-configuration exercise -- directly applicable to `METHOD.md` S3.2's
+   requirement for any BLAKE2b kernel swap.
+2. **Compiling a vendored reference under a renamed symbol prefix** as an
+   in-tree oracle. Zero has the same need for any solver or hash change and
+   currently satisfies it by rebuild-and-diff, which cannot run both paths in
+   one process.
 
-| Symbol | Present? |
-|--------|----------|
-| `blake2b_compress_ref` | **yes** -- the only compress implementation |
-| `blake2b_compress_ssse3/sse41/avx2` | no (x86 TUs, not built for this target) |
-| **`sodium_runtime_has_neon`** | **yes -- a probe with no kernel behind it** |
+The rest of the pre-adoption assessment -- the libsodium symbol survey, the
+benefit/cost table, and the "track, do not adopt yet" verdict -- is obsolete
+and has been removed. See S3.7 for current kernel status.
 
-So libsodium ships a NEON *detector* and no NEON *kernel*. That is UniBlake's
-claim confirmed from a second direction, and it explains the live profile
-(S3.1): `blake2b_compress_ref` is the leaf on a machine that has NEON.
-
-### 3.11b What it would buy Zero, and at what cost
-
-Zero's consensus surface constrains this tightly. The solver needs
-`ZERO_PoW` personalization and a **48-byte** digest
-(`../equ/VENDORED.md` S3.4); UniBlake's R2 requirement -- personalization in
-the reference path from day one -- is exactly right for that, and is the
-requirement that disqualifies OpenSSL EVP in its own table.
-
-| | Benefit | Cost |
-|---|---|---|
-| **arm64 (this host)** | A NEON kernel where none exists today. Generation is ~72% of solve time (S3.1), so a working NEON single-message kernel is the only change that reaches the dominant phase | **U2 is unbuilt.** Adopting today gets dispatch scaffolding around the same `_ref` kernel -- no speedup, plus the ~3.5% API overhead unchanged |
-| **x86-64** | Would engage AVX2 where libsodium already does; no gain over status quo | Nil to negative |
-| **Either** | Removes the `sodium_memzero` scrub if a raw compress path is exposed | ~1.8% (S3.1) |
-
-### 3.11c Verdict: track, do not adopt yet
-
-**Not adoptable now** -- the part Zero needs (U2 SIMD kernels, specifically
-NEON) is the part not built. Adopting the design without kernels means new
-dispatch machinery around the identical reference compress.
-
-**Worth tracking closely**, because the requirement set is unusually
-well-matched: personalization-carrying reference, runtime dispatch with forced
-override for differential testing, and self-test gating are precisely what a
-consensus-critical hash swap needs (`VENDORED.md` S3.4 sets the same bar
-independently -- bit-exact differential before trusting any kernel).
-
-**Two things Zero can take from it immediately, at no dependency cost:**
-
-1. **The `UB_FORCE_IMPL` pattern.** A forced-implementation override turns
-   "does the SIMD kernel match the reference bit-for-bit" into a runtime
-   differential rather than a build-configuration exercise. That is directly
-   applicable to `METHOD.md` S3.2's requirement for BLAKE2b kernel swaps.
-2. **Compiling the vendored reference under a renamed symbol prefix** as a
-   zero-edit in-tree oracle -- their PoC finding (2). Zero has the same need
-   for any solver or hash change and currently satisfies it by rebuild-and-diff,
-   which is slower and cannot run both paths in one process.
-
-**Prerequisite before any of this matters:** an x86-64 baseline
-(`../docs/TASKS.md` B2). On arm64 both libsodium and tromp's bundled BLAKE2
-lack a kernel, so the swap question is moot; on x86-64 tromp's SSE4.1 would
-engage while libsodium's would not, and that gap is unmeasured.
+---
 
 ## 4. Cross-implementation survey
 

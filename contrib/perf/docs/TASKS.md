@@ -1,6 +1,6 @@
 # Tasks
 
-What is open, in what order. **14 items**, each one deliverable with sub-steps.
+What is open, in what order. **15 items**, each one deliverable with sub-steps.
 
 **This file carries no evidence.** Every "why" lives in `FINDINGS.md` (what was
 measured), `../PerfGroth.md` (Groth16), or a spec, and is cited here rather
@@ -37,6 +37,7 @@ unless a dependency is named. **D** runs in parallel throughout.
 | C2 Remaining measurement gaps | ToDo | Open | M | `FINDINGS.md` S4 |
 | C3 Inherited build/DB defects | ToDo | Open | M | `../BUILD_RECONFIG.md` |
 | C4 Per-workload utilization profile | ToDo | Open | L | this file, C4 |
+| C5 Document clean-up | ToDo | Open | M | this file, C5 |
 | D1 Equihash / blake2 integration | **InProgress** | Open | M | `../equ/README.md` |
 | D2 `Xc.reserve()` | ToDo | Open | XS | `../equ/FINDINGS.md` S1.1b |
 | D3 Fold `len` to compile-time | **InTest** | Open | XS | **1.22x solve measured**; `../equ/FINDINGS.md` S3.2 |
@@ -641,6 +642,79 @@ x86-64 cell are currently empty, and an empty cell is the honest rendering.
 **Kanban: ToDo. Effort L**, dominated by actually running the missing cells.
 Depends on **A4**; the x86-64 column depends on **B2**.
 
+### C5. Document clean-up: audience, altitude, and accuracy
+
+The doc set is **~11,000 lines** across 25 owned files. `docs/` was consolidated
+once (`MIGRATION.md`, complete 2026-08-21) and holds the line at seven files,
+but two things happened after: `Perf.md` (**1,875 lines**) stayed live rather
+than being archived, and the `equ/` set grew to **~3,900 lines across 6 files**
+outside that discipline. The result is a set that is accurate in the small and
+unreadable in the large.
+
+**The problem is audience, not length.** Almost nothing distinguishes what a
+node operator, a maintainer, and someone changing the solver each need. So
+kernel-level internals -- NEON register pressure, tromp bucket tags, BLAKE2b
+round structure -- sit on the same page as facts a reader needs in the first
+minute. **Very few readers ever need that layer**, and it should be segregated
+or referenced out, not deleted wholesale.
+
+| Step | What | State |
+|------|------|-------|
+| a | **Define reader types and route by them.** Operator / maintainer / solver-implementer. Each document declares its audience in its first lines; `OVERVIEW.md` routes | ToDo |
+| b | **Segregate deep internals.** Kernel and solver-internal material moves behind a clearly-marked boundary (an appendix, or `equ/SOLVER.md` as the acknowledged deep tier) and is *cited* from the readable tier, never restated | ToDo |
+| c | **Strike obsolete history.** Tried-and-failed and superseded lines are removed, not narrated. Keep a result only where it stops the work being retried; one or two lines, not a section | ToDo |
+| d | **Purge invented technical detail.** Any mechanism claim not traceable to code or a measurement is struck. See the correction note below | ToDo |
+| e | **Fix schema statements.** `SCHEMA.md` claimed "not yet implemented" while `*.v2.jsonl` already carried `schema`/`platform`/`build`, and twice cited a "Track S" that never existed. **Done** -- but the class needs a sweep: status lines that drifted from what the code does | **Partial** |
+| f | **Fold or archive `Perf.md`.** 1,875 lines, superseded in part by `docs/`. Either archive with a scope stamp or fold what is still current | ToDo |
+| g | **Apply the `equ/` set to the same rules `docs/README.md` sets** -- one subject per file, numbers cited not restated, audience declared | ToDo |
+
+**Accuracy rules this item enforces** (they caused the defects it cleans up):
+
+1. **State only what is used.** For the hash kernel, Zero uses AVX2 on 64-bit
+   Intel, single-threaded. Do not represent other ISAs, kernels or threading
+   modes -- not as a plan, a ceiling, or an aside.
+2. **No invented mechanism.** If a claim is not read from the source or
+   measured, it does not go in.
+3. **BLAKE2b and Equihash internals are documented in the uniblake project,
+   and the cross-implementation survey in the ZK reference tree.** Reference
+   them; do not restate here.
+4. **No transient results in durable documents.** Percentage shares,
+   ns/digest figures and speedups change with hardware, compiler and workload.
+   They belong in a dated capture or the ledger, cited by id -- never inline in
+   a document meant to stay true. The same applies to status: do not write what
+   is enabled or disabled "today".
+5. **Zero documents Zero.** Scope is Zero's use cases, load and performance
+   patterns. Solver and hash-library internals are another project's subject.
+
+**Finding the duplication.** Grepping for **`NEON`**, **`AVX2`**, **`tromp`**,
+**`blake2`** or **`Equihash`** locates it quickly -- these terms cluster in the
+material that is most duplicated, most transient, and least Zero-specific.
+Current counts: `tromp` 120 times across 9 files (37 in `../equ/VENDORED.md`,
+21 in `../equ/FINDINGS.md`, 19 in `../equ/METHOD.md`, 17 in
+`../equ/SOLVER.md`); `NEON` 59 times, 34 of them in `../Perf.md`. Treat a high
+count as the signal to cull, repartition or obsolete the file outright rather
+than to edit it in place.
+
+**Deferred from the 2026-09-03 pass** -- fixed at the source, not yet swept:
+
+| # | What | Where |
+|---|------|-------|
+| 1 | 34 `NEON` mentions and the bulk of the tree's stale SIMD claims | `../Perf.md` |
+| 2 | tromp and solver-internal material at a depth no Zero reader needs; S4 is a survey of other projects' implementations | `../equ/` |
+| 3 | Transient shares inline in profile notes rather than cited from a capture | `../mine/*.md` |
+| 4 | NEON-era wording | `../Measures.md`, `../README.md` |
+
+**Correction on record (2026-09-03).** `PLAN.md` S5 claimed the merge loop
+vectorises via "XOR and compare over 24-bit keys". That mechanism was never
+verified against the source and is struck. The same pass asserted a build-time
+claim about which SIMD kernel was active, which was both wrong and the kind of
+status statement rule 4 forbids. Recorded because (d) exists to catch this
+class: the failure mode is writing from inference rather than from the tree.
+
+**Kanban: ToDo. Effort M.** No product code. Do (d) and (e) first -- they are
+correctness, not tidying. (a) and (b) are the design decision and should be
+agreed before (f) or (g) move any text.
+
 ---
 
 ## D -- parallel: Equihash and blake2
@@ -1080,11 +1154,13 @@ Stated explicitly so nothing above reads as finished when it is not.
 each was set down because something else was worth more at the time, or because
 the evidence then available said the return was small. That is a **judgement
 against a snapshot**, and several of the snapshots are already stale -- the
-the Equihash analysis (`../equ/`) re-examined NEON on the mining track after it
-had been set aside on the sync track -- and found the share larger but the work
-harder, leaving it on hold rather than reopened. That is the pattern this rename
-anticipates: the snapshot changes, so the judgement is revisited, not that every
-revisit reverses.
+Equihash analysis (`../equ/`) re-examined NEON on the mining track after it had
+been set aside on the sync track, and found the share larger but the work
+harder. That item has since been **settled outright**: the kernel was built in
+uniblake and measured slower than scalar, so it left the Aside list as a
+negative result rather than as a reopened one. That is the pattern this rename
+anticipates -- the snapshot changes, so the judgement is revisited; a revisit
+can close an item as readily as reopen it.
 
 Each item states the condition that would reopen it. An item with no such
 condition is either genuinely closed or has not been thought through -- both
@@ -1095,7 +1171,7 @@ worth knowing.
 | Drop `cs_main` during the witness height walk | Abort-and-restart cannot converge once walk time exceeds block spacing | A design that checkpoints rather than restarts; or NOTEIDX reducing walk time below spacing |
 | CleanIndex gtest harness | Needs anchors and disk-backed blocks the gtest harness lacks | `reindex_shielded.py` proving insufficient, or the gtest harness gaining disk-backed fixtures |
 | FDCACHE buffer-size sweep | Measured null (`FINDINGS.md` S3.2) | A workload that is **not** CPU-bound -- a slower-storage host, random `getblock` serving (A5-a2), or post-Groth-batching |
-| NEON blake2b | Sync track: 3-4% of post-Sapling cost (`FINDINGS.md` S2.5). Mining track: share is larger but no upstream NEON kernel exists, so it is new development | **On hold.** Revisit if an arm64 mining target becomes real; the measured basis is in `../equ/VENDORED.md` S3.1/S3.7 |
+| SIMD for the Equihash round merge | Not analysed | **TBD, on hold.** Reopens on a decision to invest in arm64 mining |
 | Halo / Orchard | Not Zero consensus | A deliberate NU that adopts them. Not a lab decision |
 | Post-Sapling bootstrap / sync captures **as a comparison** | A and B agree within ~3 points (`FINDINGS.md` S3.4) | Superseded in part: C4 schedules these as **utilization** cells, which is a different question than re-proving the equivalence |
 | Remove dead `nNotarizations` | Not worth a commit of its own | `chain.h` being touched for another reason |

@@ -357,19 +357,12 @@ Both are S8/platform items, both V1 (they cannot change results).
 sort": partition on the collision digit, never fully sort). Bucket count must
 be derived for (192,7) -- see S2 above; do not copy a (200,9) constant.
 
-### S1.4 Pointed BLAKE2b work (only what the profile justifies)
+### S1.4 Batched leaf generation
 
-Zero's build links `blake2b_compress_ref`, the **portable C fallback**, on
-arm64 [Measured: neon probe, `test-logs/res-mine-20260819/`]. Two separable
-questions:
-
-- **Is a better scalar/SIMD kernel selected at build time?** Free win if the
-  answer is no and a dispatching implementation is available.
-- **Can leaf generation be batched?** Equihash generates 33.5M independent
-  leaves -- ideal for `hash_many`-style batched BLAKE2b. But note the
-  Requihash finding: batched SIMD converged to *parity* at larger parameters
-  because **memory bandwidth, not compute, bounded the batch** [Reported].
-  Measure before committing.
+Equihash generates 33.5M independent leaves, which suits a batched BLAKE2b
+entry point. Measure batch against per-digest on the target host before
+committing to it: batching has elsewhere converged to parity at larger
+parameters because memory bandwidth rather than compute bounded it.
 
 **Stage 1 exit:** peak memory at or below ~2.2 GB (`Xt`-bound) with the
 allocation waste removed, a measured speedup on (192,7) with
@@ -382,15 +375,11 @@ build stamped.
 
 Only after S1, because SIMD accelerates whatever layout S1 leaves behind.
 
-| Target | Instruction set | Notes |
-|--------|-----------------|-------|
-| x86-64 | **AVX2** | The baseline for mining hosts; xenoncat's (200,9) solver was AVX2 |
-| x86-64 | AVX-512 | Narrow deployment, downclocking risk -- measure, do not assume |
-| arm64 | **NEON** | macOS Apple Silicon and ARM Linux; currently unused (S1.4) |
+| Target | Instruction set |
+|--------|-----------------|
+| x86-64 | AVX2, single-threaded |
 
-Two distinct targets: **BLAKE2b compression** (well-trodden; reference AVX2 and
-NEON kernels exist) and **the merge/sort inner loop** (XOR and compare over
-24-bit keys vectorise, but gains depend on the S1 layout).
+The BLAKE2b compression kernel comes from uniblake. Work on it belongs there.
 
 #### Vector width and cache architecture, measured
 

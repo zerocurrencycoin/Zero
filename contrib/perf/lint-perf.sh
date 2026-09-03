@@ -96,6 +96,13 @@ run_check() {
                   contrib/perf/fix_ascii.py \
                     $(git ls-files 'contrib/perf/*.md' 'contrib/perf/**/*.md' \
                       | grep -v '^contrib/perf/keep/') 2>/dev/null ;;
+    json)       # Tracked JSON must parse. feature_bundles.json is read by
+                # every launcher through platform_stamp.py, so a syntax error
+                # there fails a campaign after the run rather than before it.
+                for f in $(git ls-files 'contrib/perf/*.json'); do
+                  python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" 2>/dev/null \
+                    || printf '%s: invalid JSON\n' "$f"
+                done ;;
     shellcheck) # -f gcc gives "path:line:col: level: msg", so the same
                 # path filter works as for the other checks.
                 shellcheck -f gcc --exclude="$SHELLCHECK_EXCLUDE" \
@@ -104,7 +111,7 @@ run_check() {
   esac
 }
 
-CHECKS="self-tests unicode unicode-docs citations shellcheck whitespace shebang shell-locale
+CHECKS="self-tests unicode unicode-docs citations json shellcheck whitespace shebang shell-locale
         python-utf8-encoding include-guards includes locale-dependence
         make-dist cargo-patches"
 

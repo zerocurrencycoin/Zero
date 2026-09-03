@@ -1,6 +1,6 @@
 {
-  "_comment": "Named feature combinations. Schema and rules: contrib/perf/docs/SCHEMA.md S4. A bundle is a NAME for a feature set, not a substitute -- both are stored on every row. Never redefine an existing bundle: add a -v2 instead, or old rows silently change meaning. Bump bundle_v when adding.",
-  "bundle_v": 2,
+  "_comment": "Named feature combinations. Schema and rules: contrib/perf/docs/SCHEMA.md S4. A bundle is a NAME for a feature set, not a substitute -- both are stored on every row. Never redefine an existing bundle: add a -v2 instead, or old rows silently change meaning. Bump bundle_v when adding. bundle_v 3 adds HASH_BACKEND and EQUIHASH_BATCH_HASH: before it, a uniblake build and a libsodium build produced identical bundle keys.",
+  "bundle_v": 3,
   "bundles": {
     "stock": {
       "description": "What ships to users. The default comparison baseline.",
@@ -9,7 +9,8 @@
         "ZERO_FDCACHE": false,
         "ENABLE_WALLET": true,
         "ENABLE_MINING": true,
-        "ENABLE_ZMQ": true
+        "ENABLE_ZMQ": true,
+        "HASH_BACKEND": "uniblake"
       },
       "runtime": {},
       "effective": {
@@ -24,7 +25,8 @@
         "ZERO_FDCACHE": true,
         "ENABLE_WALLET": true,
         "ENABLE_MINING": true,
-        "ENABLE_ZMQ": true
+        "ENABLE_ZMQ": true,
+        "HASH_BACKEND": "uniblake"
       },
       "runtime": {},
       "effective": {
@@ -39,7 +41,8 @@
         "ZERO_FDCACHE": true,
         "ENABLE_WALLET": true,
         "ENABLE_MINING": true,
-        "ENABLE_ZMQ": true
+        "ENABLE_ZMQ": true,
+        "HASH_BACKEND": "uniblake"
       },
       "runtime": {
         "perffdcache": true
@@ -56,7 +59,8 @@
         "ZERO_FDCACHE": false,
         "ENABLE_WALLET": true,
         "ENABLE_MINING": true,
-        "ENABLE_ZMQ": true
+        "ENABLE_ZMQ": true,
+        "HASH_BACKEND": "uniblake"
       },
       "runtime": {
         "walletwitnessnote": true
@@ -73,13 +77,31 @@
         "ZERO_FDCACHE": false,
         "ENABLE_WALLET": true,
         "ENABLE_MINING": true,
-        "ENABLE_ZMQ": true
+        "ENABLE_ZMQ": true,
+        "HASH_BACKEND": "uniblake"
       },
       "runtime": {
         "walletwitness": "ibd-defer"
       },
       "effective": {
         "wallet": "required-on",
+        "mining": "per-run"
+      }
+    },
+    "uniblake-batch": {
+      "description": "Stock build with the Equihash batch list-generation path compiled in (EQUIHASH_BATCH_HASH). Default off.",
+      "build": {
+        "ZERO_PERF": false,
+        "ZERO_FDCACHE": false,
+        "ENABLE_WALLET": true,
+        "ENABLE_MINING": true,
+        "ENABLE_ZMQ": true,
+        "HASH_BACKEND": "uniblake",
+        "EQUIHASH_BATCH_HASH": true
+      },
+      "runtime": {},
+      "effective": {
+        "wallet": "per-run",
         "mining": "per-run"
       }
     }
@@ -107,6 +129,14 @@
         "ZERO_FDCACHE"
       ],
       "meaning": "ZeroPerf lab instrumentation. Off in shipped builds. Always part of the bundle key.",
+      "in_bundle_key": true
+    },
+    "hash": {
+      "flags": [
+        "HASH_BACKEND",
+        "EQUIHASH_BATCH_HASH"
+      ],
+      "meaning": "Which BLAKE2b implementation Equihash hashes through, and whether the batch list-generation entry point is compiled in. Part of the bundle key: two builds differing only in the hash backend are not the same measurement, and pooling them would average different code paths.",
       "in_bundle_key": true
     }
   }

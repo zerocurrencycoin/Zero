@@ -146,7 +146,6 @@ pooled with it. The schema keeps them apart via
 | Solve peak footprint | **7148 MB** | `solve.tsv` |
 | regtest (48,5) mine | **83 ms/block** | `mine-20260819T234157Z/results.tsv` |
 | KATs | genesis (192,7) vectors green | `src/test/data/1927EQ*` |
-| arm64 blake2b symbol | still links `blake2b_compress_ref` (portable C) | neon probe |
 
 `mine_bench.sh` provides `regtest`, `mainnet-template` and `neon-probe` modes.
 A mainnet (192,7) timed solve is scheduled but not run.
@@ -175,7 +174,7 @@ structures as everything else, with these specifics:
 
 blake2b is **18-21% pre-Sapling but 3-4% post-Sapling**, so on the *sync* track
 it does not compete with Groth16 for attention. That is a statement about sync,
-not about mining, and it is the reason NEON blake2b sits `Aside` on the sync
+not about mining, and it was the reason NEON blake2b was set aside on the sync
 track (`TASKS.md`). If the parallel work targets the mining use case, this
 judgement does not apply to it.
 

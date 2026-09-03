@@ -105,39 +105,33 @@ arrays: no sort call, no comparator, no allocation in the round loop.
    profile put BLAKE2b at 12-28%; tromp's efficient merge raises hashing's *share*
    by shrinking everything else.
 
-2. **`blake2b_compress_ref` is the scalar reference implementation.** Confirms
-   `mine_bench.sh neon-probe` (M-MINE-NEON-PROBE): stock arm64 still links the
-   reference compressor. Roughly half of mining CPU is running a portable C
-   kernel with no NEON. This is the largest single optimization target on this host.
-
-3. **The sort disappeared.** The default solver spent ~61% in row sort/compare
+2. **The sort disappeared.** The default solver spent ~61% in row sort/compare
    (`memcmp` + `__partition` + `introsort` + row ctor). Tromp's bucket merge shows
    **no sort at all** -- no `_platform_memcmp`, no `std::__partition`, no `_qsort`
    above 7 samples. `memcmp`/`memmove`/`memset` combined are 3.93%, versus 41.7%.
    This is the mechanism behind the measured 5.69x in `../equ/VENDORED.md` S2.
 
-4. **Round merge is 41.87%, entirely self time.** `digitodd`/`digiteven` have no
+3. **Round merge is 41.87%, entirely self time.** `digitodd`/`digiteven` have no
    callees above threshold -- inlined straight-line code over bucket arrays.
    Optimizing it means SIMD/prefetch on the bucket walk, not swapping a sort.
 
-5. **Model A confirmed at 4 threads.** `equi eq(1)` is single-threaded per solve
+4. **Model A confirmed at 4 threads.** `equi eq(1)` is single-threaded per solve
    (`src/miner.cpp:670`); 4 independent solves, 400% CPU, 16.0 GB footprint --
    ~4 GB per solve, consistent with the 3.3 GB per-solve measurement in
    `../equ/VENDORED.md` S2 plus per-thread overhead. On this 48 GB host memory is
    not the binding constraint; the 10 performance cores are.
 
-6. **Template rebuild is negligible while mining.** `CreateNewBlock` is 27
+5. **Template rebuild is negligible while mining.** `CreateNewBlock` is 27
    samples (0.01%); `BitcoinMiner` self (cancel check, nonce loop) is 3.65%.
 
 ## Optimization implications
 
-The two targets, in order, and both are `equ/PLAN.md` **S2** (SIMD) rather than
-S1 (memory/sort) -- the sort work S1 targets is already gone under tromp:
+The sort work `equ/PLAN.md` S1 targets is already gone under tromp:
 
 | Target | Share | Note |
 |---|---:|---|
-| NEON BLAKE2b | 49.7% | Reference kernel today. Amdahl ceiling ~2.0x if hashing went free; a 2x kernel gives ~1.33x overall. **V1 minimum** (`METHOD.md` S3.2) -- a wrong SIMD lane silently invalidates solutions. |
-| Bucket-merge SIMD / prefetch | 41.9% | Straight-line, no callees. Harder to attack; measure cache behaviour first. |
+| BLAKE2b kernel | 49.7% | uniblake's; measured and tuned there |
+| Bucket-merge | 41.9% | Straight-line, no callees. Measure cache behaviour first |
 
 Memory work (`Xc.reserve`, per-round widths) targets the **default** solver's
 7.15 GB and does not apply to this path.
