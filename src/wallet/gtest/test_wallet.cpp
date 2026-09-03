@@ -1750,6 +1750,12 @@ TEST(WalletTests, WitnessReadIsStableAndClearDiscards) {
     GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutCleared, saplingCleared);
     ASSERT_EQ(sproutCleared.size(), 1);
     EXPECT_FALSE((bool) sproutCleared[0]);
+
+    // Tear down: stack-allocated indices must not leak into the globals.
+    chainActive.SetTip(NULL);
+    mapBlockIndex.erase(block1.GetHash());
+    mapBlockIndex.erase(block2.GetHash());
+    mapBlockIndex.erase(block3.GetHash());
 }
 
 TEST(WalletTests, ClearNoteWitnessCache) {
