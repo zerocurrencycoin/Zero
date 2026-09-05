@@ -445,7 +445,16 @@ UniValue CRPCTable::execute(const std::string &strMethod, const UniValue &params
     if (!pcmd)
         throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Method not found");
 
-    if (!initWitnessesBuilt && (pcmd->name == "z_sendmany" || pcmd->name == "getalldata"))
+    // Every RPC that spends a shielded note needs witnesses, so every one of
+    // them belongs here. z_shieldcoinbase and z_mergetoaddress reach
+    // GetS*NoteWitnesses on the same path as z_sendmany and were omitted, so
+    // they ran against a cache being rebuilt underneath them while the other
+    // two were refused with a clear error.
+    if (!initWitnessesBuilt &&
+        (pcmd->name == "z_sendmany" ||
+         pcmd->name == "z_shieldcoinbase" ||
+         pcmd->name == "z_mergetoaddress" ||
+         pcmd->name == "getalldata"))
         throw JSONRPCError(RPC_DISABLED_BEFORE_WITNESSES, "RPC Command disabled until witnesses are built.");
 
     // While rebuilding witnesses, block wallet/spend/data RPCs but allow chain/ops

@@ -41,9 +41,10 @@ class GetChainTipsTest (BitcoinTestFramework):
         expected_base = self.nodes[0].getblockcount()
         tips = self.nodes[0].getchaintips ()
         tip = [t for t in tips if t['status'] == 'active'][0]
-        if tip['height'] != expected_base:
-            print(("Skipping getchaintips: tip height %d != getblockcount %d" % (tip['height'], expected_base)))
-            return
+        # The active tip disagreeing with getblockcount is the defect this
+        # test exists to catch, not a reason to stop: skipping here abandoned
+        # every assertion below and still reported a pass.
+        assert_equal (tip['height'], expected_base)
         assert_equal (tip['branchlen'], 0)
         assert_equal (tip['height'], expected_base)
         assert_equal (tip['status'], 'active')
@@ -57,9 +58,7 @@ class GetChainTipsTest (BitcoinTestFramework):
         expected_short = self.nodes[1].getblockcount()
         tips = self.nodes[1].getchaintips ()
         shortTip = [t for t in tips if t['status'] == 'active'][0]
-        if shortTip['height'] != expected_short:
-            print(("Skipping getchaintips: short tip %d != getblockcount %d" % (shortTip['height'], expected_short)))
-            return
+        assert_equal (shortTip['height'], expected_short)
         assert_equal (shortTip['branchlen'], 0)
         assert_equal (shortTip['height'], expected_short)
         assert_equal (shortTip['status'], 'active')

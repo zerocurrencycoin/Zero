@@ -140,6 +140,17 @@ bool AsyncRPCOperation_saplingmigration::main_impl() {
             uint256 inputAnchor;
             std::vector<boost::optional<SproutWitness>> vInputWitnesses;
             pwalletMain->GetSproutNoteWitnesses(vOutPoints, vInputWitnesses, inputAnchor);
+            // GetSproutNoteWitnesses returns void and leaves an entry unset when
+            // the note has no witness, so the result must be inspected here.
+            // boost::optional::get() on an unset optional is undefined
+            // behaviour, and this runs unattended on a timer, so the failure
+            // would be a crash with nobody watching. Upstream added a bool
+            // return for exactly this (zcash 99e41f36c); until that is taken,
+            // the check belongs at the call site, as it already is at the six
+            // other GetS*NoteWitnesses callers in this tree.
+            if (vInputWitnesses.empty() || !vInputWitnesses[0]) {
+                throw JSONRPCError(RPC_WALLET_ERROR, "Insufficient Sprout witnesses.");
+            }
             builder.AddSproutInput(sproutSk, sproutEntry.note, vInputWitnesses[0].get());
         }
         // The amount chosen *includes* the 0.0001 ZEC fee for this transaction, i.e.

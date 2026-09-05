@@ -163,9 +163,17 @@ BOOST_AUTO_TEST_CASE(rpc_getalldata_s5_witness_gate)
     const bool saved = initWitnessesBuilt;
     initWitnessesBuilt = false;
 
+    // Every RPC that spends a shielded note must be refused, not just the two
+    // this gate originally listed: z_shieldcoinbase and z_mergetoaddress reach
+    // GetS*NoteWitnesses on the same path and ran unguarded against a cache
+    // being rebuilt underneath them.
     CheckRPCExecuteThrows("getalldata 1",
         "RPC Command disabled until witnesses are built.");
     CheckRPCExecuteThrows("z_sendmany",
+        "RPC Command disabled until witnesses are built.");
+    CheckRPCExecuteThrows("z_shieldcoinbase",
+        "RPC Command disabled until witnesses are built.");
+    CheckRPCExecuteThrows("z_mergetoaddress",
         "RPC Command disabled until witnesses are built.");
 
     // Other RPCs still allowed once warmup is done.

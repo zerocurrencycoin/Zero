@@ -1758,6 +1758,48 @@ TEST(WalletTests, WitnessReadIsStableAndClearDiscards) {
     mapBlockIndex.erase(block3.GetHash());
 }
 
+// A note the wallet does not know has no witness, and the getter reports that
+// by leaving the entry unset rather than by any return value. Sapling migration
+// dereferenced it unconditionally, which is undefined behaviour on an unset
+// boost::optional -- a crash in an unattended timer path. This pins the
+// precondition every caller has to check.
+TEST(WalletTests, GetSproutNoteWitnessesLeavesUnknownNotesUnset) {
+    TestWallet wallet;
+    LOCK(wallet.cs_wallet);
+
+    // A JSOutPoint that is not in mapWallet at all.
+    JSOutPoint unknown {uint256S("beef"), 0, 0};
+    std::vector<JSOutPoint> notes {unknown};
+    std::vector<boost::optional<SproutWitness>> witnesses;
+    uint256 anchor;
+
+    wallet.GetSproutNoteWitnesses(notes, witnesses, anchor);
+
+    ASSERT_EQ(witnesses.size(), 1);
+    EXPECT_FALSE((bool) witnesses[0])
+        << "an unknown note must leave its witness unset, not fabricate one";
+    // The guard the migration path now applies. Without it, .get() here is UB.
+    EXPECT_TRUE(witnesses.empty() || !witnesses[0]);
+}
+
+// Same contract on the Sapling side, which three call sites rely on.
+TEST(WalletTests, GetSaplingNoteWitnessesLeavesUnknownNotesUnset) {
+    TestWallet wallet;
+    LOCK(wallet.cs_wallet);
+
+    SaplingOutPoint unknown {uint256S("beef"), 0};
+    std::vector<SaplingOutPoint> notes {unknown};
+    std::vector<boost::optional<SaplingWitness>> witnesses;
+    uint256 anchor;
+
+    wallet.GetSaplingNoteWitnesses(notes, witnesses, anchor);
+
+    ASSERT_EQ(witnesses.size(), 1);
+    EXPECT_FALSE((bool) witnesses[0])
+        << "an unknown note must leave its witness unset, not fabricate one";
+}
+
+
 TEST(WalletTests, ClearNoteWitnessCache) {
     TestWallet wallet;
 

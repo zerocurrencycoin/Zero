@@ -152,9 +152,17 @@ if [ "$BUILD_CHECKS" -eq 1 ]; then
         else
             PY_DIR="$(dirname "$(command -v "$PY3")")"
         fi
-        run_cmd "check-security" env PATH="$PY_DIR:$PATH" make -C src check-security || true
+        # `|| true` here discarded the result: run_cmd printed FAIL and the
+        # step still counted as a pass, including under --strict. Every other
+        # step records through bump_fail; this one now does too.
+        if ! run_cmd "check-security" env PATH="$PY_DIR:$PATH" make -C src check-security; then
+            bump_fail
+        fi
     else
-        echo "Skipping check-security: no python in PATH (set PYTHON or use python3)"
+        # A skip is not a pass. Without this the binary-hardening check can be
+        # absent from a run that reports success.
+        echo "FAIL: check-security skipped -- no python in PATH (set PYTHON or use python3)"
+        bump_fail
     fi
     echo ""
 fi

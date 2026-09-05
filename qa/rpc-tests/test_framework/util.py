@@ -690,6 +690,21 @@ def wait_and_assert_operationid_status(node, myopid, in_status='success', in_err
 # Keep in sync with src/consensus/consensus.h (static const int COINBASE_MATURITY).
 COINBASE_MATURITY = 720
 
+# Keep in sync with GetBlockSubsidy (src/main.cpp): Zero pays 10 ZER per block,
+# not Bitcoin's 50. Tests ported from upstream assert the 50 and fail here.
+# Regtest has no halving in the ranges these tests reach, so a flat constant is
+# correct; a test that crosses a halving must ask the node instead.
+COINBASE_SUBSIDY = 10
+
+def block_reward(blocks=1):
+    """Total coinbase value from `blocks` blocks, in ZER."""
+    return COINBASE_SUBSIDY * blocks
+
+# Keep in sync with src/main.h (static const unsigned int MAX_REORG_LENGTH).
+# A reorg is rejected when reorgLength > MAX_REORG_LENGTH, so a reorg of
+# exactly this depth is the deepest the node accepts.
+MAX_REORG_LENGTH = 99
+
 def mature_height(spendable_coinbases=1):
     """Minimum chain tip so coinbase at height spendable_coinbases is mature."""
     return COINBASE_MATURITY + spendable_coinbases

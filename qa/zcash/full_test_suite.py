@@ -148,9 +148,12 @@ def ensure_nodotso_depends():
                 arch_dir = arch_dirs[0]
 
     if not os.path.isdir(arch_dir):
+        # A skipped prerequisite is reported as a pass so a developer build
+        # without depends is not blocked, but it is announced as SKIP rather
+        # than silently counted: the check did not run.
         print(
-            "Skipping no-dot-so: no depends arch dir "
-            "(run 'make' in depends/ for Linux/macOS depends build)"
+            "SKIP: no-dot-so did not run -- no depends arch dir "
+            "(run 'make' in depends/ for a Linux/macOS depends build)"
         )
         return True
 
@@ -224,7 +227,9 @@ def run_stage(stage, unfiltered=False):
 
     print()
     print('-' * (len(stage) + 15))
-    print('Finished stage %s' % stage)
+    # Name the outcome. "Finished" alone reads the same whether the stage ran
+    # and passed or returned early on a missing prerequisite.
+    print('Finished stage %s: %s' % (stage, 'PASS' if ret else 'FAIL'))
     print()
 
     return ret

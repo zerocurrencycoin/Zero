@@ -30,6 +30,8 @@ class WalletTreeStateTest (BitcoinTestFramework):
     def run_test (self):
         print("Mining blocks...")
 
+        # 100 blocks at Zero's 10 ZER subsidy: immature_balance is 1000,
+        # which already reflects Zero rather than Bitcoin's 50.
         self.nodes[0].generate(100)
         walletinfo = self.nodes[0].getwalletinfo()
         assert_equal(walletinfo['immature_balance'], 1000)

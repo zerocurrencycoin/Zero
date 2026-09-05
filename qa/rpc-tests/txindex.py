@@ -7,7 +7,8 @@
 # Test txindex generation and fetching
 #
 # Harness: Bfail Debug (rpc-tests.sh).
-# "txindex.py debug" -- Py3 Decimal nValue; Bitcoin 50-ZER asserts vs Zero 10 ZER.
+# Zero: coinbase is 10 ZER, not Bitcoin's 50; assertions below use the
+# node's own reported amount rather than a hardcoded subsidy.
 #
 
 import time
@@ -55,7 +56,11 @@ class TxIndexTest(BitcoinTestFramework):
         scriptPubKey = CScript([OP_DUP, OP_HASH160, addressHash, OP_EQUALVERIFY, OP_CHECKSIG])
         unspent = self.nodes[0].listunspent()
         tx = CTransaction()
-        amount = unspent[0]["amount"] * 100000000
+        # listunspent returns amounts as Decimal, and Decimal * int stays
+        # Decimal, which struct.pack("<q", ...) rejects. Under Python 2 this
+        # was a float and packed by coercion. Convert explicitly, as the
+        # passing tests do with `int * COIN` (addressindex.py).
+        amount = int(unspent[0]["amount"] * COIN)
         tx.vin = [CTxIn(COutPoint(int(unspent[0]["txid"], 16), unspent[0]["vout"]))]
         tx.vout = [CTxOut(amount, scriptPubKey)]
         tx.rehash()
@@ -67,8 +72,13 @@ class TxIndexTest(BitcoinTestFramework):
 
         # Check verbose raw transaction results
         verbose = self.nodes[3].getrawtransaction(unspent[0]["txid"], 1)
-        assert_equal(verbose["vout"][0]["valueZat"], 5000000000);
-        assert_equal(verbose["vout"][0]["value"], 50);
+        # Assert against the amount the node reported for this very output,
+        # not a hardcoded subsidy: upstream's 50 is Bitcoin's, and Zero's is
+        # 10. Pinning the literal makes the test track the subsidy schedule
+        # rather than the txindex behaviour it exists to check.
+        expected_zat = int(unspent[0]["amount"] * COIN)
+        assert_equal(verbose["vout"][unspent[0]["vout"]]["valueZat"], expected_zat)
+        assert_equal(verbose["vout"][unspent[0]["vout"]]["value"], unspent[0]["amount"])
 
         print("Passed\n")
 

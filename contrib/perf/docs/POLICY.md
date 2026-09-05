@@ -104,6 +104,50 @@ than restated in prose, so they cannot go stale.
 
 ---
 
+## 2.2 Test development standards
+
+Rules for `qa/rpc-tests`, each one written because it was broken at least once.
+
+**Constants come from `test_framework/util.py`, never as literals.** Three are
+defined there and kept in sync with the node:
+
+| Helper | Node source | Why a literal fails |
+|--------|-------------|---------------------|
+| `COINBASE_MATURITY = 720` | `consensus/consensus.h` | Upstream tests assume Bitcoin's 100 |
+| `COINBASE_SUBSIDY = 10`, `block_reward(n)` | `GetBlockSubsidy`, `main.cpp` | Upstream asserts a 50-coin subsidy |
+| `MAX_REORG_LENGTH = 99` | `main.h` | Zero hardcodes it; every other chain derives it from maturity, so it cannot be computed from `COINBASE_MATURITY` here |
+
+**Read a number before converting it.** Not every `100` is maturity:
+`reorg_limit.py` mines 99 and 100 as a reorg at the limit and one past it.
+Converting those to 720 would delete what the test checks.
+
+**Heights are relative, not absolute.** `assert_equal(200, getblockcount())`
+encodes the tip of Bitcoin's 100-maturity cache. Read a `base_height` and
+assert deltas; the cache tip is `COINBASE_MATURITY + 5`, not 200.
+
+**Amounts come from the node where possible.** Prefer asserting the amount the
+node reported for the output under test over any subsidy expression: the test
+then measures the behaviour it names rather than the emission schedule.
+
+**Python 3 semantics, not just syntax.** The syntactic Python 2 leftovers are
+gone from this tree; what remains is semantic. JSON-RPC parses money as
+`Decimal`, and `Decimal * int` stays `Decimal`, which `struct.pack("<q", ...)`
+rejects -- under Python 2 it was a float and packed by coercion. Use
+`int(x * COIN)`.
+
+**A skip is not a pass.** A test that cannot establish its preconditions must
+fail or be filed, not return early with a printed note. An early `return` from
+`run_test` reports success for a test that asserted nothing.
+
+**Every runnable script is in exactly one tier.** A script in no list does not
+run and nothing reports that. `-list-csv` is the inventory; it must contain no
+duplicates and cover every `qa/rpc-tests/*.py` that has both `run_test` and
+`__main__`.
+
+**A tier is a claim that must be re-earned.** Before moving a test into a
+passing tier, run it repeatedly -- the three moved on 2026-09-04 were each run
+10 times. One green run is not evidence.
+
 ## 3. Build feature classes
 
 Not all compile-time flags mean the same thing, and treating them uniformly

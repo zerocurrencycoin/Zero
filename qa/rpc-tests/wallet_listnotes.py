@@ -6,7 +6,9 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
+    COINBASE_MATURITY,
     assert_equal,
+    assert_greater_than,
     get_coinbase_address,
     wait_and_assert_operationid_status,
 )
@@ -17,18 +19,22 @@ from decimal import Decimal
 class WalletListNotes(BitcoinTestFramework):
 
     def run_test(self):
-        # Current height = 200
-        assert_equal(200, self.nodes[0].getblockcount())
+        # Upstream asserted a literal 200 -- the tip of Bitcoin's 100-maturity
+        # cache. Zero's cache is mined to COINBASE_MATURITY + 5, so the tip is
+        # whatever initialize_chain produced. Anchor to it and assert the
+        # deltas, which is what this test is actually about.
+        base_height = self.nodes[0].getblockcount()
+        assert_greater_than(base_height, COINBASE_MATURITY)
         sproutzaddr = self.nodes[0].z_getnewaddress('sprout')
         saplingzaddr = self.nodes[0].z_getnewaddress('sapling')
 
         # we've got lots of coinbase (taddr) but no shielded funds yet
         assert_equal(0, Decimal(self.nodes[0].z_gettotalbalance()['private']))
 
-        # Set current height to 201
+        # Advance one block
         self.nodes[0].generate(1)
         self.sync_all()
-        assert_equal(201, self.nodes[0].getblockcount())
+        assert_equal(base_height + 1, self.nodes[0].getblockcount())
 
         # Shield coinbase funds (must be a multiple of 10, no change allowed)
         receive_amount_10 = Decimal('10.0') - Decimal('0.0001')
@@ -62,7 +68,7 @@ class WalletListNotes(BitcoinTestFramework):
         self.sync_all()
 
         # Current height = 202
-        assert_equal(202, self.nodes[0].getblockcount())
+        assert_equal(base_height + 2, self.nodes[0].getblockcount())
 
         # Send 1.0 (actually 0.9999) from sproutzaddr to a new zaddr
         sproutzaddr2 = self.nodes[0].z_getnewaddress('sprout')

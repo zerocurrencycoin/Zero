@@ -70,7 +70,6 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | **ZeroNodes.md**                | Run a **zeronode** (operator)                         | Collateral, conf, RPC, sporks, coinbase summary, P2P, **operator-visible reorg**                                                            | ZND / TNT-12 (**ZeroNodeDev** sections **4**--**5**); TNT catalog (**3.5**); family reorg (**Comparison** §14.5) |
 | **ZeroNodeDev.md**              | **Zeronode source**                                   | `CZeronodeWalletInterface`; remaining call sites; **ZND** path anchors; **TNT-12** phases                                                   | Operator workflow / operator reorg (**ZeroNodes**); TNT catalog (**3.5**); file map (**TENTZero**)     |
 | **~/Work/ZK/ZKs/Comparison.md** | Clone **source** diffs + ecosystem services           | PoW, wallet, P2P, toolchain; **section 12** indexers/explorers/notifications (absorbs former **ZKNodes.md**)                              | Org audit (**Repos/ZeroC**); local paths (**ZKRepos**); zerod how-to (**ZeroStruct**)                   |
-| **~/Work/ZK/ZKs/CDBRewrite.md** | `CDB::Rewrite` deadlock across the family              | Spin loop present in Zero / Zclassic / Zcash / Pirate, removed by Bitcoin; per-fork diffs; excluded tests; leave Zero as-is. Task: **IMP-DB-REWRITE-SPIN** (Perf.md)                    |
 | **~/Work/ZK/ZKs/ZKRepos.md**    | **Local clone paths** under `ZKs/`                    | Path index, `git pull` loop, Zero400 working copies                                                                                         | Ecosystem compare, org audit, zerod flags                                                                |
 | **~/Work/ZK/Repos/ZeroC.md**    | **zerocurrencycoin** org GitHub audit                 | All org repos, mobile/light stack inventory, archive tiers, **`ZeroC.csv`**                                                                 | Local paths (**ZKRepos**); cross-fork indexer compare (**Comparison** section **12**)                   |
 | **ZebraZero.md**                | zebrad / YEC / CipherScan reference                   | Sidecar validation, Orchard lessons, YEC fork notes                                                                                         | zerod how-to (**ZeroStruct**)                                                                          |
@@ -82,7 +81,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | ------------------ | ------------------------------------------------------------------------ |
 | **ZeroNodes.md**   | Operators: `zeronode.conf`, `startalias`, sporks, collateral, deep-reorg exit |
 | **ZeroNodeDev.md** | Developers: wallet interface, ZND path anchors (section **4**), TNT-12 phases (section **5**) |
-| **TENTZero.md**    | File map only (`TENTZero.md`)                         |
+| **TENTZero.md**    | File map only (`~/Work/ZK/ZeroPerf/TENTZero.md`)                         |
 
 
 
@@ -111,7 +110,7 @@ Listed in **README** Documentation table. Public docs do **not** link to maintai
 | Maintainer -> maintainer | One-line pointer when another file **owns** the topic |
 
 
-**Redundancy:** One owner per table or procedure. TNT execution order only here (**3.5**). Reorg **product** decision only **3.5.1**. Reorg **operator** text only **ZeroNodes** section **6**. Reorg **family** table only **Comparison.md** section **14.5**. ZND paths only **ZeroNodeDev** section **4**. TNT-12 phases only **ZeroNodeDev** section **5**. File map only **`TENTZero.md`**. Ecosystem/indexer compare only **Comparison.md** (section **12**). Clone paths only **ZKRepos.md**. Org repo audit only **`Repos/ZeroC.md`**. **zerod** structures/algorithms and per-client requirement matrices only **ZeroStruct.md** (sections **5**, **11**). Node readiness status FSM / conditions / UI maps only **StatusTransitions.md**. Blockbook port and Insight **execution status** only here (**section 4**); do not duplicate full `zero.conf` or RPC catalogs in **4.3** -- pointer only.
+**Redundancy:** One owner per table or procedure. TNT execution order only here (**3.5**). Reorg **product** decision only **3.5.1**. Reorg **operator** text only **ZeroNodes** section **6**. Reorg **family** table only **Comparison.md** section **14.5**. ZND paths only **ZeroNodeDev** section **4**. TNT-12 phases only **ZeroNodeDev** section **5**. File map only **`~/Work/ZK/ZeroPerf/TENTZero.md`**. Ecosystem/indexer compare only **Comparison.md** (section **12**). Clone paths only **ZKRepos.md**. Org repo audit only **`Repos/ZeroC.md`**. **zerod** structures/algorithms and per-client requirement matrices only **ZeroStruct.md** (sections **5**, **11**). Node readiness status FSM / conditions / UI maps only **StatusTransitions.md**. Blockbook port and Insight **execution status** only here (**section 4**); do not duplicate full `zero.conf` or RPC catalogs in **4.3** -- pointer only.
 
 **ID namespaces (do not mix):**
 
@@ -309,11 +308,11 @@ Files: `src/alert.cpp`, `src/init.cpp`, `src/util.cpp`, `src/util.h`, `src/walle
 
 ### 3.5 TENT upstream cherry-pick candidates (2018--2021)
 
-**Status:** This section owns TNT rows and order. Schedule a **Port**/**Implement**/**Hold** row when it beats Ordered next. **TNT-01** is in tree. Reorg **product** text is **3.5.1**. Zeronode tests: **ZeroNodeDev** section **5**. File map: **`TENTZero.md`**.
+**Status:** This section owns TNT rows and order. Schedule a **Port**/**Implement**/**Hold** row when it beats Ordered next. **TNT-01** is in tree. Reorg **product** text is **3.5.1**. Zeronode tests: **ZeroNodeDev** section **5**. File map: **`~/Work/ZK/ZeroPerf/TENTZero.md`**.
 
 **Repo:** `~/Work/ZK/ZKs/TENT` ([TENTOfficial/TENT](https://github.com/TENTOfficial/TENT)). Tip frozen **`bcb429b` (2021-11-13)**. Zero `src/zeronode/`* is a port of TENT `src/masternode*` (wire `mn*` -> `zn*`, treasury removed, `CZeronodeWalletInterface`). TENT is the **direct upstream** for zeronode behavior, not a living vendor.
 
-**Where other TENT research lives:** P2P masternode wire inventory -> `ZKs/Comparison.md` section **4**. File map -> **`TENTZero.md`**. Wallet interface -> **`ZeroNodeDev.md`** sections **1**--**3**. Operator workflow and deep-reorg exit -> **`ZeroNodes.md`**. Family reorg table -> **`Comparison.md`** section **14.5**.
+**Where other TENT research lives:** P2P masternode wire inventory -> `ZKs/Comparison.md` section **4**. File map -> **`~/Work/ZK/ZeroPerf/TENTZero.md`**. Wallet interface -> **`ZeroNodeDev.md`** sections **1**--**3**. Operator workflow and deep-reorg exit -> **`ZeroNodes.md`**. Family reorg table -> **`Comparison.md`** section **14.5**.
 
 **Cherry-pick rule:** Prefer fixes already landed on Zero's integration line (audit **C-07**, **C-11**, **C-14**, **C-21** in section **8** Completed). Use TENT only where Zero's zeronode fork **regressed** TENT behavior or never picked up a post-port TENT commit. Reject Snowgem/TENT tokenomics (treasury, upgrade-named consensus hooks, Atlantis/Wakanda/Knowhere schedules). Do not copy TENT `SliceHash`, live unbounded reorg follow, or obfuscation `ProcessMessage`.
 
@@ -337,8 +336,9 @@ Files: `src/alert.cpp`, `src/init.cpp`, `src/util.cpp`, `src/util.h`, `src/walle
 | **TNT-15** | Consensus | Wakanda min block time | TENT-only upgrade | **Skip** | N/A |
 | **TNT-16** | RPC product | `*nochange` send RPCs | Absent | **Reject** unless product asks | N/A |
 | **TNT-17** | Checkpoints | TENT mainnet checkpoint | Zero's own table | **Skip** | N/A |
+| **TNT-18** | Mempool / zeronode | `AcceptableInputs` -- TENT-only ATMP variant (TENT `main.cpp` 1765); absent from Zcash / Zclassic / Pirate | In tree `main.cpp` **1791-1989** (~199 lines), byte-identical to TENT except TENT's DarkSend `isDSTX` param dropped. Called **only** from `src/zeronode/zeronode.cpp` (2 sites) for collateral validation. Duplicates `AcceptToMemoryPool` and reads `-relaypriority` / `-limitfreerelay` a **second** time with **different defaults** (`true` / `30` vs ATMP's `false` / `15`) | **Postpone.** Inherited semantics, not drift: collateral checks are deliberately more permissive than relay. Do **not** hoist the flags to a single global -- that silently changes one path. Resolve only with the wider ATMP-duplication question | Low |
 
-This section keeps **TNT** execution order only. Source paths: **ZeroNodeDev.md** section **4**. File map: **`TENTZero.md`**.
+This section keeps **TNT** execution order only. Source paths: **ZeroNodeDev.md** section **4**. File map: **`~/Work/ZK/ZeroPerf/TENTZero.md`**.
 
 **Suggested execution order:**
 
@@ -1430,7 +1430,7 @@ throw std::runtime_error("message");
 
 ## DOC-02 follow-up: zeronode documentation and functional tests
 
-Outline for remaining zeronode doc gaps. **TNT catalog:** section **3.5**. **TNT-12 phases:** `ZeroNodeDev.md` section **5** only (do not duplicate that table here). **Operator reorg:** `ZeroNodes.md` section **6**. **File map:** `TENTZero.md`.
+Outline for remaining zeronode doc gaps. **TNT catalog:** section **3.5**. **TNT-12 phases:** `ZeroNodeDev.md` section **5** only (do not duplicate that table here). **Operator reorg:** `ZeroNodes.md` section **6**. **File map:** `~/Work/ZK/ZeroPerf/TENTZero.md`.
 
 ### Documentation deliverables
 
@@ -1650,68 +1650,3 @@ Product / naming options -- not scheduled on the public checklist:
 **Out of scope for this item alone:** Guix/reproducible builds (separate if pursued); desktop-wallet signing (other repos).
 
 When the procedure is ready, copy operator-facing verify steps into **BUILD_ZERO** (no maintainer IDs).
-
----
-
-## DOC-UNICODE: non-ASCII policy and audit
-
-**Local to ZeroPerf.** Zero400 `src/` is left as-is; this section records what is
-there, what is deliberate, and what the checker tolerates.
-
-**Rule (AGENTS.md):** no emojis or decorative Unicode in any document except
-`README.md`; use ASCII -- `--` not em-dash, `->` not arrow, `"` not curly
-quotes, `...` not ellipsis. Nothing enforced it, so violations accumulated.
-
-**Checker:** `contrib/perf/check-unicode.py` (report; `--fix` for safe
-substitutions; `--all` to include tolerated; exit 1 on violations). Its own
-substitution table is written with `\uXXXX` escapes so the tool is self-clean.
-
-### Settings
-
-| Setting | Contents | Why |
-|---------|----------|-----|
-| `REPLACE` | em/en dash, both arrows, curly single and double quotes, ellipsis, middle dot, bullet, multiplication sign, almost-equal, NBSP, narrow NBSP | Exact ASCII equivalent exists; `--fix` rewrites these |
-| `FLAG_ONLY_RANGES` | emoji and pictographs (U+1F300-1FAFF), misc symbols and dingbats (U+2600-27BF, includes the check mark), variation selectors | No safe ASCII equivalent; reported for a human, never auto-rewritten |
-| `TOLERATED` | section sign U+00A7 | 468 of 694 tree-wide hits; conventional section notation in the perf docs, not decoration. `--all` reports it anyway |
-| `SKIP_PATH` | `src/{leveldb,univalue,secp256k1,snark,crypto/ctaes}`, `depends/`, `contrib/perf/{mine,groth16-batch-poc}/`, `contrib/perf/dis-nodes.txt`, `share/genbuild.sh` | Vendored source and captured data. Captures preserve what was captured; normalizing them would corrupt the record |
-| `EXEMPT` | `README.md` (any directory) | AGENTS.md exempts it explicitly |
-
-### Zero400 `src/` -- keep as is
-
-Three classes, none changed:
-
-| Class | Sites | Disposition |
-|-------|-------|-------------|
-| **Mathematical / spec notation** | `zcash/JoinSplit.hpp` 19-21 `pi_A/pi_B/pi_C` as Groth16 proof elements; `consensus/params.cpp:37` Z-notation `:` from ZIP-208; `wallet/gtest/test_wallet.cpp:2336` "identical to" | **Keep.** Ties the code to the protocol spec; ASCII substitutes lose that |
-| **Quoted data** | `wallet/paymentdisclosure.h:27` -- the ISO-8859-1 rendering of byte `0xFF` | **Keep.** Rewriting makes the comment factually wrong |
-| **Curly apostrophes** (U+2019) | `crypto/equihash.cpp:12` (NDSS '16 citation); `wallet/rpcwallet.cpp` 4156 / 4164 | **Keep for now, inherited.** Both `rpcwallet.cpp` strings are verbatim Zcash (`zcash/src/wallet/rpcwallet.cpp` 5104 / 5112). Note these are **RPC help text**, not comments: they reach operator terminals |
-
-Also present and unchanged: `wallet/db.cpp:394` arrow in a commented-out debug
-line, and `qa/rpc-tests/addressindex.py:111` section sign in a doc reference.
-
-### Perf scripts -- doc references struck
-
-`contrib/perf/*.sh` and `*.py` previously carried `Perf.md SS N` pointers in
-comments. Struck; the substance was kept inline where it mattered (for example
-"bound by timestamp, not by searching for a height substring: `height=937` also
-matches `height=937237`"). Rationale: shipped code should not href maintainer
-documents (see the public-docs rule above), and section numbers decay --
-`src/wallet/gtest/test_wallet_zkeys.cpp:406` still cites **UpdateTests.md**,
-retired some time ago with its core content moved into `TEST_ZERO.md` and the
-remainder consolidated here.
-
-### Upstream comparison
-
-Neither upstream enforces ASCII in source, and both carry non-ASCII:
-
-| Tree | Files with non-ASCII in `src/` | Most common |
-|------|-------------------------------|-------------|
-| **Zcash** | 23 | U+2019 curly apostrophe (54), variation selector + keycap (57, emoji sequences), curly double quotes (32) |
-| **Bitcoin Core** | 43 | box drawing (approx. 440 across 6 glyphs), ellipsis (81), curly apostrophe (18), em dash (11) |
-
-Bitcoin has `test/lint/` (16 linters) and Zcash `test/lint/` (13); **neither
-includes an ASCII or Unicode check**. Zcash's `lint-whitespace.sh` covers
-trailing whitespace and tabs only. So Zero's rule is stricter than either
-upstream -- which is a defensible local choice, but it means inherited code will
-keep arriving with non-ASCII, and a blanket `--fix` over `src/` would create
-diff noise against upstream for no functional gain.

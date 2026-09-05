@@ -65,21 +65,8 @@ Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. The Qt desktop wallet is a
 | **openssl** | TLS | Dist tarball | Moderate compile |
 | **bdb** | Wallet (`wallet_packages`; default on) | Dist tarball | Moderate; skipped only if `NO_WALLET` |
 | **libevent**, **zeromq**, **libsodium**, **utfcpp**, **googletest** | Event, ZMQ, crypto, tests | Smaller tarballs | Shorter than Boost / librustzcash |
-| **uniblake** | BLAKE2b for Equihash | **Not a tarball by default** -- built from a local uniblake checkout, found beside this tree (see below) | Seconds; four C files, no configure |
 | **native_ccache** | Native helper | Small | Small |
 | **proton** | AMQP | Off unless `--enable-proton` | Not in the default cycle |
-
-**uniblake** is the exception to the hashed-tarball rule. It is developed alongside this tree, so `depends/packages/uniblake.mk` selects it three ways, in precedence order:
-
-| Selection | How | Use |
-|---|---|---|
-| `UNIBLAKE_SRC=/path` | explicit checkout | building against a specific tree |
-| `UNIBLAKE_COMMIT=<sha>` + `UNIBLAKE_SHA256=<hash>` | pinned tarball, fetched and SHA-256 verified | CI, release builds |
-| neither | first checkout found in `../../uniblake`, `../uniblake`, `$HOME/Work/ZK/uniblake` | the default; a sibling clone needs no configuration |
-
-With a checkout, the package version is that checkout's `git rev-parse --short HEAD`, plus `-dirty` when the tree has uncommitted changes. A uniblake commit therefore changes the depends build id on its own and the package rebuilds -- nothing here needs editing to pick up newer uniblake. With no checkout and no pin, the recipe errors naming both remedies and the directories it searched.
-
-A pin must be at or after the uniblake commit that renamed its output-directory knob to `UB_BUILD`. Earlier commits spell it `BUILD ?= build`, which loses to the build triplet this tree exports as `BUILD`: the archive lands in `depends/work/build/$HOST/uniblake/*/x86_64-pc-linux-gnu/` instead of `build/`, and the recipe's `test -f build/libuniblake.a` stops the build.
 
 A recipe hash includes `packages/<name>.mk` and patches. Editing those, changing `HOST`, `DEBUG`, or `NO_WALLET`, or deleting `depends/built/$HOST/<pkg>/` forces that package. Autogen and configure never kick Boost or Rust compiles.
 
@@ -317,8 +304,7 @@ Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 | BerkeleyDB | 6.2.32 | `bdb.mk` | Wallet format 6.2.x; **6.2.32** fixes ARM64 mutex issues vs 6.2.23. AGPLv3. Built via depends, not optional for default wallet. |
 | Boost | 1.88.0 | `boost.mk` | Node + tests. Darwin needs **`--toolset=clang`** and often **`-Wno-enum-constexpr-conversion`** (§5.2). |
 | OpenSSL | 1.1.1w | `openssl.mk` | RPC TLS and legacy EVP call sites. **1.1.1 is EOL upstream**; **project decision:** stay on **1.1.1w** in **`depends`** until a scheduled, audited move to **OpenSSL 3.x** (or removal) with EVP/TLS regression tests. |
-| libsodium | 1.0.21 | `libsodium.mk` | Crypto; URL pinned to GitHub releases. Equihash hashes through **uniblake**, not libsodium; libsodium remains for the rest of the crypto surface. |
-| uniblake | local checkout (see §4.1) | `uniblake.mk` | BLAKE2b for Equihash. **No version pin by default** -- tracks a local uniblake checkout so the two trees can move together. `UNIBLAKE_COMMIT=<sha>` + `UNIBLAKE_SHA256=<hash>` pins it for CI and releases. |
+| libsodium | 1.0.21 | `libsodium.mk` | Crypto; URL pinned to GitHub releases. |
 | libevent | 2.1.12 | `libevent.mk` | Network stack. |
 | ZeroMQ | 4.3.5 | `zeromq.mk` | Default **ZMQ** notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, ...). |
 | ccache | 4.13.1 | `native_ccache.mk` | Optional faster rebuilds; **`CCACHE_DIR`**, **`--enable-ccache`**. |

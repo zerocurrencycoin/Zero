@@ -64,7 +64,9 @@ class BIP65Test(ComparisonTestFramework):
 
     def get_tests(self):
         self.coinbase_blocks = self.nodes[0].generate(1)
-        self.nodes[0].generate(100)
+        # Zero's COINBASE_MATURITY is 720, not Bitcoin's 100: the coinbase
+        # generated above is spent below, so it must be mature first.
+        self.nodes[0].generate(COINBASE_MATURITY)
         hashTip = self.nodes[0].getbestblockhash()
         hashFinalSaplingRoot = int("0x" + self.nodes[0].getblock(hashTip)['finalsaplingroot'], 0)
         self.tip = int("0x" + hashTip, 0)

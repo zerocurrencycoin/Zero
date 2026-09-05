@@ -7,7 +7,8 @@
 #
 
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, COINBASE_MATURITY, connect_nodes_bi, fail, \
+from test_framework.util import assert_equal, COINBASE_MATURITY, block_reward, \
+    connect_nodes_bi, fail, \
     initialize_chain_clean, start_node, sync_blocks, sync_mempools, \
     wait_and_assert_operationid_status
 
@@ -63,7 +64,8 @@ class MergeToAddressHelper:
 
         test.nodes[0].generate(4)
         walletinfo = test.nodes[0].getwalletinfo()
-        assert_equal(walletinfo['immature_balance'], 50)
+        # 5 blocks generated above, at Zero's 10 ZER subsidy (not Bitcoin's 50).
+        assert_equal(walletinfo['immature_balance'], block_reward(5))
         assert_equal(walletinfo['balance'], 0)
         test.sync_all()
         test.nodes[2].generate(1)
@@ -74,9 +76,9 @@ class MergeToAddressHelper:
         test.sync_all()
         test.nodes[1].generate(COINBASE_MATURITY + 1)
         test.sync_all()
-        assert_equal(test.nodes[0].getbalance(), 50)
-        assert_equal(test.nodes[1].getbalance(), 10)
-        assert_equal(test.nodes[2].getbalance(), 30)
+        assert_equal(test.nodes[0].getbalance(), block_reward(5))
+        assert_equal(test.nodes[1].getbalance(), block_reward(1))
+        assert_equal(test.nodes[2].getbalance(), block_reward(3))
 
         # Shield the coinbase
         myzaddr = test.nodes[0].z_getnewaddress(self.addr_type)
@@ -169,7 +171,7 @@ class MergeToAddressHelper:
         assert_equal(test.nodes[0].z_getbalance(do_not_shield_taddr), Decimal('10.0'))
         assert_equal(test.nodes[0].z_getbalance(myzaddr), Decimal('39.99990000'))
         assert_equal(test.nodes[1].getbalance(), 40)
-        assert_equal(test.nodes[2].getbalance(), 30)
+        assert_equal(test.nodes[2].getbalance(), block_reward(3))
 
         # Shield all notes to another z-addr
         myzaddr2 = test.nodes[0].z_getnewaddress(self.addr_type)

@@ -32,7 +32,6 @@ testScripts=(
     'wallet_1941.py'
     'wallet_addresses.py'
     'wallet_sapling.py'
-    'wallet_listnotes.py'
     'mergetoaddress_sprout.py'
     'mergetoaddress_sapling.py'
     'mergetoaddress_mixednotes.py'
@@ -65,13 +64,11 @@ testScripts=(
     'addressindex.py'
     'spentindex.py'
     'timestampindex.py'
-    'txindex.py'
     'decodescript.py'
     'keypool.py'
     'blockchain.py'
     'disablewallet.py'
     'zkey_import_export.py'
-    'reorg_limit.py'
     'getblocktemplate.py'
     'founders_window.py'
     'zeronode_coinbase.py'
@@ -149,6 +146,12 @@ testScriptsTierA=(
 # 2026-07-24: wallet.py promoted (Sapling path; fee-aware miner balances).
 # 2026-07-25: heavy proving / multi-GB RSS moved to Bfail Debug (see below).
 testScriptsTierBPass=(
+    # Moved from Bfail 2026-09-04, each verified passing after the
+    # subsidy/maturity conversions: txindex (Decimal + subsidy), listnotes
+    # (tip-relative heights), reorg_limit (MAX_REORG_LENGTH-derived).
+    'txindex.py'
+    'wallet_listnotes.py'
+    'reorg_limit.py' 
     'wallet.py'
     'wallet_anchorfork.py'
     'wallet_changeindicator.py'
@@ -186,15 +189,17 @@ testScriptsTierBPass=(
 #   BfailDebug: porting / maturity / comptool / Py3 -- needs engineering
 #   BfailRetired: Sprout-era, manual testnet, merge-to-address sprout -- low priority
 testScriptsTierBFailDebug=(
+    # Filed from Tier U 2026-09-04 after a first run. wallet_mergetoaddress
+    # reaches its own logic and fails an assert_equal(False, True); the two
+    # zcjoinsplit scripts are Sprout-era raw-joinsplit tests (see Retired).
+    'wallet_mergetoaddress.py' 
     'shorter_block_times.py'
     'wallet_changeaddresses.py'
     'wallet_addresses.py'
     'rescan_import.py'
-    'reorg_limit.py'
     'wallet_listreceived.py'
     'wallet_persistence.py'
     'wallet_sapling.py'
-    'wallet_listnotes.py'
     'mergetoaddress_sapling.py'
     'mergetoaddress_mixednotes.py'
     'rawtransactions.py'
@@ -209,7 +214,6 @@ testScriptsTierBFailDebug=(
     'bipdersig-p2p.py'
     'regtest_signrawtransaction.py'
     'finalsaplingroot.py'
-    'txindex.py'
     # Heavy shielded proving (multi-GB RSS on -all); run via -Bfail / basename.
     'wallet_shieldcoinbase_sapling.py'
     'wallet_protectcoinbase.py'
@@ -218,6 +222,10 @@ testScriptsTierBFailDebug=(
 )
 
 testScriptsTierBFailRetired=(
+    # Sprout raw-joinsplit RPCs: zcrawjoinsplit / zcrawkeygen return
+    # "Method not found" against this node.
+    'zcjoinsplit.py'
+    'zcjoinsplitdoublespend.py' 
     'prioritisetransaction.py'
     'wallet_treestate.py'
     'wallet_overwintertx.py'
@@ -225,6 +233,13 @@ testScriptsTierBFailRetired=(
     'sprout_sapling_migration.py'
     'turnstile.py'
 )
+
+# Tier U: runnable tests that are in no other list. Not a verdict -- these have
+# simply never been placed, so they are neither green nor known-broken and
+# nothing reports that they do not run. Run each once and move it to the tier
+# its result earns. Helper modules and variant base classes are deliberately
+# absent: they have no __main__ or no run_test.
+testScriptsTierUnfiled=()
 
 testScriptsTierBFail=()
 testScriptsTierBFail+=("${testScriptsTierBFailDebug[@]}")
@@ -339,11 +354,17 @@ function dumpTierCsv
     for ent in "${testScriptsTierBFailRetired[@]}"; do echo "Bfail,retired,${ent}"; done
     for ent in "${testScriptsExtPass[@]}"; do echo "E,pass,${ent}"; done
     for ent in "${testScriptsExtFail[@]}"; do echo "Efail,fail,${ent}"; done
+    for ent in "${testScriptsTierUnfiled[@]}"; do echo "U,unfiled,${ent}"; done
 }
 
 function runTierEPass
 {
     runScriptArray testScriptsExtPass
+}
+
+function runTierUnfiled
+{
+    runScriptArray testScriptsTierUnfiled
 }
 
 function runTierEFail
@@ -417,6 +438,10 @@ if [ "x${ENABLE_BITCOIND}${ENABLE_UTILS}${ENABLE_WALLET}" = "x111" ]; then
         RPC_TIER=a
         shift
         passOn="$*"
+    elif [ "$1" = "-U" ] || [ "$1" = "--tier-unfiled" ]; then
+        RPC_TIER=unfiled
+        shift
+        passOn="$*"
     elif [ "$1" = "-Bfail" ]; then
         RPC_TIER=bfail
         shift
@@ -456,11 +481,22 @@ if [ "x${ENABLE_BITCOIND}${ENABLE_UTILS}${ENABLE_WALLET}" = "x111" ]; then
         efail)    echo "=== RPC tier -Efail (Ext known fail) ===" ; runTierEFail ;;
         all)      echo "=== RPC tier -all (-A -B -E pass) ===" ; runTierAllPass ;;
         rpcfail)  echo "=== RPC tier -rpcfail (-Bfail -Efail) ===" ; runTierAllFail ;;
+        unfiled)  echo "=== RPC tier -U (unfiled: no verdict yet) ===" ; runTierUnfiled ;;
         single)   runSingleByName "$single_name" || exit 1 ;;
     esac
 
     echo -e "\n\nTests completed: $(expr $successCount + ${#failures[@]})"
     echo "successes $successCount; failures: ${#failures[@]}"
+
+    # A tier that selected nothing is a failure, not a pass. Zero successes and
+    # zero failures reads as "Tests completed: 0" and exits 0, which is what a
+    # bad filter or an empty tier list produces -- indistinguishable from a
+    # clean run to anything checking only the status.
+    if [ $successCount -eq 0 ] && [ ${#failures[@]} -eq 0 ]
+    then
+        echo "FAIL: no tests ran for tier '${RPC_TIER}'; check the tier list or filter"
+        exit 1
+    fi
 
     if [ ${#failures[@]} -gt 0 ]
     then
@@ -470,5 +506,10 @@ if [ "x${ENABLE_BITCOIND}${ENABLE_UTILS}${ENABLE_WALLET}" = "x111" ]; then
         exit 0
     fi
 else
-  echo "No rpc tests to run. Wallet, utils, and bitcoind must all be enabled"
+  # Exit 1, not 0. Falling off the end here reported success for a run that
+  # executed no test at all, which is indistinguishable from a clean pass to
+  # any caller checking only the status.
+  echo "FAIL: no rpc tests to run. Wallet, utils, and bitcoind must all be enabled"
+  echo "  ENABLE_BITCOIND=${ENABLE_BITCOIND:-} ENABLE_UTILS=${ENABLE_UTILS:-} ENABLE_WALLET=${ENABLE_WALLET:-}"
+  exit 1
 fi
