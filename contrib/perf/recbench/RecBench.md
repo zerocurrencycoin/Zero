@@ -146,7 +146,8 @@ Rules that have already been violated once, so they are stated here too:
 1. **The binary is the authority on version.** Read from `zerod --version` /
    `build.h`, never from `git` -- the tree moves after a binary is built.
 2. **Additive only.** Absent means *unknown*, never *default*.
-3. **`build.dirty == true` disqualifies a row from being a baseline.**
+3. **`dirty` is recorded, not disqualifying.** It costs reproducibility, not
+   validity; a release comparison wants `build.tag` instead (`SCHEMA.md` S2.1).
 4. **Never redefine a bundle.** Add `-v2`; old rows silently change meaning
    otherwise.
 

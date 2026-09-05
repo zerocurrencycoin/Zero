@@ -66,8 +66,15 @@ head has moved on. So every existing measurement was produced by a binary that
 corresponds to **no commit anywhere**. Recording `dirty` makes that visible
 instead of implying a reproducibility that does not exist.
 
-**Rule: `build.dirty == true` disqualifies a row from being a baseline.** It
-may still be compared informally, but it cannot anchor a release comparison.
+**`dirty` is recorded, not disqualifying.** A measurement's worth comes from
+what ran, not from the repository's state when it ran: the binary produced the
+number either way. What `dirty` costs is *reproducibility* -- nobody can
+rebuild that exact binary from a commit -- so it is recorded on the row and a
+reader weighs it.
+
+Where it does bind: a **release comparison** needs a rebuildable reference, so
+that is what `build.tag` (S2.2) is for. A dirty row can hold a baseline
+informally, and often has to -- most measurement happens mid-change.
 
 ### 2.2 `build.tag` -- the stable anchor
 
