@@ -157,7 +157,7 @@ Ordered; each step is a gate.
 - Per-transaction-attributed fallback as originally sketched is **not** what
   current `zcashd` does; it rejects the batch and re-verifies.
 - Halo/Orchard is **out of scope** -- not Zero consensus.
-- NEON blake2b is a separate item; blake2b is 18-21% pre-Sapling but only
+- blake2b hashing is a separate item (closed, `docs/HASHLIBS.md`); it is 18-21% pre-Sapling but only
   3-4% post-Sapling, so it does not compete with this.
 
 ## 7. Prototype

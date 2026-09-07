@@ -327,7 +327,7 @@ solutions Zero rejects. Same for the 48-byte digest.
 | Variant | Same output as `blake2b`? | Notes |
 |---------|---------------------------|-------|
 | **`blake2b`** (libsodium, today) | -- the reference | `crypto_generichash_blake2b_init_salt_personal`; scalar |
-| **`blake2b` AVX2/NEON kernel** | **Yes, bit-identical** | Same algorithm, vectorised *within* one compression. A drop-in **if** it exposes personalization + arbitrary digest length |
+| **`blake2b` vector kernel** | **Yes, bit-identical** | Same algorithm, vectorised *within* one compression. A drop-in **if** it exposes personalization + arbitrary digest length |
 | **`blake2bip` / 4-way interleaved** | **Yes, bit-identical** | Hashes 4 **independent** inputs in parallel lanes. Each lane is an ordinary blake2b; parallelism is across messages, not within one |
 | **`blake2bp`** | **NO -- different function** | A *tree/parallel mode* with a different output for the same input. This is the "semantic gap" tromp's README describes |
 | xenoncat 4-way asm | Yes, bit-identical | Same 4-way-independent shape as `blake2bip`, hand-written x86 |
@@ -468,12 +468,9 @@ measurement and any SIMD work on it are documented and maintained there
 1. **Multi-way BLAKE2b in the tromp path** is now the highest-value Equihash
    item -- above every S1.2 memory target, which address the default solver
    production does not select (S2).
-2. **NEON blake2b: closed, not deferred.** The kernel was written and measured
-   in uniblake and is **1.8x slower** than the scalar one (S3.7). This is a
-   result, not a postponement: there is nothing to revisit unless the kernel or
-   the hardware changes, and if it does, that happens in uniblake. Broader NEON
-   use -- the round merge, or other compute-intensive algorithms -- is a
-   separate question and is **TBD, on hold**.
+2. **blake2b vector kernels: closed, not deferred.** Measured in uniblake and slower than scalar there. This tree adopts that result; status and scope are in `../docs/TASKS.md` (Vectorisation), figures in `uniblake/docs/NEON.md`.
+
+
 3. **Do not port Cantor.** Third independent confirmation.
 
 ---

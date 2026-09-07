@@ -294,7 +294,33 @@ no field: it implies a distinction the store cannot make. That was true of
 `config_id` before the launchers passed anything, and it is why `dataset_id`
 was specified before it was built, not after.
 
-### 4.4 Remaining tension
+### 4.4 `features` was assembled twice, and one copy was short
+
+`stamp.py` resolves the bundle and the compiled-vs-runtime `effective` pair,
+but `recbench.py` built its own three-key `features` dict for `--record`
+instead of calling those resolvers. So `bundle`, `bundle_v` and `effective`
+were present on `--import-tsv` rows and absent from every recorded one --
+POLICY S3 states that **every** row carries `effective`, and that held for one
+write path out of two.
+
+`effective` is the field that keeps a wallet-capable binary run with
+`-disablewallet` from collapsing into a binary built without wallet support.
+Recording it as `null` says "unknown", which was at least honest; the worse
+half was that `features.runtime` stayed empty because `tiny_baseline.sh` never
+declared the `-disablewallet` it passes on the command line. Left that way,
+adding the resolver would have computed `wallet_active: true` for a run with
+no wallet -- a confident wrong value where there had been an absent one.
+
+Both halves are needed, and the launcher half comes first: **a resolver is only
+as good as the runtime keys it is given.** The same applies to any launcher
+that selects a flag and does not pass it to `--runtime`.
+
+*Cost.* `runtime` is part of `config_id`, so declaring a flag that was always
+being passed changes the context hash: rows recorded before and after do not
+collate together. That is correct -- they record different amounts of knowledge
+-- but it means the launcher fix should land between campaigns, not during one.
+
+### 4.5 Remaining tension
 
 **Hashes of hashes** mean `context_id` cannot be recomputed from a row without
 the same three functions; concatenating the underlying fields would be more
@@ -320,6 +346,16 @@ ones unless told to. Merged output would be a **derived view, never a source**.
 **Implemented now:** newest-first ordering (S6), and **the store lives inside
 the project**, at the path its `projects.json` entry names -- for Zero,
 `reindex-profile/bench-summaries/`.
+
+*This was true of the entry point last, not first.* `rbpaths` bound the store
+correctly from D8, but `recbench.py` kept its own `parents[2]` constant, which
+after the D2 move into `recbench/` pointed one level short -- at `contrib/`.
+`--index` and `--report` then read an empty directory and printed "no context
+stores" rather than failing, so the recorded rows were invisible while the two
+launchers that pass `--store-dir` explicitly went on writing to the real store.
+A default that disagrees with every explicit caller is the scattering this
+section exists to prevent; the fix (D28) deletes the constant rather than
+correcting the index.
 
 *Why in-project and not cwd.* A store keyed to the working directory produces a
 different store depending on where the command was run, which is how results
@@ -557,3 +593,7 @@ See Done for what landed.
 | D25 | Root documents restored to the product tree's state; the ASCII audit moved to `POLICY.md` | 2026-09-03 |
 | D26 | R6c: collation reads `metric`/`value`/`unit`; metric and unit are part of the grouping key, so units never pool | 2026-09-03 |
 | D27 | R3b: `--merge` with context selection and an across-contexts guard, `--index`, cross-store duplicate reporting | 2026-09-03 |
+| D28 | `recbench.py` resolves its store through `rbpaths`, not a compiled-in `parents[2]` | 2026-09-05 |
+| D29 | `--record` rows carry `bundle` / `bundle_v` / `effective`; `tiny_baseline.sh` declares the `-disablewallet` it runs with | 2026-09-05 |
+| D30 | Self-test pins row completeness: store from `rbpaths`, `features` fully stamped, `config_id` separates runtime flags. Mutation-tested | 2026-09-05 |
+| D31 | `kind` and `exec` columns, adopted from uniblake's harness; both join the collation key so quantities that cannot share a spread do not pool | 2026-09-05 |

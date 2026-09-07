@@ -971,8 +971,8 @@ reads; widening the tag to store two levels halves depth but doubles tag width
 | | Zero (accumulated) | DAG |
 |---|---|---|
 | Live during merge | **one** array; `posFree` reuses consumed slots | **all rounds** -- the walk reads them |
-| Bytes at (192,7) | 33.5M x 70 B = **2.19 GB** (plus `Xc`) | 33.5M x (28 + 24) B across two heaps = **~1.7 GB** |
-| Measured peak | **6.6 GB** | **3.3 GB** |
+| Bytes at (192,7) | 33.5M x 70 B (M-EQ-XT-ROUND0; plus `Xc`) | 33.5M x (28 + 24) B across two heaps = **~1.7 GB** |
+| Measured peak | M-EQ-PEAK-DEFAULT | M-EQ-PEAK-TROMP |
 
 Retaining all rounds costs *less* than one wide array, because the per-row
 saving (70 -> ~10-28 B) exceeds the retention multiplier. That is the whole

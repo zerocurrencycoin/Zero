@@ -117,11 +117,14 @@ sample_util() {
   pct_mem=$(echo "$ps_line" | awk '{print $2}')
   rss_kb=$(echo "$ps_line" | awk '{print $3}')
   if command -v vmmap >/dev/null 2>&1; then
-    phys_mb=$(vmmap -summary "$pid" 2>/dev/null | awk -F= '/Physical footprint:/ {
-      gsub(/^[ \t]+|[ \t]+$/, "", $2);
-      if ($2 ~ /G/) { gsub(/[^0-9.]/, "", $2); printf "%.1f", $2*1024; exit }
-      if ($2 ~ /M/) { gsub(/[^0-9.]/, "", $2); printf "%.1f", $2; exit }
-      if ($2 ~ /K/) { gsub(/[^0-9.]/, "", $2); printf "%.1f", $2/1024; exit }
+    # -F: not -F=. vmmap prints "Physical footprint:  202.1M", so splitting
+    # on '=' left $2 empty and every phys_mb recorded as NA -- memory was
+    # never actually captured by any launcher using this helper.
+    phys_mb=$(vmmap -summary "$pid" 2>/dev/null | awk -F: '/Physical footprint:/ {
+      v = $2; gsub(/^[ \t]+|[ \t]+$/, "", v);
+      if (v ~ /G/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v*1024; exit }
+      if (v ~ /M/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v; exit }
+      if (v ~ /K/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v/1024; exit }
     }')
   fi
   printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \

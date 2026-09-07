@@ -257,5 +257,33 @@ expect_fail "counts disagree when a test vanished" \
   bash -c ". '$HERE/perflib.sh'; require_counts_agree '$VERDIR/partial.log' \
            '^Running testscript' '^--- Success' '^!!! FAIL' rpc"
 
+# --- vmmap footprint parse -------------------------------------------------
+# The launchers parse `vmmap -summary` for "Physical footprint:". That line is
+# COLON-separated; parsing it with awk -F= left the field empty, so every
+# util.tsv recorded phys_mb as blank and no run ever failed. Memory was
+# unrecorded for the project's whole history. Assert against fixture text in
+# all three unit suffixes, so the parse is pinned rather than the tool.
+parse_footprint() { # parse_footprint TEXT
+  printf '%s\n' "$1" | awk -F: '/Physical footprint:/ {
+    v = $2; gsub(/^[ \t]+|[ \t]+$/, "", v);
+    if (v ~ /G/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v*1024; exit }
+    if (v ~ /M/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v; exit }
+    if (v ~ /K/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v/1024; exit }
+  }'
+}
+eq "$(parse_footprint 'Physical footprint:         202.1M')" "202.1" \
+   "vmmap footprint parses M"
+eq "$(parse_footprint 'Physical footprint:         2336K')" "2.3" \
+   "vmmap footprint parses K"
+eq "$(parse_footprint 'Physical footprint:         1.5G')" "1536.0" \
+   "vmmap footprint parses G"
+# The (peak) line follows the one we want; exit must stop at the first.
+eq "$(parse_footprint 'Physical footprint:         100.0M
+Physical footprint (peak):  999.9M')" "100.0" \
+   "vmmap footprint takes current, not peak"
+# The regression itself: -F= yields nothing on this input.
+eq "$(printf 'Physical footprint:  202.1M\n' | awk -F= '/Physical footprint:/ {print $2}')" "" \
+   "awk -F= yields nothing (the original defect)"
+
 if [ "$FAILED" -eq 0 ]; then echo "self-test OK" >&2; else echo "self-test FAILED" >&2; fi
 exit "$FAILED"

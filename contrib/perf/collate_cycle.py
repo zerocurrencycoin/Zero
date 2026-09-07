@@ -13,12 +13,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import zeropaths  # noqa: E402  - path set above
+
+# Resolved by repo marker, not by counting levels: a parents[N] constant is
+# correct only for the depth it was written at and fails silently if the file
+# moves (see zeropaths.repo_root).
+REPO = zeropaths.repo_root(__file__)
 DEFAULT_STORE = REPO / "reindex-profile" / "bench-summaries"
 DEFAULT_STATUS = REPO / "reindex-profile" / "cycle-campaign" / "status.jsonl"
 

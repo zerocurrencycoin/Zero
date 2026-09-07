@@ -99,86 +99,11 @@ figures produced *before* the guards existed.
 
 ---
 
-## 2. Equihash and blake2 -- parallel track
+## 2. Equihash and blake2
 
-**Delineated deliberately.** Work in these areas is developed in parallel,
-outside the sync/ConnectBlock investigation, and will be tested and benchmarked
-after integration into the ZeroPerf structures. This section is the seam.
-
-Nothing here is mixed into S1 or S3, because the two tracks answer different
-questions and are measured on different workloads. Conflating them has already
-produced one wrong number in this program's history.
-
-### 2.1 Why it is a separate track
-
-| | Sync / ConnectBlock (S1, S3) | Equihash / blake2 (this section) |
-|---|---|---|
-| **Question** | How long to validate the chain? | How long to solve or verify a PoW header? |
-| **Workload** | reindex / bootstrap / sync / rescan | mine, `zcbenchmark solve/verify` |
-| **Hot thread** | `zcash-loadblk`, or `Main Thread` for rescan | miner thread |
-| **Who cares** | Every operator syncing a node | Miners; validation cost for everyone |
-| **Harness** | `profile_run.sh`, throughput ledger | `mine_bench.sh`, `performance-measurements.sh` |
-
-A capture from one track is **not comparable** to the other and must not be
-pooled with it. The schema keeps them apart via
-`features.workload.op` (`SCHEMA.md` S5).
-
-### 2.2 Use cases, and why they diverge
-
-- **Mining (solve).** Throughput per watt on a miner's hardware. Equihash
-  (192,7) needs roughly 8 GB per solver thread. Improving solve speed benefits
-  miners and changes network hashrate distribution; it does **not** speed up
-  node sync.
-- **Validation (verify).** Every node verifies every header. Cheap already
-  (p50 0.100 ms, n=20), so it is a correctness-and-regression concern more than
-  an optimization target -- but a regression here is felt chain-wide.
-- **blake2b as a shared primitive.** Used by Equihash *and* elsewhere in
-  validation, which is why it must be bucketed separately from `equihash` --
-  see S3.3.
-
-### 2.3 Established so far
-
-| Result | Value | Source |
-|--------|-------|--------|
-| `verifyequihash`, n=20 | p50 **0.100 ms** | `zcbenchmark` |
-| `solveequihash`, n=3 | 54.2 / 67.1 / 69.0 s | `zcbenchmark` |
-| Solve CPU | 100% of one core, single thread | `solve.tsv` |
-| Solve peak footprint | **7148 MB** | `solve.tsv` |
-| regtest (48,5) mine | **83 ms/block** | `mine-20260819T234157Z/results.tsv` |
-| KATs | genesis (192,7) vectors green | `src/test/data/1927EQ*` |
-
-`mine_bench.sh` provides `regtest`, `mainnet-template` and `neon-probe` modes.
-A mainnet (192,7) timed solve is scheduled but not run.
-
-### 2.4 Integration expectations for the queued work
-
-When the parallel Equihash/blake2 work lands, it is measured through the same
-structures as everything else, with these specifics:
-
-- **Bundle first.** Any new build-time option gets an entry in
-  RecBench bundles before a trial is recorded, or every row reads
-  `custom` and cannot be grouped (`POLICY.md` S3).
-- **Classify the flag.** Is it architectural, scenario, or perf? That decides
-  whether it belongs in the bundle key.
-- **`workload.op` must distinguish solve from verify from sync.** Otherwise a
-  solve trial pools with a reindex trial.
-- **Baseline before change.** Record the S2.3 numbers on the target host with
-  the current binary first; a delta against a differently-built baseline is not
-  a delta.
-- **Keep the blake2b bucket separate** from `equihash` (S3.3).
-- **arm64 vs x86-64 matters more here than anywhere else**, because the
-  candidate optimizations are SIMD intrinsics. A NEON result says nothing about
-  AVX2 and vice versa; `platform.arch` is doing real work in this track.
-
-### 2.5 Standing judgement, open to revision
-
-blake2b is **18-21% pre-Sapling but 3-4% post-Sapling**, so on the *sync* track
-it does not compete with Groth16 for attention. That is a statement about sync,
-not about mining, and it was the reason NEON blake2b was set aside on the sync
-track (`TASKS.md`). If the parallel work targets the mining use case, this
-judgement does not apply to it.
-
----
+Owned by `../equ/`: solve versus verify scope, the reference `zcbenchmark`
+figures, and why blake2b is bucketed separately from `equihash`. Sync-side
+verification cost is a ConnectBlock finding and stays in `../Perf.md` S5.
 
 ## 3. Settled: the sync investigation
 

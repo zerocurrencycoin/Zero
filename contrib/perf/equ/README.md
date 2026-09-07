@@ -4,6 +4,13 @@ Zero mines Equihash **(192,7)** on mainnet and testnet, **(48,5)** on regtest
 (`src/chainparams.cpp:94,265,425`). This directory holds the analysis and plan
 for making the solver competitive.
 
+**Equihash is this directory's subject, and belongs here rather than being
+spread across the perf tree**: solver internals, lineage, measurement method,
+plans and solve findings all live in these files. The one deliberate exception
+is Equihash's **verification** cost during block connection, which is a sync
+finding and stays in `../Perf.md` S5. Placement rules generally:
+`../docs/MAP.md`.
+
 ## The set
 
 | Document | Single subject | Read when |
@@ -125,3 +132,54 @@ line is 128 B here versus 64 B on x86, and the base page is 16 KB versus 4 KB.
 - **A tromp port at `-DWN=192 -DWK=7`** -- reachable (his generic
   `digitodd`/`digiteven` path exists) and the strongest available V5 oracle
   (`FINDINGS.md` `FINDINGS.md` S2a).
+
+## Set review, 2026-09-06
+
+Six files, 4,286 lines. An earlier version of this review declared every file
+justified on the strength of each having a distinct topic. **That was not a
+review** -- checking that six files have six subjects says nothing about
+whether the same material appears in several of them. Redone by measurement.
+
+**What was found.** Prose is not re-argued: across 924 prose sentences, only 5
+cross-file near-duplicates (>0.80 similarity), and 11 repeated 5-word phrases,
+most of them file paths. The set does not restate its arguments.
+
+**Figures recur across files, but most occurrences are legitimate.** 34
+distinct figures appear in three or more files, on 218 lines (5% of the set).
+That count was first reported as the redundancy. It is not: the great majority
+are **derivations** -- `33.5M rows x 70 B`, `6 rounds x 2 copies x 2.19 GB` --
+which must restate a figure in order to compute with it, and section headings
+naming the quantity they explain.
+
+Filtering to lines that carry a shared figure with **no arithmetic and no
+cross-reference** leaves **27**, spread over six files. Of those, most are
+prose that cites a section alongside the number (`FINDINGS.md S1.2a`,
+`VENDORED.md S3.6`), which is the intended pattern.
+
+**So the set's real problem is not repetition of figures.** It is that the
+figures had **no ids to cite**: 4,300 lines with two `M-*` references. A reader
+finding `3.3 GB` in four files could not tell whether they were the same
+measurement.
+
+**Fix applied.** Six ids registered in `../Measures.md`: `M-EQ-ROW-WIDTH`,
+`M-EQ-XT-ROUND0`, `M-EQ-PEAK-DEFAULT`, `M-EQ-PEAK-TROMP`,
+`M-EQ-TROMP-SPEEDUP`, `M-EQ-D3-SORT`. Five bare table restatements now cite an
+id instead of repeating a number. The remaining occurrences are derivations and
+are correct as written -- **a mechanical sweep of them would break the
+arithmetic**, which is why the earlier plan to "replace 215 restated figures"
+was wrong and has been withdrawn.
+
+**File-by-file, with the overlap that remains:**
+
+| File | Lines | Distinct subject | Overlap |
+|---|--:|---|---|
+| `README.md` | 163 | Entry point, inclusion rules | Restates rules from METHOD by design |
+| `FINDINGS.md` | 672 | Measured and computed results | **67 lines carry shared figures** -- the largest source |
+| `SOLVER.md` | 1281 | How both solvers work internally | 46 lines; derives `RESTBITS`, others cite it correctly |
+| `VENDORED.md` | 756 | Which solver ships, lineage, comparison | 40 lines; boundary with SOLVER holds by citation |
+| `METHOD.md` | 490 | How to measure and validate | 6 lines -- cleanest file in the set |
+| `PLAN.md` | 924 | What to build next, and gates | 45 lines |
+
+**Not yet answered:** whether `SOLVER.md` at 1281 lines should be split, and
+whether `PLAN.md`'s absorbed task material belongs with the plan or with
+`METHOD.md`. Both need reading the content, not counting it.

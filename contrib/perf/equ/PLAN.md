@@ -4,6 +4,11 @@ Staged plan from one CPU core to GPUs, across Linux, Windows and macOS. This
 is an outline, not a result: what to build, in what order, and what gates each
 step.
 
+**Inclusion rule.** A section belongs here if it answers *"what should be built
+next, and what has to be true first?"* Measured numbers are `FINDINGS.md`; how
+to validate a change is `METHOD.md`; how the solvers work internally is
+`SOLVER.md`; which solver ships and where it came from is `VENDORED.md`.
+
 Evidence for the ordering is in `FINDINGS.md`; how to validate a change is
 `METHOD.md`.
 
@@ -72,7 +77,7 @@ Requihash `Equihash.md` S3 (out of tree)]:
 
 | Step | Expected peak | Multi-core at 16 GB |
 |------|--------------:|---------------------|
-| today | 7.15 GB | 2 threads |
+| today | M-EQ-PEAK-DEFAULT | 2 threads |
 | `Xc.reserve()` | ~4.4 GB | 3 threads |
 | + per-round widths | ~2.2 GB | 7 threads |
 | + index pointers | ~1.0-1.5 GB | 10-16 threads |
@@ -105,7 +110,7 @@ because the numbers are easy to misread:
 
 | Quantity | Value | What it is |
 |----------|------:|------------|
-| Resident peak | 7.15 GB | Memory *held*; the constraint on threads [Measured] |
+| Resident peak | M-EQ-PEAK-DEFAULT | Memory *held*; the constraint on threads |
 | One sweep of `Xt` | 2.19 GB | 33.5M rows x 70 B |
 | **Cumulative traffic** | **~26 GB** | 6 rounds x 2 copies x 2.19 GB, **summed over the whole ~60 s solve** |
 
@@ -212,7 +217,7 @@ internal wide loads are unaligned. The *common* claim is that unaligned loads
 within a cache line are near-free on both modern x86 and arm64, so the real
 costs would be the un-inlined call and line-straddling. **Neither this tree nor
 this document has measured it on either architecture**, and the two differ
-enough elsewhere (128 B vs 64 B lines, NEON vs AVX2) that assuming parity is
+enough elsewhere (128 B vs 64 B lines, 128- vs 256-bit vectors) that assuming parity is
 exactly the kind of cross-platform generalisation S8 warns against.
 
 Concretely unmeasured: whether an unaligned 4/8 B load costs extra on Apple
@@ -396,8 +401,8 @@ Measured on this host (`sysctl hw.*`, Apple M4 Pro) against typical x86-64:
 
 Three consequences for this work:
 
-- **NEON is 128-bit and does not widen.** Where AVX2 processes 4 BLAKE2b lanes
-  and AVX-512 processes 8, NEON processes 2. So the *ceiling* for batched
+- **Arm's baseline SIMD is 128-bit and does not widen.** Where AVX2 processes 4 BLAKE2b lanes
+  and AVX-512 processes 8, it processes 2. So the *ceiling* for batched
   hashing is structurally lower on arm64, and an arm64 "SIMD gives little"
   result does **not** predict x86.
 - **Apple's 128 B line halves the row-straddling problem** (1.53 vs 2.06 avg
@@ -433,7 +438,7 @@ bundle key, or an AVX2 run and a scalar run will pool into one meaningless
 mean.
 
 **Stage 2 exit:** measured per-ISA speedup on the same host, self-test gate
-green, arch recorded (`platform.arch` -- a NEON result says nothing about
+green, arch recorded (`platform.arch` -- a result on one ISA says nothing about
 AVX2).
 
 ---
@@ -537,7 +542,7 @@ tools), **then OpenCL** for AMD coverage, **Metal only if macOS mining is a
 real goal** -- macOS is a development platform here, not a mining platform, and
 Metal is a separate kernel language.
 
-Note the naming in the brief: **NEON is a CPU SIMD instruction set (S2), not a
+Note the naming in the brief: **Arm SIMD is a CPU instruction set (S2), not a
 GPU backend.** Apple GPU work is Metal.
 
 GPU-specific concerns beyond porting:
@@ -583,7 +588,7 @@ executed, and native Windows profiling is blocked on symbol format
 |-------|------|--------|------|
 | **S0** | Profile (192,7); x86-64 Linux baseline | S | None -- start here |
 | **S1** | Memory to <1 GB; arena; radix sort; BLAKE2b check | M | S0 |
-| **S2** | AVX2 / NEON, dispatch + self-test gate | M | S1 |
+| **S2** | AVX2 / Arm SIMD, dispatch + self-test gate | M | S1 |
 | **S3** | Multi-core (merge-parallel preferred) | M-L | **memory work is a hard gate** |
 | **S4** | GPU: CUDA, then OpenCL | L-XL | memory work; S2 informs kernels |
 
@@ -616,3 +621,304 @@ question, already answered: Equihash verification is ~0.100 ms
 this work speeds up node sync. Mining and sync are separate tracks
 (`../docs/FINDINGS.md` S2.1), and results must not be pooled -- `features.workload.op`
 distinguishes `solve` from `verify` from `sync` (`../docs/SCHEMA.md` S5).
+
+
+---
+
+## Queued solver work, moved from docs/TASKS.md
+
+Moved 2026-09-06. This is solver and hashing detail -- reserve sizing, call
+paths, per-variant measurement plans -- which belongs with the subject rather
+than in the task list. `docs/TASKS.md` retains the items and their state and
+links here for the substance.
+
+
+### D1. Integrate the queued Equihash / blake2 work
+
+Developed in parallel with the sync investigation, benchmarked once integrated.
+Why it is a separate track, its use cases, and what is established:
+**`FINDINGS.md` S2**.
+
+**A block of work, then separate items.** The checklist below is the
+integration seam and holds whatever the parallel work contains. Individual
+optimizations become their own items once landed, each with its own baseline.
+
+| Step | What | State |
+|------|------|-------|
+| 0 | (192,7) analysis: findings, method, staged plan | **Finished** -- `../equ/` |
+| 0a | (192,7) solver baseline vectors, 5 solutions, each verified | **Finished** -- `solver_baseline_192_7` |
+| 0b | `Xc.reserve()` -- promoted to its own item; steps in **D2** | ToDo, V1 |
+| 0c | Fold `len` to a compile-time constant -- own item; steps in **D3** | **Done, V1+V2+V4** -- 1.22x |
+| a | Add new build-time options to RecBench bundles; classify each | ToDo |
+| b | Ensure `features.workload.op` distinguishes solve / verify / sync | ToDo |
+| c | Record the baseline on the target host before any change | ToDo |
+| d | Confirm `platform.arch` is carried -- SIMD results are arch-specific | ToDo |
+| e | Keep the `blake2b` bucket ordered before `equihash` | ToDo |
+
+Harness: `mine_bench.sh`, `performance-measurements.sh`, KATs in
+`src/test/data/`. Analysis and plan: **`../equ/`**.
+
+**Kanban: ToDo. Effort M**, dominated by (c).
+
+### D5. Measure the vendored tromp solver -- priority, may reorder D2/S1
+
+**Zero already ships tromp at (192,7)** and `prod.conf` selects it (the compiled default is `default`)
+(`equihashsolver=tromp`). Full finding: `../equ/FINDINGS.md` S2f.3.
+
+Consequence: **every solver number in this tree measures the wrong binary for a
+default miner.** `zcbenchmark solveequihash` calls `EhOptimisedSolve` directly,
+so the 6.6 GB peak, the 60 s solve and the D3 1.22x all describe the
+`default` path, which `prod.conf` does not select.
+
+Method, and the four compatibility conditions that make the comparison valid:
+**`../equ/METHOD.md` S3.2f**. Summary: identical `blake2b_state` object,
+identical index encoding (both use `cBitLen`/`DIGITBITS` = 24), both
+single-threaded, both verified in-loop. The one real difference --
+tromp's `MAXSOLS = 8` cap -- is **measured, not equalised**.
+
+| Step | What | Est. |
+|------|------|------|
+| a | Add `SOLVE_TIMING_SOLVER=default\|tromp` to the D4 harness; lift the driver verbatim from `miner.cpp:669-684` | ~1 h |
+| b | **Solution-set equality first** -- same nonces, both solvers, compare sorted sets. This is a **V5** cross-implementation check, the strongest oracle in `METHOD.md` S3.2 | ~5 min |
+| c | Paired per-nonce timing, n>=4, plus `nsols` from both | ~10 min |
+| d | Peak `phys_mb` both -- tromp's two heaps vs `Xt`+`Xc`; compare against the ~3.3 GB computed in `../equ/FINDINGS.md` S1.2a | with (c) |
+| e | Decide: continue S1 on `OptimisedSolve`, or shift to updating the vendored copy | -- |
+
+**(b) before (c).** If the solution sets disagree, the timings are
+uninteresting until that is resolved.
+
+The vendored copy is **pre-Cantor** (`RESTBITS 4`, no `CANTOR` define), so it
+predates his later bucket-count and packing work -- updating it is a candidate
+in its own right.
+
+**Result: tromp is 5.69x faster and 3.3 GB vs 6.6 GB** [Measured,
+`../equ/FINDINGS.md` S2f.4]. V5 solution-set equality **passed** -- identical
+sets across 4 nonces. No nonce reached 7-8 solutions, so `MAXSOLS` did not
+truncate.
+
+**So S1.2's memory work does optimise a path production does not select.**
+The useful work moves to (e): the vendored copy is pre-Cantor and predates
+tromp's later bucket-count reductions. Steps (a)-(d) are **Finished**.
+
+**Kanban: ToDo. Effort S.** Measurement only, no product change.
+
+### D2. `Xc.reserve()` -- steps
+
+Gate **V1** (it cannot change which solutions are found). Evidence:
+`../equ/FINDINGS.md` S1.1b. Do this **first**: it changes exactly one thing, so
+its result discriminates between competing explanations of the 7.15 GB peak.
+Folding it into a bundle wastes that.
+
+**Where.** `src/crypto/equihash.cpp`, `OptimisedSolve`. `Xt` is reserved at
+`522`; `Xc` is declared at `544` with no reserve.
+
+**The names.** From the Biryukov-Khovratovich paper the file cites
+(`equihash.cpp:8-13`), where **X** is the list of hash-derived strings being
+collided. The suffixes are the implementation's:
+
+| Name | Reads as | Role |
+|------|----------|------|
+| `X` | the list | `BasicSolve`'s single list of `FullStepRow` (untruncated) |
+| **`Xt`** | X **truncated** | `OptimisedSolve`'s main list -- `TruncatedStepRow`, indices stored as `eh_trunc` (1 byte) rather than full `eh_index` (4 bytes) |
+| **`Xc`** | X **candidates** | Per-round scratch holding newly merged rows before they are drained back into `Xt`'s freed slots |
+| `Xi` | X **item** | One merged row, `:558` |
+
+`t` is the meaningful one: it marks the whole optimisation `OptimisedSolve` is
+named for -- storing truncated index tags instead of full indices, which is
+what makes `TruncatedWidth` 70 rather than `FullWidth`'s 262. `Xc` is scratch,
+and its lifetime is the subject of this item.
+
+**`init_size` is `2^(CollisionBitLength+1)`** (`equihash.cpp:507`), so at
+(192,7) it is `2^25` = 33,554,432 -- the leaf count, fixed for every solve and
+every round. That is the ceiling `Xc` can ever need, which is why
+`reserve(init_size)` is correct-but-generous rather than a guess.
+
+**`Xc` is declared inside the `for (r...)` loop**, so it is constructed and
+destroyed once per round, not once per solve. Two variants follow, and they
+predict different peaks:
+
+| Variant | Diff | What a null result tells you |
+|---------|------|------------------------------|
+| **V-a** in-loop `Xc.reserve(init_size)` | 1 line | If peak stays ~7 GB, per-round churn dominates, not the realloc transient |
+| **V-b** hoist `Xc` above the loop, `clear()` per round | ~3 lines | If V-b drops and V-a does not, the cost is allocate/free, not growth |
+
+**Does `clear()` zero the buffer? No.** It destroys the elements and sets
+`size()` to 0, leaving `capacity()` and the allocation untouched. For
+`TruncatedStepRow` -- a trivially-destructible fixed `unsigned char` array --
+destroying an element is a no-op, so `clear()` compiles to little more than
+`size_ = 0`. The old bytes are still in memory; they are simply unreachable,
+and the next `emplace_back` overwrites them. That is exactly what is wanted:
+**no zeroing cost, no reallocation, and the reserve survives into the next
+round.** It is necessary because without it round *r* would append after round
+*r-1*'s rows and the merge would read stale data.
+
+**Round -> count, and how the reserve is tuned.** The mapping is not recorded
+anywhere, and the tuning cannot be argued without it. `Xt` starts at
+`init_size`; the list does not shrink much per round (the birthday property).
+But `Xc` holds only rows merged *in that round* before the `posFree` drain
+returns them, and the drain runs inside the collision loop -- so `Xc`'s
+**high-water mark** is far below its throughput, and is **not derivable from
+`init_size`**: it depends how far the producer runs ahead of the drain.
+
+So `reserve(init_size)` is a **correct ceiling, not a tuned value** -- it cannot
+under-reserve, so it cannot reallocate. V-a/V-b measure whether the ceiling
+costs anything. Record what was reserved on every row so a later tuned reserve
+is comparable.
+
+**Two instruments, not one.** A single counter serving reserve tuning,
+per-round-width weighting and `METHOD.md` S3.2d's debugging checksum
+generalises badly -- the three want different data, at different cost, on
+different schedules:
+
+| Instrument | Wants | Cost | Lifetime |
+|-----------|-------|------|----------|
+| **P1** (this item) | `Xc` high-water and `Xt` final size per round, one `-debug=pow` line | one compare per `emplace_back` | Temporary -- delete once the table exists |
+| **P2** (S3.2d, separate) | row count + checksum over sorted keys per round | a pass over the sorted list | Permanent -- every future differential |
+
+P2 is a **correctness** instrument that must survive into every later
+comparison. Fusing it with a one-shot tuning probe means paying the checksum
+forever or losing it when the probe is removed. P1 is ~5 lines and answers the
+reserve question; build P2 with the differential harness.
+
+| Step | What | Gate | Est. |
+|------|------|------|------|
+| a | **Before** baseline, n>=4 `solveequihash`, `phys_mb` sampled | V4 | **~6 min** |
+| b | Apply V-a, build, `--run_test=equihash_tests` (10 cases) | V0 | build + **~10 s** |
+| c | `solver_baseline_192_7` differential -- all 5 solutions, exactly | V2 | **~2 min** |
+| d | n>=4 timed solves + `res_sample.sh` `phys_mb` | V4 | **~6 min** |
+| e | Revert V-a, apply V-b, repeat (b)-(d) | V4 | **~9 min** + build |
+| f | Append both to the ledger, stamped, reserve size in `notes` | -- | ~5 min |
+
+**Estimates assume the measured ~60 s/solve** (54.2-69.0 s, n=3). They exclude
+build time, which dominates and is not a lab cost. Total lab time excluding
+builds: **~30 min**. Replace with actuals when run.
+
+```bash
+./src/test/test_bitcoin --run_test=equihash_tests          # V0
+DUMP_1927_SOLVER=test-logs/eqvectors/xc_reserve_va.txt \
+  ./src/test/test_bitcoin --run_test=equihash_tests/solver_baseline_192_7
+diff <(sort test-logs/eqvectors/solver_baseline_192_7.txt) \
+     <(sort test-logs/eqvectors/xc_reserve_va.txt)         # must be empty
+./src/zero-cli zcbenchmark solveequihash 4                 # V4
+```
+
+**Exit:** peak `phys_mb` for both variants, n>=4 each, identical solution set,
+and a stated answer to "how much of the 7.15 GB was realloc transient" --
+including "less than predicted", which is a result.
+
+**Kanban: ToDo. Effort XS** (diff), **S** (measurement). Product change,
+Zero400 review.
+
+### D3. Fold `len` to a compile-time constant -- steps
+
+Gate **V1** (it cannot change ordering). Evidence: `../equ/PLAN.md` S1.2b.
+Do **after** D2 so the two effects are not conflated.
+
+**Where.** `src/crypto/equihash.h:68-77`. `CollisionByteLength` is a
+compile-time enum (`equihash.h:175`), but `CompareSR` takes it as a constructor
+argument and stores it in a `size_t len` member, so the constant is laundered
+into a runtime value and `memcmp(...,3)` compiles to a call into a generic
+routine instead of a few inline instructions.
+
+**Mechanism -- what the 3 bytes are, why the key sits at offset 0, and how the
+25-vs-70 widths arise:** `../equ/FINDINGS.md` S3.1. Summary for this item: the
+sort key is the first **3** bytes at every round, byte-aligned with no padding
+at (192,7).
+
+**Why `CollisionByteLength` at some sites and `hashLen` at others.** They sort
+on different things. The per-round sort groups by the **next collision digit**
+-- always 3, per the above. The final round and the partial-solution sorts
+compare the **whole remaining hash**, and `hashLen` shrinks by
+`CollisionByteLength` each round (`hashLen -= CollisionByteLength`). So
+`hashLen` is genuinely variable, and at the *final* sort it is 3 as well
+(`HashLength = 24`, minus 6 rounds x 3 leaves 6, and the final round compares 6
+then trims to 3) -- but it arrives there as a runtime value, so folding it
+would require per-round instantiation. That is the per-round-width work
+(`../equ/PLAN.md` S1.2), not this item.
+
+| Site | Function | Argument | Constant? |
+|------|----------|----------|-----------|
+| `359` | `BasicSolve` round sort | `CollisionByteLength` | yes |
+| `417` | `BasicSolve` final sort | `hashLen` | no |
+| **`538`** | **`OptimisedSolve` round sort** | `CollisionByteLength` | **yes** |
+| `603` | `OptimisedSolve` final sort | `hashLen` | no |
+| `673` | Partial-solution merge sort | `hashLen` | no |
+
+**`538` is the only hot site.** It is the per-round sort over 33.5M rows inside
+`OptimisedSolve`, which is what mining runs (`-equihashsolver` dispatch,
+`miner.cpp:539`). `359` is the same sort in `BasicSolve`, which mining does not
+use -- convert it for consistency if you like, but **attribute any measured win
+to 538 alone**, and if you want the cleanest attribution, convert 538 only.
+
+**Why a template, what varies, and where `size_t`/alignment land:**
+`../equ/FINDINGS.md` S3.2. The three results that decide this item:
+
+- `CompareSR`'s runtime `len` is a **leftover** -- `StepRow` was templated on
+  width one day *after* `CompareSR` was extracted, and `len` was dropped from
+  `StepRow` but not from the comparator. This finishes that refactor.
+- The length is **constant per round and per iteration**, varying only across
+  Equihash parameter sets -- which are already compile-time template arguments.
+- `CompareSRFixed` is **shorter** than `CompareSR`: one member function, no
+  state, no constructor.
+
+```cpp
+template<size_t LEN>
+struct CompareSRFixed {
+    template<size_t W>
+    inline bool operator()(const StepRow<W>& a, const StepRow<W>& b) const
+    { return memcmp(a.hash, b.hash, LEN) < 0; }
+};
+```
+
+**Access.** `StepRow::hash` is `protected` (`equihash.h:50`) and `CompareSR`
+reaches it via `friend class CompareSR` (`equihash.h:48`). **Make `hash`
+`public` instead** and drop the friend declarations -- the class is an internal
+solver row type with no invariant to protect, and every consumer is already a
+friend. That removes a friend line per comparator rather than adding one, and
+it is a prerequisite for the S1.2 per-round-width work, which will need several
+more row-touching helpers.
+
+| Step | What | Gate | Result |
+|------|------|------|--------|
+| a | `StepRow::hash` public; drop `friend class CompareSR` | -- | **Done** |
+| b | Add `CompareSRFixed`; convert **538 only** | -- | **Done** -- 1 line in `equihash.cpp`, +17 in `equihash.h` |
+| c | `equihash_tests` (10 cases) | V0 | **PASS** |
+| d | Confirm the fold in the real build | -- | **PASS** -- 46 `memcmp` sites -> 0 in the `CompareSRFixed` path; the 44 left are `:603`'s runtime `hashLen`. Emits inlined `ldrh`/`ldrb`/`orr`/`rev`/`cmp` |
+| e | `solver_baseline_192_7` differential | V2 | **PASS** -- sha256 identical, all 5 solutions |
+| f | Paired fixed-nonce timing vs baseline arm | V4 | **1.220x mean, 1.212x median**, 4/4 nonces improving |
+| g | Optionally convert 359 (`BasicSolve`, not used by mining) | V0 | Not done -- optional |
+
+**Measured:** 1.22x on the solve, 1.71x on the sort phase in isolation. The
+gap between them is expected: the solve also generates 33.5M leaves and runs
+the merge, neither of which this touches. Peak footprint unchanged (6.6 GB) --
+D3 alters no allocation. Detail: `../equ/FINDINGS.md` S3.2,
+`test-logs/eqsolve-fixednonce-20260826/`.
+
+**Remaining before Finished:** review on Zero400, which owns `src/`.
+
+**Lesson recorded, because it nearly published a wrong number.** An unpaired
+random-nonce measurement of this same change read **1.30x mean / 1.51x median /
+1.59x min** -- all inflated by a favourable nonce draw. `zcbenchmark
+solveequihash` randomises its input per trial, so spread is 29-49% and samples
+cannot be paired across builds. The same nonce re-run repeats to **0.2%**.
+Generalised: **when a benchmark randomises its input, pair the runs or the
+input variance swamps the effect** (`../equ/METHOD.md` S3.2e).
+
+**Interpreting the result.** This is a diagnostic as much as a fix: measured
+alone it says how much of the sort cost is **call overhead** versus **data
+movement**, which predicts how much Experiment B (extract the key once into a
+`u32` array, `../equ/PLAN.md` S1.2b) can add. A near-null means the cost is
+movement, and the 70 B swap width is the target.
+
+**What comes after.** The size/range/distribution argument for replacing
+`std::sort` with a counting sort -- and the bucket-count tuning that follows
+from it -- is `../equ/FINDINGS.md` S3.3. That work is **S1.3, gated V2**. D3 is
+the V1 patch that makes the current sort cheaper and measures how much of its
+cost is call overhead, which is what says whether S1.3 earns its V2 gate. **Do
+not start S1.3 before D3 reports.**
+
+**Kanban: ToDo. Effort XS** (diff), **S** (measurement). Product change,
+Zero400 review.
+
+---
+

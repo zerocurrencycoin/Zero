@@ -180,6 +180,32 @@ def is_default_datadir(path, system=None, env=None, home=None):
     return False
 
 
+# Files that mark the top of a Zero checkout. Chosen because all three are
+# tracked at the root and none appears in a subdirectory of it.
+REPO_MARKERS = ("configure.ac", "AGENTS.md", "Makefile.am")
+
+
+def repo_root(start=None):
+    """The checkout root, found by walking up for a marker file.
+
+    Counting "../.." from __file__ is what every caller did before, and it
+    breaks silently the moment a script moves between directories: recbench.py
+    kept a parents[2] after moving one level deeper and resolved to contrib/,
+    where it created an empty store and reported "no results"; and
+    measure_dbcache_utxo.py still resolves one level short, naming a zerod that
+    does not exist. Both are off-by-one in a constant no test covers.
+
+    Searching for a marker is level-independent, so moving a script cannot
+    change the answer. Returns None rather than a guess when no marker is
+    found -- an unbound root must read as unknown, not as the filesystem root.
+    """
+    here = Path(start or __file__).resolve()
+    for cand in (here,) + tuple(here.parents):
+        if cand.is_dir() and any((cand / m).exists() for m in REPO_MARKERS):
+            return cand
+    return None
+
+
 def describe(system=None, env=None, home=None):
     return {
         "platform": platform_key(system),
@@ -199,6 +225,27 @@ def self_test():
         if not cond:
             print("FAIL: " + msg, file=sys.stderr)
             ok = False
+
+    # repo_root is depth-independent: the same answer from every level, which
+    # is the property a parents[N] constant does not have. Asserted by
+    # behaviour on real files rather than by reading the source.
+    import tempfile
+    _self = repo_root(__file__)
+    check(_self is not None, "repo_root finds the checkout from zeropaths.py")
+    if _self is not None:
+        for rel in ("contrib/perf/recbench/recbench.py",
+                    "contrib/perf/measure_dbcache_utxo.py",
+                    "contrib/perf/docs/POLICY.md"):
+            cand = _self / rel
+            if cand.exists():
+                check(repo_root(cand) == _self,
+                      "repo_root agrees at depth: %s" % rel)
+    with tempfile.TemporaryDirectory() as td:
+        # Outside any checkout the answer is None, never a guess: a wrong root
+        # names files that do not exist, which is how contrib/src/zerod arose.
+        deep = Path(td) / "a" / "b"
+        deep.mkdir(parents=True)
+        check(repo_root(deep / "x.py") is None, "repo_root is None outside a checkout")
 
     H = "/home/u"
     E = {"HOME": H, "APPDATA": "C:\\Users\\u\\AppData\\Roaming"}

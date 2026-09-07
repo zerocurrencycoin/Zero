@@ -276,7 +276,7 @@ Per-tool invocation detail lives in `../README.md`; this is the index.
 | `postsapling_reindex.sh` | `stock\|nofdcache\|defaultbuf\|1mbbuf` | FDCACHE A/B |
 | `bench_matrix.sh` | see header | reindex vs bootstrap matrix |
 | `capture_sequence.sh` | `<datadir> <out> [period] [secs] [max]` | repeated captures over a long run |
-| `mine_bench.sh` | `regtest\|mainnet-template\|neon-probe` | env `MINE_BLOCKS` |
+| `mine_bench.sh` | `regtest\|mainnet-template` | env `MINE_BLOCKS` |
 | `witness_lab.sh` | `dirty-cont\|rebuild\|rebuild-noteidx\|tip-rebuild\|tip-rebuild-note\|rescan-noteidx\|catchup-noteidx` | env `ZERO_PERF_WALLET_FILE` required |
 | `ops-campaign.sh` | `list\|run` | 11-trial catalog, `cycle_trials.tsv` |
 | `prep_lab_datadir.sh` | `create\|unroll` | env `LAB`, `ARCHIVE`, `SRC` |
@@ -292,6 +292,9 @@ Per-tool invocation detail lives in `../README.md`; this is the index.
 | `perflib.sh` | sourced, not executed | shared helpers; see 4.1.1 |
 | `perflib_selftest.sh` | no args | tests `perflib.sh`; must print `self-test OK` |
 | `datadir_guard.sh` | sourced, not executed | `refuse_live_datadir`; env `ZERO_PERF_ALLOW_LIVE_DATADIR` to override |
+| `snapshot_data.sh` | `FILE [FILE...]` | copy a data file to `FILE.prev-<utc>` before a run overwrites it |
+| `codequery.sh` | `{symbol\|files\|count\|raw} PATTERN [PATH]` | source queries that report no-match instead of returning silence |
+| `sodium_oracle.sh` | `[--build]` | prints the libsodium prefix benchmarks compare against (1.0.22, built -O3); refuses a system fallback |
 | `fix_ascii.py` | `[--fix] [--all] [paths]` | non-ASCII policy |
 | `lint-perf.sh` | `[--all] [--summary] [--list]` | gated to `contrib/perf/` |
 | `zcash-lint/` | vendored Zcash linters | see `ZEROPERF.md` |

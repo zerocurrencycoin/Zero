@@ -33,7 +33,13 @@ import tempfile
 import time
 from datetime import datetime, timezone
 
-REPO = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import zeropaths  # noqa: E402  - path set above
+
+# Was "dirname(__file__)/..", one level short: it named contrib/src/zerod,
+# which does not exist. Resolved by marker so the answer does not depend on
+# how deep this file sits.
+REPO = str(zeropaths.repo_root(__file__))
 BITCOIND = os.environ.get('BITCOIND', os.path.join(REPO, 'src', 'zerod'))
 BITCOINCLI = os.environ.get('BITCOINCLI', os.path.join(REPO, 'src', 'zero-cli'))
 

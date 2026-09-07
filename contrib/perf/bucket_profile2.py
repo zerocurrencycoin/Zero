@@ -14,7 +14,7 @@ What is different and why:
 
   2. blake2b is its own bucket, ahead of equihash. Previously blake2b_compress
      was inside the equihash bucket and no record cited a blake2b percentage,
-     which is the number the NEON question needs.
+     which is the number the blake2b question needs.
 
   3. disk_io is split into disk_syscall (time actually in a read/write/open
      syscall) and disk_decode (ReadBlockFromDisk / LoadExternalBlockFile on the
@@ -64,7 +64,7 @@ BUCKETS = collections.OrderedDict([
         "AbstractPushAnchor", "IncrementalMerkleTree", "librustzcash_merkle_hash",
         "PushAnchor", "merkle_hash", "sapling_crypto::jubjub::edwards::Point",
     ]),
-    # blake2b: its own bucket, ahead of equihash, so the NEON question has a number.
+    # blake2b: its own bucket, ahead of equihash, so the hashing question has a number.
     ("blake2b", ["blake2b", "Blake2b", "blake2b_compress"]),
     ("equihash", ["CheckEquihashSolution", "IsValidSolution", "CheckBlockHeader", "Equihash<"]),
     # Real syscall time.

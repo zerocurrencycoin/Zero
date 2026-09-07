@@ -164,8 +164,14 @@ Use case: gate RPC clients and harnesses; **not** ops-ready.
 | M-BOOT-POSTSAP | stock bootstrap rematch | **mean 300.15 blk/s** (n=4, stdev 0.96; min 298.80 max 301.20); window 600k-900k; ledger `CAMPAIGN=bootstrap-postsap`; **parity** with M-RX-POSTSAP-STOCK | `campaign` | `lab_monitor` | `REPORT-bootstrap-postsap.md` |
 | M-BOOT-ONSET | stock bootstrap Sapling-onset | **129.87 blk/s** (n=1); window 490k-520k; ledger `CAMPAIGN=sapling-onset`; slower than deep post-Sap (~300) -- dual Sprout+Sapling load (see M-DENS-ONSET-*) | `campaign` | `lab_monitor` | `REPORT-sapling-onset.md` |
 | M-RX-ONSET | stock reindex Sapling-onset | **140.19 blk/s** (n=1); window 490k-520k; ledger `CAMPAIGN=reindex-onset`; peer M-BOOT-ONSET (~parity; both ~2x slower than deep post-Sap ~300) | `campaign` | `lab_monitor` | `REPORT-reindex-onset.md` |
+| M-LAB-WALL-QUANTUM | tiny reindex harness | Wall time is whole seconds over a fixed 187417 blocks, so reported rate is discrete: one second = **~9.8 blk/s (0.7%)**. Differences below that are not representable | `spot` | computed | `test-logs/fullrun-20260907T071404Z/ANALYSIS.md` |
+| M-EQ-ROW-WIDTH | `EhOptimisedSolve` (192,7) | `TruncatedWidth` = **70 B**; rounds 0-3 need 22-25 B, so a ~3x overcharge on the rounds holding the most rows | `spot` | source + computed | `equ/SOLVER.md` |
+| M-EQ-XT-ROUND0 | `EhOptimisedSolve` (192,7) | `Xt` at round 0: 33.5M rows x 70 B = **2.19 GB** | `spot` | computed | `equ/FINDINGS.md` |
+| M-EQ-PEAK-DEFAULT | `EhOptimisedSolve` (192,7) | Measured peak **7.15 GB**; **6.6 GB** physical footprint | `spot` | `lab_monitor` | `equ/FINDINGS.md` |
+| M-EQ-PEAK-TROMP | tromp (192,7) | Peak physical footprint **3.3 GB** | `spot` | `lab_monitor` | `equ/VENDORED.md` |
+| M-EQ-TROMP-SPEEDUP | tromp vs default (192,7) | **5.69x** mean over n=4 paired nonces; solution sets identical | `paired` | `lab_monitor` | `equ/VENDORED.md` |
+| M-EQ-D3-SORT | `EhOptimisedSolve` (192,7) | Sort patch **1.22x**, paired nonces | `paired` | `lab_monitor` | `equ/FINDINGS.md` |
 | M-MINE-REGTEST-SMOKE | regtest `generate` (48,5) | **8** blocks in **1 s** wall (~125 ms/blk wall); util sampled; solve too cheap for Instruments-grade ms -- smoke for BENCH-MINE env | `campaign` | `lab_monitor` | `test-logs/mine-20260812T153357Z/` |
-| M-MINE-NEON-PROBE | arm64 stock binary | `hw.optional.neon=1`; `blake2b_compress_ref` present; `blake2b_compress_neon=0`; `ZERO_PERF_NEON_ZEROD` unset | `spot` | `nm`/`sysctl` | `neon-probe.txt` |
 | *(none yet)* | mainnet (192,7) timed solve | **Scheduled -- Track M / G5** -- `MINE_MAINNET_SOLVE=1` + Instruments; harness stub only (`mine_bench.sh mainnet-template`) | -- | -- | Perf §0.9 / §0.16 |
 | M-WAL-SYNC-P0 | wallet profile0 + tiny `-reindex` | tip **187417** in ~198 s (~**950** blk/s class); RSS **104->408 MiB**; wallet **106496** B flat; txcount **0** | `campaign` | `lab_monitor` | `test-logs/walletsync-20260812T153358Z/util.tsv` |
 | M-WAL-SYNC-P1 | wallet profile1 + tiny `-reindex` | tip **187417** in **~201 s** (~**918** blk/s from h~2.8k); RSS **~103->398 MiB**; wallet **237568** B flat; txcount **133**; note_tx **0** -- near P0; no witness hotspot expected | `campaign` | `lab_monitor` | `test-logs/walletsync-20260813T055703Z/` |
@@ -424,7 +430,6 @@ RecBench stores `CAMPAIGN=` strings in `reindex-profile/bench-summaries/ledger.*
 | `sapling-onset` | bootstrap stock | 490k-520k | M-BOOT-ONSET | Stage 1; n=1 |
 | `reindex-onset` | reindex stock | 490k-520k | M-RX-ONSET | Stage 1 peer to M-BOOT-ONSET; n=1 |
 | `mine-equihash-regtest` | regtest generate | (48,5) | M-MINE-REGTEST-SMOKE | BENCH-MINE env smoke |
-| `mine-equihash-neon-probe` | probe | arm64 | M-MINE-NEON-PROBE | NEON A/B gated on NEON zerod |
 | `wallet-sync-profile0` | reindex + wallet | tiny tip | M-WAL-SYNC-P0 | Dev wallet profile0; no host paths |
 | `wallet-sync-profile1` | reindex + wallet | tiny tip | M-WAL-SYNC-P1 | Mid-size personal; txcount 133; note_tx 0; near P0 |
 | `wallet-sync-fat` | reindex + fat wallet | tiny tip | M-WAL-SYNC-FAT, M-CPU-WAL-FAT | Done; FINDINGS + archive `walletsync-fat-g0-20260812.tar.gz`; Perf §0.14 |
@@ -432,7 +437,7 @@ RecBench stores `CAMPAIGN=` strings in `reindex-profile/bench-summaries/ledger.*
 | `wallet-rescan-fat` | `-rescan` + fat wallet | genesis to live tip | M-WAL-RESCAN-FAT, M-WAL-RESCAN-FAT-CPU | **Done** (~11.9 h). Clears witnesses; per-block Verify not ChainTip; NOTEIDX stale storm; end walk 2.0 s |
 | `cycle-1` / `cycle-2` / `cycle-3` | wallet x op rematch | tiny / window / tip | assigned when first measured | `ops-campaign.sh`; collate `collate_cycle.py`; one trial per invocation |
 
-Unmeasured work (Idx1 tip getalldata, mainnet 192,7 solve Instruments **scheduled G5**, FDCACHE 8/16KB, optional onset n=4) gets an `M-*` when first measured. **Postponed:** NEON A/B (G7), Halo/Orchard notes body (G8), KAT adapt tests (G9). Groth G2/G3 consecutive after G5/G9 slot.
+Unmeasured work (Idx1 tip getalldata, mainnet 192,7 solve Instruments **scheduled G5**, FDCACHE 8/16KB, optional onset n=4) gets an `M-*` when first measured. **Postponed:** Halo/Orchard notes body (G8), KAT adapt tests (G9). **Closed:** blake2b SIMD A/B (was G7). Groth G2/G3 consecutive after G5/G9 slot.
 
 **Cross-campaign notes**
 

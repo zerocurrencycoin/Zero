@@ -2,6 +2,13 @@
 
 **Groth16** now lives in **[PerfGroth.md](PerfGroth.md)**; **task state** in **`docs/TASKS.md`**. This file keeps findings and method.
 
+This document holds the **performance findings for block connection**: where
+sync time goes, which of those costs were investigated, and what changing them
+did or would do. A subject appears here only where its cost during sync is the
+point -- Equihash verification is here because it is 6-28% of ConnectBlock CPU,
+while how the solver works belongs to `equ/`. It carries no task state; that is
+`docs/TASKS.md`, and placement generally is `docs/MAP.md`.
+
 **New to benchmarking this node?** Read **`docs/HOWTO.md`** first -- this file is the investigation narrative and assumes the workflow is already familiar. Data provenance for every recent number: `test-logs/DATA_INDEX.md`.
 
 **Quantitative inventory** (`M-*` campaigns, vocabulary, comparability, extraction, ledger `CAMPAIGN=` map): **[Measures.md](Measures.md)** -- cite IDs only here; means/stdevs live there. This file keeps optimization narrative, **BENCH-/FIX-/IMP-***, baseline tracks **L0-L7**, Stages 0-6, priorities **G**/**P1-P4**, Groth decision, and **lab materials** (§1). Doc-map, lab discipline, and harness inventory: **`docs/POLICY.md`**.
@@ -14,7 +21,7 @@
 
 Orientation for the sync/perf lab. Detail lives in subsections and **Measures.md**.
 
-**Where this stands:** Three ConnectBlock-adjacent fixes shipped (§3 fd-cache, §4 root latch, §4 anchor-existence index); two measured **null** throughput wins (useful negatives). Post-Sapling import CPU is still **Groth16-bound** (~48-55% chain-wide, M-CPU-SEQ). Batch verification is the largest open sync win; **Option A vs B is undecided** -- do not start Phase 2 product code until a person chooses. Hand-port Phases 0-1 proved the math on pinned crates (scratchpad only). Fat-wallet witness path is a separate track (§0.14): lab prototypes measured; **Cycle 1** STALE next. Mining: regtest solve smoke + NEON probe done; **G5** mainnet (192,7) timed solve **scheduled** (Track M). See §0.0 / §0.1a (Groth review) and §0.15 (backlog).
+**Where this stands:** Three ConnectBlock-adjacent fixes shipped (§3 fd-cache, §4 root latch, §4 anchor-existence index); two measured **null** throughput wins (useful negatives). Post-Sapling import CPU is still **Groth16-bound** (~48-55% chain-wide, M-CPU-SEQ). Batch verification is the largest open sync win; **Option A vs B is undecided** -- do not start Phase 2 product code until a person chooses. Hand-port Phases 0-1 proved the math on pinned crates (scratchpad only). Fat-wallet witness path is a separate track (§0.14): lab prototypes measured; **Cycle 1** STALE next. Mining: regtest solve smoke + symbol probe done; **G5** mainnet (192,7) timed solve **scheduled** (Track M). See §0.0 / §0.1a (Groth review) and §0.15 (backlog).
 
 ### 0.0 Groth16 item -- lead-in and step-by-step
 
@@ -30,7 +37,7 @@ Reviewer entry point for people who have not lived in §§2/6/9.4. Evidence stay
 | **Option A status** | Phases 0-1 **done** (MiMC KATs N=1..64 + corrupt); code **not in repo** (scratchpad). Phase 2+ blocked on decide. |
 | **Option B status** | Upstream production since 2022 (zcashd, Zebra); Pirate has C++/`cxx` precedent. Migration cost **unscoped** (§0.6a cxx questions open). |
 | **Not substitutes** | fd-cache / latch / anchor index -- shipped, measured flat for throughput. |
-| **Independent tracks** | Fat-wallet witness productize (§0.14); Equihash NEON (P1/G7); mining solve profile (G5). |
+| **Independent tracks** | Fat-wallet witness productize (§0.14); mining solve profile (G5). |
 | **Decide inputs** | §0.1a pros/cons; §0.6a effort bands; §6-6.2 crypto/control-flow; §9.4 phase checklist. |
 | **After decide** | Stage 2 evidence closeout -> Stage 3 implement -> measure vs post-Sap baselines; keep sequential fallback until proven. |
 
@@ -72,7 +79,7 @@ Post-Sapling sync is Groth16-bound (~half of ConnectBlock CPU). Zero verifies ev
 - CPU evidence: §2; measure IDs M-CPU-* in **Measures.md**  
 - Crypto and control-flow constraints: §6  
 - Hand-port phase checklist: §9.4  
-- Independent of this decision: NEON blake2b (§5 / §0.2 item 2), measure campaigns (stock rematch)
+- Independent of this decision: blake2b hashing (SIMD track closed) (§5 / §0.2 item 2), measure campaigns (stock rematch)
 
 ### 0.1 Immediate next step
 
@@ -90,7 +97,7 @@ Decide before any more Groth16 product code. **Hand-port vs. adopt upstream -- t
 | Question | Owner / gate | Status |
 |----------|--------------|--------|
 | Groth16 Option A vs B (§0.1a), **including the cxx-bridge scoping (§0.6a)** | Person | **Open** -- G2 then G3 consecutive after G5/G9. The cxx questions are not a separate decision: whether batching can land behind Zero's existing C ABI (`librustzcash.h`, raw `extern "C"`) or requires a cxx bridge **is** the A-vs-B cost difference |
-| ARM fleet mix (NEON worth?) | Deploy survey | **Open**; G7 NEON **postponed** anyway |
+| ARM fleet mix | Deploy survey | **Open**; relevant to the solver track only |
 | FDCACHE 8/16KB vs default vs 1MB | G6 | **Hold** |
 | W5/W6 / getalldata cache / Zerowallet notmodified | Product review | **Postponed** |
 | Halo/Orchard for Zero | Not Zero consensus; Zebro D2 | **Postpone G8** |
@@ -139,12 +146,12 @@ ConnectBlock / sync lab only. Planning for this tree stays here (and in **Measur
 
 **Groth16 investigation group (ongoing -- one decision gate, then phased work):** hand-port vs adopt (`§0.1a`); optional migration-cost spike; Phases 2+ only after decide; multicore later. Treat as one program, not mixed with FR/wallet Decide items.
 
-**Parallel effort (independent of Groth):** Equihash / blake2b / NEON -- ARM-mix check first; mining profile optional and separate from reindex-verify CPU.
+**Parallel effort (independent of Groth):** hashing -- ARM-mix check first; mining profile optional and separate from reindex-verify CPU.
 
 | # | Item | Deps | Effort | Risk | Note |
 |---|------|------|--------|------|------|
 | G | Groth16 program | Person decides A/B | L (spike) then XL | Consensus if Phase 3 | See §0.0-0.1a; Stages 2-3 |
-| P1 | NEON blake2b (Equihash) | Confirm ARM deployments | M | Low (not consensus) | Parallel to Groth; Stage 4 |
+| P1 | blake2b hashing, closed | Confirm ARM deployments | M | Low (not consensus) | Parallel to Groth; Stage 4 |
 | P2 | Segmented wallet-off rematch + bootstrap segments + shielded-era profile table | Lab materials | M | None | Track **L3** / BENCH-SEG; Stage 1 |
 | P3 | Shieldex | Optional dead-field PR; full gate **set aside** (§0.10) | S / M | Med if gating | RSS only |
 | P4 | LoadBlockIndex inner interrupt | None | S | Very low | **Done** FIX-LBI |
@@ -192,7 +199,7 @@ Do not confuse with product TODO on Zero400. Numbers: **Measures.md** only.
 
 ### 0.5 Known gaps / unresolved questions
 
-- **ARM vs. x86_64 real deployment mix for Zero nodes -- unknown.** Directly determines whether NEON blake2b (item 2, §0.2) is worth pursuing at all; not checked this session or any prior one.
+- **ARM vs. x86_64 real deployment mix for Zero nodes -- unknown.** Directly determines whether blake2b hashing (SIMD track closed) (item 2, §0.2) is worth pursuing at all; not checked this session or any prior one.
 - **Whether Zero's current C-header FFI (`librustzcash.h`, raw `extern "C"`) could be kept alongside a `sapling-crypto` migration, or would need replacing with a `cxx`-bridge like `zcashd`'s current architecture** -- not investigated; directly affects how big option 2 in §0.1 really is.
 - **Whether Zero's own `CBlockIndex` "Shieldex" fields (§8.2) are used by anything beyond the one RPC endpoint confirmed** (`rpc/blockchain.cpp`'s shielded-tx-rate stats) -- confirmed one real consumer, didn't exhaustively check for others before suggesting the fields could be gated/removed.
 - **No `-O1`/`-O2` measurement exists at all** (item 3, §0.2) -- the "little difference" claim in this document's history has never been checked against real data, in either direction.
@@ -202,7 +209,7 @@ Do not confuse with product TODO on Zero400. Numbers: **Measures.md** only.
 
 - **Whether Pirate Chain's C++ `cxx`-bridge port (`src/rust/src/sapling.rs`, `src/rust/src/bridge.rs`) is directly adaptable to Zero**, given both are same-lineage zcashd forks -- could shortcut a large fraction of option 2's (§0.1) scoping work if their crate-version pins and build tooling are close enough to Zero's `depends/` system. Not checked: how their `depends`-equivalent build step differs from Zero's, or how much of their bridge code is Pirate-specific vs. reusable.
 - **Whether `zcashd`'s own pre-`cxx`-migration history (its git log, before the current `rust/bridge.h` architecture) shows an intermediate step comparable to Zero's current state** -- could reveal a real, tested incremental path from raw-C FFI to batching, rather than jumping straight to `cxx`. Not investigated -- the `zcashd` checkout fetched this session was a shallow, single-commit clone with no history to search.
-- **Whether `Equihash::IsValidSolution` has existing test fixtures with known edge cases** (§9.2 step 4 flags `src/test/equihash_tests.cpp` as unchecked) -- would materially de-risk the NEON differential-testing step; a five-minute check not yet done.
+- **Whether the solution validator has existing test fixtures with known edge cases** (§9.2 step 4 flags `src/test/equihash_tests.cpp` as unchecked) -- would materially de-risk the differential-testing step; a five-minute check not yet done.
 
 
 ### 0.6a Groth Option B migration-cost spike
@@ -221,7 +228,7 @@ Qualitative scope only. Calendar time estimates are **not** refined here -- ther
 
 **Decision inputs, not a schedule:** Option B is a release-scale migration if done like current zcashd (depends + bridge + Sapling verify + regression). Option A is narrower (Phase 2-3 on pinned crates) but omits signature batching and keeps in-house crypto review. Next engineering choice after baseline numbers: Pirate/zcashd bridge inventory **or** Option A Phase 2 FFI sketch -- not both in parallel.
 
-**Lab host:** this ZeroPerf machine is arm64 with NEON available; fleet mix remains unknown.
+**Lab host:** this ZeroPerf machine is arm64; deployment fleet mix remains unknown.
 
 #### cxx questions
 
@@ -229,24 +236,7 @@ Qualitative scope only. Calendar time estimates are **not** refined here -- ther
 
 **What Zero has today:** `librustzcash.h` and raw `extern "C"` entry points (e.g. `librustzcash_sapling_check_spend`). No in-tree `cxx` bridge.
 
-**Open questions (unanswered -- these are the spike, not settled facts):**
-
-1. **Must Option B use `cxx`?** Or can upgraded Rust crates still expose a stable C ABI that keeps Zero's existing header shape?
-2. **If `cxx` is required,** what is the blast radius in Zero's `depends/` / cargo-offline / reproducible-build path compared to Pirate or current zcashd?
-3. **How much of Pirate's or zcashd's bridge** is reusable vs fork-specific?
-4. **Can batching land behind the current C FFI** as an incremental Option A/B hybrid, or is crate migration inseparable from the bridge rewrite?
-
-Until those are answered with file/crate evidence, do not treat "need cxx" as decided -- treat it as the main unknown that sizes Option B.
-
-### 0.7 Section index
-
-Pointer list only; each section states its own finding.
-
-§0.0 Groth16 review packet / steps - §0.1 decision - §0.2 sync-lab priorities - §0.2a postponed triage - §0.2b lab facts - §0.6a Option B / cxx - §0.8 signals - §0.8a reindex remainder - §0.9 mining+density - §0.10 Shieldex - §0.11 huge-wallet - §0.12 accounts/W5/TST - §0.13 plans (BENCH/FIX/IMP, L0-L7, Stages) - §0.13 G stages - §0.14 wallet witness - §0.15 open work menu - §0.16 reorg / productize / lab wallets - §1 methodology - §2 CPU buckets - §3 fd-cache - §4 latch/anchor - §5 Equihash - §6 Groth16 - §7 memory - §8 allocations - §9 paths / §9.4 Phases 0-1.
-
----
-
-### 0.8 Signals, `fRequestShutdown`, and debug.log rotate
+**Open questions** for the Option A/B spike: `PerfGroth.md`, which owns Groth16.
 
 **Doc ownership:** this file only. Do **not** edit Zero400 **TODO** / ExtTests / UpdateZero from the ZeroPerf lab track until a deliberate merge.
 
@@ -273,7 +263,7 @@ Prefer `interruption_point()` on Boost worker threads; add explicit `ShutdownReq
 | T0 | `LoadBlockIndexDB` `vSortedByHeight` + map build (`main.cpp`) | Multi-minute index reconcile | `interruption_point()` every N -- **FIX-LBI done** |
 | T0 | `ThreadImport` / `LoadExternalBlockFile` between files / progress (`init.cpp` / `main.cpp`) | Full reindex / bootstrap on `zcash-loadblk` | `ShutdownRequested()` -- **FIX-IMPORT-POLL done** |
 | T1 | `ConnectBlock` / `ContextualCheckBlock` outer per-block path on import | Dominant reindex CPU (Groth16 inside) | Rely on thread interrupt at block boundaries; optional flag check per block |
-| T1 | Equihash verify in header checks (reindex) | Smaller but steady | Optional every N headers |
+| T1 | PoW verify in header checks (reindex) | Smaller but steady | Optional every N headers |
 | T2 | `BuildWitnessCache` wallet rebuild | Fat-wallet start | Flag check between heights |
 | -- | Signal handlers | -- | **Never** call `exit()`; only set atomics |
 
@@ -342,12 +332,12 @@ Mining profile and shielded density table.
 | Work | Status | Measure / tool |
 |------|--------|----------------|
 | Regtest `generate` (48,5) env + util | **Done** | M-MINE-REGTEST-SMOKE (~125 ms/blk wall, solve too cheap for Instruments-grade) |
-| arm64 NEON / blake2b symbol probe | **Done** | M-MINE-NEON-PROBE (`compress_ref` only; no NEON zerod) |
+| arm64 blake2b symbol probe | **Done** | Retired measure; see `Measures.md` |
 | Validator KATs (192,7)/(48,5) | **Done** | TST-05; `contrib/perf/kats/` |
 | Reindex **verify** Equihash cost | **Done** | M-CPU-SEQ ~**0.252 ms/blk** (not mining) |
 | Mainnet-template **timed solve** (192,7) + Instruments on `zcash-miner` | **Scheduled -- Track M** | G5; `mine_bench.sh mainnet-template` only stubs env unless `MINE_MAINNET_SOLVE=1` |
 | Live mainnet mining / pool / GBT production hash | **Out of lab scope** | Not a ZeroPerf campaign |
-| NEON solve A/B | **Parked** | G7; needs NEON-enabled zerod + ARM fleet mix |
+| Solver SIMD A/B | **Parked** | Solver track; needs an ARM fleet mix |
 
 **Procedure for G5 (Track M):** one trial when the Instruments host is free; parallel with Cycle 1, not gated on STALE. `ENABLE_MINING`; disposable isolated mainnet template (never default Application Support); Instruments on **`zcash-miner`** during solve -- not during `-reindex`; record solve ms/block + blake2b share; compare to verify-only ~0.25 ms/blk; campaign `mine-equihash-*`. Do not batch multiple long solves.
 
@@ -427,7 +417,7 @@ Both stay **out of the active sync-lab queue**. No implement / apply recommendat
 | Item | Rec | Why |
 |------|-----|-----|
 | **TST-09** `-blocknotify` / `-walletnotify` | **Done** | `DeprecationTest.BlockNotify*` / `WalletNotify*`; alert half already done |
-| **TST-05** Equihash (192,7)/(48,5) KATs | **Done** (validator + solver cases; `1927EQ.txt` + `1927EQ_h1.hex`) | `equihash_tests` green; pairs BENCH-MINE |
+| **TST-05** PoW KATs | **Done** (validator + solver cases; `1927EQ.txt` + `1927EQ_h1.hex`) | `equihash_tests` green; pairs BENCH-MINE |
 | **TST-01** `getsupply` / `zs_*` depth | **Implement opportunistically** | Exclusive depth; not gate-blocking; pairs getalldata work |
 | **TST-03** zeronode arg validation | **Scheduled -- Track Z Phase A** | Expand existing Boost; no sync-lab coupling. Phase C 2-node after A/B (**ZeroNodeDev.md** §9, **UpdateZero** TNT-12) |
 | **CleanIndex ExtTests B2** / witness C | **Postpone** | ExtTests B1 `reindex_shielded` covers reindex witness; B2 high harness cost |
@@ -447,13 +437,13 @@ Doc ownership: **BENCH-/FIX-/IMP-***, **L0-L7**, Stages, **G**/**P1-P4**, lab ma
 | **BENCH-BOOT** | M-BOOT-PRESAP / M-BOOT-POSTSAP | Bootstrap import vs reindex | `MODE=bootstrap`; reset excludes `blocks/`; n>=1 then n=4 | Comparable height_per_s; no -28 stuck | Original `bootstrap.dat` copy-only | **Done** (pre-Sap + post-Sap; post-Sap parity in Measures) |
 | **BENCH-SEG** | M-DENS-* / M-BOOT-ONSET / M-RX-ONSET | Era-bounded throughput + density | Density tip-complete; onset bootstrap+reindex n=1 peers done | Per-era rows in Measures §3.2a / §8 | Density CSV (§0.9) | **Parked** vs witness (L3 n=4 optional on track switch) |
 | **BENCH-UTIL** | M-RX-UTIL-SMOKE | RSS/CPU during import | `SAMPLE_UTIL=1` on short window | util.tsv milestones | Stock binary | Smoke done; keep on postsap runs |
-| **BENCH-MINE** | M-MINE-REGTEST-SMOKE / M-MINE-NEON-PROBE | Solve cost != verify | regtest+probe done; mainnet Instruments opt-in; **NEON A/B parked** (grouped hold) | ms/block + blake2b share | NEON build (parked) | **Active** (solve profile); NEON hold |
+| **BENCH-MINE** | M-MINE-REGTEST-SMOKE | Solve cost != verify | regtest+probe done; mainnet Instruments opt-in; **vectorised A/B parked** (grouped hold) | ms/block + blake2b share | vector build (closed) | **Active** (solve profile); NEON hold |
 | **BENCH-WAL** | M-WAL-SYNC-* / M-CPU-WAL-* / M-WAL-WITNESS-* / M-GAD-FAT-TINY | Tip RPC + wallet-on sync util | fat ~50x catalogued; ibd-defer ~35x; NOTEIDX ~33x; getalldata fat@tiny done; full-mainnet Idx1 + §0.11 matrix open | wall_ms + CPU + wallet_bytes | Disposable copies | Witness flags lab-opt-in; matrix later |
 | **BENCH-FDCACHE** | 4x2 + O1/O2 | Confirm null / compiler | Bundled later; not current mix | A/B ledger | ZERO_FDCACHE build | **Postponed** |
 | **BENCH-WIN-SIG** | Windows stop / Ctrl+C | Document teardown | RPC stop + Ctrl+C; inspect `debug.log` for `Shutdown` / flush | Written expected-behavior note | Win host/VM | **Plan** |
 | **BENCH-LOGROT** | Linux debug.log HUP | Validate `create`+HUP | mv/touch/HUP or logrotate `create`; `-debug=rpc` | New file grows; rotated frozen | Linux host | **Plan** (macOS done) |
 
-**Harness rules (all BENCH-*):** never write default Application Support / `%APPDATA%\zero`; refuse that path; cite Measures vocabulary; append ledger via RecBench. Do **not** batch trials expected to exceed **~20 minutes each** unless each trial can be restarted alone (separate command / resume from trial index). Long windows (e.g. post-Sap 600k-900k) run as one trial per invocation, or with explicit `TRIAL=` / resume support.
+**Harness rules (all BENCH-*):** `docs/POLICY.md` S4 -- datadir protection, trial batching, ledger append. Cite Measures vocabulary for metric names.
 
 **Extractor extensions (non-blocking):** rotation-aware multi-file `debugN.log`; optional `-debug=bench` / xctrace into the same Measures vocabulary; witness/init duration fields so tip-hour contradictions can be cross-checked in structured form. Do not block these on Groth16 product work.
 
@@ -478,7 +468,7 @@ Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex ga
 | Imp ID | Improvement | Track | Gate |
 |--------|-------------|-------|------|
 | **IMP-BOOT-SEG** | Segmented bootstrap + reindex rematch + density CSV | Measure (§A) | Lab wall time |
-| **IMP-NEON** | NEON blake2b if ARM mix warrants | Equihash | ARM deployment check |
+| **IMP-vectorised** | blake2b hashing, closed | -- | ARM deployment check |
 | **IMP-GROTH-SPIKE** | Bound Option B migration cost (FFI/`cxx`, `ff`/`group`) | Groth | Person still decides A/B before Phase 2 |
 | **IMP-SHIELDEX-DEAD** | Optional remove dead `nNotarizations` when touching `chain.h` | RSS/cleanup | Opportunistic; full gate set aside |
 | **IMP-BUILD-RECONFIG** | Harden the autotools re-configure path: the automake-spawned `configure` re-run inherits no `CONFIG_SITE`, so it dies on a misleading "libdb_cxx headers missing" on a tree that built minutes earlier. Pre-existing in **both** trees (reproduces in Zero400 with no local edit). Options and recovery: **[BUILD_RECONFIG.md](BUILD_RECONFIG.md)**. Smallest real fixes (persist `CONFIG_SITE`, or make the BDB probe name it) touch `configure.ac`, which is Zero400-owned -- not a perf-local change | Build / ops | A re-run triggered by touching `configure.ac` completes, or fails with a message naming `CONFIG_SITE` |
@@ -506,15 +496,15 @@ Pointers only -- numbers in **Measures.md**.
 | Density | M-DENS-* fine + coarse tip-complete (`shielded-density.csv`) |
 | Onset rematch | M-BOOT-ONSET (~130) / M-RX-ONSET (~140) n=1 peers |
 | Wallet sync | M-WAL-SYNC-P0 / M-WAL-SYNC-FAT / M-CPU-WAL-FAT / M-CPU-WAL0-TINY; archive `test-logs/archives/walletsync-fat-g0-20260812.tar.gz`; FINDINGS + §0.14 |
-| Equihash KATs | `contrib/perf/kats/` + TST-05 green; G9 adapt postponed |
-| Accepted queue | Perf §0.13 G -- G0 catalogued; witness FIX triage next; G6 held; G7/G8 postpone |
+| PoW KATs | `contrib/perf/kats/`; see `equ/` |
+| Accepted queue | Perf §0.13 G -- G0 catalogued; witness FIX triage next; G6 held; G8 postpone |
 | Ledger map | Measures §8 `CAMPAIGN=` |
 
 #### F. Baseline recreation program
 
 Active program -- not optional leftovers.
 
-Goal: one coherent **current** baseline set for decisions (Groth A/B, NEON, further ConnectBlock work). Prior session under-scoped this as interruptibility + one bootstrap window; that was wrong relative to the program.
+Goal: one coherent **current** baseline set for decisions (Groth A/B, further ConnectBlock work). Prior session under-scoped this as interruptibility + one bootstrap window; that was wrong relative to the program.
 
 | Track | Items | Why | Status |
 |-------|-------|-----|--------|
@@ -526,7 +516,7 @@ Goal: one coherent **current** baseline set for decisions (Groth A/B, NEON, furt
 | **L4 util** | util.tsv on L1/L2-class trials | RSS/CPU at milestones | On by default; smoke M-RX-UTIL-SMOKE |
 | **L5 TST-09** | `-blocknotify` / `-walletnotify` default-build markers | Approved PIR-01 companion; alert half done | **Done** (FIX-TST09) |
 | **L6 Groth inputs** | Option B migration-cost spike; keep `groth16-batch-poc` runnable | Unblocks §0.1a without Phase 2 code | Spike prose in §0.6a; poc verify still open |
-| **L7 ARM note** | This lab host is **arm64** (NEON=1) | Deployment mix still unknown; NEON worth labbing here | Fact |
+| **L7 ARM note** | This lab host is **arm64** | Deployment mix still unknown | Fact |
 | Hold | FDCACHE 4x2, Accounts/W5, CleanIndex ExtTests B2, Groth Phase 2 | Explicit non-goals until gates clear | -- |
 
 **Naming:** **L0-L7** = baseline recreation tracks. ExtTests **B1** / CleanIndex **B2** = harness IDs (WitnessReindex / ExtTests) -- different namespace.
@@ -566,9 +556,9 @@ Owner-accepted order (solo host; one long trial at a time):
 | 6 | **G0e** | Tip-quiet getalldata on fat tiny tip | **Done** (scoped) -- ~0.75-1.2 s after rebuild; **not** mainnet Idx1 513k-UTXO; full Idx1 still open |
 | -- | **NOTEIDX** | FIX-WAL-WITNESS-NOTEIDX prototype | **Advanced** -- `-walletwitnessnote=1` ~**33x** to h8k (14.9->486 blk/s); DIRTY still postponed |
 | -- | **G6** | FDCACHE 8/16 KB A/B | **Hold** -- stock binary has no `-perffdcache`; prior 1MB A/B **null** (M-CPU-FD-THR); low priority vs witness ship |
-| 7 | **G5** | Equihash solve Instruments (mainnet template) | **Scheduled -- Track M**; parallel with Cycle 1 |
+| 7 | **G5** | Solve profile (mainnet template) | **Scheduled -- Track M**; parallel with Cycle 1 |
 | 8 | **G9** | KAT adapt/extra validate postponed | Note only |
-| -- | **G7** / **G8** | NEON / Halo-Orchard | **Postpone** |
+| -- | **G8** | Halo-Orchard | **Postpone** |
 | 9 | **G2** then **G3** | Groth decision then implement | Consecutive after G5/G9 slot |
 
 **Next after this batch:** Opt-in packaging done; Id 1 (M-WAL-SYNC-P1) done; disposable tip **2518018** + post-Sap WIT A/B **done**. P2P follow-tip / full bootstrap later. **FIX-WIT-WALK-UNLOCK** and Idx1 optional. Density/L3 parked. **Cycle 1** STALE next. **G5** Track M parallel. Groth G2/G3 after G5/G9.
@@ -598,12 +588,12 @@ Owner-accepted order (solo host; one long trial at a time):
 - Multicore batch is a later stage on top of single-thread batch.
 - Queue: **consecutive with G2** (same program run series).
 
-**Stage 4 -- Equihash solve profile (NEON postponed)**
+**Stage 4 -- solve profile**
 
-- BENCH-MINE tools: `contrib/perf/mine_bench.sh` (regtest / mainnet-template / neon-probe).
-- Regtest smoke + NEON probe measured (M-MINE-*); TST-05 **done** (kats in `contrib/perf/kats/`).
+- BENCH-MINE tools: `contrib/perf/mine_bench.sh` (see `README.md` for modes).
+- Regtest smoke + symbol probe measured (M-MINE-*); TST-05 **done** (kats in `contrib/perf/kats/`).
 - Mainnet (192,7) timed solve: Instruments / opt-in -- **G5** in accepted queue.
-- **G7 NEON postponed** (grouped hold above). Stock arm64 remains `compress_ref`-only.
+- Equihash hashing no longer uses libsodium; the vectorisation question is closed (S5).
 - Verify baseline still ~0.252 ms/blk Equihash (M-CPU-SEQ).
 
 **Stage 5 -- Ops and platform validation**
@@ -733,7 +723,7 @@ Do not invalidate at the top of `AddToWallet`. Flag off (`-walletwitnessnote` un
 | Flag off | Vector unused | No Select change |
 | Spend / witnesses | Risk = missed stale on a new note tx | Tests below; do not skip invalidate on `HasNoteData` insert |
 
-**Not this patch:** `ibd-defer`; DIRTY; skipping Equihash/`ReadBlockFromDisk` on rescan; clearing witnesses without `-rescan`; RPC `-28` vs `-33` ordering; `FIX-WIT-WALK-UNLOCK`.
+**Not this patch:** `ibd-defer`; DIRTY; skipping PoW verify/`ReadBlockFromDisk` on rescan; clearing witnesses without `-rescan`; RPC `-28` vs `-33` ordering; `FIX-WIT-WALK-UNLOCK`.
 
 **Tests.** Extend `WalletTests.NoteTxIndexTracksNoteBearingTxs` (or a sibling). After a hot index (`Ensure`, stale false, size 0 or 1). **One gtest, both `AddToWallet` flavors** -- do not split STALE and disconnect-style merge into a later PR.
 
@@ -1042,7 +1032,7 @@ Tiered. Effort S/M/L. One long trial at a time.
 | PROTO-GROTH-A2 / B0 | Blocked on person A/B decide |
 | INV-GROTH-FALLBACK | Policy at implement time, not now |
 | INV-SIG-SHARE | Nice for Option B sizing; after cxx spike |
-| INV-ARM-MIX / G7 NEON | Fleet unknown; NEON parked |
+| INV-ARM-MIX | Fleet unknown; relevant to the solver track |
 | BENCH-FD-MID / G6 | Prior null; needs special binary |
 | BENCH-BOOT-POST | Parity already noted |
 | BENCH-SEG / L3 | **Parked** vs witness track; density tip + onset n=1 done; n=4 optional |
@@ -1096,7 +1086,7 @@ Tiered. Effort S/M/L. One long trial at a time.
 
 #### Already closed
 
-G0-G0e, NOTEIDX A/B, TST-05, TST-08, M-MINE-REGTEST-SMOKE, M-MINE-NEON-PROBE, fd-cache null, latch/anchor null throughput, PIR-03 in tree.
+G0-G0e, NOTEIDX A/B, TST-05, TST-08, M-MINE-REGTEST-SMOKE, fd-cache null, latch/anchor null throughput, PIR-03 in tree.
 
 #### Accepted queue vs this menu
 
@@ -1137,7 +1127,7 @@ Witness **Tier A** Cycle 1 (STALE) is the active productize path. Groth stays on
 4. **Excessive (not applied):** R5d -- Cycle 2.
 5. **Unit edges:** GTest-DEC -- **done**.
 
-**Do not run for confidence:** Bfail RPC tiers (known-fail inventory) or `CachedWitnessesCleanIndex` (always-fail gtest). Coverage those would have provided for shielded reindex is **B1** `reindex_shielded.py`.
+**Do not run for confidence:** the known-fail tiers and held gtests, which `qa/zcash/test_filters.sh` excludes by name. Coverage those would have provided for shielded reindex is **B1** `reindex_shielded.py`.
 
 #### FIX-WIT-WALK-UNLOCK
 
@@ -1186,7 +1176,7 @@ Do **not** choose a cache shorter than the apply cap. If `WITNESS_CACHE_SIZE < M
 
 | Track | Bundle | When | Impact | Effort | Risk | Validation |
 |-------|--------|------|--------|--------|------|------------|
-| **M -- mining** | **G5** mainnet (192,7) timed solve + Instruments on `zcash-miner` | Scheduled now. One trial; Instruments host when free. Orthogonal to witness. Groth G2/G3 still after G5/G9 | **Med** (solve vs verify; NEON later) | **M** wall for one solve | **Low** (disposable template; never Application Support) | `MINE_MAINNET_SOLVE=1`; campaign `mine-equihash-*`; compare to verify ~0.25 ms/blk |
+| **M -- mining** | **G5** mainnet (192,7) timed solve + Instruments on `zcash-miner` | Scheduled now. One trial; Instruments host when free. Orthogonal to witness. Groth G2/G3 still after G5/G9 | **Med** (solve vs verify) | **M** wall for one solve | **Low** (disposable template; never Application Support) | `MINE_MAINNET_SOLVE=1`; campaign `mine-equihash-*`; compare to verify ~0.25 ms/blk |
 | **Z -- zeronode** | **TST-03** / **TNT-12** / **DOC-02** | **A now** (arg validation, existing Boost). **B** founders window with Cycle 1 if the lab node is free. **C** 2-node after A/B. **D** zeronode `invalidateblock` after Cycle 2. Docs steps 1-2 with A | **Med** product (no harness today) | A **S**; C **M** | **Low** A; **Med** C (collateral setup) | Expand `rpc_zeronode_tests`; then scripted `startalias` |
 
 Package **E** (Decrement uses Select) and incremental `vNoteTxHashes`: after Cycle 1 rematch, only if profiles still show those walks. **WALK-UNLOCK** / R5c: after Cycle 2 if mid-rebuild ops latency matters; not a Cycle 1 or 2 gate. Third skip: only if post-STALE `FindMyNotes` is the wall.
@@ -1595,9 +1585,21 @@ Idle and Sapling-output-only blocks match perfectly but were already cheap (empt
 
 **The cost is entirely inside blake2b's compression function, running unaccelerated on this hardware.** Every one of the 128 per-block hash calls goes through libsodium (not the Rust `blake2-rfc` crate also vendored in this tree -- that's for something else). libsodium 1.0.21 dispatches its blake2b compression function at runtime via `blake2b_pick_best_implementation()`, choosing between `avx2`/`sse41`/`ssse3`/`ref` backends -- but **all three accelerated backends are gated behind x86-only intrinsics headers**. On `aarch64-apple-darwin` (Apple Silicon), none of those headers exist, so the dispatcher unconditionally falls through to `blake2b_compress_ref`, the plain scalar C implementation, for every call.
 
-**Checked and ruled out: no fix via upgrading dependencies or Apple's native crypto.** libsodium has released twice since 1.0.21 (1.0.22, 2026-04-09, current) -- its actual `ChangeLog` shows post-quantum KEMs and new SHA-3 APIs, no mention of blake2b/NEON/ARM anywhere. Across every release checked (1.0.18-1.0.22), ARM/aarch64 wins landed for AES-GCM, AEGIS, and Argon2/SHA3 -- blake2b has never once been included; a version bump is confirmed not to fix this. Apple's CryptoKit has no BLAKE2b support at all (SHA-2/AES/legacy only).
+**Checked and ruled out: no fix via upgrading dependencies or Apple's native crypto.** libsodium has released twice since 1.0.21 (1.0.22, 2026-04-09, current) -- its actual `ChangeLog` shows post-quantum KEMs and new SHA-3 APIs, no mention of blake2b or ARM vector work anywhere. Across every release checked (1.0.18-1.0.22), ARM/aarch64 wins landed for AES-GCM, AEGIS, and Argon2/SHA3 -- blake2b has never once been included; a version bump is confirmed not to fix this. Apple's CryptoKit has no BLAKE2b support at all (SHA-2/AES/legacy only).
 
-**A real, actively-maintained implementation to integrate from, if pursued.** The official reference repo `BLAKE2/BLAKE2` ships a `neon/` directory with `blake2b-neon.c` implementing BLAKE2b via ARM NEON/ASIMD intrinsics, plus a dedicated `Aarch64` makefile -- and its most recent commit (2023) was a correctness fix by `veorq`, one of the two original BLAKE2 authors. Not stale or abandoned code. Integration would mean vendoring this implementation and wiring it in as a replacement compress function for this call path (either patched into the vendored libsodium build, or called directly from `equihash.cpp`, bypassing libsodium's generichash API for this one use site). Not yet scoped past confirming the file exists and targets the right architecture -- actual integration effort (API fit, licensing, correctness validation against known-answer vectors) hasn't been assessed (§0 item 1).
+
+**Resolved 2026-09-02: the recommendation above was implemented, via uniblake.** Option (b) was taken -- `equihash.cpp` no longer calls libsodium's generichash API at all; it calls uniblake (`ub_init_personal` / `ub_update` / `ub_hash_tail`) through `crypto/eh_hashstate.h`. libsodium is retained unchanged for Ed25519, `randombytes_buf` and the seven files that still use `crypto_generichash_blake2b_*` (see **`docs/HASHLIBS.md`** for the full division). Measured 2.03x on the Equihash access pattern, against libsodium 1.0.22 built -O3, harness at -O2.
+
+**One prediction in this section did not hold.** The gain was expected from a vectorised compression function. It came instead from the call structure -- the same prefix is hashed once rather than per call -- which is why the two libraries are within 1-2% on bulk data. Mechanism and measurements: `docs/HASHLIBS.md` S2.
+
+**The vectorisation track for blake2b is closed, on measurement.** The kernel
+question belongs to uniblake, which owns the implementation and the benchmark;
+ZeroPerf adopts its result rather than restating it. See `docs/HASHLIBS.md` for
+the division of labour and the Zero-level effect.
+
+References to a blake2b SIMD backend elsewhere in this document are historical and are not open work.
+
+The version-bump conclusion above is independently confirmed and stronger than stated: blake2b is **byte-identical** between 1.0.21 and 1.0.22 -- the only source difference is `LCOV_EXCL_LINE` comments, and the compress kernel compiles to identical assembly (`docs/SODIUM_SURVEY.md` S5).
 
 **Independent confirmation this is a fixed, hardware-level cost, not something content-dependent:** Equihash's per-block cost held constant at 0.252ms +/- 1.2% CV across six capture windows spanning pre- and post-Sapling heights and blocks/sec ranging 237-1,103 (§2's per-block table) -- versus 21-46% CV for every other bucket, all of which scale with shielded-tx volume or block size. A cost that doesn't move with any chain-content variable is exactly what "fixed per-header hashing cost, paid by an unaccelerated compression function" predicts.
 
@@ -1780,40 +1782,34 @@ Net: the allocation pattern isn't over-built for a hypothetical scenario -- most
 
 ---
 
-## 9. Status review and recommended path forward: NEON blake2b and Groth16 batching
+## 9. Status review and recommended path forward: blake2b hashing (SIMD track closed) and Groth16 batching
 
 **Purpose.** §5 and §6 each scoped a large-headroom optimization but stopped short of a recommendation on *how* to actually advance the work with controlled risk. This section reviews where each stands and lays out a staged approach for both -- sized to be interruptible and individually validated at each stage, rather than a single big-bang patch.
 
 ### 9.1 Status snapshot
 
-| | Equihash/NEON (§5) | Groth16 batching (§6) |
+| | Equihash hashing (§5) | Groth16 batching (§6) |
 |---|---|---|
 | CPU share | 6-12% chain-wide, but 100% fixed-per-block cost (0.252ms +/- 1.2% CV) | 48-55% chain-wide, scales with shielded-tx volume |
-| Root cause confirmed | Yes -- libsodium has no ARM/NEON blake2b backend, falls to scalar `blake2b_compress_ref` | Yes -- no batching anywhere in the pinned `bellman`/`librustzcash` call chain |
-| Fix exists upstream | Yes -- `BLAKE2/BLAKE2`'s `neon/` (maintained, 2023 commit) | Yes -- `zkcrypto/bellman`'s `batch.rs`, but written against a newer, incompatible crate generation |
+| Root cause confirmed | Yes -- libsodium has no ARM/blake2b hashing (SIMD track closed) backend, falls to scalar `blake2b_compress_ref` | Yes -- no batching anywhere in the pinned `bellman`/`librustzcash` call chain |
+| Fix exists upstream | Yes -- taken, via uniblake | Yes -- `zkcrypto/bellman`'s `batch.rs`, but written against a newer, incompatible crate generation |
 | Portable without a larger migration? | Yes, in principle -- but the actual call site goes through libsodium's `crypto_generichash_blake2b_*` API (`equihash.cpp:43,56,58`), not a raw compress call | Yes -- pinned `pairing::Engine::miller_loop` already accepts the arbitrary-length iterator the batch math needs |
 | Consensus-critical? | **No** -- Equihash verification is proof-of-work validation, not a state-transition; a faster/slower hash implementation changes timing, not consensus outcomes, as long as it's bit-identical to the reference algorithm | **Yes** -- changes the actual sequence of cryptographic operations used to reach a shielded-tx pass/fail |
 | Blast radius of a bug | A wrong hash silently rejects valid blocks or accepts invalid ones -- bad, but detectable immediately (chain halts or forks against every other node) | A wrong batch-verify could accept an invalid Sapling proof -- a much worse, harder-to-detect failure mode (a false spend/output could be silently accepted) |
 | Implementation status | Not started past confirming the upstream file exists | Not started past scoping + the investigation/test plan in §6 |
 
-**The asymmetry that should drive sequencing:** NEON blake2b is lower CPU payoff but far lower risk and validates against a public, static known-answer-vector test suite (RFC 7693's official BLAKE2b test vectors) -- correctness is binary and checkable in isolation, with no chain-state or consensus dependency. Groth16 batching is much higher payoff but consensus-critical, and its correctness can only really be validated by running it against real chain data end-to-end. **Recommendation: do NEON first.** It's a smaller, fully self-contained project that also exercises the same "vendor a maintained upstream implementation into this build" muscle the Groth16 work will need later (dependency vendoring, cross-compilation for `aarch64-apple-darwin`, correctness-test harness) -- cheap practice for a higher-stakes change.
+**The asymmetry that should drive sequencing:** blake2b hashing (SIMD track closed) is lower CPU payoff but far lower risk and validates against a public, static known-answer-vector test suite (RFC 7693's official BLAKE2b test vectors) -- correctness is binary and checkable in isolation, with no chain-state or consensus dependency. Groth16 batching is much higher payoff but consensus-critical, and its correctness can only really be validated by running it against real chain data end-to-end. **Recommendation: the hashing item first.** It was a smaller, fully self-contained project that also exercises the same "vendor a maintained upstream implementation into this build" muscle the Groth16 work will need later (dependency vendoring, cross-compilation for `aarch64-apple-darwin`, correctness-test harness) -- cheap practice for a higher-stakes change.
 
-### 9.2 Recommended path: NEON blake2b
+### 9.2 Equihash hashing: closed
 
-**Constraint the integration point must satisfy, confirmed from source:** `src/crypto/equihash.cpp` doesn't call a raw `blake2b_compress` function -- it calls libsodium's stateful streaming API directly: `crypto_generichash_blake2b_init_salt_personal` (`equihash.cpp:43`), `crypto_generichash_blake2b_update` (`equihash.cpp:56`), `crypto_generichash_blake2b_final` (`equihash.cpp:58`), with a personalization block for Equihash's per-block domain separation. Any fix has to either (a) make libsodium's own dispatcher pick a NEON compression backend, or (b) bypass libsodium's generichash API at this call site entirely and call a NEON implementation directly, keeping libsodium for every other use in the codebase (`crypto_sign_verify_detached` for joinsplit sigs, etc. -- confirmed via §5's earlier libsodium usage grep) unchanged.
+Replaced at the call site by uniblake (`c9bbe6ad9`, 2026-09-02); measured 2.03x
+on the Equihash access pattern. The mechanism is prefix-state reuse, not
+vectorisation -- see `docs/HASHLIBS.md` for the division of labour between the
+two libraries and `uniblake/docs/PATTERNS.md` for the pattern taxonomy.
 
-**Recommend (b), not (a).** Patching libsodium's own dispatcher (`blake2b_pick_best_implementation()`) means carrying a fork of a security-sensitive, frequently-updated dependency indefinitely, re-applying the patch on every libsodium version bump. Calling a NEON implementation directly from `equihash.cpp`, gated to this one call site, is a smaller, self-contained, easily-removable change -- and this is the only call site in the codebase where blake2b is a measured hot path (§2/§5), so there's no benefit to a codebase-wide fix.
-
-**Staged plan:**
-
-1. **Vendor, don't link.** Pull `blake2b-neon.c`/`blake2b-neon.h` (or the minimal subset needed -- check what `neon/` actually requires vs. ships, e.g. reference headers it depends on) from `BLAKE2/BLAKE2` at a pinned commit, into a new `src/crypto/blake2/` directory, following the same "vendor at a pinned commit with a hash" convention `depends/packages/*.mk` already uses for every other third-party source. Check its license (`BLAKE2/BLAKE2` is dual CC0/OpenSSL/Apache-2.0-licensed per the reference repo -- confirm which applies to `neon/` specifically and that it's compatible with Zero's existing license) before writing any integration code.
-2. **Build a standalone correctness harness first, disconnected from `zerod` entirely.** A small test binary that links only the vendored NEON compression function and libsodium's existing `blake2b_compress_ref`, and diffs their output against (a) each other on random inputs and (b) [RFC 7693](https://www.rfc-editor.org/rfc/rfc7693)'s official BLAKE2b known-answer test vectors. This is the cheapest, fastest-iterating place to find a correctness bug -- before it's anywhere near consensus code.
-3. **Wire in behind a compile-time or runtime flag, not a silent replacement.** Something like `#ifdef ZERO_BLAKE2_NEON` (matching the existing `ZERO_FDCACHE`/`ZERO_PERF` convention from §3/§4) so the vendored path can be disabled instantly if a problem surfaces, and the reference (`blake2b_compress_ref`-backed) path stays the default until the new one is proven.
-4. **Differential-test at the `Equihash::IsValidSolution` level**, not just the raw compression function: run both implementations (flag on vs. off) over the same real mainnet blocks -- including known Equihash edge cases if any exist in test fixtures (`src/test/equihash_tests.cpp`, if present -- check) -- and confirm bit-identical `IsValidSolution` results across a large, real sample, not just synthetic RFC vectors. The compression function being individually correct doesn't guarantee it's wired into the multi-round collision/distinctness logic correctly.
-5. **Measure, using the exact §2/§5 methodology** (`contrib/perf/capture_sequence.sh`/`decode_captures.py`, same height windows already sampled) -- confirm the Equihash bucket's ms/block figure (baseline: 0.252ms +/- 1.2% CV) actually drops, and by how much. Given libsodium's *other* accelerated backends (`avx2`/`sse41`) are gated behind x86 intrinsics with no ARM equivalent measured yet, there's no existing "how much would NEON help" baseline from this codebase to compare against -- the measurement itself is the first real data point.
-6. **Full regression** (Boost `test_bitcoin`, `zero-gtest`) at the same bar §3/§4 were held to, plus the standalone harness from step 2 kept as a permanent regression test, not a throwaway script.
-
-**Note on scope:** this only helps Apple Silicon / ARM builds. If Zero's production nodes are predominantly x86_64 (worth checking, since it changes how much this is worth pursuing at all -- see recommended first step below), the accelerated `avx2`/`sse41` backends are presumably already engaging on those, in which case this specific investigation's payoff is scoped to ARM deployments only. **This should be checked before investing further time**, since it directly affects the item's real-world priority relative to Groth16 batching.
+The vectorisation track this section previously planned is closed on
+measurement; the superseded plan is archived under `ZK/OLD/SAVE/`. Kernel-level
+results belong to uniblake, not to this tree (`docs/HASHLIBS.md`).
 
 ### 9.3 Recommended path: Groth16 batch verification, made controlled
 

@@ -169,6 +169,7 @@ if [ -n "$LEDGER_VARS" ]; then
     --binary "$ZEROD" \
     --workload "op=reindex" \
     --workload "snap=$SNAP" \
+    --runtime "disablewallet=1" \
     --notes "snap=$SNAP" >/dev/null; then
     log "ledger row appended (campaign=$CAMPAIGN)"
   else

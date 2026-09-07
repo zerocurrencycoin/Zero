@@ -283,9 +283,9 @@ Two rules, each of which failed in practice before being written down:
   completion marker, then cross-check its totals against its per-test lines
   (`require_marker`, `require_counts_agree` in `perflib.sh`). A guard that
   declines to run its payload exits non-zero.
-- **One sample is not a measurement.** Report repeat counts for intermittent
-  failures; a negative over few trials is not evidence of absence. State what
-  was not established as plainly as what was.
+- **Report repeat counts, and state n with every aggregate.** A negative over
+  few trials is not evidence of absence. State what was not established as
+  plainly as what was.
 - **Source `perflib.sh`; do not reimplement it.** Run
   `perflib_selftest.sh` after changing it and `lint-perf.sh` before proposing
   shell changes.
@@ -496,3 +496,34 @@ override so a deliberate operator is never blocked:
 Interactively it also lists the files and asks before writing. All three are
 asserted in the tool's `--self-test` by behaviour -- creating real files and
 checking they are byte-identical afterwards -- not by inspecting source text.
+
+
+---
+
+## 8. Method lessons
+
+Generalized from specific investigations; moved from `TASKS.md` 2026-09-06,
+where they were not work items.
+
+
+
+
+| Lesson | Generalized form | Where it came from |
+|--------|------------------|--------------------|
+| **A guard with N implementations has N behaviours** | Safety checks (datadir protection, value guards) get exactly one implementation, called from everywhere | Three copies of the datadir guard; one datadir destroyed |
+| **An invariant enforced procedurally will drift; enforce it structurally** | Put the check where the data must pass, not where a caller must remember. Stamping at the ledger writer makes an unstamped row unrepresentable | F1b, chosen over per-launcher calls |
+| **A rule nobody checks is a comment** | Every written rule needs an enforcement point or an explicit note that it is advisory | ASCII rule drifted to 693 violations; `M-*` citation rule to 5 restatements |
+| **A tool that has never failed a test has never been tested** | Self-tests gate the harness, not just the product. Five number-corrupting defects surfaced only when coverage was completed | `FINDINGS.md` S1.4 |
+| **Measure a null and it becomes evidence; assume it and it stays a guess** | A measured negative result is publishable and stops work. Two did | FDCACHE; I/O tuning |
+| **Profile when the bottleneck is unknown; benchmark when it is known** | Benchmarking an unknown bottleneck measures noise against noise | FDCACHE A/B (`FINDINGS.md` S3.2) |
+| **First-match-wins attribution makes ordering load-bearing** | Any classifier whose rules overlap must have its order treated as code, not formatting | Four published figures wrong from bucket order |
+| **A number without its window, platform and build is not comparable** | Record the conditions with the measurement or it cannot be aggregated later | Every pre-schema row came from one host and nothing said so |
+| **A reference oracle stored once, writable, is not a reference** | Anything later changes are validated against gets archived and made read-only *before* the work starts | V2 solver baseline sat at the path its regenerator writes to |
+| **Restartability, not duration, decides whether a long run is safe** | Checkpoint and collate separately: the trial appends, a later pass reads | ~20 min heuristic misapplied to an unrestartable multi-hour trial |
+| **Sequence changes so each one's effect is attributable** | Two changes measured together answer neither question | D2 before D3; both against the preceding baseline |
+| **If the benchmark randomises its input, pair the runs** | Otherwise input variance swamps the effect and the difference of means is partly the draw | Random-nonce solve read 1.30-1.59x; paired read **1.22x** |
+| **A constant passed as an argument is not a constant to the optimizer** | To be folded it must reach the use site in the **type**, not in a member | `CompareSR`'s `size_t len`: 46 `memcmp` calls survived |
+| **Prefer finishing an old refactor to adding a new mechanism** | Check whether the surrounding code already solved the problem and the site was missed | `CompareSR`'s runtime `len` is a leftover from the day before templates landed |
+
+---
+

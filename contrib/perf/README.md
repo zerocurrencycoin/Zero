@@ -28,8 +28,13 @@ per-tool caveats. It is deliberately the only place those live in long form.
 | Task state and what to do next | `docs/TASKS.md`, `docs/TASKS.md` |
 | Governance, ownership, lab discipline | `docs/POLICY.md` |
 | Recording results so they compare | `recbench/RecBench.md` |
+| Measuring across projects; uniblake practice | `docs/CROSSPROJECT.md` |
+| Which library computes which hash | `docs/HASHLIBS.md` |
+| **Where does this belong?** | **`docs/MAP.md`** |
+| Document structure and repartition plan | `docs/STRUCTURE.md` |
+| libsodium versions, peers, .21 vs .22 | `docs/SODIUM_SURVEY.md` |
 
-`docs/HOWTO.md` S4.1 lists the same 13 tools as a one-line index; the detail
+`docs/HOWTO.md` S4.1 lists every tool as a one-line index; the detail
 below is not repeated there. When adding a tool, add the row there and the
 section here.
 
@@ -90,8 +95,7 @@ python3 contrib/perf/debuglog.py --list --log "$HOME/Library/Application Support
 **Reuse outside this tree:** the fixture contract is the reusable part --
 refuse protected datadirs, inject wallets by env, packed snaps outside git,
 `bootstrap.dat` copies only, scratch `zero.conf` with no sticky `reindex=`,
-Insight flags matching the copied index, one long trial per invocation,
-append-only ledger. Product runtime check (RPC before sync, then warm snap):
+Insight flags matching the copied index, append-only ledger. Product runtime check (RPC before sync, then warm snap):
 `contrib/ops-validate.sh` -- copy to Zero400 as the same path. Long import
 (`bootstrap`, `reindex`) defaults to height **100000** and `-disablewallet`.
 `reindex all` goes to snap tip (tiny 187417). `rescan` keeps indexes and waits
@@ -100,9 +104,8 @@ for Done loading. Wallet: `p0` / `p1` / `fat` / `none` or `--wallet=PATH`
 catalog and conf templates: Zero400 **TEST_ZERO.md** §8 and
 `contrib/conf-templates/`. Do not copy this campaign set into a GA ship tree.
 
-**Long trials:** do not batch runs where each trial is expected to exceed
-~20 minutes unless each trial can be restarted individually (separate
-invocation or resume-from-trial). See `AGENTS.md` and `Perf.md` §0.13.
+**Long trials:** lab discipline, including the restartability rule, is
+`docs/POLICY.md` S4.
 **ConnectBlock vs wallet-on:** `capture_sequence` / `bench_matrix` target import
 CPU on `zcash-loadblk`. Wallet-on fat reindex is a separate track
 (`wallet_sync_profile.sh`, M-WAL-SYNC-FAT / M-CPU-WAL-FAT) -- bottleneck is
@@ -262,13 +265,10 @@ BENCH-MINE. Equihash **solve** lab env (not ConnectBlock rematch). Modes:
 ```bash
 contrib/perf/mine_bench.sh regtest          # generate N blocks (48,5); util.tsv
 contrib/perf/mine_bench.sh mainnet-template # (192,7) env + notes; opt-in solve
-contrib/perf/mine_bench.sh neon-probe       # arch / NEON / blake2b symbol probe
 ```
 
-Env: `MINE_BLOCKS`, `MINE_TIMEOUT_S`, `ZERO_PERF_NEON_ZEROD` (NEON A/B binary;
-**G7 postponed** -- probe-only until a NEON `zerod` exists),
-`CAMPAIGN=mine-equihash-*`. Stock arm64 still links `blake2b_compress_ref`.
-**Done:** regtest smoke (M-MINE-REGTEST-SMOKE), neon probe (M-MINE-NEON-PROBE).
+Env: `MINE_BLOCKS`, `MINE_TIMEOUT_S`, `CAMPAIGN=mine-equihash-*`.
+**Done:** regtest smoke (M-MINE-REGTEST-SMOKE).
 **Scheduled (Track M / G5):** mainnet (192,7) timed solve -- Instruments + `MINE_MAINNET_SOLVE=1`;
 `mainnet-template` mode alone only writes an env stub. Parallel with witness Cycle 1; one trial.
 
@@ -306,7 +306,7 @@ Archive: `test-logs/archives/walletsync-fat-g0-20260812.tar.gz` + per-run
 While rebuilding (`-33`): status allowlist `stop`/`help`/`getblockcount`/`getblockchaininfo`/`getnetworkinfo`
 (deny-by-default; `getblockcount` still stalls on `cs_main` until the walk ends).
 R5c / **FIX-WIT-WALK-UNLOCK**: product, not a lab e2e -- **Perf.md** §0.16.
-Do not run Bfail or `CachedWitnessesCleanIndex` for witness confidence (B1 `reindex_shielded.py` covers reindex spend).
+Held and known-fail tests are excluded by `qa/zcash/test_filters.sh`; do not re-list them here. B1 `reindex_shielded.py` covers reindex spend.
 Witness RPC lockout / peer comparison / risk: **Perf.md** §0.14 / §0.16.
 
 ## witness_lab.sh
@@ -363,6 +363,40 @@ python3 contrib/perf/shielded_density.py \
   --mode all
 # --mode fine|coarse|all ; resumes by skipping eras already in the CSV
 ```
+
+## codequery.sh
+
+Source queries with the flags that make a result trustworthy. Wraps ripgrep;
+excludes build artifacts (`.deps/*.Po` list every header a translation unit
+touched, so any symbol looks used everywhere); and **reports a no-match
+explicitly**, exit 1, instead of printing nothing.
+
+```bash
+contrib/perf/codequery.sh files '\bub_[a-z_]+\s*\(' src/   # 12 files
+contrib/perf/codequery.sh symbol 'crypto_generichash_blake2b_init' src/
+contrib/perf/codequery.sh count 'sodium_' src/
+```
+
+Written after two ad-hoc greps gave wrong answers in one session: a
+`grep --include=*.cpp` whose glob zsh expanded (and, finding no match,
+aborted the whole pipeline) reported "one call site" when there were twelve;
+and an `awk -F=` against colon-separated `vmmap` output recorded every memory
+value as blank. Both failed silently. Prefer this over a hand-written grep
+when the answer will be written down.
+
+## snapshot_data.sh
+
+Copy a data file aside before a run overwrites it. Collated outputs
+(`REPORT.md`, `collation.json`, `util.tsv`, `measures_*.csv`) are rewritten in
+place, so without a copy the previous revision is gone and "what did this say
+before?" is unanswerable. Ledgers are append-only and do not need this.
+
+```bash
+contrib/perf/snapshot_data.sh reindex-profile/bench-summaries/REPORT.md
+```
+
+Writes `FILE.prev-<utc>` beside each existing FILE. Absent files are skipped,
+not created.
 
 ## RecBench -- recording results
 

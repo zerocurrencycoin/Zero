@@ -5,7 +5,7 @@
 # Usage (repo root):
 #   contrib/perf/mine_bench.sh regtest
 #   contrib/perf/mine_bench.sh mainnet-template
-#   contrib/perf/mine_bench.sh neon-probe
+#   contrib/perf/mine_bench.sh neon-probe   # test mode; not used in production
 #
 # Env:
 #   ZERO_PERF_SCRATCH_DATADIR  disposable (refuses default Application Support/zero)
@@ -68,11 +68,13 @@ sample_util() {
   pct_mem=$(echo "$ps_line" | awk '{print $2}')
   rss_kb=$(echo "$ps_line" | awk '{print $3}')
   if command -v vmmap >/dev/null 2>&1; then
-    phys_mb=$(vmmap -summary "$pid" 2>/dev/null | awk -F= '/Physical footprint:/ {
-      gsub(/^[ \t]+|[ \t]+$/, "", $2);
-      if ($2 ~ /G/) { gsub(/[^0-9.]/, "", $2); printf "%.1f", $2*1024; exit }
-      if ($2 ~ /M/) { gsub(/[^0-9.]/, "", $2); printf "%.1f", $2; exit }
-      if ($2 ~ /K/) { gsub(/[^0-9.]/, "", $2); printf "%.1f", $2/1024; exit }
+    # -F: not -F=. vmmap prints "Physical footprint:  202.1M", so splitting
+    # on '=' left $2 empty and every phys_mb recorded as NA.
+    phys_mb=$(vmmap -summary "$pid" 2>/dev/null | awk -F: '/Physical footprint:/ {
+      v = $2; gsub(/^[ \t]+|[ \t]+$/, "", v);
+      if (v ~ /G/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v*1024; exit }
+      if (v ~ /M/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v; exit }
+      if (v ~ /K/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v/1024; exit }
     }')
   fi
   printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
@@ -195,7 +197,10 @@ if [ -f "$REPO_ROOT/contrib/perf/recbench/recbench.py" ]; then
   # Record the solver actually in effect, not a default assumed here: it
   # changes the measurement without changing the binary. Read from the scratch
   # conf; unset means the compiled default.
-  SOLVER=$(grep -E '^equihashsolver=' "$SCRATCH/zero.conf" 2>/dev/null | tail -1 | cut -d= -f2)
+  # `|| true`: an absent equihashsolver= line is the normal case (compiled
+  # default), and grep exits 1 for it. Under `set -e` that killed the script
+  # AFTER its work was done, so neon-probe reported failure on success.
+  SOLVER=$(grep -E '^equihashsolver=' "$SCRATCH/zero.conf" 2>/dev/null | tail -1 | cut -d= -f2 || true)
   python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" --import-tsv "$RESULTS" \
     --campaign "$CAMPAIGN" \
     --workload "op=solve" \

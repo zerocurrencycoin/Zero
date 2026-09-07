@@ -45,8 +45,17 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
-DEFAULT_DIR = REPO / "reindex-profile" / "bench-summaries"
+# The store comes from rbpaths, never from a path compiled in here: it honours
+# RB_PROJECT / RB_STORE, so one target has one store wherever this is invoked
+# from (RecBench.md S5). An earlier "parents[2]" resolved to contrib/ rather
+# than the repo root, so --index and --report read an empty directory and
+# reported "no context stores" while the real rows sat unread in the project
+# store.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import rbpaths
+
+_STORE = rbpaths.store_dir()
+DEFAULT_DIR = Path(_STORE) if _STORE else None
 LEDGER_JSONL = "ledger.jsonl"
 MERGED_DIR = "merged"
 LEDGER_TSV = "ledger.tsv"
@@ -62,6 +71,8 @@ TSV_FIELDS = [
     "metric",
     "value",
     "unit",
+    "kind",
+    "exec",
     "recorded_at",
     "campaign",
     "run_id",
@@ -352,9 +363,18 @@ def _stamp(row: dict) -> dict:
                 if row.get(k) not in (None, "") and k not in wl:
                     wl[k] = row[k]
         row["workload"] = wl
+        # Assemble via stamp's own resolvers rather than a local dict: a
+        # hand-rolled block here silently dropped `bundle`, `bundle_v` and
+        # `effective` from every --record row, so POLICY S3's rule that every
+        # row carries the compiled-vs-runtime pair held only for --import-tsv.
+        _bf = platform_stamp.detect_build_features()
+        _rt = row.get("runtime", {}) or {}
         row.setdefault("features", {
-            "build": platform_stamp.detect_build_features(),
-            "runtime": row.get("runtime", {}),
+            "bundle": platform_stamp.resolve_bundle(_bf, _rt),
+            "bundle_v": platform_stamp.load_bundles().get("bundle_v", 0),
+            "build": _bf,
+            "runtime": _rt,
+            "effective": platform_stamp.effective_state(_bf, _rt),
             "workload": row.get("workload", {}),
         })
     except Exception as exc:  # noqa: BLE001 - never lose a measurement
@@ -459,16 +479,34 @@ def _height_key(v) -> str:
 DEFAULT_METRIC = "blocks_per_sec"
 DEFAULT_UNIT = "blk/s"
 
+# How a value relates to time, and how the binary ran. Both are borrowed from
+# uniblake's harness, which had them first (docs/CROSSPROJECT.md S1).
+#
+# KIND: a cumulative average and an instantaneous rate are different
+# quantities. Reporting a spread over samples of the first is meaningless, and
+# without this column the collator cannot tell them apart -- it would compute
+# stdev over a cumulative value and print a number that means nothing.
+#
+# EXEC: an emulated binary gives correct digests and meaningless timings. A
+# row measured under Rosetta or wine must not pool with a native one, and
+# nothing else in the envelope records the difference.
+KINDS = ("point", "median", "cumulative", "series", "share", "count")
+EXECS = ("native", "emulated", "cross")
+DEFAULT_KIND = "point"
+DEFAULT_EXEC = "native"
+
 
 def payload(row: dict) -> dict:
     """The measurement, normalised. Falls back to the Zero sync metric."""
     m = row.get("metric")
     v = row.get("value")
+    common = {"kind": row.get("kind") or DEFAULT_KIND,
+              "exec": row.get("exec") or DEFAULT_EXEC}
     if m is None and v is None:
         return {"metric": DEFAULT_METRIC, "value": row.get("blocks_per_sec"),
-                "unit": row.get("unit") or DEFAULT_UNIT}
+                "unit": row.get("unit") or DEFAULT_UNIT, **common}
     return {"metric": m or DEFAULT_METRIC, "value": v,
-            "unit": row.get("unit") or DEFAULT_UNIT}
+            "unit": row.get("unit") or DEFAULT_UNIT, **common}
 
 
 def current_rows(rows: list[dict]) -> list[dict]:
@@ -506,6 +544,11 @@ def collate(rows: list[dict], campaign: str | None = None) -> list[dict]:
             # would average together into a number of no unit at all.
             payload(r).get("metric") or DEFAULT_METRIC,
             payload(r).get("unit") or DEFAULT_UNIT,
+            # A median and a point value are different quantities, and an
+            # emulated timing is not a native one. Grouping on them keeps a
+            # spread from being computed across kinds that cannot share one.
+            payload(r).get("kind") or DEFAULT_KIND,
+            payload(r).get("exec") or DEFAULT_EXEC,
         )
         # The measurement comes from the payload, so a row carrying any metric
         # collates the same way. A row without a usable value is EXCLUDED, not
@@ -533,7 +576,8 @@ def collate(rows: list[dict], campaign: str | None = None) -> list[dict]:
         meta[key] = r
     out = []
     for key, rates in sorted(groups.items()):
-        ctx_k, campaign_k, mode, condition, warm_k, end_k, metric_k, unit_k = key
+        (ctx_k, campaign_k, mode, condition, warm_k, end_k, metric_k, unit_k,
+         kind_k, exec_k) = key
         # Back to numbers for output and arithmetic; the padded strings exist
         # only to keep the grouping key sortable.
         warm = int(warm_k) if warm_k else None
@@ -550,6 +594,8 @@ def collate(rows: list[dict], campaign: str | None = None) -> list[dict]:
                 "blocks": blocks,
                 "metric": metric_k,
                 "unit": unit_k,
+                "kind": kind_k,
+                "exec": exec_k,
                 "n": len(rates),
                 "mean": round(statistics.mean(rates), 4),
                 "stdev": round(statistics.pstdev(rates), 4) if len(rates) > 1 else 0.0,
@@ -817,6 +863,60 @@ def self_test() -> int:
         print("NOTE: fingerprint now distinguishes platform -- update this test "
               "and docs/SCHEMA.md S6.4", file=sys.stderr)
 
+    # --- Row completeness. Each of these pins a defect found on 2026-09-05,
+    # where the value was silently ABSENT rather than wrong: nothing failed,
+    # and the gap was only visible by reading a stored row.
+
+    # 1. The default store must be the project's, not a path computed by
+    #    counting directory levels. recbench.py once used parents[2], which
+    #    after the move into recbench/ resolved to contrib/ -- so --index read
+    #    an empty directory and reported "no context stores" while real rows
+    #    sat unread. Assert the default agrees with rbpaths.
+    check(DEFAULT_DIR is None or Path(str(rbpaths.store_dir())) == DEFAULT_DIR,
+          "default store comes from rbpaths, not a compiled-in path")
+
+    # 2. A recorded row must carry the feature block POLICY S3 requires.
+    #    stamp.py resolves bundle/effective, but recbench.py used to build its
+    #    own three-key dict and dropped them from every --record row.
+    with tempfile.TemporaryDirectory() as td:
+        row = dict(base)
+        row["binary"] = ""          # unresolvable: stamping must still populate
+        row["runtime"] = {"disablewallet": "1"}
+        stamped = _stamp(row)
+        feats = stamped.get("features") or {}
+        for key in ("bundle", "bundle_v", "build", "runtime", "effective"):
+            check(key in feats, "stamped row carries features.%s" % key)
+        eff = feats.get("effective") or {}
+        # wallet_active must reflect the runtime flag, not the compiled default.
+        check(eff.get("wallet_active") is not True,
+              "effective.wallet_active honours runtime disablewallet")
+
+    # 3. config_id must distinguish runs that differ only in runtime flags --
+    #    the property that keeps a -disablewallet run from pooling with a
+    #    wallet-on one. An empty features block must yield None, not a hash of
+    #    the empty string (S4.3).
+    check(config_id({"features": {}}) is None,
+          "config_id is None when nothing is known, not an empty hash")
+    a = {"features": {"runtime": {"disablewallet": "1"}, "workload": {}}}
+    b = {"features": {"runtime": {}, "workload": {}}}
+    check(config_id(a) != config_id(b),
+          "config_id separates rows differing only in a runtime flag")
+
+    # 4. kind/exec must separate groups. A median and a point value are
+    #    different quantities; an emulated timing is not a native one. Without
+    #    them in the key, a spread gets computed across kinds that cannot
+    #    share one (docs/CROSSPROJECT.md S1).
+    pt = dict(base, metric="m", value=10.0, unit="u", kind="point", exec="native")
+    md = dict(base, metric="m", value=20.0, unit="u", kind="median", exec="native")
+    em = dict(base, metric="m", value=30.0, unit="u", kind="point", exec="emulated")
+    check(len(collate([pt, md])) == 2, "kind separates collation groups")
+    check(len(collate([pt, em])) == 2, "exec separates collation groups")
+    check(len(collate([pt, dict(pt)])) == 1, "identical kind/exec still pool")
+    # Absent kind/exec must default rather than form their own group, or every
+    # pre-existing row becomes its own singleton.
+    bare = dict(base, metric="m", value=10.0, unit="u")
+    check(len(collate([pt, bare])) == 1, "absent kind/exec default to point/native")
+
     print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)
     return 0 if ok else 1
 
@@ -861,6 +961,10 @@ def main() -> int:
     ap.add_argument("--value", type=float,
                     help="the measurement; --blocks-per-sec is the Zero shorthand")
     ap.add_argument("--unit", default="", help="unit of --value")
+    ap.add_argument("--kind", default="", choices=("",) + KINDS,
+                    help="how the value relates to time (default: point)")
+    ap.add_argument("--exec", dest="exec_mode", default="", choices=("",) + EXECS,
+                    help="how the binary ran (default: native)")
     # Two different operations, so two unrelated names. --superseded writes:
     # it records which row this one replaces. --all-rows reads: it turns off
     # the filter that hides replaced rows. Sharing a stem read as a modifier
@@ -883,6 +987,12 @@ def main() -> int:
     args = ap.parse_args()
 
     store = args.store_dir
+    if store is None:
+        # An unknown project yields no bound store. Say so, rather than
+        # writing rows into a plausible wrong directory.
+        print("error: no store for project %r; set RB_STORE or --store-dir"
+              % rbpaths.project_name(), file=sys.stderr)
+        return 2
     ensure_store(store)
 
     if args.import_tsv:
@@ -932,6 +1042,8 @@ def main() -> int:
             "runtime": _kv(args.runtime),
             "workload": _kv(args.workload),
             "superseded": args.superseded or None,
+            "kind": args.kind or None,
+            "exec": args.exec_mode or None,
             "metric": args.metric or None,
             "value": args.value,
             "unit": args.unit or None,
