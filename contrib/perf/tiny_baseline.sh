@@ -23,6 +23,12 @@ ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
 ZERO_HOME="${ZERO_PERF_ARCHIVE_DIR:-$HOME/Library/Application Support/zero}"
 OUT_DIR="${ZERO_PERF_OUT_DIR:-$REPO_ROOT/test-logs}"
 RPCPORT="${ZERO_PERF_RPCPORT:-23925}"
+# Poll pacing. Defaults chosen from M-LAB-POLL-COST: 5 s while far cuts polling
+# overhead to ~4% of the span; 2 s near the target keeps detection latency
+# bounded, since that latency is inside the measured span too.
+POLL_FAR_S="${ZERO_PERF_POLL_FAR_S:-5}"
+POLL_NEAR_S="${ZERO_PERF_POLL_NEAR_S:-2}"
+POLL_NEAR_BLOCKS="${ZERO_PERF_POLL_NEAR_BLOCKS:-10000}"
 
 case "$SNAP" in
   tiny) ARCHIVE="chainblocks-tiny.tgz"; EXPECT_TIP=187417 ;;
@@ -58,6 +64,7 @@ DRIVER_LOG="$OUT_DIR/${RUN_ID}-driver.log"
 
 log "START run_id=$RUN_ID snap=$SNAP campaign=${CAMPAIGN:-tiny-baseline}"
 log "binary=$ZEROD ($("$ZEROD" --version 2>/dev/null | head -1))"
+warn_if_busy || true   # records load in the driver log; does not block
 log "LAB=$LAB (disposable) policy=${ZERO_PERF_DATADIR_POLICY:-aside}"
 log "archive=$ARCHIVE_PATH"
 
@@ -79,6 +86,13 @@ if [ -f "$LAB/zero.conf" ]; then
   fi
 fi
 
+# Millisecond wall clock for the measured span (M-LAB-WALL-MS).
+# extract_measures.py
+# derives elapsed from debug.log timestamp prefixes, which carry whole seconds,
+# so its wall_s quantises the rate to ~9.8 blk/s over this window
+# (M-LAB-WALL-QUANTUM) and no A/B on it can resolve better than 0.7%. The
+# launcher brackets the same span and can time it directly.
+LAB_T0=$(python3 -c 'import time; print(time.time())')
 echo "starting -reindex (disablewallet, listen=0)..."
 "$ZEROD" -datadir="$LAB" -disablewallet -reindex -listen=0 -maxconnections=0 \
   -connect=0 -rpcport="$RPCPORT" -daemon
@@ -89,8 +103,18 @@ cleanup() {
 trap cleanup EXIT
 
 # Wait for tip
+# Progress is appended every poll and flushed by the shell's own append, so a
+# run that crashes or is killed still leaves the height/time series behind. A
+# long trial that dies at 90% previously left nothing at all: the ledger row is
+# written only at the end, and the driver log records decisions, not progress.
+PROGRESS_TSV="$OUT_DIR/${RUN_ID}-progress.tsv"
+printf "utc\telapsed_s\theight\n" > "$PROGRESS_TSV"
 for i in $(seq 1 600); do
   h="$("$ZERO_CLI" -datadir="$LAB" -rpcport="$RPCPORT" getblockcount 2>/dev/null || true)"
+  if [[ "$h" =~ ^[0-9]+$ ]]; then
+    printf "%s\t%s\t%s\n" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+      "$(python3 -c "import time;print(round(time.time()-$LAB_T0,3))")" "$h" >> "$PROGRESS_TSV"
+  fi
   if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -ge "$EXPECT_TIP" ]; then
     echo "tip reached height=$h"
     break
@@ -99,10 +123,26 @@ for i in $(seq 1 600); do
     echo "ERROR: tip $EXPECT_TIP not reached (last height=$h)" >&2
     exit 1
   fi
-  sleep 2
+  # Backoff: poll sparsely while far from the target, tighten as it nears.
+  # Each poll costs ~212 ms of RPC and process spawn (M-LAB-POLL-COST) inside
+  # the timed span, so a fixed 2 s pace spent 9.6% of a 141 s run on polling.
+  # Near the target the interval bounds detection latency, which lands in the
+  # same span, so it tightens back to POLL_NEAR_S.
+  if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -gt 0 ]; then
+    remaining=$(( EXPECT_TIP - h ))
+    if [ "$remaining" -lt "$POLL_NEAR_BLOCKS" ]; then
+      sleep "$POLL_NEAR_S"
+    else
+      sleep "$POLL_FAR_S"
+    fi
+  else
+    sleep "$POLL_NEAR_S"
+  fi
 done
 
-log "reindex finished; stopping node"
+LAB_T1=$(python3 -c 'import time; print(time.time())')
+LAB_WALL_MS=$(python3 -c "print(round(($LAB_T1-$LAB_T0)*1000))")
+log "reindex finished; stopping node (span ${LAB_WALL_MS} ms)"
 # Allow reindex finished line to flush
 sleep 3
 "$ZERO_CLI" -datadir="$LAB" -rpcport="$RPCPORT" stop >/dev/null 2>&1 || true
@@ -153,6 +193,14 @@ EOF
 
 if [ -n "$LEDGER_VARS" ]; then
   eval "$LEDGER_VARS"
+  # Prefer the launcher's millisecond span over the log-derived whole-second
+  # wall time. Both measure the same interval; only one can resolve better
+  # than a second (M-LAB-WALL-SECONDS). Fall back if the timing did not run.
+  if [ -n "${LAB_WALL_MS:-}" ] && [ "$LAB_WALL_MS" -gt 0 ] 2>/dev/null; then
+    LR_WALL=$(python3 -c "print(round($LAB_WALL_MS/1000.0, 3))")
+    LR_HPS=$(python3 -c "print(round($LR_BLOCKS/($LAB_WALL_MS/1000.0), 6))")
+    log "elapsed from launcher: ${LR_WALL}s -> ${LR_HPS} blk/s (log-derived was ~whole seconds)"
+  fi
   # `if cmd; then` -- not `A && B || C`, which runs C even when A succeeds.
   if python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" \
     --record \

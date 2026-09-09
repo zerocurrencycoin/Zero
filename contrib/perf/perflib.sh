@@ -321,3 +321,69 @@ require_counts_agree() {
   [ "$failed" -eq 0 ] || return 1
   return 0
 }
+
+# warn_if_busy [MAX_BUSY_PCT] -- report competing CPU load before a timed run.
+#
+# A benchmark sharing a machine with a build measured 15% slow on 2026-09-05,
+# which is larger than any effect this lab sets out to detect. The run was not
+# wrong, it was uninterpretable, and nothing in the harness said so.
+#
+# Uses CPU busy percent, not load average. Load average counts runnable threads
+# and does not normalise by core count: this 14-core host sits at load ~2.0
+# while 89% idle, so a load threshold warns on every run and is ignored within
+# a day. Busy percent answers the question actually being asked -- is another
+# process going to compete for cores.
+#
+# Warns rather than refuses: the operator may have a reason, and blocking a
+# long run on a heuristic costs more than it saves. The point is that the
+# driver log records the state, so a suspicious number can be explained later.
+warn_if_busy() {
+  local max="${1:-${ZERO_PERF_MAX_BUSY_PCT:-25}}" idle busy
+  # Match the number attached to "idle" rather than counting fields: the line
+  # has a trailing space, so a positional parse returned the word "idle" and
+  # the guard silently passed every time.
+  idle=$(top -l 1 -n 0 2>/dev/null | sed -n 's/.*[^0-9.]\([0-9.][0-9.]*\)% idle.*/\1/p' | head -1)
+  case "$idle" in ''|*[!0-9.]*) return 0 ;; esac
+  busy=$(awk -v i="$idle" 'BEGIN{printf "%.1f", 100-i}')
+  log "cpu_busy=${busy}% (threshold ${max}%)"
+  if awk -v b="$busy" -v m="$max" 'BEGIN{exit !(b>m)}'; then
+    warn "CPU ${busy}% busy before start: a competing process can move this result by 10-15%; timings from this run are not comparable to idle-machine runs"
+    return 1
+  fi
+  return 0
+}
+
+# poll_interval CURRENT TARGET -- seconds to wait before the next poll.
+#
+# Each RPC poll costs ~212 ms of round trip and process spawn
+# (M-LAB-POLL-COST), and in a timed run that cost lands inside the measured
+# span. A fixed 2 s pace spent 9.6% of a 141 s reindex on polling. Backing off
+# while far from the target and tightening near it cut that to 4.4%
+# (M-LAB-POLL-BACKOFF) without losing detection accuracy, because the interval
+# only bounds latency in the final approach.
+#
+# Env: ZERO_PERF_POLL_FAR_S (5), ZERO_PERF_POLL_NEAR_S (2),
+#      ZERO_PERF_POLL_NEAR_BLOCKS (10000).
+poll_interval() {
+  local cur="${1:-}" target="${2:-}"
+  local far="${ZERO_PERF_POLL_FAR_S:-5}" near="${ZERO_PERF_POLL_NEAR_S:-2}"
+  local band="${ZERO_PERF_POLL_NEAR_BLOCKS:-10000}"
+  case "$cur$target" in ''|*[!0-9]*) echo "$near"; return 0 ;; esac
+  if [ $((target - cur)) -lt "$band" ]; then echo "$near"; else echo "$far"; fi
+}
+
+# now_ms -- wall clock in milliseconds.
+# elapsed_s T0_MS [T1_MS] -- seconds, 3 decimals, between two now_ms readings.
+#
+# `date +%s` yields whole seconds. Over a fixed block count that rounds the
+# reported rate to a discrete set: one second is ~9.8 blk/s on the tiny reindex
+# window (M-LAB-WALL-SECONDS), so differences below ~0.7% are not
+# representable. Timing the span in milliseconds removes that floor
+# (M-LAB-WALL-MS). Use these instead of $((t1 - t0)) wherever a duration is
+# reported or recorded.
+now_ms() { python3 -c 'import time; print(int(time.time()*1000))'; }
+elapsed_s() {
+  local t0="${1:-}" t1="${2:-$(now_ms)}"
+  case "$t0$t1" in ''|*[!0-9]*) echo "0"; return 1 ;; esac
+  python3 -c "print(f'{($t1-$t0)/1000.0:.3f}')"
+}

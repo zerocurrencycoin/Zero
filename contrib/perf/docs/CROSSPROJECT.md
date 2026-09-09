@@ -25,7 +25,7 @@ gaps are worth closing here rather than admiring there.
 Three of these are lessons Zero should adopt, and one of them cost this
 session a wrong number (S3).
 
-**`kind` is the sharpest idea.** A cumulative average and an instantaneous
+**`kind`.** A cumulative average and an instantaneous
 rate are different quantities, and reporting a spread over samples of the
 first is meaningless. RecBench has no such column, so its `stdev` over a
 `cumulative` value would be exactly that mistake, silently.

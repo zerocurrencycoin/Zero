@@ -150,11 +150,10 @@ Source for all three: the throughput ledger
 Same-host repeatability is **4%** (178.0 s vs 171.0 s on an unchanged binary),
 which is the noise floor any claimed improvement must clear.
 
-**The FDCACHE lesson.** A buffer-size A/B measured a 1.1% spread against
-1.7-4.5% noise -- indistinguishable from nothing. Profiling the same workload
-afterwards showed why an I/O knob had nothing to act on. **Profile first when
-the bottleneck is unknown; benchmark when it is known and a delta needs
-proving.**
+**The FDCACHE lesson.** An I/O A/B measured a spread smaller than its own noise
+floor, and profiling afterwards showed why the knob had nothing to act on
+(`../Perf.md` S3, which owns FDCACHE). **Profile first when the bottleneck is
+unknown; benchmark when it is known and a delta needs proving.**
 
 #### What "disk_syscall 4.91%" bounds, and why buffer size cannot move it
 

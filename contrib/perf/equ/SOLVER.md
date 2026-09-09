@@ -215,8 +215,7 @@ which settles the question rather than inferring it:
 So the templates arrived **one day after** `CompareSR`. `StepRow`'s own `len`
 was removed in that refactor -- `IsZero(size_t len)`, `GetHex(size_t len)` --
 but `CompareSR`'s copy was not. **The runtime `len` is a leftover from the
-pre-template design, not a decision.** That is the honest answer to "why so
-much template magic to stick 3 where `this->len` is now": the surrounding code
+pre-template design, not a decision.** The surrounding code
 was already templated on width in 2016 and the comparator simply missed the
 sweep.
 
@@ -435,7 +434,7 @@ of time rather than measured:
 | **Distribution** | 24 bits of BLAKE2b output | Effectively independent uniform draws |
 
 **Size and range together give the load factor.** 2^25 rows over 2^24 keys is
-`lambda = 2.0` -- on average two rows per key, which is precisely the birthday
+`lambda = 2.0` -- on average two rows per key, the birthday
 condition the algorithm needs and why the list does not shrink per round.
 
 **Distribution makes the bucket sizing provable rather than empirical.** Keys
@@ -928,9 +927,8 @@ the atomic build, and `xfull`/`bfull`/`hfull` identical too (0/12/67, 0/1/91,
 
 Median **1.073x**. **This is larger than the ~0.2% the isolated microbenchmark
 predicts, and the two runs were not taken back to back**, so host state differs
-between them. Under `METHOD.md` S3.2g the honest reading is: the change is not
-a regression, correctness is preserved, and the apparent 7% **is not
-established** -- it is within the range where separate runs on a live host stop
+between them. Under `METHOD.md` S3.2g: the change is not a regression,
+correctness is preserved, and the apparent 7% **is not established** -- it is within the range where separate runs on a live host stop
 being comparable.
 
 Two candidate explanations, both untested: the microbenchmark isolates the

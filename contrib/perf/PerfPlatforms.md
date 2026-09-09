@@ -109,8 +109,8 @@ profilers can feed the same path.
 | **`heaptrack`, Massif** | Allocation profiling | Complements the RSS sampling in `res_sample.sh` |
 
 **`callgrind` is worth a specific note.** `performance-measurements.sh` already
-has a valgrind runner. Determinism is exactly what the FDCACHE A/B lacked when
-a 1.1% effect sat inside 1.7-4.5% noise (`DATA_INDEX.md` S2). For small,
+has a valgrind runner. Determinism is exactly what the FDCACHE A/B lacked, its
+effect sitting inside its own noise floor (`contrib/perf/Perf.md` S3). For small,
 CPU-bound comparisons -- a Groth16 batching before/after, say -- instruction
 counts would resolve differences that wall-clock cannot, at the cost of not
 being real time.
@@ -215,7 +215,7 @@ window and a thread to be comparable (`docs/HOWTO.md` S4.5).
 
 | Need | Candidate | Why |
 |------|-----------|-----|
-| Statistical rigour on A/B results | **`hyperfine`** (MIT) | Warmup runs, outlier detection, and it reports when a difference is within noise. The FDCACHE A/B -- 1.1% effect on 1.7-4.5% noise -- is exactly the case it exists to flag |
+| Statistical rigour on A/B results | **`hyperfine`** (MIT) | Warmup runs, outlier detection, and it reports when a difference is within noise -- exactly the FDCACHE A/B case (`contrib/perf/Perf.md` S3) |
 | Significance testing | `scipy.stats`, or `benchstat` from Go's toolchain | `REPORT.md` gives n/mean/stdev but no confidence statement. `benchstat`'s model (report a delta only when significant) directly suits the ledger |
 | Flame graphs from existing captures | **FlameGraph** (`stackcollapse-*`, `flamegraph.pl`) | Also the recommended Linux ingest path (S3.1) -- one dependency serving two purposes |
 | Cross-platform process sampling | **`psutil`** (Python, BSD) | Replaces most of `res_sample.sh`'s per-platform shelling out with one API across macOS/Linux/Windows |

@@ -126,67 +126,68 @@ Stored campaign numbers live only in the tables below. Re-runnable recipes are i
 
 ### 3.1 Init / warmup
 
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|--------|-------|--------|
-| M-INIT-01 | Wait for `Done loading` | Timeout default **500 s** (`ZCASH_LOAD_TIMEOUT`) | `repro` | `debug_log` | Zero400 `qa/pull-tester/run-bitcoind-for-test.sh` |
-| M-INIT-02 | Catch-up to Done loading (fat wallet spot) | **~29 s** cited in status-take notes (800k-tx class) | `spot` / may be absent on current Zero400 tip | `none` | Status-take docs when present; treat as unverified until re-logged |
-| M-INIT-03 | Stuck LoadBlockIndex / warmup | RPC **-28** for **>50 min** (misconfigured bootstrap reset; fixed in `bench_matrix` by excluding `blocks/` on bootstrap reset). Inner interrupt: Perf **FIX-LBI** | `campaign` | `none` | harness + `main.cpp` |
+| Category | ID | Metric | Result | Type | Tools | Source |
+|---|---|---|---|---|---|---|
+| Init / warmup | M-INIT-01 | Wait for `Done loading` | Timeout default **500 s** (`ZCASH_LOAD_TIMEOUT`) | `repro` | `debug_log` | Zero400 `qa/pull-tester/run-bitcoind-for-test.sh` |
+| Init / warmup | M-INIT-02 | Catch-up to Done loading (fat wallet spot) | **~29 s** cited in status-take notes (800k-tx class) | `spot` / may be absent on current Zero400 tip | `none` | Status-take docs when present; treat as unverified until re-logged |
+| Init / warmup | M-INIT-03 | Stuck LoadBlockIndex / warmup | RPC **-28** for **>50 min** (misconfigured bootstrap reset; fixed in `bench_matrix` by excluding `blocks/` on bootstrap reset). Inner interrupt: Perf **FIX-LBI** | `campaign` | `none` | harness + `main.cpp` |
 
 Use case: gate RPC clients and harnesses; **not** ops-ready.
 
-### 3.2 Reindex / bootstrap / catch-up throughput
-
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|--------|-------|--------|
-| M-RX-TINY | `wall_s`, `height_per_s` | Tip **187417**; **198 s**; **946.6 h/s** | `campaign` | `none` | `AtHeight.md` (2026-07 manual) |
-| M-RX-TINY-20260811a | `wall_s`, `height_per_s` | Tip **187417**; **193 s**; **971.1 h/s**; `run_id=tiny-20260811T081310Z` | `campaign` | `debug_log` | `test-logs/measures_tiny-20260811T081310Z.csv` |
-| M-RX-TINY-20260811b | `wall_s`, `height_per_s` | Tip **187417**; **188 s**; **996.9 h/s**; `run_id=tiny-20260811T085328Z` | `campaign` | `debug_log` | `test-logs/measures_tiny-20260811T085328Z.csv` |
-| M-RX-TINY-20260811c | `wall_s`, `height_per_s` | Tip **187417**; **204 s**; **918.7 h/s**; `run_id=tiny-20260811T192820Z` (after FIX-LBI; **concurrent** with bootstrap smoke -- treat as noisy) | `campaign` | `debug_log` | `test-logs/measures_tiny-20260811T192820Z.csv` |
-| M-RX-TINY-20260811d | `wall_s`, `height_per_s` | Tip **187417**; **220 s**; **851.9 h/s**; `run_id=tiny-20260811T200056Z` -- **contended** with L1/L2 baseline job; not a clean solo | `campaign` | `debug_log` | `test-logs/baseline_tiny_solo_20260811T200056Z.log` |
-| M-RX-SHORT-20260811b | same | Tip **245992**; **264 s**; **931.8 h/s**; `run_id=short-20260811T200447Z` -- after tiny in same L0 job; still shared host with L2 | `campaign` | `debug_log` | `test-logs/baseline_short_solo_20260811T200447Z.log` |
-| M-RX-SHORT | same | Tip **245992**; **274 s**; **897.8 h/s** | `campaign` | `none` | `AtHeight.md` (2026-07 manual) |
-| M-RX-SHORT-20260811 | same | Tip **245992**; **247 s**; **995.9 h/s**; `run_id=short-20260811T085646Z` | `campaign` | `debug_log` | `test-logs/measures_short-20260811T085646Z.csv` |
-| M-RX-SHORT-DELTA | marginal 3rd blk | **76 s**; **770.7 h/s** (from 2026-07 tiny/short) | `estimate` | `none` | `AtHeight.md` derived |
-| M-RX-SHORT-DELTA-20260811 | marginal 3rd blk | **59 s**; **992.8 h/s** (247-188 wall; 58575 ht) | `estimate` | `debug_log` | derived from 20260811b tiny/short |
-| M-RX-PHASEA | partial wipe reindex | **~190 s** to ht **~198k**; **~1053 h/s** sample; RSS **~523-540 MiB** | `campaign` | `lab_monitor` | out-of-tree bench REPORT |
-| M-RX-LONGHAUL | tip reindex (`env=insight`, `-disablewallet`) | **~9338 s (~2.59 h)** ht **282100->2501537**; RSS **~1.77 GiB**; tag `env=insight` -- do not size wallet hosts from this row | `campaign` | `lab_monitor` | out-of-tree longhaul CSV / REPORT |
-| M-RX-FULL-CLASS | full archive class | **~8-10 h** estimate; archive **~8.1 GiB** | `estimate` | `none` | `AtHeight.md` |
-| M-IBD-CLASS | network sync class | **~6-10 h** | `estimate` | `none` | `BUILD_ZERO.md` |
-| M-BOOT-FULL | bootstrap.dat import | **145.7 min**; **2,468,990** blocks; **~282 blk/s** | `campaign` | `debug_log` (+ profile optional) | `Perf.md` §2 |
-| M-BOOT-NEW-20260813 | new Zero400 `bootstrap.dat` smoke | n=1 window 50k-75k; **1000 blk/s** (25.0 s / 25000); magic `5a45524f`; hashlist **0-2468990** (2468991 hashes); file **5415354491** B. Peer class M-BOOT-PRESAP (~1076 n=4) | `campaign` | `lab_monitor` | `test-logs/postsapling-20260813T220819Z/` |
-| M-BOOT-SMOKE-20260811 | bootstrap window 50k-75k | **862.07 blk/s** (n=1); concurrent with tiny -- **superseded** by M-BOOT-PRESAP | `campaign` | `lab_monitor` | noisy; see M-BOOT-PRESAP |
-| M-BOOT-PRESAP | bootstrap window 50k-75k | **mean 1075.63 blk/s** (n=4, stdev 19.61; min 1041.67 max 1086.96); stock; ledger `CAMPAIGN=bootstrap-presap` | `campaign` | `lab_monitor` | `REPORT-bootstrap-presap.md` |
-| M-RX-PRESAP | reindex window 50k-75k | **mean 1012.12 blk/s** (n=4, stdev 45.97; min 961.54 max 1086.96); stock; ledger `CAMPAIGN=reindex-presap`; peer M-BOOT-PRESAP | `campaign` | `lab_monitor` | `REPORT-reindex-presap.md` |
-| M-RX-UTIL-SMOKE | reindex same window 50k-75k | **1041.67 blk/s** (n=1); ledger `CAMPAIGN=util-smoke`; util.tsv on; peer band for M-BOOT-PRESAP / M-RX-PRESAP | `campaign` | `lab_monitor` | `REPORT-util-smoke.md` |
-| M-RX-PRESAP-AB | pre-Sapling A/B | **~1094** vs **~1076 blk/s** (NS) | `repro` | `zero_perf` + `debug_log` | `Perf.md` §3; `contrib/perf/bench_matrix.sh` |
-| M-RX-POSTSAP-AB | post-Sapling A/B (FDCACHE-era) | **~307-311 blk/s**; fdcache null win | `repro` | `zero_perf` + `debug_log` | `Perf.md` §3; historical TSV |
-| M-RX-POSTSAP-STOCK | stock `-reindex` rematch | **mean 298.45 blk/s** (n=4, stdev 5.17; min 289.58 max 302.42); window 600k-900k; ledger `CAMPAIGN=postsapling` | `campaign` | `lab_monitor` + ledger | `REPORT-postsapling.md` |
-| M-BOOT-POSTSAP | stock bootstrap rematch | **mean 300.15 blk/s** (n=4, stdev 0.96; min 298.80 max 301.20); window 600k-900k; ledger `CAMPAIGN=bootstrap-postsap`; **parity** with M-RX-POSTSAP-STOCK | `campaign` | `lab_monitor` | `REPORT-bootstrap-postsap.md` |
-| M-BOOT-ONSET | stock bootstrap Sapling-onset | **129.87 blk/s** (n=1); window 490k-520k; ledger `CAMPAIGN=sapling-onset`; slower than deep post-Sap (~300) -- dual Sprout+Sapling load (see M-DENS-ONSET-*) | `campaign` | `lab_monitor` | `REPORT-sapling-onset.md` |
-| M-RX-ONSET | stock reindex Sapling-onset | **140.19 blk/s** (n=1); window 490k-520k; ledger `CAMPAIGN=reindex-onset`; peer M-BOOT-ONSET (~parity; both ~2x slower than deep post-Sap ~300) | `campaign` | `lab_monitor` | `REPORT-reindex-onset.md` |
-| M-LAB-WALL-QUANTUM | tiny reindex harness | Wall time is whole seconds over a fixed 187417 blocks, so reported rate is discrete: one second = **~9.8 blk/s (0.7%)**. Differences below that are not representable | `spot` | computed | `test-logs/fullrun-20260907T071404Z/ANALYSIS.md` |
-| M-EQ-ROW-WIDTH | `EhOptimisedSolve` (192,7) | `TruncatedWidth` = **70 B**; rounds 0-3 need 22-25 B, so a ~3x overcharge on the rounds holding the most rows | `spot` | source + computed | `equ/SOLVER.md` |
-| M-EQ-XT-ROUND0 | `EhOptimisedSolve` (192,7) | `Xt` at round 0: 33.5M rows x 70 B = **2.19 GB** | `spot` | computed | `equ/FINDINGS.md` |
-| M-EQ-PEAK-DEFAULT | `EhOptimisedSolve` (192,7) | Measured peak **7.15 GB**; **6.6 GB** physical footprint | `spot` | `lab_monitor` | `equ/FINDINGS.md` |
-| M-EQ-PEAK-TROMP | tromp (192,7) | Peak physical footprint **3.3 GB** | `spot` | `lab_monitor` | `equ/VENDORED.md` |
-| M-EQ-TROMP-SPEEDUP | tromp vs default (192,7) | **5.69x** mean over n=4 paired nonces; solution sets identical | `paired` | `lab_monitor` | `equ/VENDORED.md` |
-| M-EQ-D3-SORT | `EhOptimisedSolve` (192,7) | Sort patch **1.22x**, paired nonces | `paired` | `lab_monitor` | `equ/FINDINGS.md` |
-| M-MINE-REGTEST-SMOKE | regtest `generate` (48,5) | **8** blocks in **1 s** wall (~125 ms/blk wall); util sampled; solve too cheap for Instruments-grade ms -- smoke for BENCH-MINE env | `campaign` | `lab_monitor` | `test-logs/mine-20260812T153357Z/` |
-| *(none yet)* | mainnet (192,7) timed solve | **Scheduled -- Track M / G5** -- `MINE_MAINNET_SOLVE=1` + Instruments; harness stub only (`mine_bench.sh mainnet-template`) | -- | -- | Perf §0.9 / §0.16 |
-| M-WAL-SYNC-P0 | wallet profile0 + tiny `-reindex` | tip **187417** in ~198 s (~**950** blk/s class); RSS **104->408 MiB**; wallet **106496** B flat; txcount **0** | `campaign` | `lab_monitor` | `test-logs/walletsync-20260812T153358Z/util.tsv` |
-| M-WAL-SYNC-P1 | wallet profile1 + tiny `-reindex` | tip **187417** in **~201 s** (~**918** blk/s from h~2.8k); RSS **~103->398 MiB**; wallet **237568** B flat; txcount **133**; note_tx **0** -- near P0; no witness hotspot expected | `campaign` | `lab_monitor` | `test-logs/walletsync-20260813T055703Z/` |
-| M-WAL-SYNC-FAT | fat wallet + tiny `-reindex` | tip **187417** in **~2.75 h** (~**19 blk/s**); wallet **785457152** B flat; txcount **801619**; RSS ~0.7->1.5 GiB -- **~50x** slower than M-WAL-SYNC-P0; util.tsv stalled mid-run (getwalletinfo vs cs_wallet) -- wall from debug.log tip + mid-run captures | `campaign` | `lab_monitor` + `xctrace` | `test-logs/walletsync-20260812T174850Z/`; CPU `test-logs/walletsync-fat-cpu-20260812T194107Z/` + `archives/...tar.gz` |
-| M-CPU-WAL-FAT | fat wallet mid-sync Time Profiler | 5 sync windows h **133k-181k**: loadblk **~99.7%**; after G0b needles `witness_cache` **~97%**, `wallet_add_ordered` **~0.03%**; tip idle. blk/s **~20-21** flat | `campaign` | `xctrace` + `bucket_profile.py` | `test-logs/walletsync-fat-cpu-20260812T194107Z/`; rebucket `capture_005/buckets_ALL_g0b.txt` |
-| M-WAL-NOTE-DENS | fat golden note density | **note_tx 1403 / txcount 801619 (0.175%)**; sprout **0**; sapling **1403** | `spot` | `cli` getwalletinfo | `test-logs/g0c-note-density/` |
-| M-WAL-WITNESS-IBD-AB | `-walletwitness=ibd-defer` A/B | fat tiny to h~15k: stock **16.75** vs defer **595** blk/s (~**35x**) | `campaign` | `lab_monitor` | `test-logs/g0d-witness-ibd-ab/SUMMARY.txt` |
-| M-WAL-WITNESS-NOTEIDX-AB | `-walletwitnessnote=1` A/B | fat tiny to h~8k: stock **14.86** vs noteidx **485.7** blk/s (~**33x**); no ibd-defer | `campaign` | `lab_monitor` | `test-logs/g0-noteidx-ab/SUMMARY.txt` |
-| M-WAL-DIRTY-CONT | INV-DIRTY-CONT stock+NOTEIDX+stats | tiny to h~11k: `scan_txs=1403`/`mapWallet=801619`; **note_visits=0** (all notes Sapling, tiny pre-Sap) -- early_continue **N/A** on this band | `spot` | `lab_monitor` | `test-logs/witness-lab-dirty-cont-20260813T041447Z/` |
-| M-WAL-WITNESS-REBUILD | BENCH-WIT-REBUILD defer +/- NOTEIDX | tiny tip **187417**: import+defer wall ~**333 s** either flag; tip `RebuildWitnessCacheForChainTip` runs but **height walk skipped** (no notes at/below tip) -- walk perf needs post-Sap tip; e2e validates walk with notes | `campaign` | `lab_monitor` | `test-logs/witness-lab-rebuild*-20260813T*/` |
-| M-WAL-WITNESS-TIP-AB | tip-only fat WIT height-walk +/- NOTEIDX | tip **2518018**; rescan window startHeight **2516577** (~1441 blk): stock `scan_txs=801619` **7659 ms** vs note `scan_txs=1403` **220 ms** (~**35x**); `note_tx_count=1403`. Walk runs at end of wallet Rescan; `-walletwitness=rebuild` hook after. Requires rebuilt binary with `-walletwitnessnote` | `campaign` | `lab_monitor` | `test-logs/witness-lab-tip-rebuild-*-20260813T071*` |
-| M-WAL-RESCAN-FAT | fat wallet `-rescan` from genesis (clears witnesses) | **Done.** `Rescanning last 2518691 blocks` 01:32:18 -> walk begin 13:24:38 UTC (~**11.9 h**, overall **~59 blk/s**). Fast h~98k-1.56M: **~1200-1650 blk/s**. Cliff h~**1601804** (Halving 2 / founders slot): **~19 blk/s** class to tip. End walk `startHeight=2505881` `tip=2518691` (~12.8k blk) `scan_txs=1403` `noteidx=1` **2009 ms**; P2P catch-up 2518692-2518993 **42 ms**; follow-tip **0-1 ms**. `Done loading` 13:24:44. txcount **801619** note_tx **1403**. **Not** ConnectBlock/Groth. Per-block `BuildWitnessCache(., true)` + `AddToWalletIfInvolvingMe`. `ibd-defer` does not apply | `campaign` | `lab_monitor` + `vmmap`/`iostat` | `test-logs/rescan-sys-20260814T014246Z/` (incl. `rescan_debug_extract.txt`, the retained slice of the lab `debug.log`) |
-| M-WAL-RESCAN-FAT-CPU | Time Profiler during M-WAL-RESCAN-FAT | pre-sap h~288k-378k: `witness_cache` **82.2%**, Select **31%**. post-sap fast h~913k-985k: `witness_cache` **72.3%**, Select **27.5%**, `wallet_add_ordered` **14.1%**. slow h~1.708M and rematch h~1.753M: `witness_cache` **99.3-99.4%**, Select **97.6-97.9%** -- NOTEIDX Ensure after `AddToWallet` invalidate | `campaign` | `xctrace` + `bucket_profile.py` | `test-logs/rescan-xctrace-20260814T013547Z/`; `...-postsap-.../`; `...-slow-20260814T032423Z/`; `...-slow2-20260814T040320Z/` |
-| M-GAD-FAT-TINY | tip-quiet getalldata fat@tiny tip | after `-walletwitness=rebuild`: datatype1 **~0.75 s**; datatype0/7d **~1.2 s**; resp ~3.5 KB -- **not** mainnet Idx1 UTXO load | `spot` | `cli_timer` | `test-logs/g0e-idx1-tip-util/` |
-| M-RX-WINDOW | mid-chain window | e.g. **267.5 blk/s**; **~330 KB/s** (h 610k-626k) | `campaign` | `xctrace` + `debug_log` | `Perf.md` §2 |
+| Reindex / bootstrap / catch-up throughput | M-RX-TINY | `wall_s`, `height_per_s` | Tip **187417**; **198 s**; **946.6 h/s** | `campaign` | `none` | `AtHeight.md` (2026-07 manual) |
+| Reindex / bootstrap / catch-up throughput | M-RX-TINY-20260811a | `wall_s`, `height_per_s` | Tip **187417**; **193 s**; **971.1 h/s**; `run_id=tiny-20260811T081310Z` | `campaign` | `debug_log` | `test-logs/measures_tiny-20260811T081310Z.csv` |
+| Reindex / bootstrap / catch-up throughput | M-RX-TINY-20260811b | `wall_s`, `height_per_s` | Tip **187417**; **188 s**; **996.9 h/s**; `run_id=tiny-20260811T085328Z` | `campaign` | `debug_log` | `test-logs/measures_tiny-20260811T085328Z.csv` |
+| Reindex / bootstrap / catch-up throughput | M-RX-TINY-20260811c | `wall_s`, `height_per_s` | Tip **187417**; **204 s**; **918.7 h/s**; `run_id=tiny-20260811T192820Z` (after FIX-LBI; **concurrent** with bootstrap smoke -- treat as noisy) | `campaign` | `debug_log` | `test-logs/measures_tiny-20260811T192820Z.csv` |
+| Reindex / bootstrap / catch-up throughput | M-RX-TINY-20260811d | `wall_s`, `height_per_s` | Tip **187417**; **220 s**; **851.9 h/s**; `run_id=tiny-20260811T200056Z` -- **contended** with L1/L2 baseline job; not a clean solo | `campaign` | `debug_log` | `test-logs/baseline_tiny_solo_20260811T200056Z.log` |
+| Reindex / bootstrap / catch-up throughput | M-RX-SHORT-20260811b | same | Tip **245992**; **264 s**; **931.8 h/s**; `run_id=short-20260811T200447Z` -- after tiny in same L0 job; still shared host with L2 | `campaign` | `debug_log` | `test-logs/baseline_short_solo_20260811T200447Z.log` |
+| Reindex / bootstrap / catch-up throughput | M-RX-SHORT | same | Tip **245992**; **274 s**; **897.8 h/s** | `campaign` | `none` | `AtHeight.md` (2026-07 manual) |
+| Reindex / bootstrap / catch-up throughput | M-RX-SHORT-20260811 | same | Tip **245992**; **247 s**; **995.9 h/s**; `run_id=short-20260811T085646Z` | `campaign` | `debug_log` | `test-logs/measures_short-20260811T085646Z.csv` |
+| Reindex / bootstrap / catch-up throughput | M-RX-SHORT-DELTA | marginal 3rd blk | **76 s**; **770.7 h/s** (from 2026-07 tiny/short) | `estimate` | `none` | `AtHeight.md` derived |
+| Reindex / bootstrap / catch-up throughput | M-RX-SHORT-DELTA-20260811 | marginal 3rd blk | **59 s**; **992.8 h/s** (247-188 wall; 58575 ht) | `estimate` | `debug_log` | derived from 20260811b tiny/short |
+| Reindex / bootstrap / catch-up throughput | M-RX-PHASEA | partial wipe reindex | **~190 s** to ht **~198k**; **~1053 h/s** sample; RSS **~523-540 MiB** | `campaign` | `lab_monitor` | out-of-tree bench REPORT |
+| Reindex / bootstrap / catch-up throughput | M-RX-LONGHAUL | tip reindex (`env=insight`, `-disablewallet`) | **~9338 s (~2.59 h)** ht **282100->2501537**; RSS **~1.77 GiB**; tag `env=insight` -- do not size wallet hosts from this row | `campaign` | `lab_monitor` | out-of-tree longhaul CSV / REPORT |
+| Reindex / bootstrap / catch-up throughput | M-RX-FULL-CLASS | full archive class | **~8-10 h** estimate; archive **~8.1 GiB** | `estimate` | `none` | `AtHeight.md` |
+| Reindex / bootstrap / catch-up throughput | M-IBD-CLASS | network sync class | **~6-10 h** | `estimate` | `none` | `BUILD_ZERO.md` |
+| Reindex / bootstrap / catch-up throughput | M-BOOT-FULL | bootstrap.dat import | **145.7 min**; **2,468,990** blocks; **~282 blk/s** | `campaign` | `debug_log` (+ profile optional) | `Perf.md` §2 |
+| Reindex / bootstrap / catch-up throughput | M-BOOT-NEW-20260813 | new Zero400 `bootstrap.dat` smoke | n=1 window 50k-75k; **1000 blk/s** (25.0 s / 25000); magic `5a45524f`; hashlist **0-2468990** (2468991 hashes); file **5415354491** B. Peer class M-BOOT-PRESAP (~1076 n=4) | `campaign` | `lab_monitor` | `test-logs/postsapling-20260813T220819Z/` |
+| Reindex / bootstrap / catch-up throughput | M-BOOT-SMOKE-20260811 | bootstrap window 50k-75k | **862.07 blk/s** (n=1); concurrent with tiny -- **superseded** by M-BOOT-PRESAP | `campaign` | `lab_monitor` | noisy; see M-BOOT-PRESAP |
+| Reindex / bootstrap / catch-up throughput | M-BOOT-PRESAP | bootstrap window 50k-75k | **mean 1075.63 blk/s** (n=4, stdev 19.61; min 1041.67 max 1086.96); stock; ledger `CAMPAIGN=bootstrap-presap` | `campaign` | `lab_monitor` | `REPORT-bootstrap-presap.md` |
+| Reindex / bootstrap / catch-up throughput | M-RX-PRESAP | reindex window 50k-75k | **mean 1012.12 blk/s** (n=4, stdev 45.97; min 961.54 max 1086.96); stock; ledger `CAMPAIGN=reindex-presap`; peer M-BOOT-PRESAP | `campaign` | `lab_monitor` | `REPORT-reindex-presap.md` |
+| Reindex / bootstrap / catch-up throughput | M-RX-UTIL-SMOKE | reindex same window 50k-75k | **1041.67 blk/s** (n=1); ledger `CAMPAIGN=util-smoke`; util.tsv on; peer band for M-BOOT-PRESAP / M-RX-PRESAP | `campaign` | `lab_monitor` | `REPORT-util-smoke.md` |
+| Reindex / bootstrap / catch-up throughput | M-RX-PRESAP-AB | pre-Sapling A/B | **~1094** vs **~1076 blk/s** (NS) | `repro` | `zero_perf` + `debug_log` | `Perf.md` §3; `contrib/perf/bench_matrix.sh` |
+| Reindex / bootstrap / catch-up throughput | M-RX-POSTSAP-AB | post-Sapling A/B (FDCACHE-era) | **~307-311 blk/s**; fdcache null win | `repro` | `zero_perf` + `debug_log` | `Perf.md` §3; historical TSV |
+| Reindex / bootstrap / catch-up throughput | M-RX-POSTSAP-STOCK | stock `-reindex` rematch | **mean 298.45 blk/s** (n=4, stdev 5.17; min 289.58 max 302.42); window 600k-900k; ledger `CAMPAIGN=postsapling` | `campaign` | `lab_monitor` + ledger | `REPORT-postsapling.md` |
+| Reindex / bootstrap / catch-up throughput | M-BOOT-POSTSAP | stock bootstrap rematch | **mean 300.15 blk/s** (n=4, stdev 0.96; min 298.80 max 301.20); window 600k-900k; ledger `CAMPAIGN=bootstrap-postsap`; **parity** with M-RX-POSTSAP-STOCK | `campaign` | `lab_monitor` | `REPORT-bootstrap-postsap.md` |
+| Reindex / bootstrap / catch-up throughput | M-BOOT-ONSET | stock bootstrap Sapling-onset | **129.87 blk/s** (n=1); window 490k-520k; ledger `CAMPAIGN=sapling-onset`; slower than deep post-Sap (~300) -- dual Sprout+Sapling load (see M-DENS-ONSET-*) | `campaign` | `lab_monitor` | `REPORT-sapling-onset.md` |
+| Reindex / bootstrap / catch-up throughput | M-RX-ONSET | stock reindex Sapling-onset | **140.19 blk/s** (n=1); window 490k-520k; ledger `CAMPAIGN=reindex-onset`; peer M-BOOT-ONSET (~parity; both ~2x slower than deep post-Sap ~300) | `campaign` | `lab_monitor` | `REPORT-reindex-onset.md` |
+| Reindex / bootstrap / catch-up throughput | M-LAB-WALL-SECONDS | tiny reindex harness | **Superseded 2026-09-07 by M-LAB-WALL-MS.** Log-derived wall time was whole seconds, so the rate was discrete at ~9.8 blk/s (0.7%) | `spot` | computed | `test-logs/fullrun-20260907T071404Z/ANALYSIS.md` |
+| Reindex / bootstrap / catch-up throughput | M-LAB-POLL-BACKOFF | tiny reindex, backoff pacing | 5 s far / 2 s within 10000 blocks of target: **64 polls -> 28**, span 141.6 -> 136.4 s. 7.6 s of overhead removed, 2.4 s traded back as detection latency, **net 5.2 s**. Polling falls from 9.6% to 4.4% of the span | `paired` | `tiny_baseline.sh` | `test-logs/tiny-20260908T192830Z-progress.tsv` |
+| Reindex / bootstrap / catch-up throughput | M-LAB-POLL-COST | tiny reindex, progress series | Each `getblockcount` poll costs **212 ms** (RPC + process spawn) against a nominal 2 s sleep: 64 polls consume **13.6 s = 9.6%** of a 141.8 s run, inside the timed span | `series` | `tiny_baseline.sh` progress.tsv | `test-logs/tiny-20260908T181122Z-progress.tsv` |
+| Reindex / bootstrap / catch-up throughput | M-LAB-BAND-TINY | tiny reindex, progress series | Rate varies by height band within one run: **1383 / 1417 / 1392 / 1354 / 1301 / 1253 / 1361 / 1105 blk/s** across 25k bands 0-187417. Mean 1322; the single-figure rate hides a 28% spread | `series` | `tiny_baseline.sh` progress.tsv | `test-logs/tiny-20260908T181122Z-progress.tsv` |
+| Reindex / bootstrap / catch-up throughput | M-LAB-REPRO | tiny reindex, ms timing | Two runs 8 ms apart over 141 s: **1328.087 vs 1328.012 blk/s, 0.0057%**. **n=2, one workload, one machine, both idle.** Not a general variance figure: an unquiesced machine moved the same benchmark 15% (2026-09-05), and no other workload has been repeated at this resolution | `paired` | `tiny_baseline.sh` | `test-logs/tiny-20260907T083637Z-driver.log` |
+| Reindex / bootstrap / catch-up throughput | M-LAB-WALL-MS | tiny reindex harness | Launcher times the measured span directly: **141126 ms -> 1328.011848 blk/s**. Resolution 1 ms = 0.0094 blk/s, a **1000x** improvement on the log-derived increment | `spot` | `tiny_baseline.sh` | `test-logs/tiny-20260907T083004Z-driver.log` |
+| Reindex / bootstrap / catch-up throughput | M-EQ-ROW-WIDTH | `EhOptimisedSolve` (192,7) | `TruncatedWidth` = **70 B**; rounds 0-3 need 22-25 B, so a ~3x overcharge on the rounds holding the most rows | `spot` | source + computed | `equ/SOLVER.md` |
+| Reindex / bootstrap / catch-up throughput | M-EQ-XT-ROUND0 | `EhOptimisedSolve` (192,7) | `Xt` at round 0: 33.5M rows x 70 B = **2.19 GB** | `spot` | computed | `equ/FINDINGS.md` |
+| Reindex / bootstrap / catch-up throughput | M-EQ-PEAK-DEFAULT | `EhOptimisedSolve` (192,7) | Measured peak **7.15 GB**; **6.6 GB** physical footprint | `spot` | `lab_monitor` | `equ/FINDINGS.md` |
+| Reindex / bootstrap / catch-up throughput | M-EQ-PEAK-TROMP | tromp (192,7) | Peak physical footprint **3.3 GB** | `spot` | `lab_monitor` | `equ/VENDORED.md` |
+| Reindex / bootstrap / catch-up throughput | M-EQ-TROMP-SPEEDUP | tromp vs default (192,7) | **5.69x** mean over n=4 paired nonces; solution sets identical | `paired` | `lab_monitor` | `equ/VENDORED.md` |
+| Reindex / bootstrap / catch-up throughput | M-EQ-D3-SORT | `EhOptimisedSolve` (192,7) | Sort patch **1.22x**, paired nonces | `paired` | `lab_monitor` | `equ/FINDINGS.md` |
+| Reindex / bootstrap / catch-up throughput | M-MINE-REGTEST-SMOKE | regtest `generate` (48,5) | **8** blocks in **1 s** wall (~125 ms/blk wall); util sampled; solve too cheap for Instruments-grade ms -- smoke for BENCH-MINE env | `campaign` | `lab_monitor` | `test-logs/mine-20260812T153357Z/` |
+| Reindex / bootstrap / catch-up throughput | *(none yet)* | mainnet (192,7) timed solve | **Scheduled -- Track M / G5** -- `MINE_MAINNET_SOLVE=1` + Instruments; harness stub only (`mine_bench.sh mainnet-template`) | -- | -- | Perf §0.9 / §0.16 |
+| Reindex / bootstrap / catch-up throughput | M-WAL-SYNC-P0 | wallet profile0 + tiny `-reindex` | tip **187417** in ~198 s (~**950** blk/s class); RSS **104->408 MiB**; wallet **106496** B flat; txcount **0** | `campaign` | `lab_monitor` | `test-logs/walletsync-20260812T153358Z/util.tsv` |
+| Reindex / bootstrap / catch-up throughput | M-WAL-SYNC-P1 | wallet profile1 + tiny `-reindex` | tip **187417** in **~201 s** (~**918** blk/s from h~2.8k); RSS **~103->398 MiB**; wallet **237568** B flat; txcount **133**; note_tx **0** -- near P0; no witness hotspot expected | `campaign` | `lab_monitor` | `test-logs/walletsync-20260813T055703Z/` |
+| Reindex / bootstrap / catch-up throughput | M-WAL-SYNC-FAT | fat wallet + tiny `-reindex` | tip **187417** in **~2.75 h** (~**19 blk/s**); wallet **785457152** B flat; txcount **801619**; RSS ~0.7->1.5 GiB -- **~50x** slower than M-WAL-SYNC-P0; util.tsv stalled mid-run (getwalletinfo vs cs_wallet) -- wall from debug.log tip + mid-run captures | `campaign` | `lab_monitor` + `xctrace` | `test-logs/walletsync-20260812T174850Z/`; CPU `test-logs/walletsync-fat-cpu-20260812T194107Z/` + `archives/...tar.gz` |
+| Reindex / bootstrap / catch-up throughput | M-CPU-WAL-FAT | fat wallet mid-sync Time Profiler | 5 sync windows h **133k-181k**: loadblk **~99.7%**; after G0b needles `witness_cache` **~97%**, `wallet_add_ordered` **~0.03%**; tip idle. blk/s **~20-21** flat | `campaign` | `xctrace` + `bucket_profile.py` | `test-logs/walletsync-fat-cpu-20260812T194107Z/`; rebucket `capture_005/buckets_ALL_g0b.txt` |
+| Reindex / bootstrap / catch-up throughput | M-WAL-NOTE-DENS | fat golden note density | **note_tx 1403 / txcount 801619 (0.175%)**; sprout **0**; sapling **1403** | `spot` | `cli` getwalletinfo | `test-logs/g0c-note-density/` |
+| Reindex / bootstrap / catch-up throughput | M-WAL-WITNESS-IBD-AB | `-walletwitness=ibd-defer` A/B | fat tiny to h~15k: stock **16.75** vs defer **595** blk/s (~**35x**) | `campaign` | `lab_monitor` | `test-logs/g0d-witness-ibd-ab/SUMMARY.txt` |
+| Reindex / bootstrap / catch-up throughput | M-WAL-WITNESS-NOTEIDX-AB | `-walletwitnessnote=1` A/B | fat tiny to h~8k: stock **14.86** vs noteidx **485.7** blk/s (~**33x**); no ibd-defer | `campaign` | `lab_monitor` | `test-logs/g0-noteidx-ab/SUMMARY.txt` |
+| Reindex / bootstrap / catch-up throughput | M-WAL-DIRTY-CONT | INV-DIRTY-CONT stock+NOTEIDX+stats | tiny to h~11k: `scan_txs=1403`/`mapWallet=801619`; **note_visits=0** (all notes Sapling, tiny pre-Sap) -- early_continue **N/A** on this band | `spot` | `lab_monitor` | `test-logs/witness-lab-dirty-cont-20260813T041447Z/` |
+| Reindex / bootstrap / catch-up throughput | M-WAL-WITNESS-REBUILD | BENCH-WIT-REBUILD defer +/- NOTEIDX | tiny tip **187417**: import+defer wall ~**333 s** either flag; tip `RebuildWitnessCacheForChainTip` runs but **height walk skipped** (no notes at/below tip) -- walk perf needs post-Sap tip; e2e validates walk with notes | `campaign` | `lab_monitor` | `test-logs/witness-lab-rebuild*-20260813T*/` |
+| Reindex / bootstrap / catch-up throughput | M-WAL-WITNESS-TIP-AB | tip-only fat WIT height-walk +/- NOTEIDX | tip **2518018**; rescan window startHeight **2516577** (~1441 blk): stock `scan_txs=801619` **7659 ms** vs note `scan_txs=1403` **220 ms** (~**35x**); `note_tx_count=1403`. Walk runs at end of wallet Rescan; `-walletwitness=rebuild` hook after. Requires rebuilt binary with `-walletwitnessnote` | `campaign` | `lab_monitor` | `test-logs/witness-lab-tip-rebuild-*-20260813T071*` |
+| Reindex / bootstrap / catch-up throughput | M-WAL-RESCAN-FAT | fat wallet `-rescan` from genesis (clears witnesses) | **Done.** `Rescanning last 2518691 blocks` 01:32:18 -> walk begin 13:24:38 UTC (~**11.9 h**, overall **~59 blk/s**). Fast h~98k-1.56M: **~1200-1650 blk/s**. Cliff h~**1601804** (Halving 2 / founders slot): **~19 blk/s** class to tip. End walk `startHeight=2505881` `tip=2518691` (~12.8k blk) `scan_txs=1403` `noteidx=1` **2009 ms**; P2P catch-up 2518692-2518993 **42 ms**; follow-tip **0-1 ms**. `Done loading` 13:24:44. txcount **801619** note_tx **1403**. **Not** ConnectBlock/Groth. Per-block `BuildWitnessCache(., true)` + `AddToWalletIfInvolvingMe`. `ibd-defer` does not apply | `campaign` | `lab_monitor` + `vmmap`/`iostat` | `test-logs/rescan-sys-20260814T014246Z/` (incl. `rescan_debug_extract.txt`, the retained slice of the lab `debug.log`) |
+| Reindex / bootstrap / catch-up throughput | M-WAL-RESCAN-FAT-CPU | Time Profiler during M-WAL-RESCAN-FAT | pre-sap h~288k-378k: `witness_cache` **82.2%**, Select **31%**. post-sap fast h~913k-985k: `witness_cache` **72.3%**, Select **27.5%**, `wallet_add_ordered` **14.1%**. slow h~1.708M and rematch h~1.753M: `witness_cache` **99.3-99.4%**, Select **97.6-97.9%** -- NOTEIDX Ensure after `AddToWallet` invalidate | `campaign` | `xctrace` + `bucket_profile.py` | `test-logs/rescan-xctrace-20260814T013547Z/`; `...-postsap-.../`; `...-slow-20260814T032423Z/`; `...-slow2-20260814T040320Z/` |
+| Reindex / bootstrap / catch-up throughput | M-GAD-FAT-TINY | tip-quiet getalldata fat@tiny tip | after `-walletwitness=rebuild`: datatype1 **~0.75 s**; datatype0/7d **~1.2 s**; resp ~3.5 KB -- **not** mainnet Idx1 UTXO load | `spot` | `cli_timer` | `test-logs/g0e-idx1-tip-util/` |
+| Reindex / bootstrap / catch-up throughput | M-RX-WINDOW | mid-chain window | e.g. **267.5 blk/s**; **~330 KB/s** (h 610k-626k) | `campaign` | `xctrace` + `debug_log` | `Perf.md` §2 |
 
 Use case: ConnectBlock / disk / validation cost; compare only **same height window and wallet flags**.
 
@@ -222,18 +223,14 @@ TST-05 vectors under `contrib/perf/kats/` (repo-root copies accepted). Tests: `e
 
 **Decision:** archive for reuse. **Postponed (G9):** further adapt/extra validate tests.
 
-### 3.3 CPU buckets (profiled)
-
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|--------|-------|--------|
-| M-CPU-CORR | corrected post-Sapling window | Groth16 **60.9%**, Disk **26.2%**, Equihash **6.9%**, Tree **6.1%** | `campaign` | `xctrace` | `Perf.md` §2 |
-| M-CPU-SEQ | six-capture sequence | Groth16 **48-55%** chain-wide; Equihash **0.252 ms/blk** CV **1.2%**; Groth16 **1.84 ms/blk** | `campaign` | `xctrace` | `Perf.md` §2; `contrib/perf/capture_sequence.sh` |
-| M-CPU-LEGACY | early misbucket | "Tree" **57-58%** (Groth16 folded in) | `campaign` | `xctrace` | `Perf.md` §2 -- **superseded** |
-| M-CPU-LATCH | root latch | Tree bucket flat **57.9 vs 58.0%** | `campaign` | `xctrace` + `zero_perf` | `Perf.md` §4 |
-| M-CPU-FD | fd-cache hit rate | **99.9%** hits -- confirms latch operates as designed | `repro` | `zero_perf` | `Perf.md` §3 |
-| M-CPU-FD-THR | fd-cache throughput A/B | **null** blk/s win vs nofdcache (separate from hit rate) | `repro` | `zero_perf` | `Perf.md` §3 |
-| M-CPU-FS | open/close share | open **23%** of traced FS time; **~0.048 ms/blk** | `campaign` | `fs_usage` | `Perf.md` §3 |
-| M-CPU-WAL0-TINY | wallet0 + tiny `-reindex` Time Profiler | Two 75s captures (h **2.4k-94k**, **100k-184k**); loadblk **~87%** process; buckets (loadblk): field/pairing-class **~42%**, Equihash **~28%**, disk **~17%**, tree **~13%**, wallet_add **~0.2%**; top leaves `Fr::mul_assign` ~37%, `blake2b_compress_ref` ~18% -- **pre-Sap**: do not call field math Sapling Groth16 | `campaign` | `xctrace` + `bucket_profile.py` | `test-logs/wallet0-cpu-profile-20260812T163014Z/` |
+| CPU buckets (profiled) | M-CPU-CORR | corrected post-Sapling window | Groth16 **60.9%**, Disk **26.2%**, Equihash **6.9%**, Tree **6.1%** | `campaign` | `xctrace` | `Perf.md` §2 |
+| CPU buckets (profiled) | M-CPU-SEQ | six-capture sequence | Groth16 **48-55%** chain-wide; Equihash **0.252 ms/blk** CV **1.2%**; Groth16 **1.84 ms/blk** | `campaign` | `xctrace` | `Perf.md` §2; `contrib/perf/capture_sequence.sh` |
+| CPU buckets (profiled) | M-CPU-LEGACY | early misbucket | "Tree" **57-58%** (Groth16 folded in) | `campaign` | `xctrace` | `Perf.md` §2 -- **superseded** |
+| CPU buckets (profiled) | M-CPU-LATCH | root latch | Tree bucket flat **57.9 vs 58.0%** | `campaign` | `xctrace` + `zero_perf` | `Perf.md` §4 |
+| CPU buckets (profiled) | M-CPU-FD | fd-cache hit rate | **99.9%** hits -- confirms latch operates as designed | `repro` | `zero_perf` | `Perf.md` §3 |
+| CPU buckets (profiled) | M-CPU-FD-THR | fd-cache throughput A/B | **null** blk/s win vs nofdcache (separate from hit rate) | `repro` | `zero_perf` | `Perf.md` §3 |
+| CPU buckets (profiled) | M-CPU-FS | open/close share | open **23%** of traced FS time; **~0.048 ms/blk** | `campaign` | `fs_usage` | `Perf.md` §3 |
+| CPU buckets (profiled) | M-CPU-WAL0-TINY | wallet0 + tiny `-reindex` Time Profiler | Two 75s captures (h **2.4k-94k**, **100k-184k**); loadblk **~87%** process; buckets (loadblk): field/pairing-class **~42%**, Equihash **~28%**, disk **~17%**, tree **~13%**, wallet_add **~0.2%**; top leaves `Fr::mul_assign` ~37%, `blake2b_compress_ref` ~18% -- **pre-Sap**: do not call field math Sapling Groth16 | `campaign` | `xctrace` + `bucket_profile.py` | `test-logs/wallet0-cpu-profile-20260812T163014Z/` |
 
 Use case: prioritize Groth16 batching vs disk vs Equihash; filter thread `zcash-loadblk` / import thread. Pre-Sap profiles need jubjub/needle discipline (Perf G1 SOP).
 
@@ -241,83 +238,49 @@ Use case: prioritize Groth16 batching vs disk vs Equihash; filter thread `zcash-
 
 Long-interval leak screen and allocation attribution. Prefer **Writable regions** over Physical footprint when compression varies (macOS). Tools: `vmmap -summary`, `heap`, `MallocStackLogging=1` + `malloc_history -callTree`. Method detail: **Perf.md** §7.
 
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|------|-------|--------|
-| M-MEM-VMMAP | `vmmap` checkpoints vs height | Six points h **278072 -> 2470587**: Physical **535M -> 3.1G**; Writable **702M -> 4.7G**; compressed share uneven (0-71%) | `campaign` | `vmmap` | `Perf.md` §7 table |
-| M-MEM-TIP | tip footprint | Physical **~3.1G**, Writable **~4.7G** @ h **~2.47M** (same sweep end) | `campaign` | `vmmap` | `Perf.md` §7 |
-| M-MEM-GROWTH | Writable KB/block (segments) | Rough **~1-3 KB/block**; noisy; **no accelerating leak signature** -- linear with chain length | `campaign` | `vmmap` | derived from M-MEM-VMMAP |
-| M-MEM-HEAP | `heap` size-class census | Used as live census during reindex; no separate archived class table | `capability` / `spot` | `heap` | `Perf.md` §7 method |
-| M-MEM-ALLOC | `malloc_history` window | Window ~h **20198->501321**, ~673 s stack-logged; ~**987 MiB** tracked; **ThreadImport ~90%+**; **AddToBlockIndex ~66%** (~589 MiB); Flush/BatchWrite ~18%+; nullifier/UTXO cache ~8%; Groth16 verify **0** heap frames | `campaign` | `malloc_stack` | `Perf.md` §7-8 |
-| M-MEM-PARAMS | zk params load | `librustzcash_init_zksnark_params` ~**58 MiB** (+ smaller) -- **startup once**, not per-block | `campaign` | `malloc_stack` | `Perf.md` §7 |
-| M-MEM-SHIELDEX | static size | Shieldex fields **~176 B/block** ~ **~435 MB** at tip | `estimate` | `none` | `Perf.md` §8.2 |
+| Memory | M-MEM-VMMAP | `vmmap` checkpoints vs height | Six points h **278072 -> 2470587**: Physical **535M -> 3.1G**; Writable **702M -> 4.7G**; compressed share uneven (0-71%) | `campaign` | `vmmap` | `Perf.md` §7 table |
+| Memory | M-MEM-TIP | tip footprint | Physical **~3.1G**, Writable **~4.7G** @ h **~2.47M** (same sweep end) | `campaign` | `vmmap` | `Perf.md` §7 |
+| Memory | M-MEM-GROWTH | Writable KB/block (segments) | Rough **~1-3 KB/block**; noisy; **no accelerating leak signature** -- linear with chain length | `campaign` | `vmmap` | derived from M-MEM-VMMAP |
+| Memory | M-MEM-HEAP | `heap` size-class census | Used as live census during reindex; no separate archived class table | `capability` / `spot` | `heap` | `Perf.md` §7 method |
+| Memory | M-MEM-ALLOC | `malloc_history` window | Window ~h **20198->501321**, ~673 s stack-logged; ~**987 MiB** tracked; **ThreadImport ~90%+**; **AddToBlockIndex ~66%** (~589 MiB); Flush/BatchWrite ~18%+; nullifier/UTXO cache ~8%; Groth16 verify **0** heap frames | `campaign` | `malloc_stack` | `Perf.md` §7-8 |
+| Memory | M-MEM-PARAMS | zk params load | `librustzcash_init_zksnark_params` ~**58 MiB** (+ smaller) -- **startup once**, not per-block | `campaign` | `malloc_stack` | `Perf.md` §7 |
+| Memory | M-MEM-SHIELDEX | static size | Shieldex fields **~176 B/block** ~ **~435 MB** at tip | `estimate` | `none` | `Perf.md` §8.2 |
 
 **Comparability:** Physical footprint alone can fake a "slowing growth" story under compressor pressure; use Writable (M-MEM-GROWTH / M-MEM-VMMAP) for leak claims. Stack-logging window straddles Sapling activation; a pure post-Sap `malloc_history` pass was skipped as unlikely to change the qualitative read (Groth16 verify still 0 heap; AddToBlockIndex unrelated to Sapling).
 
-### 3.5 Cache / dbcache / RPC micro-latency
-
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|--------|-------|--------|
-| M-CACHE-MATRIX | budgets + p50 | e.g. dbcache **800** off: **100/183/517** MiB; generate(100) p50 **~835 ms**; getdbinfo **~4.3 ms** | `repro` | `cli_timer` + `debug_log` | `contrib/perf/measure_dbcache_utxo.py`; ZeroStruct §4.3.4; TEST_ZERO |
-| M-CACHE-2500 | longer mine | peak UTXO **0.1 MiB / 500** entries; tip txouts **3000** | `campaign` | same | TEST_ZERO sample `20260725_193336` |
-| M-CACHE-MAIN | insight mainnet spot (`env=insight`) | BI/CS/UTXO **600/58/142**; tip cache **~77 MiB**; do not apply to non-insight wallet hosts | `spot` | `debug_log` | ZeroStruct §4.3.1 |
+| Cache / dbcache / RPC micro-latency | M-CACHE-MATRIX | budgets + p50 | e.g. dbcache **800** off: **100/183/517** MiB; generate(100) p50 **~835 ms**; getdbinfo **~4.3 ms** | `repro` | `cli_timer` + `debug_log` | `contrib/perf/measure_dbcache_utxo.py`; ZeroStruct §4.3.4; TEST_ZERO |
+| Cache / dbcache / RPC micro-latency | M-CACHE-2500 | longer mine | peak UTXO **0.1 MiB / 500** entries; tip txouts **3000** | `campaign` | same | TEST_ZERO sample `20260725_193336` |
+| Cache / dbcache / RPC micro-latency | M-CACHE-MAIN | insight mainnet spot (`env=insight`) | BI/CS/UTXO **600/58/142**; tip cache **~77 MiB**; do not apply to non-insight wallet hosts | `spot` | `debug_log` | ZeroStruct §4.3.1 |
 
 Use case for M-CACHE-MATRIX / M-CACHE-2500: cache sizing on a wallet / non-insight host. Do not apply M-CACHE-MAIN budgets there.
 
-### 3.6 Witness rebuild
-
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|--------|-------|--------|
-| M-WIT-LOG | Building Witnesses progress | **No archived wall_s** | `capability` | `debug_log` | `wallet.cpp` log line |
-| M-WIT-EST | proposed shielded reindex effort | **~5-20 min/run** (estimate only) | `estimate` / `plan` | `none` | ExtTests / WitnessReindex notes |
+| Witness rebuild | M-WIT-LOG | Building Witnesses progress | **No archived wall_s** | `capability` | `debug_log` | `wallet.cpp` log line |
+| Witness rebuild | M-WIT-EST | proposed shielded reindex effort | **~5-20 min/run** (estimate only) | `estimate` / `plan` | `none` | ExtTests / WitnessReindex notes |
 
 **Gap:** highest-value missing duration class for status/ops tooling.
 
-### 3.7 getalldata / wallet RPC
+| getalldata / wallet RPC | M-GAD-SOFT | coalesce gate | default **-rpcdatacontinue=20** s | `repro` | `none` | node help / DevFee README |
+| getalldata / wallet RPC | M-GAD-HOT | fat-wallet profile | hot in `EncodeBase58Check`; **no wall_ms table** | `spot` | sample/profile | ZeroStruct §6.2; DevFee README |
+| getalldata / wallet RPC | M-GAD-S7 | post-S7 expectation | "lower user time"; unquantified | `plan` | `cli_timer` | DevFee README |
 
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|--------|-------|--------|
-| M-GAD-SOFT | coalesce gate | default **-rpcdatacontinue=20** s | `repro` | `none` | node help / DevFee README |
-| M-GAD-HOT | fat-wallet profile | hot in `EncodeBase58Check`; **no wall_ms table** | `spot` | sample/profile | ZeroStruct §6.2; DevFee README |
-| M-GAD-S7 | post-S7 expectation | "lower user time"; unquantified | `plan` | `cli_timer` | DevFee README |
-
-### 3.8 Shield / drain (ops)
-
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|--------|-------|--------|
-| M-SH-300400 | shield UTXO limit | **300:** 10/10 ok ~90 KB; **400:** 7/10 ok ~119 KB | `campaign` | `ops_probe` | out-of-tree shield probe log |
-| M-DR-AGE | shield conf age | e.g. n=148; p50 **120 s**; p90 **330 s**; max **886 s** | `campaign` | `ops_probe` | `drain_idx_*.log` (sample 20260805) |
+| Shield / drain (ops) | M-SH-300400 | shield UTXO limit | **300:** 10/10 ok ~90 KB; **400:** 7/10 ok ~119 KB | `campaign` | `ops_probe` | out-of-tree shield probe log |
+| Shield / drain (ops) | M-DR-AGE | shield conf age | e.g. n=148; p50 **120 s**; p90 **330 s**; max **886 s** | `campaign` | `ops_probe` | `drain_idx_*.log` (sample 20260805) |
 
 Use case: ops reliability under tip quiet; not consensus validation cost.
 
-### 3.9 Harness / test suite walls
-
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|--------|-------|--------|
-| M-H-STRICT | `--strict` | **~211-212 s** | `spot`/`repro` | `none` | TEST_ZERO |
-| M-H-ALL | `--all` | **~1063 s** (2026-07-02); stale **~1275 s** also listed | `campaign` | `none` | TEST_ZERO |
-| M-H-SUITE | `--suite` | **~1306 s** | `spot` | `none` | TEST_ZERO |
-| M-H-RPC-OUT | slow scripts | protectcoinbase **220 s**; zkey_import **108 s**; ... | `campaign` | `none` | TEST_ZERO §3 |
-| M-H-WB | walletbackup | measured **~80 s** (earlier guess 15-25 min) | `campaign` | `none` | TEST_ZERO |
+| Harness / test suite walls | M-H-STRICT | `--strict` | **~211-212 s** | `spot`/`repro` | `none` | TEST_ZERO |
+| Harness / test suite walls | M-H-ALL | `--all` | **~1063 s** (2026-07-02); stale **~1275 s** also listed | `campaign` | `none` | TEST_ZERO |
+| Harness / test suite walls | M-H-SUITE | `--suite` | **~1306 s** | `spot` | `none` | TEST_ZERO |
+| Harness / test suite walls | M-H-RPC-OUT | slow scripts | protectcoinbase **220 s**; zkey_import **108 s**; ... | `campaign` | `none` | TEST_ZERO §3 |
+| Harness / test suite walls | M-H-WB | walletbackup | measured **~80 s** (earlier guess 15-25 min) | `campaign` | `none` | TEST_ZERO |
 
 Use case: CI / contributor expectation only. **Do not** compare to IBD/reindex.
 
-### 3.10 Microbenchmarks (`zcbenchmark`)
+| Microbenchmarks (`zcbenchmark`) | M-ZCB-SUITE | JoinSplit / Sapling / Equihash / connectblockslow / ... | **No checked-in numeric archive** | `capability` / `repro` | `zcbench` | `contrib/perf/performance-measurements.sh`; `src/zcbenchmarks.cpp` |
 
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|--------|-------|--------|
-| M-ZCB-SUITE | JoinSplit / Sapling / Equihash / connectblockslow / ... | **No checked-in numeric archive** | `capability` / `repro` | `zcbench` | `contrib/perf/performance-measurements.sh`; `src/zcbenchmarks.cpp` |
+| Peer / misc | M-PEER-LOAD | peers.dat load | **3073** addrs in **3 ms** | `spot` | `debug_log` | `keep/Peer.md` (ZeroPerf) |
 
-### 3.11 Peer / misc
-
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|--------|-------|--------|
-| M-PEER-LOAD | peers.dat load | **3073** addrs in **3 ms** | `spot` | `debug_log` | `keep/Peer.md` (ZeroPerf) |
-
-### 3.12 In-tree `-debug=bench`
-
-| ID | Metric | Result | Type | Tools | Source |
-|----|--------|--------|--------|-------|--------|
-| M-BENCH-CONNECT | ConnectBlock substep ms | **No archived campaign** in docs | `capability` | `debug_bench` | `src/main.cpp` LogPrint("bench", ...) |
+| In-tree `-debug=bench` | M-BENCH-CONNECT | ConnectBlock substep ms | **No archived campaign** in docs | `capability` | `debug_bench` | `src/main.cpp` LogPrint("bench", ...) |
 
 ---
 
@@ -367,7 +330,7 @@ Use case: CI / contributor expectation only. **Do not** compare to IBD/reindex.
 | walletbackup | Guess **15-25 min** vs measured **~80 s** | Prefer measured M-H-WB |
 | Insight vs wallet host | Insight dbcache/tip times vs validator+wallet | Tag `env=insight` on insight rows; never size a non-insight wallet host from them |
 
-Correctness vs throughput are separate questions: fd-cache **99.9%** hits (latch works) is not an A/B blk/s win (M-CPU-FD-THR **null**). Keep distinct `metric` rows.
+Correctness vs throughput are separate questions -- M-CPU-FD and M-CPU-FD-THR measure different things and stay distinct `metric` rows.
 
 ---
 

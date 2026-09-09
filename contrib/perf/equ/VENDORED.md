@@ -61,10 +61,6 @@ what is unusual is only that Zero *runs* it at (192,7) in production, where
 
 ### 1.3 Zero also ships tromp, configured for (192,7)
 
-Earlier sections of this document treated a tromp port as prospective work
-(`FINDINGS.md` S2a calls it "reachable by recompiling"; `SOLVER.md` S2.3 derived a RESTBITS constraint
-for a hypothetical port). **That understated what is already in the tree.**
-
 `src/pow/tromp/` exists in Zero, exactly as in current Zcash
 (`src/miner.cpp:8`), and is compiled at **`WN 192 / WK 7`**
 (`src/pow/tromp/equi.h:20,24`). `miner.cpp:539` dispatches on
@@ -165,7 +161,7 @@ So the honest count is **two applicable absences, both BLAKE2b batching**, plus
 Cantor which is absent and should stay absent. The vendored copy is not a
 crippled subset -- it is the same algorithm with the same tree tags, the same
 bucket structure, the same atomics, and a **scalar** hash loop
-(`digit0`, `equi_miner.h:386`: one `crypto_generichash_blake2b_*` call per
+(`digit0`, `equi_miner.h`: one `ub_hash_tail` call per
 block, libsodium, no batching).
 
 Which of these matter at (192,7) is not the same question as which mattered at
@@ -326,7 +322,7 @@ solutions Zero rejects. Same for the 48-byte digest.
 
 | Variant | Same output as `blake2b`? | Notes |
 |---------|---------------------------|-------|
-| **`blake2b`** (libsodium, today) | -- the reference | `crypto_generichash_blake2b_init_salt_personal`; scalar |
+| **`blake2b`** (uniblake, since 2026-09-02) | -- the reference | `ub_init_personal` / `ub_hash_tail`; scalar. Library division: `../docs/HASHLIBS.md` |
 | **`blake2b` vector kernel** | **Yes, bit-identical** | Same algorithm, vectorised *within* one compression. A drop-in **if** it exposes personalization + arbitrary digest length |
 | **`blake2bip` / 4-way interleaved** | **Yes, bit-identical** | Hashes 4 **independent** inputs in parallel lanes. Each lane is an ordinary blake2b; parallelism is across messages, not within one |
 | **`blake2bp`** | **NO -- different function** | A *tree/parallel mode* with a different output for the same input. This is the "semantic gap" tromp's README describes |
@@ -370,7 +366,7 @@ port, and the changes are all integration, not algorithm:
 
 | Change | Why |
 |--------|-----|
-| `blake2b.h` -> **libsodium** (`crypto_generichash_blake2b_*`) | Uses the node's existing crypto dep instead of tromp's bundled BLAKE2 |
+| `blake2b.h` -> **uniblake** (`ub_*`) | Uses the node's prefix-reuse hashing instead of tromp's bundled BLAKE2 |
 | `setheader()` **removed** | Zero builds `base_state` in `EhInitialiseState` with **`ZERO_PoW`** personalization; tromp's builds it with a caller-supplied string |
 | `HEADERNONCELEN` / `POW_HEADER_LENGTH` removed | Zero passes a prepared state, not a raw 140-byte header |
 | `WN 200 / WK 9` -> **`WN 192 / WK 7`** | The parameter change |
@@ -573,7 +569,7 @@ per-proof path accepts" (`../docs/OVERVIEW.md` S6).
 
 **Recorded because the direction is opposite to ours.** Zero's mining track is
 trying to make the solver *faster and leaner*; Requihash argues that the
-leanness is precisely the ASIC vulnerability. Both can be true: F-A3 notes the
+leanness is the ASIC vulnerability. Both can be true: F-A3 notes the
 self-merge problem still resists single-chip ASICs even in the weakened state.
 But it is worth stating plainly that **every memory reduction in `SOLVER.md`
 S2-S3 moves Zero further along the axis Requihash identifies as the failure**,

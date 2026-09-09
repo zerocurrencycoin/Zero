@@ -285,5 +285,37 @@ Physical footprint (peak):  999.9M')" "100.0" \
 eq "$(printf 'Physical footprint:  202.1M\n' | awk -F= '/Physical footprint:/ {print $2}')" "" \
    "awk -F= yields nothing (the original defect)"
 
+# --- warn_if_busy ----------------------------------------------------------
+# Reports competing load before a timed run. Asserted by behaviour: a very high
+# threshold must pass, a zero threshold must warn. Without this the function
+# could silently become a no-op and no run would notice.
+expect_ok "warn_if_busy passes under a high threshold" \
+  bash -c ". '$HERE/perflib.sh'; warn_if_busy 100"
+expect_fail "warn_if_busy warns when busy exceeds the threshold" \
+  bash -c ". '$HERE/perflib.sh'; warn_if_busy 0"
+# An unreadable CPU line must not crash the caller.
+expect_ok "warn_if_busy tolerates unreadable CPU state" \
+  bash -c ". '$HERE/perflib.sh'; top() { echo 'no cpu line'; }; warn_if_busy 25"
+
+# --- poll_interval -------------------------------------------------------
+eq "$(bash -c ". '$HERE/perflib.sh'; poll_interval 1000 187417")" "5" \
+   "poll_interval backs off when far from target"
+eq "$(bash -c ". '$HERE/perflib.sh'; poll_interval 185000 187417")" "2" \
+   "poll_interval tightens near target"
+eq "$(bash -c ". '$HERE/perflib.sh'; poll_interval abc def")" "2" \
+   "poll_interval falls back to the near interval on unparseable input"
+eq "$(bash -c ". '$HERE/perflib.sh'; ZERO_PERF_POLL_FAR_S=9 poll_interval 0 187417")" "9" \
+   "poll_interval honours ZERO_PERF_POLL_FAR_S"
+
+# --- now_ms / elapsed_s --------------------------------------------------
+eq "$(bash -c ". '$HERE/perflib.sh'; elapsed_s 1000 2234")" "1.234" \
+   "elapsed_s reports milliseconds, not whole seconds"
+eq "$(bash -c ". '$HERE/perflib.sh'; elapsed_s 1000 1999")" "0.999" \
+   "elapsed_s resolves sub-second durations"
+expect_fail "elapsed_s rejects unparseable input" \
+  bash -c ". '$HERE/perflib.sh'; elapsed_s x y"
+ok_if "now_ms returns a millisecond-scale integer" \
+  bash -c ". '$HERE/perflib.sh'; n=\$(now_ms); [ \"\${#n}\" -ge 13 ]"
+
 if [ "$FAILED" -eq 0 ]; then echo "self-test OK" >&2; else echo "self-test FAILED" >&2; fi
 exit "$FAILED"

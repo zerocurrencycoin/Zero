@@ -323,7 +323,10 @@ if not cands:
     print("NA")
     raise SystemExit
 t = open(cands[-1]).read()
-m = re.search(r"wall_s=(\d+)", t)
+# Decimal, not integer: witness_lab.sh reports milliseconds (perflib.sh
+# elapsed_s). \d+ alone truncated 141.763 to 141, reintroducing the
+# whole-second rounding that change removed.
+m = re.search(r"wall_s=(\d+(?:\.\d+)?)", t)
 print(m.group(1) if m else "NA")
 PY
 )

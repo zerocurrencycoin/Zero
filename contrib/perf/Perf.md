@@ -23,64 +23,6 @@ Orientation for the sync/perf lab. Detail lives in subsections and **Measures.md
 
 **Where this stands:** Three ConnectBlock-adjacent fixes shipped (§3 fd-cache, §4 root latch, §4 anchor-existence index); two measured **null** throughput wins (useful negatives). Post-Sapling import CPU is still **Groth16-bound** (~48-55% chain-wide, M-CPU-SEQ). Batch verification is the largest open sync win; **Option A vs B is undecided** -- do not start Phase 2 product code until a person chooses. Hand-port Phases 0-1 proved the math on pinned crates (scratchpad only). Fat-wallet witness path is a separate track (§0.14): lab prototypes measured; **Cycle 1** STALE next. Mining: regtest solve smoke + symbol probe done; **G5** mainnet (192,7) timed solve **scheduled** (Track M). See §0.0 / §0.1a (Groth review) and §0.15 (backlog).
 
-### 0.0 Groth16 item -- lead-in and step-by-step
-
-Reviewer entry point for people who have not lived in §§2/6/9.4. Evidence stays in those sections; this is the decision story and ordered steps.
-
-#### Review packet
-
-| Item | Content |
-|------|---------|
-| **Ask** | Choose **Option A** (hand-port batch math on pinned 2018 crates) or **Option B** (migrate to `sapling-crypto` / `BatchValidator`). |
-| **Why it matters** | Post-Sapling ConnectBlock CPU ~**48-55%** Groth16 (M-CPU-SEQ); up to **~60.9%** in one corrected window (M-CPU-CORR). |
-| **Today** | Eager per-spend/output `verify_proof` on `zcash-loadblk`; no batch API; scriptcheck workers never see Groth16. |
-| **Option A status** | Phases 0-1 **done** (MiMC KATs N=1..64 + corrupt); code **not in repo** (scratchpad). Phase 2+ blocked on decide. |
-| **Option B status** | Upstream production since 2022 (zcashd, Zebra); Pirate has C++/`cxx` precedent. Migration cost **unscoped** (§0.6a cxx questions open). |
-| **Not substitutes** | fd-cache / latch / anchor index -- shipped, measured flat for throughput. |
-| **Independent tracks** | Fat-wallet witness productize (§0.14); mining solve profile (G5). |
-| **Decide inputs** | §0.1a pros/cons; §0.6a effort bands; §6-6.2 crypto/control-flow; §9.4 phase checklist. |
-| **After decide** | Stage 2 evidence closeout -> Stage 3 implement -> measure vs post-Sap baselines; keep sequential fallback until proven. |
-
-**Blocking rule:** no Groth16 product implementation (§9.4 Phase 2 onward) until A/B is chosen by a person.
-
-#### Why it exists
-
-1. **What we measured:** during mainnet `-reindex` / bootstrap import, after Sapling activation (~height 492,850), ConnectBlock CPU is dominated by verifying Sapling Groth16 proofs (spend/output). Corrected profiles: **~48-55%** chain-wide (M-CPU-SEQ); one corrected post-Sapling window hit **~60.9%** (M-CPU-CORR). Disk and Equihash are real but smaller.
-2. **What that means for operators:** post-Sapling reindex/import is slow mainly because each shielded description pays a full pairing check on the single `zcash-loadblk` thread -- not because "disk is slow" in the fd-cache sense (fd-cache A/B was a **null** throughput win).
-3. **What Zero does today:** one `verify_proof` per spend/output, sequential, inside `ContextualCheckBlock` -> `ContextualCheckTransaction` -> `librustzcash_sapling_check_*`. Transparent script checks can use `zcash-scriptch` workers; Groth16 cannot -- different queue, never shared.
-4. **What "batching" would change:** for N proofs that share a verifying key, combine them with random linear weights and pay **one** expensive final-exponentiation for the batch instead of N. Same pass/fail math class; different operation schedule (consensus-adjacent -- needs review).
-5. **Why this is not "just implement it":** mid-investigation, upstream `sapling-crypto::BatchValidator` (production since 2022; used by zcashd and Zebra; Pirate has a C++/`cxx` precedent) appeared as a full alternative to hand-porting only the pairing batch math into Zero's pinned 2018 crates. That forks the project into a **decision**, not more Phase-2 coding.
-
-#### Step-by-step
-
-Human process order.
-
-| Step | Action | Status |
-|------|--------|--------|
-| 1 | Measure ConnectBlock CPU buckets on real mainnet heights (pre- vs post-Sapling) | Done -- §2 |
-| 2 | Confirm call path is per-proof, single-threaded; no hidden batch API in pinned crates | Done -- §6 |
-| 3 | Confirm modern `bellman` has `batch.rs`; note crate migration cost (`ff`/`group` split) | Done -- §6 |
-| 4 | Confirm pinned `pairing` already has multi-pair `miller_loop` (hand-port feasible) | Done -- §6 |
-| 5 | Discover shipped `BatchValidator` (+ signature batching) and cross-ecosystem use | Done -- §6.1/§6.2 |
-| 6 | Prototype hand-port math on pinned crates (MiMC fixtures, N=1..64, corrupt cases) | Done Phases 0-1 -- §9.4; **scratchpad only, not in repo** |
-| 7 | **Decide:** Option A hand-port vs Option B adopt `sapling-crypto` | **Blocked -- person decides** (§0.1) |
-| 8a | If A: Phase 2 FFI design -> Phase 3 shadow/batch in `main.cpp` -> review | Not started |
-| 8b | If B: spike migration cost (FFI/`cxx`, depends, blast radius) then implement | Not started |
-| 9 | Measure tip/window blk/s before vs after; keep sequential path as fallback until proven | Not started |
-| 10 | Multicore batch / latency tuning | Later, separable |
-
-#### How to explain it in one paragraph
-
-Post-Sapling sync is Groth16-bound (~half of ConnectBlock CPU). Zero verifies every Sapling proof one-at-a-time on the import thread. Batch verification can collapse much of that cost; we proved the math works on Zero's old crates, but upstream already ships a stronger batcher that also covers signatures -- so the next move is choose hand-port vs migrate, not write Phase 2 yet. Disk and FDCACHE work already shipped and measured flat; they are not substitutes for this item.
-
-#### Pointers
-
-- Decision detail / pro-con: §0.1 and §0.1a  
-- CPU evidence: §2; measure IDs M-CPU-* in **Measures.md**  
-- Crypto and control-flow constraints: §6  
-- Hand-port phase checklist: §9.4  
-- Independent of this decision: blake2b hashing (SIMD track closed) (§5 / §0.2 item 2), measure campaigns (stock rematch)
-
 ### 0.1 Immediate next step
 
 Decide before any more Groth16 product code. **Hand-port vs. adopt upstream -- this is the actual next action, not more coding.** §6.1/§6.2 found that `zcash/sapling-crypto`'s `BatchValidator` (production since 2022, used today by both `zcashd` and Zebra, with a real C++ integration precedent in Pirate Chain -- a same-lineage fork) does more than the hand-port plan (§9.4) scoped: it batches RedJubjub signatures too, not just Groth16 proofs. Two live options:
@@ -89,56 +31,6 @@ Decide before any more Groth16 product code. **Hand-port vs. adopt upstream -- t
 2. **Adopt `sapling-crypto` directly** -- migrate to the current crate stack, call `BatchValidator` as-is, following `zcashd`'s or Pirate Chain's real integration as a template. Bigger migration (crosses the `ff`/`group` trait-split §6 flagged as "a large, separate undertaking"), but battle-tested, includes signature batching, has a real batch-size precedent (`MAX_BATCH_SIZE=64`/`MAX_BATCH_LATENCY=100ms` from Zebra).
 
 **This decision is not made in this document -- it needs a person to weigh migration cost against reuse value.** Full detail: §6.1 (what upstream ships), §6.2 (who else has adopted it), §9.4's status note (what's already built and tested for option 1).
-
-### 0.1a PENDING DECISION -- Groth16 batch verification: hand-port vs adopt `sapling-crypto`
-
-**Pending questions (lab-wide, settled owners):**
-
-| Question | Owner / gate | Status |
-|----------|--------------|--------|
-| Groth16 Option A vs B (§0.1a), **including the cxx-bridge scoping (§0.6a)** | Person | **Open** -- G2 then G3 consecutive after G5/G9. The cxx questions are not a separate decision: whether batching can land behind Zero's existing C ABI (`librustzcash.h`, raw `extern "C"`) or requires a cxx bridge **is** the A-vs-B cost difference |
-| ARM fleet mix | Deploy survey | **Open**; relevant to the solver track only |
-| FDCACHE 8/16KB vs default vs 1MB | G6 | **Hold** |
-| W5/W6 / getalldata cache / Zerowallet notmodified | Product review | **Postponed** |
-| Halo/Orchard for Zero | Not Zero consensus; Zebro D2 | **Postpone G8** |
-| KAT adapt tests beyond TST-05 green | G9 | **Postponed** |
-
-**Status: blocking.** No further Groth16 implementation work (§9.4 Phase 2 onward) should start until this is resolved by a person, not inferred from this document. Nothing below picks a winner.
-
-**Decision needed:** for Sapling Groth16 batch verification (the single largest CPU-optimization opportunity found in this investigation, §2), should Zero (a) hand-port the batching math into its existing pinned 2018-era `bellman`/`pairing` crate stack, or (b) migrate to the current `sapling-crypto`/`bellman 0.14` crate stack and adopt its shipped `BatchValidator` directly?
-
-**Option A -- Hand-port into the pinned stack** (§9.4 as written)
-
-*Pro:*
-- Smallest footprint -- no crate-version migration, no change to Zero's existing FFI shape (`librustzcash.h`, raw `extern "C"`), no touch to any dependency other than the one being extended.
-- De-risked in real, tested code already: §9.4 Phases 0-1 (pure-Rust prototype) are done and passing -- a hand-ported random-linear-combination batch verifier built against the actual pinned `bellman 0.1.0`/`pairing 0.14.2`, validated against real Groth16 proofs from `bellman`'s own MiMC/BLS12-381 test circuit, batch accept/reject exactly matching per-proof `verify_proof` across N=1,2,8,64 and adversarial corrupted-proof cases, repeated 6 times. This isn't theoretical -- the core math is proven to work on Zero's actual dependency versions.
-- Confirmed buildable: the pinned 2018-era crate pair builds clean under a modern Rust 1.90 toolchain (§9.4 Phase 0 finding) -- no toolchain-pinning workaround needed.
-- Keeps Zero's build/dependency surface area unchanged, which matters for a project maintained by very few people (§0's own framing -- see `MEMORY.md`: user is sole owner/maintainer of the Zero repo family).
-
-*Con:*
-- Reinvents ~4 years of upstream engineering (`BatchValidator` shipped in `zcash_proofs` 2022-07-05) rather than reusing it.
-- **Misses signature batching entirely** -- `sapling-crypto`'s `BatchValidator` batches RedJubjub `spend_auth_sig`/binding signatures alongside Groth16 proofs (§6.1); the hand-port plan only ever scoped proof batching, since Zero's current `check_spend` verifies the signature eagerly, per-call, ahead of the proof check (§9.4 Phase 0 finding). A hand-ported Groth16-only batcher leaves that signature-verification cost fully unaddressed.
-- No production track record for *this specific port* -- the math is proven against synthetic MiMC test-circuit proofs, not against real Sapling spend/output circuits or adversarial conditions beyond what §9.4's test plan covers. `BatchValidator` by contrast has ~4 years of live-network exposure across `zcashd` and Zebra.
-- Batch-size tuning (how many proofs per batch, what latency budget) has no precedent to draw from -- Zebra's real, tuned parameters (`MAX_BATCH_SIZE=64`, `MAX_BATCH_LATENCY=100ms`, §6.2) apply to `BatchValidator`'s architecture, not directly transferable to a hand-rolled one.
-- Building consensus-critical cryptographic code in-house, however well-tested, carries more independent-review burden (§9.4 Phase 6) than adopting code multiple other implementations already run in production.
-
-**Option B -- Adopt `sapling-crypto` directly**
-
-*Pro:*
-- Reuses battle-tested code: `BatchValidator` has run in `zcashd` and Zebra (both currently active, `zcashd` until its imminent end-of-life ~2026-07-18) for roughly four years, and is the architecture of the two most-current reference implementations in the ecosystem (§6.2).
-- Gets signature batching for free, a real efficiency gain the hand-port plan never scoped.
-- Real integration precedent exists for exactly Zero's situation: Pirate Chain, a same-lineage C++ zcashd fork, has already done this exact migration (its own vendored `cxx`-bridge Rust crate wrapping `BatchValidator`, §6.2) -- a template closer to Zero's actual codebase than Zebra's from-scratch Rust design.
-- Real, tuned batch-size parameters already exist to start from (`MAX_BATCH_SIZE=64`/`MAX_BATCH_LATENCY=100ms`), rather than guessing.
-- Positions Zero on a currently-maintained crate lineage instead of a snapshot of a since-heavily-refactored 2018 dependency graph, which may reduce future maintenance friction (e.g. if any future Sapling/consensus fix upstream only lands against the current crate generation).
-
-*Con:*
-- Materially larger, effectively unscoped effort: crosses the `ff`/`group` trait-split ecosystem-wide API break (§6) -- every type in Zero's `librustzcash`/`bellman`/`pairing`/`jubjub` call path is affected, not just the verifier.
-- Unknown whether Zero's current C-header FFI (`librustzcash.h`) can be kept as-is or needs replacing with a `cxx`-bridge like `zcashd`'s current architecture (§0.5 -- genuinely unresolved, not just unscoped).
-- No prototype exists for this path at all -- unlike Option A, zero hands-on validation has been done; the entire cost/risk profile is currently an estimate, not a measurement.
-- Real risk of the migration itself introducing regressions unrelated to Groth16 batching, simply by virtue of touching every consumer of the affected crates -- a much larger consensus-code blast radius than Option A's narrowly-scoped change.
-- Bigger, harder-to-interrupt effort for a single-maintainer project -- more exposure if only partially completed.
-
-**Recommendation (offered, not decided): lean toward Option B if the migration cost turns out to be smaller than it currently looks, otherwise Option A.** Concretely: the single highest-leverage next step is **not** more coding on either path, but **scoping Option B's actual migration cost** (§0.2 item 6) -- right now it's the con with the least evidence behind it ("large, separate undertaking" is a characterization from §6, not a sized estimate), while Option A's cost and viability are already fully measured (§9.4 Phases 0-1). A short, bounded research spike into what the `ff`/`group` migration and FFI-layer question actually require (see §0.5, §0.6) would turn this from a qualitative pro/con list into a comparison grounded in bridge/depends evidence (§0.6a). Until then, Option A is the lower-uncertainty choice by default only because a working prototype exists -- not because it has been shown better.
 
 ### 0.2 Priority-ordered open items
 
@@ -155,7 +47,7 @@ ConnectBlock / sync lab only. Planning for this tree stays here (and in **Measur
 | P2 | Segmented wallet-off rematch + bootstrap segments + shielded-era profile table | Lab materials | M | None | Track **L3** / BENCH-SEG; Stage 1 |
 | P3 | Shieldex | Optional dead-field PR; full gate **set aside** (§0.10) | S / M | Med if gating | RSS only |
 | P4 | LoadBlockIndex inner interrupt | None | S | Very low | **Done** FIX-LBI |
-| -- | `-O1`/`-O2` + FDCACHE 4x2 | Deliberate resume | M wall | None | **Postponed together** -- O1 estimated low impact; retest with 4x2 later |
+| -- | `-O1`/`-O2` | Deliberate resume | M wall | None | **Postponed** -- low estimated impact |
 
 **Decoupled product Decide (not Groth -- different owners/risk):** FR-ROTATE / FR-TADDR / FR-Z. **Accounts / W5:** postponed, pending further review (§0.12) -- do not block sync lab. Track product Decide on Zero400 **TODO** at merge; do not edit Zero400 from this lab.
 
@@ -167,7 +59,6 @@ Columns: impact / deps / effort / risk / suggest.
 |------|----------------|------|--------|------|---------|
 | Bootstrap matrix leg (n>=1 then n=4) | Closes M-BOOT gap vs reindex | Fixed reset; bootstrap.dat copy | M-L wall | Low | **Done** pre-Sapling (M-BOOT-PRESAP); optional post-Sapling |
 | LoadBlockIndex interrupt | Lab/ops stop without SIGKILL | None | S | Very low | **Done** FIX-LBI |
-| FDCACHE 4x2 + O1/O2 | Confirms null / compiler | ZERO_FDCACHE build; wall time | L | None | **Hold** (bundle later) |
 | OPS-AT-HEIGHT / stopatheight | Ops UX | Product design | M | Med | Hold (Zero400) |
 | OPS-REINDEX refuse / `-reindexforce` | Footgun | Loud warn shipped | S | Low | **Postpone** -- warn enough for now (§0.8a) |
 | OPS-REINDEX-SKIP wallet below H | Fat-wallet reindex | Resume markers shipped | M | Med wallet | **Postpone** -- not ConnectBlock (§0.8a) |
@@ -191,7 +82,6 @@ Do not confuse with product TODO on Zero400. Numbers: **Measures.md** only.
 
 ### 0.4 Postponed
 
-- **FDCACHE-era bootstrap 4x2 via `bench_matrix.sh`:** still not re-run; stock bootstrap peers are done (**M-BOOT-PRESAP**, **M-BOOT-POSTSAP**). Reset bug fixed earlier.
 - **`LoadBlockIndexDB` interruption:** fixed -- FIX-LBI.
 - **A second `MallocStackLogging` window sampled entirely post-Sapling-activation** (§7) -- the current one straddles the activation boundary; given Groth16 verification itself allocates nothing and the dominant allocator (`AddToBlockIndex`) has no Sapling-specific component, a second window is unlikely to change the qualitative conclusion, so not pursued further.
 - **§9.4's originally-planned per-transaction-attributed fallback design** (Phase 4) -- §6.2 found current `zcashd` doesn't do this at all (it rejects the whole block with one generic error on batch failure); whether Zero should match that simpler upstream behavior or keep the more careful per-tx design is an open question folded into §0.1's decision, not resolved separately.
@@ -211,99 +101,6 @@ Do not confuse with product TODO on Zero400. Numbers: **Measures.md** only.
 - **Whether `zcashd`'s own pre-`cxx`-migration history (its git log, before the current `rust/bridge.h` architecture) shows an intermediate step comparable to Zero's current state** -- could reveal a real, tested incremental path from raw-C FFI to batching, rather than jumping straight to `cxx`. Not investigated -- the `zcashd` checkout fetched this session was a shallow, single-commit clone with no history to search.
 - **Whether the solution validator has existing test fixtures with known edge cases** (§9.2 step 4 flags `src/test/equihash_tests.cpp` as unchecked) -- would materially de-risk the differential-testing step; a five-minute check not yet done.
 
-
-### 0.6a Groth Option B migration-cost spike
-
-Qualitative scope only. Calendar time estimates are **not** refined here -- there is no measured basis for days/weeks claims.
-
-**Question:** how large is adopting `sapling-crypto::BatchValidator` relative to continuing the hand-port on pinned crates?
-
-| Layer | Finding | Effort band |
-|-------|---------|-------------|
-| Crypto API | `BatchValidator` batches Groth16 and RedJubjub spend-auth/binding sigs; Zebra documents batch-size / latency knobs | Reuse if crates move |
-| Crate graph | Modern stack crosses the `ff`/`group` trait split vs Zero's pinned 2018 `bellman`/`pairing`/`jubjub` | L-XL depends + Rust consumers |
-| FFI | See **cxx questions** below | M-L if adopting cxx; unknown if C header can be kept |
-| Consensus glue | Buffer proofs in `ContextualCheckBlock` (today eager per-tx); batch-fail policy | M |
-| Hand-port alternative | `groth16-batch-poc` Phases 0-1 prove math on pinned crates; Phase 2 = FFI + `main` only, no crate migration, no sig batching | M after decide A |
-
-**Decision inputs, not a schedule:** Option B is a release-scale migration if done like current zcashd (depends + bridge + Sapling verify + regression). Option A is narrower (Phase 2-3 on pinned crates) but omits signature batching and keeps in-house crypto review. Next engineering choice after baseline numbers: Pirate/zcashd bridge inventory **or** Option A Phase 2 FFI sketch -- not both in parallel.
-
-**Lab host:** this ZeroPerf machine is arm64; deployment fleet mix remains unknown.
-
-#### cxx questions
-
-**What `cxx` is:** the [cxx](https://cxx.rs/) crate generates a typed bridge between C++ and Rust so each side can call the other with real types, instead of hand-written `extern "C"` plus raw pointers/bytes. Modern `zcashd` uses this pattern for Sapling (`rust::Box<...>`, generated bridge headers). Pirate mirrors that shape in a vendored `src/rust/` crate.
-
-**What Zero has today:** `librustzcash.h` and raw `extern "C"` entry points (e.g. `librustzcash_sapling_check_spend`). No in-tree `cxx` bridge.
-
-**Open questions** for the Option A/B spike: `PerfGroth.md`, which owns Groth16.
-
-**Doc ownership:** this file only. Do **not** edit Zero400 **TODO** / ExtTests / UpdateZero from the ZeroPerf lab track until a deliberate merge.
-
-**Where `ShutdownRequested()` / `fRequestShutdown` are checked today**
-
-| Location | Role |
-|----------|------|
-| `bitcoind.cpp` main loop | Exit when shutdown requested |
-| `init.cpp` AppInit / tip wait / return | Abort init / return false |
-| `main.cpp` VerifyDB loop | Break verification early |
-| `zeronode.cpp` | Early return on some paths |
-| `sendalert.cpp` | Wait loops |
-| `zcbenchmarks.cpp` | Abort bench |
-| Deprecation gtest | Expect flag after alert threshold |
-
-**Not sufficient alone:** setting the flag does not stop CPU-bound work until that thread hits `interruption_point()` or polls `ShutdownRequested()`.
-
-**Add shutdown polling where CPU stays hot (updated item)**
-
-Prefer `interruption_point()` on Boost worker threads; add explicit `ShutdownRequested()` returns in long CPU loops that may not be interruptible yet.
-
-| Tier | Function / area | Why (CPU) | Mechanism |
-|------|-----------------|-----------|-----------|
-| T0 | `LoadBlockIndexDB` `vSortedByHeight` + map build (`main.cpp`) | Multi-minute index reconcile | `interruption_point()` every N -- **FIX-LBI done** |
-| T0 | `ThreadImport` / `LoadExternalBlockFile` between files / progress (`init.cpp` / `main.cpp`) | Full reindex / bootstrap on `zcash-loadblk` | `ShutdownRequested()` -- **FIX-IMPORT-POLL done** |
-| T1 | `ConnectBlock` / `ContextualCheckBlock` outer per-block path on import | Dominant reindex CPU (Groth16 inside) | Rely on thread interrupt at block boundaries; optional flag check per block |
-| T1 | PoW verify in header checks (reindex) | Smaller but steady | Optional every N headers |
-| T2 | `BuildWitnessCache` wallet rebuild | Fat-wallet start | Flag check between heights |
-| -- | Signal handlers | -- | **Never** call `exit()`; only set atomics |
-
-**ID note:** Tiers **T0-T2** are interrupt-site ordering in this subsection only. Lab priorities remain **G** / **P1-P4** in §0.2.
-
-Do **not** spray checks into every Groth16 pairing call (overhead). Boundaries of blocks/files/heights are enough.
-
-#### debug.log reopen
-
-Explain `create`; validate Linux / Windows.
-
-**What `create` means (logrotate):** after rotating (renaming) the old `debug.log`, logrotate's `create mode owner group` creates a **new empty file at the original path** before `postrotate`. That matches what `freopen(..., "a", fileout)` expects: a path named `debug.log` exists again. Equivalent manual step: `mv debug.log debug.log.1 && touch debug.log && kill -HUP $PID`.
-
-Without `create`/`touch`, behavior depends on OS/`freopen`: the process may keep writing to the renamed inode until reopen succeeds. **macOS validated** with touch+HUP+`-debug=rpc` (new file received lines; rotated size unchanged).
-
-**Validation plan (not yet run here)**
-
-| Platform | Steps | Pass criteria |
-|----------|-------|---------------|
-| **Linux** | Install/sample logrotate snippet with `create 0600` + `postrotate kill -HUP $(cat datadir/.../zerod.pid)`; or manual mv/touch/HUP; force `-debug=rpc` traffic | New `debug.log` grows; `.1` does not; process stays up |
-| **Windows** | No SIGHUP. Document: rotate by stopping node or using copytruncate-style tooling; or implement/confirm reopen trigger if any Win path exists (today reopen is SIGHUP-only) | Expected: **graceful rotate via SIGHUP is POSIX-only**; Windows ops use stop/start or external copy while stopped |
-| **macOS** | Done | -- |
-
-#### Windows signals
-
-Expected behavior and validation plan.
-
-POSIX `sigaction(SIGTERM/SIGINT/SIGHUP/SIGPIPE)` is under `#ifndef WIN32` in `init.cpp`. This tree has **no** `SetConsoleCtrlHandler` wiring for Ctrl+C -> `StartShutdown()`.
-
-| Event | Expected / observed | Validation |
-|-------|---------------------|------------|
-| RPC `stop` | `StartShutdown()` -> interrupt -> `Shutdown()` | `zero-cli stop`; clean exit; datadir lock released |
-| Console Ctrl+C | **Observed:** does **not** exit immediately. Delay is consistent with orderly teardown / **updating stores** (`Shutdown()`: wallet `Flush`, `FlushStateToDisk`, LevelDB/BDB close, zeronode dumps) rather than an instant kill | Confirm `Shutdown: In progress...` (or equivalent) in `debug.log` before process exit; note wall time vs tip/wallet size |
-| Console close / kill | May still be abrupt depending on host/console | Document if different from Ctrl+C |
-| SIGHUP / logrotate reopen | **N/A** (POSIX-only) | No parity claim |
-| Service stop (if hosted) | Wrapper-dependent | Note only |
-
-**Code vs observation:** in-tree `zerod` does not register a Win32 console handler; if Ctrl+C still triggers a multi-second exit with store flushes, record **which binary** (`zerod` / Qt / wrapper) and console host produced that path on the validation machine. Do not assume POSIX SIGINT semantics on Windows.
-
-**Plan:** Windows smoke: (1) RPC stop clean; (2) Ctrl+C -- expect delayed exit + store flush evidence in log; (3) no SIGHUP logrotate claim.
 
 ### 0.8a Not-done reindex items
 
@@ -439,7 +236,6 @@ Doc ownership: **BENCH-/FIX-/IMP-***, **L0-L7**, Stages, **G**/**P1-P4**, lab ma
 | **BENCH-UTIL** | M-RX-UTIL-SMOKE | RSS/CPU during import | `SAMPLE_UTIL=1` on short window | util.tsv milestones | Stock binary | Smoke done; keep on postsap runs |
 | **BENCH-MINE** | M-MINE-REGTEST-SMOKE | Solve cost != verify | regtest+probe done; mainnet Instruments opt-in; **vectorised A/B parked** (grouped hold) | ms/block + blake2b share | vector build (closed) | **Active** (solve profile); NEON hold |
 | **BENCH-WAL** | M-WAL-SYNC-* / M-CPU-WAL-* / M-WAL-WITNESS-* / M-GAD-FAT-TINY | Tip RPC + wallet-on sync util | fat ~50x catalogued; ibd-defer ~35x; NOTEIDX ~33x; getalldata fat@tiny done; full-mainnet Idx1 + §0.11 matrix open | wall_ms + CPU + wallet_bytes | Disposable copies | Witness flags lab-opt-in; matrix later |
-| **BENCH-FDCACHE** | 4x2 + O1/O2 | Confirm null / compiler | Bundled later; not current mix | A/B ledger | ZERO_FDCACHE build | **Postponed** |
 | **BENCH-WIN-SIG** | Windows stop / Ctrl+C | Document teardown | RPC stop + Ctrl+C; inspect `debug.log` for `Shutdown` / flush | Written expected-behavior note | Win host/VM | **Plan** |
 | **BENCH-LOGROT** | Linux debug.log HUP | Validate `create`+HUP | mv/touch/HUP or logrotate `create`; `-debug=rpc` | New file grows; rotated frozen | Linux host | **Plan** (macOS done) |
 
@@ -479,7 +275,6 @@ Out of immediate queue: refuse/`-reindexforce`, skip-wallet below H, Shieldex ga
 #### D. Explicit non-goals
 
 - Edit Zero400 TODO / ExtTests / UpdateZero from ZeroPerf lab
-- FDCACHE 4x2 until deliberately resumed
 - WAL-RPC-ACCOUNTS or W5 implementation
 - Groth16 Phase 2+ without §0.1a decision
 
@@ -497,7 +292,7 @@ Pointers only -- numbers in **Measures.md**.
 | Onset rematch | M-BOOT-ONSET (~130) / M-RX-ONSET (~140) n=1 peers |
 | Wallet sync | M-WAL-SYNC-P0 / M-WAL-SYNC-FAT / M-CPU-WAL-FAT / M-CPU-WAL0-TINY; archive `test-logs/archives/walletsync-fat-g0-20260812.tar.gz`; FINDINGS + §0.14 |
 | PoW KATs | `contrib/perf/kats/`; see `equ/` |
-| Accepted queue | Perf §0.13 G -- G0 catalogued; witness FIX triage next; G6 held; G8 postpone |
+| Accepted queue | Perf §0.13 G -- G0 catalogued; witness FIX triage next; G8 postpone |
 | Ledger map | Measures §8 `CAMPAIGN=` |
 
 #### F. Baseline recreation program
@@ -508,7 +303,7 @@ Goal: one coherent **current** baseline set for decisions (Groth A/B, further Co
 
 | Track | Items | Why | Status |
 |-------|-------|-----|--------|
-| **Already shipped + tested** | §3 FDCACHE path, §4 latch + anchor Exists, resume L/H/R, ExtTests **B1** `reindex_shielded`, founders integer subsidy, FIX-LBI/IMPORT, `groth16-batch-poc` Phases 0-1 | Product/lab foundation; do not re-litigate | In tree |
+| **Already shipped + tested** | §3 I/O path, §4 latch + anchor Exists, resume L/H/R, ExtTests **B1** `reindex_shielded`, founders integer subsidy, FIX-LBI/IMPORT, `groth16-batch-poc` Phases 0-1 | Product/lab foundation; do not re-litigate | In tree |
 | **L0 clean snaps** | Solo tiny + short after FIX-LBI | Uncontaminated tip rates | Done; **contended** -- see M-RX-TINY-20260811d / M-RX-SHORT-20260811b; optional clean re-run |
 | **L1 pre-Sap peer** | Reindex n=4 window 50k-75k | Peer to M-BOOT-PRESAP | **Done** -- M-RX-PRESAP |
 | **L2 post-Sap bootstrap** | Bootstrap n=4 window 600k-900k | Peer to M-RX-POSTSAP-STOCK | **Done** -- M-BOOT-POSTSAP |
@@ -517,7 +312,7 @@ Goal: one coherent **current** baseline set for decisions (Groth A/B, further Co
 | **L5 TST-09** | `-blocknotify` / `-walletnotify` default-build markers | Approved PIR-01 companion; alert half done | **Done** (FIX-TST09) |
 | **L6 Groth inputs** | Option B migration-cost spike; keep `groth16-batch-poc` runnable | Unblocks §0.1a without Phase 2 code | Spike prose in §0.6a; poc verify still open |
 | **L7 ARM note** | This lab host is **arm64** | Deployment mix still unknown | Fact |
-| Hold | FDCACHE 4x2, Accounts/W5, CleanIndex ExtTests B2, Groth Phase 2 | Explicit non-goals until gates clear | -- |
+| Hold | Accounts/W5, CleanIndex ExtTests B2, Groth Phase 2 | Explicit non-goals until gates clear | -- |
 
 **Naming:** **L0-L7** = baseline recreation tracks. ExtTests **B1** / CleanIndex **B2** = harness IDs (WitnessReindex / ExtTests) -- different namespace.
 
@@ -555,7 +350,6 @@ Owner-accepted order (solo host; one long trial at a time):
 | 5 | **G0d** | Prototype **FIX-WAL-WITNESS-IBD** A/B | **Done** -- stock **16.75** vs defer **595** blk/s to h~15k (~**35x**); `-walletwitness=ibd-defer` |
 | 6 | **G0e** | Tip-quiet getalldata on fat tiny tip | **Done** (scoped) -- ~0.75-1.2 s after rebuild; **not** mainnet Idx1 513k-UTXO; full Idx1 still open |
 | -- | **NOTEIDX** | FIX-WAL-WITNESS-NOTEIDX prototype | **Advanced** -- `-walletwitnessnote=1` ~**33x** to h8k (14.9->486 blk/s); DIRTY still postponed |
-| -- | **G6** | FDCACHE 8/16 KB A/B | **Hold** -- stock binary has no `-perffdcache`; prior 1MB A/B **null** (M-CPU-FD-THR); low priority vs witness ship |
 | 7 | **G5** | Solve profile (mainnet template) | **Scheduled -- Track M**; parallel with Cycle 1 |
 | 8 | **G9** | KAT adapt/extra validate postponed | Note only |
 | -- | **G8** | Halo-Orchard | **Postpone** |
@@ -608,7 +402,7 @@ Owner-accepted order (solo host; one long trial at a time):
 - Idx1 tip util (G0e); then §0.11 getalldata matrix on disposable profiles 0/2/3.
 - Accounts / W5 remain postponed pending review -- do not block Stage 0-4.
 
-**Hold until deliberate resume:** FDCACHE 4x2 + O1/O2 (G6 after witness triage); CleanIndex ExtTests B2; Shieldex full gate; Zero400 TODO edits from this tree.
+**Hold until deliberate resume:** O1/O2; CleanIndex ExtTests B2; Shieldex full gate; Zero400 TODO edits from this tree.
 
 ### 0.14 Wallet-on reindex -- witness bottleneck (G0)
 
@@ -879,7 +673,6 @@ ChainTip / ThreadImport
 4. **DIRTY** -- still optional (tip-rebuild asymptotics).
 5. **Productize** -- decisions in §0.14; execute §0.15 Tier A (docs -> NOTEIDX walk -> RPC allowlist -> rebuild bench -> regtest -> opt-in ship -> default-on gate).
 6. **G0e** fat@tiny getalldata -- **done** (scoped); full-mainnet Idx1 open (Tier B).
-7. **G6** FDCACHE 8/16KB -- **hold** (Tier C).
 
 #### RPC lockout during witness operations
 
@@ -1033,7 +826,6 @@ Tiered. Effort S/M/L. One long trial at a time.
 | INV-GROTH-FALLBACK | Policy at implement time, not now |
 | INV-SIG-SHARE | Nice for Option B sizing; after cxx spike |
 | INV-ARM-MIX | Fleet unknown; relevant to the solver track |
-| BENCH-FD-MID / G6 | Prior null; needs special binary |
 | BENCH-BOOT-POST | Parity already noted |
 | BENCH-SEG / L3 | **Parked** vs witness track; density tip + onset n=1 done; n=4 optional |
 
@@ -1501,6 +1293,10 @@ Groth16, disk I/O, and tree/anchor per-block cost all vary substantially (21-46%
 
 ## 3. Disk I/O: open-close-per-block mechanism, and the implemented fix
 
+**Parked.** Compiled out of release builds (`ZERO_FDCACHE` `#undef`), off by
+default under `--enable-perf`, and no throughput win at either era
+(M-CPU-FD-THR). Retained pending Linux/Windows validation (`docs/TASKS.md` A5).
+
 **Mechanism.** `OpenBlockFile`/`OpenUndoFile` both call `OpenDiskFile`, which does a **fresh, unconditional `fopen()` on every call** -- no persistent or cached `FILE*` anywhere in this path. Every call site wraps the fresh `FILE*` in a stack-local `CAutoFile`, whose destructor calls `fclose()` unconditionally the moment the function returns. `ConnectBlock`/`LoadExternalBlockFile` call these once or twice per block (a read, usually an undo-data write) -- a full ~2.5M-block reindex therefore performs on the order of **2.5-5 million `fopen`/`fclose` pairs**, even though the underlying `blkNNNNN.dat`/`revNNNNN.dat` files are ~128MB each holding thousands of consecutive blocks: the overwhelming majority of those pairs reopen a file that was just closed moments earlier for the previous block. Each pair is a full kernel `open`/`close` round-trip, and `fopen` additionally re-initializes stdio's internal buffer from scratch every time -- cost paid once per block instead of once per file, a 100-1000x amplification.
 
 **Direct syscall-level confirmation** (`fs_usage -f filesys -w <pid>`, root-only, always available, no SIP change needed unlike full `dtrace`; Instruments' File Activity template records real data but has no `xcrun xctrace export` schema in this Instruments version -- GUI-only, not usable headlessly): in a 180-second `-reindex` window, `open` alone was 23% of traced filesystem time; `open+close+stat64+fstat64` together came to ~0.048ms/block -- real, but only 6-34% of the disk-I/O bucket depending on capture window, meaning most of that bucket is genuine read/write/transfer time, not open/close overhead.
@@ -1512,7 +1308,7 @@ Groth16, disk I/O, and tree/anchor per-block cost all vary substantially (21-46%
 
 **Latch, not a multi-slot cache -- checked, not assumed.** An earlier version used a 4-slot LRU on the theory that RPC/reorg access could interleave across multiple files. Measuring real access during a `-reindex` run showed the open count grows strictly monotonically with no repeats for long stretches, then occasionally revisits an earlier file -- traced to `LoadExternalBlockFile`'s "out of order child" handling, which reprocesses an earlier block file when a later block's parent hasn't connected yet. A single-slot latch handles this correctly by design (a miss costs one `fopen`, not a correctness issue) -- measured hit rate stayed **99.9%** even across that access pattern, heights 0 through ~900,000.
 
-**Implementation status: functionally correct, compiles clean both with and without `ZERO_FDCACHE`, no unit test coverage.** Only `main.cpp`/`main.h` carry changes -- `streams.h` and `init.cpp` ended at zero diff from upstream after an earlier, more invasive draft (a `CAutoFile` ownership flag, an unused `CloseAllCachedReadFiles` shutdown hook) was reviewed back out in favor of the smaller `ReleaseOnScopeExit` approach and removing dead code. Known, accepted gaps: `ReleaseOnScopeExit` is constructed (as an inert no-op) even in normal builds without `ZERO_FDCACHE`; no gtest exists for the latch's hit/miss/stale-reopen behavior, unlike §4's latch which has a dedicated test.
+**Implementation status: single-reader only.** `CacheOpen` (`main.cpp:4924`) drops `LOCK(latch.cs)` at return, so the caller reads the shared `FILE*` unlocked (`main.cpp:2130`, `:2617`) -- safe under the single-threaded reindex measured here, not under concurrent readers. Enabling it anywhere multi-reader needs an RAII lease across seek+read, or `pread`. Compiles clean with and without `ZERO_FDCACHE`; no unit test coverage. Only `main.cpp`/`main.h` carry changes -- `streams.h` and `init.cpp` ended at zero diff from upstream after an earlier, more invasive draft (a `CAutoFile` ownership flag, an unused `CloseAllCachedReadFiles` shutdown hook) was reviewed back out in favor of the smaller `ReleaseOnScopeExit` approach and removing dead code. Known, accepted gaps: `ReleaseOnScopeExit` is constructed (as an inert no-op) even in normal builds without `ZERO_FDCACHE`; no gtest exists for the latch's hit/miss/stale-reopen behavior, unlike §4's latch which has a dedicated test.
 
 **Measured result: no throughput improvement from either flag, at pre-Sapling heights.** Repeated-trial A/B (`contrib/perf/bench_matrix.sh`: fixed height range warmup=50,000->measured 50,000-350,000, exact elapsed time from `debug.log` `UpdateTip` timestamps, 4 trials per condition, both with `-perffdcache=1`):
 
@@ -1547,6 +1343,15 @@ This closes §0 item 1's open question: post-Sapling heights behave the same as 
 **Tooling:** `contrib/perf/bench_matrix.sh` -- repeated-trial A/B harness for any `-perffdcache`/`-perfbufsize` combination, against `-reindex` and (given a `bootstrap.dat` path) `-loadblock`. See `contrib/perf/README.md` for usage.
 
 **G6 (accepted queue):** when FDCACHE resumes, add **8192** and **16384** bufsize conditions vs libc default and 1048576 -- 1MB already looked slightly worse; mid-size buffers test the "syscall vs cache pressure" hypothesis without assuming 1MB is optimal.
+
+**Why it is retained, and the two cases that could still pay.** The null above is established for **sequential reindex on macOS/arm64 with a warm page cache** -- one platform, one access pattern. macOS stdio does not predict Linux or Windows, which is the same reasoning that keeps `docs/TASKS.md` B2 open. Two workloads have the opposite access pattern and are unmeasured:
+
+- **Random `getblock` / REST / explorer serving.** Consecutive requests hit *different* `blk*.dat` files, so each read pays the `fopen`+`fclose` the latch would elide. Sequential reindex hits the same file repeatedly, which is why the cache had nothing to save there. Measure by driving `getblock` over a random height sample against a synced node, with and without `-perffdcache`, comparing **RPC latency percentiles**, not throughput.
+- **Cold cache / slow storage.** The 4.91% syscall share assumes the page cache already holds the data. On first touch, or on network/spinning storage, the read itself dominates and buffer size becomes relevant. Same reindex window with the page cache dropped between trials -- Linux only (`/proc/sys/vm/drop_caches`), so a B2 item.
+
+**Both are latency questions, not throughput questions**, which is why the existing throughput harness measured nothing: it was the wrong instrument for the case where the mechanism helps. The reindex null stands and neither contradicts it.
+
+**The RPC case is gated on the concurrency fix.** Multiple simultaneous readers are exactly the unsafe condition above, so the lock lifetime must be fixed **before** any multi-client `getblock` measurement -- otherwise the experiment measures an unsafe path. Task state: `docs/TASKS.md` A5-a, A5-a2.
 
 ---
 
@@ -1585,7 +1390,7 @@ Idle and Sapling-output-only blocks match perfectly but were already cheap (empt
 
 **The cost is entirely inside blake2b's compression function, running unaccelerated on this hardware.** Every one of the 128 per-block hash calls goes through libsodium (not the Rust `blake2-rfc` crate also vendored in this tree -- that's for something else). libsodium 1.0.21 dispatches its blake2b compression function at runtime via `blake2b_pick_best_implementation()`, choosing between `avx2`/`sse41`/`ssse3`/`ref` backends -- but **all three accelerated backends are gated behind x86-only intrinsics headers**. On `aarch64-apple-darwin` (Apple Silicon), none of those headers exist, so the dispatcher unconditionally falls through to `blake2b_compress_ref`, the plain scalar C implementation, for every call.
 
-**Checked and ruled out: no fix via upgrading dependencies or Apple's native crypto.** libsodium has released twice since 1.0.21 (1.0.22, 2026-04-09, current) -- its actual `ChangeLog` shows post-quantum KEMs and new SHA-3 APIs, no mention of blake2b or ARM vector work anywhere. Across every release checked (1.0.18-1.0.22), ARM/aarch64 wins landed for AES-GCM, AEGIS, and Argon2/SHA3 -- blake2b has never once been included; a version bump is confirmed not to fix this. Apple's CryptoKit has no BLAKE2b support at all (SHA-2/AES/legacy only).
+**Checked and ruled out: no fix via upgrading dependencies or Apple's native crypto.** libsodium has released twice since 1.0.21 (1.0.22, 2026-04-09, current) -- its actual `ChangeLog` shows post-increment KEMs and new SHA-3 APIs, no mention of blake2b or ARM vector work anywhere. Across every release checked (1.0.18-1.0.22), ARM/aarch64 wins landed for AES-GCM, AEGIS, and Argon2/SHA3 -- blake2b has never once been included; a version bump is confirmed not to fix this. Apple's CryptoKit has no BLAKE2b support at all (SHA-2/AES/legacy only).
 
 
 **Resolved 2026-09-02: the recommendation above was implemented, via uniblake.** Option (b) was taken -- `equihash.cpp` no longer calls libsodium's generichash API at all; it calls uniblake (`ub_init_personal` / `ub_update` / `ub_hash_tail`) through `crypto/eh_hashstate.h`. libsodium is retained unchanged for Ed25519, `randombytes_buf` and the seven files that still use `crypto_generichash_blake2b_*` (see **`docs/HASHLIBS.md`** for the full division). Measured 2.03x on the Equihash access pattern, against libsodium 1.0.22 built -O3, harness at -O2.
@@ -1604,65 +1409,6 @@ The version-bump conclusion above is independently confirmed and stronger than s
 **Independent confirmation this is a fixed, hardware-level cost, not something content-dependent:** Equihash's per-block cost held constant at 0.252ms +/- 1.2% CV across six capture windows spanning pre- and post-Sapling heights and blocks/sec ranging 237-1,103 (§2's per-block table) -- versus 21-46% CV for every other bucket, all of which scale with shielded-tx volume or block size. A cost that doesn't move with any chain-content variable is exactly what "fixed per-header hashing cost, paid by an unaccelerated compression function" predicts.
 
 ---
-
-## 6. Sapling Groth16 batch-verification headroom: scoped, not implemented
-
-**Reviewers:** start at §0.0 **Review packet** and §0.1a; this section is the evidence trail (call path, crate facts, ecosystem). Decision is open -- nothing here chooses A vs B.
-
-**The question (§0 item 4).** §2 found Sapling Groth16 proof verification dominating post-Sapling CPU (48-55% chain-wide). Does `bellman` (Zero's pinned `librustzcash` Groth16 implementation) support batch verification, and could that work run on the currently-idle `zcash-scriptch` threads?
-
-**Confirmed: every proof is verified independently, on one thread, with no batching anywhere in the call chain.** `bellman::groth16::verifier::verify_proof` (`bellman/src/groth16/verifier.rs`, pinned via `librustzcash` commit `06da3b9ac8f278e5d4ae13088cf0a4c03d2c13f5`, fetched fresh from upstream since the depends cache only stores the built `.a`/`.h`, not source) takes exactly one `Proof`/one set of public inputs and does one 3-pairing Miller loop + one final exponentiation -- no loop, no batch parameter, no alternate entry point. `librustzcash_sapling_check_spend`/`_check_output` (`librustzcash/src/rustzcash.rs`) each wrap a single `verify_proof` call and are invoked once per `SpendDescription`/`OutputDescription`, from `ContextualCheckTransaction` (`main.cpp`), which `ContextualCheckBlock` calls via a plain `BOOST_FOREACH` over `block.vtx` -- sequential, single-threaded, on the same worker thread that does everything else during reindex (`zcash-loadblk`). This confirmed the "structural, not fundamental" framing from §0: `ContextualCheckInputs`' `CScriptCheck`/`scriptcheckqueue` dispatch (the thing that actually wakes `zcash-scriptch` threads) covers *only* transparent script/signature verification and is wired up entirely separately from, and after, `ContextualCheckBlock`'s Groth16 checks -- the two paths never share a queue, so idle `zcash-scriptch` threads structurally cannot pick up Groth16 work without new wiring, not because of any inherent limitation in the proof system.
-
-**Confirmed: real batch-verification support exists, but only in a materially newer `bellman`.** The maintained successor `zkcrypto/bellman` (the pinned `ebfull/bellman` is ~2019-vintage; `zkcrypto/bellman` is its modern continuation) ships `groth16/src/verifier/batch.rs` plus a `groth16/benches/batch.rs` benchmark -- a real, tested feature, not a proposal. It implements the standard random-linear-combination technique: for N proofs sharing one `VerifyingKey`, draw a random scalar `z_i` per proof, fold each proof's `(A, B, C)` terms and public inputs into running accumulators weighted by `z_i`, then do **one multi-Miller-loop + one final exponentiation for the whole batch** instead of N independent ones -- collapsing the batch's expensive final-exponentiation count from O(N) to O(1). A `verify_multicore` variant additionally shards the batch into `rayon` `par_chunks(8)` work-items, run over `rayon`'s global threadpool, then reduces the partial Miller-loop results -- real, existing parallel-execution code, not something to build from scratch.
-
-**But this is not a drop-in upgrade.** Modern `bellman`'s `groth16` crate requires `edition = "2021"`, `rust-version = "1.60"`, and depends on `ff 0.13`/`group 0.13`/`pairing 0.23`/`bls12_381 0.8` -- all from the post-2020 `ff`/`group` trait-split redesign of the Rust pairing-crypto ecosystem. The pinned crate stack (`pairing 0.14.2`, path-dependency, `rand 0.4`, no `ff`/`group` split at all) predates that redesign entirely. Adopting `zkcrypto/bellman`'s `batch.rs` as-is would mean migrating Zero's entire `librustzcash`/`bellman`/`pairing`/`jubjub` stack across that ecosystem-wide API break -- a large, separate undertaking, not a small patch.
-
-**The good news: the core primitive the algorithm needs already exists in the pinned crate, so a hand-ported batch verifier is feasible without that migration.** The pinned `pairing::Engine` trait (`pairing/src/lib.rs`) already defines `miller_loop<I>(i: I) -> Fqk` accepting an arbitrary-length iterator of `(G1Affine::Prepared, G2Affine::Prepared)` pairs -- `verify_proof` itself already calls it with 3 pairs per single-proof check. `CurveAffine::prepare()`/`::Prepared` are likewise already present. This means the random-linear-combination batching math (accumulate weighted terms across N proofs, feed them all into one `miller_loop` call, one `final_exponentiation`) can be hand-ported into the pinned `bellman`/`pairing` version without a crate upgrade -- the trait shapes line up. What pinned `bellman` lacks and would need adding: the accumulator/random-scalar bookkeeping itself (straightforward to port from `batch.rs`'s logic), and -- for the multicore variant specifically -- a parallel-execution primitive, since `rayon` isn't in the pinned crate's dependencies (`futures-cpupool`/`crossbeam`/`num_cpus` are present but used only by the *prover*, e.g. FFT/multi-exponentiation in `prover.rs`, never the verifier).
-
-**What this changes for a real implementation, beyond the crypto:**
-- **Batching requires buffering proofs before verifying them**, which doesn't fit `ContextualCheckTransaction`'s current per-transaction, immediate-verify-or-reject control flow (`ContextualCheckBlock`'s `BOOST_FOREACH` calls it once per tx and expects an immediate pass/fail). A batched version would need to collect all of a block's Sapling spend/output proofs first, verify the batch once, and only then be able to say a proof failed -- with the caveat noted in `zkcrypto`'s own doc-comment: batch verification confirms *all* proofs are valid but "loses the ability to easily pinpoint failing proofs," so a failed batch needs a fallback to per-proof `verify_single` to identify which transaction to reject (already provided for exactly this purpose by `Item::verify_single` in `batch.rs`).
-- **The random verifier scalars need a CSPRNG**, sourced per block (or per batch) -- a new input this call path doesn't currently have.
-- **Consensus-criticality**: unlike §3/§4's fixes (pure memoization, no change to what's computed), swapping single-proof verification for batch verification changes the exact sequence of cryptographic operations performed to reach a pass/fail -- this needs the same scrutiny consensus-code changes always require, even though the math is a standard, published technique (not novel here).
-
-**Not started, deliberately scoped no further than this.** Per §0 item 4, this was a research/scoping task, not an implementation. Estimated headroom: collapsing N final-exponentiations to 1 per batch, against a bucket that's 48-55% of chain-wide CPU (§2), is a substantial, structurally-supported target -- but realizing it requires (a) hand-porting the batch algorithm using the pinned crate's existing `miller_loop` primitive, (b) restructuring `ContextualCheckBlock`'s per-tx control flow to buffer-then-batch-verify, and (c) deciding whether to also port a parallel accumulation path (would need vendoring a `rayon`-equivalent, or reusing the existing `futures-cpupool`/`crossbeam` machinery `prover.rs` already depends on) to actually engage otherwise-idle cores. None of this is started.
-
-### 6.1 Ecosystem check: is there a more advanced, already-shipped batch verifier? Yes -- and it changes the picture.
-
-**The question.** §6 above frames the work as "hand-port `zkcrypto/bellman`'s `batch.rs`." Before committing to that path, this subsection checked: is the pinned `librustzcash` (Oct 2018) actually the latest available, or has the ecosystem moved further -- and if so, does upstream already ship a *complete* batch verifier (not just the low-level pairing primitive), that a hand-port would be reinventing?
-
-**Finding: the ecosystem has moved substantially, and `zcash/librustzcash`'s current `main` no longer contains `bellman`/`pairing`/`sapling-crypto` at all.** Fetched `zcash/librustzcash`'s current `main` (commit `1c7f7d86`, 2026-07-09 -- actively maintained, pushed same day as this check). Its workspace (`Cargo.toml`) no longer includes `bellman`, `pairing`, `sapling-crypto`, or `librustzcash` (the FFI crate itself) as members at all -- these have been split out into independently-versioned, separately-published crates: `bellman = "0.14"` (crates.io, last published 2023-03-20, `zkcrypto/bellman`'s modern continuation -- the same repo §6 above already investigated) and `sapling = { package = "sapling-crypto", version = "0.7" }` (crates.io, `zcash/sapling-crypto`, last released 2026-04-21). The 2018-era all-in-one monorepo layout this repo's pin (`06da3b9ac8f278e5d4ae13088cf0a4c03d2c13f5`) reflects is not how the ecosystem is structured today -- it's a snapshot from a much earlier point in a since-heavily-refactored dependency graph.
-
-**Bigger finding: `sapling-crypto` already ships a complete, production Sapling `BatchValidator` -- not just the low-level pairing primitive `batch.rs` provides.** Fetched `zcash/sapling-crypto` at its current release (`v0.7.0`) and read `src/verifier/batch.rs` in full. `sapling_crypto::BatchValidator` (traces back to `zcash_proofs::sapling::BatchValidator`, added in `zcash_proofs` v0.7.1, **2022-07-05** -- this has been in production for roughly four years) does everything §6/§9.4's plan set out to hand-build:
-- `check_bundle(bundle, sighash)` -- walks a Sapling transaction bundle's spends and outputs, runs the *same* per-item consensus checks the pinned `check_spend`/`check_output` do (small-order checks, anchor/nullifier handling), but **queues** the Groth16 proof and the RedJubjub `spend_auth_sig`/binding signature into batch verifiers instead of checking them immediately -- `self.spend_proofs.queue(...)`, `self.output_proofs.queue(...)`, `self.signatures.queue(...)`.
-- `validate(spend_vk, output_vk, rng)` -- batch-verifies everything queued: signatures first (`redjubjub::batch::Verifier`), then Sapling spend proofs and output proofs each via `groth16::batch::Verifier::verify`/`verify_multicore` (the exact `bellman` `batch.rs` code §6 already found) -- three separate batches, not one combined batch, each against its own verifying key.
-- **This batches signatures too, not just Groth16 proofs** -- something §6/§9.4's plan didn't scope, since the pinned FFI's `check_spend` verifies `spend_auth_sig` eagerly per-call (§9.4 Phase 0 finding). Batch-verifying RedJubjub signatures is a separate, real technique (also random-linear-combination-based) with its own headroom, orthogonal to Groth16 batching.
-- Returns a single pass/fail for the whole batch, with the same "can't pinpoint which proof failed" limitation `batch.rs` itself documents -- callers needing attribution re-verify individually, same tradeoff §9.4's Phase 4 fallback design already anticipated.
-
-**Confirmed in real production use, not experimental:** `sapling_crypto::BatchValidator` is used directly by Zebra (Zcash Foundation's Rust full node) in `zebra-consensus/src/primitives/sapling.rs`, wrapped in a `tower_batch_control::Batch` async service (`zebra-consensus/src/primitives.rs`) with real, tuned production parameters: **`MAX_BATCH_SIZE = 64`, `MAX_BATCH_LATENCY = 100ms`** -- i.e. Zebra batches up to 64 Sapling proofs or waits at most 100ms, whichever comes first, before flushing a batch through `BatchValidator::validate`. This is the answer to "how big should a batch be" that §9.4's plan left unspecified -- a real, shipped, presumably-tuned answer, not a guess.
-
-**What this means for §9.4's plan.** Two paths now exist, and they trade off differently:
-
-1. **Hand-port** (§9.4 as written): port only the random-linear-combination math into the *pinned* 2018-era `bellman`/`pairing`, keeping Zero's entire crate stack otherwise unchanged. Smaller footprint, no crate-version migration, but reinvents logic that upstream has already built, hardened, and run in production for ~4 years -- including the signature-batching piece §9.4 didn't originally scope at all.
-2. **Adopt `sapling-crypto` directly** (not previously considered): migrate Zero's Sapling verification call path to depend on the current, maintained `sapling-crypto`/`bellman 0.14`/`bls12_381`/`group`/`ff`-split crate stack, and call `BatchValidator` as-is -- the same code Zebra runs today. Larger footprint (the crate-stack migration §6 above already flagged as "a large, separate undertaking"), but gets a battle-tested implementation, signature batching for free, and a real precedent for batch-size tuning (`MAX_BATCH_SIZE`/`MAX_BATCH_LATENCY`), instead of hand-porting and re-validating logic that already exists.
-
-**This is a genuine fork in the road that should be decided before Phase 2 of §9.4 proceeds** -- not resolved here. The hand-port path is still valid and its Phase 0-1 groundwork (already executed -- see §9.4) isn't wasted (the math is the math either way, and the standalone prototype validated it works against real proofs), but "reuse the upstream crate that Zebra already runs in production" is a materially different, and arguably lower-total-risk, option that wasn't on the table when §6/§9.4 were originally scoped. Not sized or investigated further here (crate-migration cost, C++/Rust FFI shape against the newer crate stack, and whether `librustzcash`'s current C FFI layer -- if one still exists at this pin -- could be reused rather than hand-rolled, are all open).
-
-*Investigation steps, in order:*
-1. Pull the exact pinned `librustzcash` commit (`06da3b9ac8f278e5d4ae13088cf0a4c03d2c13f5`) and read `verifier.rs` end to end; confirm `Proof`/`VerifyingKey`/`PreparedVerifyingKey` struct shapes match what `zkcrypto/bellman`'s `batch.rs` accumulator logic needs field-for-field -- `batch.rs` was written against the post-split `ff 0.13`/`group 0.13`, the pinned crate predates that split entirely, so every type substitution needs individual checking, not just the top-level call signature.
-2. Prototype the batch math as a standalone Rust unit, outside the FFI boundary first -- a `#[cfg(test)]`-only batch-verify function against the pinned `bellman`/`pairing` crates, fed known-good and known-bad Groth16 proofs from the existing prover test fixtures. Validates the ported math against known-answer vectors before touching any FFI/consensus surface.
-3. Design the FFI/buffering boundary before writing Rust: current `librustzcash_sapling_check_spend`/`_check_output` are eager, per-description, return `bool` immediately. Decide the batched shape -- e.g. a defer/collect call plus a `librustzcash_sapling_batch_validate` call returning per-item pass/fail or an opaque failure index, vs. collecting proofs block-side in `main.cpp` and passing an array across one new FFI call.
-4. Restructure `ContextualCheckBlock`'s control flow: collect all Sapling spend/output proofs across the block's transactions first, batch-verify once, and only on batch failure fall back to per-proof `verify_single` (already provided in `batch.rs` for exactly this) to identify which transaction/description to reject -- the existing per-description error codes (`bad-txns-sapling-spend-description-invalid` etc., `main.cpp:1131,1146`) must still point at the correct tx for RPC/ban-scoring correctness.
-5. Source the per-batch CSPRNG -- a new input this call path doesn't have today; check `random.h`/existing `GetRandBytes`-equivalent usage elsewhere in `main.cpp` for the process's existing secure-RNG convention, sourced fresh per block (or per batch), never reused across batches.
-6. Scope the consensus-safety review as its own step, separate from perf measurement: unlike §3/§4 (pure memoization, no change to what's computed), this changes the actual sequence of cryptographic operations used to reach pass/fail -- get independent review of the ported math specifically, regardless of whether the perf win materializes.
-
-*Test plan:*
-1. Known-answer-vector tests in Rust, before FFI: feed the standalone prototype (investigation step 2) mixes of all-valid and one-invalid-among-N proof sets; assert batch accept/reject matches per-proof `verify_proof` exactly, across N = 1, 2, 8, 64.
-2. New C++ gtest mirroring §4's `merkletree.RootCacheConsistency` precedent -- exercise the new FFI entry point(s) directly with fixtures reused from `zcbenchmarks.cpp`'s existing Sapling spend/output benchmark inputs (`zcbenchmarks.cpp:706,739` already construct valid spend/output descriptions for benchmarking).
-3. Adversarial/negative tests: corrupt one proof in a batch of N (bit-flip `zkproof`, wrong `anchor`, wrong `nullifier`); confirm the batch fails, then confirm the `verify_single` fallback correctly identifies *which* item -- the specific property `zkcrypto`'s own doc-comment flags as the hard part of batching.
-4. Full existing regression suite unchanged and clean: Boost `test_bitcoin` (284/284 baseline) and `zero-gtest` (205-207/207 baseline, 2 known pre-existing flakes) -- same bar §4 was held to.
-5. Real-chain differential test: `-reindex` over a real post-Sapling height range (reuse §2's already-sampled windows, e.g. 610,758-626,806 or 995,392-1,083,180) on both batched and unbatched binaries; diff resulting `chainstate`/best-block-hash -- must be byte-identical. Strongest available correctness check since it's not synthetic.
-6. Perf re-measurement with the existing tooling: same Instruments/`xctrace` methodology as §2 (`contrib/perf/capture_sequence.sh` + `decode_captures.py`), same height windows, for a directly comparable before/after Groth16-bucket percentage and ms/block figure; plus a `bench_matrix.sh`-style throughput A/B with the same statistical rigor (t-test, n>=4 trials) §3 used -- §3's "implemented but no measurable win" outcome is a reminder not to skip this step.
-7. If the multicore/parallel-accumulation variant is pursued: a separate throughput test varying `-par`/thread count, since the entire point there is engaging otherwise-idle `zcash-scriptch`-adjacent cores -- measure scaling, not just single-thread speedup.
 
 ### 6.2 Cross-ecosystem status: who else has and has not adopted batch verification
 
@@ -1811,61 +1557,3 @@ The vectorisation track this section previously planned is closed on
 measurement; the superseded plan is archived under `ZK/OLD/SAVE/`. Kernel-level
 results belong to uniblake, not to this tree (`docs/HASHLIBS.md`).
 
-### 9.3 Recommended path: Groth16 batch verification, made controlled
-
-§6 already has a 6-step investigation plan and 7-step test plan. **§9.4 below supersedes both with a single, ordered, numbered execution plan** -- grounded in the real FFI signatures confirmed from `depends/aarch64-apple-darwin25.3.0/include/librustzcash.h` -- that merges §6's investigation/test content with this section's containment strategy into one sequence a developer can actually start from.
-
-**Core principle: never let the batched path be the only path.** Every phase in §9.4 keeps the existing, proven single-proof `verify_proof` call as a mandatory fallback or cross-check, so a bug in the new code can only cause *extra* verification work, never a wrong accept/reject -- until the very last, explicitly-flagged phase.
-
-**Why this is more work than "port `batch.rs` and test it," and worth it anyway:** the failure mode being guarded against -- a false-accept of an invalid shielded proof -- is categorically worse than anything else in this investigation has touched (§3/§4's fixes were pure memoization with no semantic change; this one isn't). The shadow-mode phase in §9.4 turns every day of ordinary development/testing activity into free differential-testing signal against real chain data before the new path is ever trusted to decide anything alone -- a substantially stronger validation posture than a fixed test suite alone can provide for a change of this kind.
-
-### 9.4 Groth16 batch verification: full execution plan
-
-Confirmed this session, and load-bearing for the plan below: the actual FFI signatures at the boundary this work has to cross (`depends/aarch64-apple-darwin25.3.0/include/librustzcash.h:139-175`) -- `librustzcash_sapling_check_spend(ctx, cv, anchor, nullifier, rk, zkproof, spendAuthSig, sighashValue)` and `_check_output(ctx, cv, cm, ephemeralKey, zkproof)` take **raw serialized proof bytes**, not a pre-parsed `Proof` struct -- deserialization currently happens inside each Rust call, once per call. No `librustzcash` Rust source is vendored in this repo (only the built header/`.a` under `depends/aarch64-apple-darwin25.3.0/`) -- same situation as libsodium (§5/§9.2): the pinned source has to be fetched fresh for any of this to be real editable code, not assumed from the header alone.
-
-**Phase 0 -- Setup (no code changes): DONE.** Fetched `zcash/librustzcash` at the pinned commit into an isolated scratchpad checkout (`/private/tmp/.../scratchpad/groth16-batch/librustzcash-pinned`, outside this repo -- no tracked files touched). Findings, reading the real source rather than assuming from the header:
-
-1. ~~Fetch the pinned source~~ Done -- shallow-fetched commit `06da3b9ac8f278e5d4ae13088cf0a4c03d2c13f5` directly (full clone times out; `git fetch --depth 1 origin <sha>` works in seconds).
-2. ~~Confirm the FFI constraint~~ Confirmed, and refined: `librustzcash_sapling_check_spend`/`_check_output` (`librustzcash/src/rustzcash.rs:677,793`) do **more than proof verification** -- `check_spend` also deserializes/checks the value commitment for small-order, deserializes the anchor, and verifies the RedJubjub `spend_auth_sig` **before** deserializing and calling `verify_proof` on the Groth16 proof itself. Only the final `verify_proof` call is what batches; the signature/small-order checks must stay per-proof, unbatched, ahead of the batch step. This refines Phase 2's FFI design (item 8): the new batch entry point should batch only the proof-verification step, with signature/commitment checks still happening per-item first (either in the same call or a separate pre-pass).
-3. ~~Confirm struct shapes~~ Confirmed: `bellman::groth16::verifier::verify_proof` (`bellman/src/groth16/verifier.rs`) computes exactly the equation §6 described (`A*B - inputs*gamma - C*delta = alpha*beta`, rearranged for one final exponentiation) via `E::miller_loop`/`E::final_exponentiation`. `pairing::Engine::miller_loop<'a, I>(i: I) -> Self::Fqk where I: IntoIterator<Item = &'a (&'a G1Affine::Prepared, &'a G2Affine::Prepared)>` (`pairing/src/lib.rs:88`) is confirmed to genuinely accept an arbitrary-length iterator -- this is real, not assumed. `zkcrypto/bellman`'s modern `batch.rs` (fetched for reference) uses a *different*, newer trait (`MultiMillerLoop`/`multi_miller_loop`, operator-overloaded `G1: AddAssign`) than the pinned crate's 2018-era `Engine`/`CurveProjective`/`CurveAffine` -- but **every individual operation the algorithm needs (scalar mul, point addition, affine conversion, pairing-prepare) is present on the pinned traits**, just spelled as explicit methods (`add_assign`, `mul_assign`, `into_affine`, `.mul(...)`, `.prepare()`) instead of operator overloads. The port is a rewrite of *syntax*, not of *capability* -- no primitive is missing.
-4. **New finding, not in the original plan:** the pinned 2018-era `bellman 0.1.0`/`pairing 0.14.2` crate pair **builds clean under a modern Rust 1.90 toolchain** (`cargo check`/`build`/`run` all succeed; edition-2015 semantics still supported, only lint warnings -- e.g. bare trait objects, `into_iter()` array-vs-slice ambiguity -- no hard errors). This was an open risk (a 2018 crate against a 2026-era toolchain) and it's resolved: no toolchain-pinning workaround is needed to prototype or build against this dependency today.
-
-**Phase 1 -- Pure-Rust correctness, zero consensus exposure: DONE.**
-
-4. ~~Write a batch-verify function~~ Done -- hand-ported the random-linear-combination algorithm from `zkcrypto/bellman`'s `batch.rs` into a real standalone binary crate (`batch-poc/src/main.rs` in the scratchpad, path-dependent on the pinned `bellman`/`pairing`, **not** vendored into or built by this repo), using only the pinned crate's confirmed-present primitives from item 3 above.
-5. ~~Generate known-good/known-bad proof fixtures~~ Done, via a stronger source than originally planned: rather than reusing `zcbenchmarks.cpp`'s Sapling fixtures (which need the full Sapling circuit + trusted setup), used `bellman`'s own real end-to-end test circuit (`bellman/tests/mimc.rs`'s MiMC/BLS12-381 construction) to generate genuine `generate_random_parameters`/`create_random_proof` Groth16 proofs -- real proofs over the real pinned Bls12 engine, not synthetic stand-ins.
-6. ~~Test N = 1, 2, 8, 64~~ Done and passing: all-valid batches at N=1,2,8,64 -- batch accept exactly matches per-proof `verify_proof` (`reference_ok == batch_ok == true`) on every run. One-corrupted-proof-among-N at N=2,8,64 -- batch correctly rejects and agrees with the reference that not all proofs were individually valid. Re-ran 6 times total (fresh circuit parameters and fresh random proofs each run, real `thread_rng()`) -- zero disagreements across all runs.
-7. **Exit criterion: MET.** The standalone batch verifier agrees with per-proof `verify_proof` on every fixture generated, including adversarial (corrupted) ones, across repeated runs with fresh randomness. Phase 2 is unblocked by this criterion, but **not started** -- see the status note at the end of this section.
-
-**Phase 2 -- FFI boundary design**
-
-8. Design the new entry point: `librustzcash_sapling_batch_validate(ctx, n, cv[], anchor[], nullifier[], rk[], zkproof[], spendAuthSig[], sighashValue[], out_results[])` -- collect-then-call, since `main.cpp` already has all spend/output data in hand per-block. Keep the existing single-proof functions exported unchanged -- they're needed for Phase 4's fallback.
-9. Source the per-batch CSPRNG: match whatever secure-RNG convention existing consensus code already uses (grep `main.cpp`/`random.h` for `GetRandBytes`/`GetStrongRandBytes`) -- freshly drawn per batch, never reused.
-10. Implement the new FFI function in the fetched checkout, wrapping Phase 1's proven logic, adding only the accumulator/random-scalar bookkeeping to the pinned `bellman` (no crate upgrade -- the `miller_loop` shape already matches per §6). Skip the multicore/`rayon` variant here -- separable, later work, not required for the O(N)->O(1) final-exponentiation win.
-11. Build `librustzcash.a` from the modified checkout; confirm it links against `main.cpp` with a local copy of `librustzcash.h` carrying the new declaration (the depends-built header is normally auto-fetched, so a dev-local header is needed until this is upstreamed into the depends pin).
-
-**Phase 3 -- Shadow-mode integration in `main.cpp` (the safety-critical step)**
-
-12. In `ContextualCheckBlock`/`ContextualCheckTransaction` (`main.cpp:1113-1164`), buffer all of a block's Sapling spend/output proofs as they're encountered, **without changing the existing sequential `check_spend`/`check_output` calls or their control flow** -- those remain sole authority for accept/reject, exactly as today.
-13. After the existing per-proof checks complete for the block, also run the new batch-verify function over the same buffered proofs as a pure side-check. Log any disagreement loudly (a dedicated tag, e.g. `LogPrintf("groth16batch", ...)`) but never let it affect `state.DoS(...)`/accept-reject. This is deliberately wasted CPU during the shadow period -- the price of a free, continuous differential test.
-14. Run this shadow-mode build through real `-reindex`/sync activity spanning both pre- and post-Sapling heights -- reuse the exact height windows already sampled in §2/§3 (610,758-626,806; 995,392-1,083,180; the full six-capture chain-wide sweep) so results are directly comparable to existing baselines.
-15. **Exit criterion:** zero disagreements between shadow batch-verify and the authoritative sequential path across a large, real, chain-wide sample. Any disagreement found here sends the work back to Phase 1.
-
-**Phase 4 -- Controlled cutover**
-
-16. Flip the batch path to authoritative for the accept case only, behind a build/runtime flag (matching the `ZERO_FDCACHE`-style convention, §3). On batch success, accept as today. On batch failure, fall back to the existing per-proof path (`verify_single`) to get the real, individually-attributed failing transaction/description before rejecting -- preserving today's exact error codes (`bad-txns-sapling-spend-description-invalid` etc., `main.cpp:1131,1146`) so RPC/ban-scoring behavior is unchanged.
-17. Add an explicit test for the fallback path itself: construct a batch where batch-verify wrongly reports failure (or a genuinely bad-proof batch) and confirm the fallback correctly re-derives the same accept/reject the pre-batch code would have, unassisted.
-
-**Phase 5 -- Full validation**
-
-18. Adversarial tests: bit-flip `zkproof`/`anchor`/`nullifier` in one proof among N; confirm the batch fails and the fallback correctly identifies the specific bad transaction.
-19. Full regression: Boost `test_bitcoin` (284/284 baseline) and `zero-gtest` (205-207/207, 2 known pre-existing flakes) -- same bar as §3/§4.
-20. Real-chain differential test: `-reindex` the same height range on both the batched (flag-on) and baseline (flag-off) binaries; diff resulting `chainstate`/best-block-hash -- must be byte-identical.
-21. Perf re-measurement: same `contrib/perf/capture_sequence.sh`/`decode_captures.py` methodology and height windows as §2, for a directly comparable before/after Groth16-bucket ms/block figure, plus a `bench_matrix.sh`-style throughput A/B (n>=4 trials, t-test) -- don't skip this given §3's fd-cache work "worked as designed but showed no measurable win."
-
-**Phase 6 -- Sign-off**
-
-22. Independent review of the ported batching math against the published random-linear-combination technique and the pinned crate's real types -- not just a diff review -- before removing the Phase 4 fallback and treating this as the sole verification path.
-23. Optionally, only after all of the above: the multicore/`rayon`-equivalent variant to also engage idle `zcash-scriptch`-adjacent cores -- a separate, additive project, not a prerequisite for the O(N)->O(1) win.
-
-**Status: Phases 0-1 executed and passing (see findings inline above); Phases 2-6 deliberately not started.** Phase 0/1's artifacts (the pinned-commit checkout and the `batch-poc` scratch crate) live outside this repo, under the session scratchpad -- nothing in `depends/`, `src/`, or any tracked file was modified to produce these results. Phases 2-6 were intentionally not run in the same pass: Phase 2 begins touching build/link configuration, and Phase 3 edits `main.cpp`'s consensus-critical block-validation path -- exactly the step this plan's containment strategy (§9.3) exists to gate carefully rather than run through unattended. Stopped here for explicit direction before proceeding, consistent with §9.3's core principle (never let the batched path be the only path) extended to the process of building it: don't let unattended execution be the only check on consensus-code changes either.

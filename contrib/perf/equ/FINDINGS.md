@@ -438,7 +438,7 @@ reclaimed early.
 consumed inputs. That works, but it forces:
 
 - a **single fixed row width** for all rounds, because one array cannot change
-  stride mid-flight -- which is precisely the 70 B overcharge (S1.1a); and
+  stride mid-flight -- the 70 B overcharge (S1.1a); and
 - **serialisation of the free/reuse discipline**, since a thread cannot write
   into a slot another thread may not have consumed yet. tromp's separate
   read/write regions are what make his bucket-parallel merge safe with only a

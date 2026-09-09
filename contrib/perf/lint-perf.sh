@@ -37,11 +37,13 @@ SHELLCHECK_EXCLUDE="SC2046,SC2086,SC2162,SC2035,SC2043,SC2094,SC2129,SC2164,SC22
 # Checks whose findings are entirely in inherited upstream code and are set
 # aside (will not fix). Their TOTAL is high, constant, and uninformative, so it
 # is suppressed by default; --all restores it. Counts as of 2026-08-19.
-SETASIDE_CHECKS="include-guards includes locale-dependence"
+SETASIDE_CHECKS="include-guards includes locale-dependence concentration tables"
 declare -A SETASIDE_NOTE=(
   [include-guards]="52 headers use ZCASH_/ZC_/ASYNCRPCOPERATION_ prefixes"
   [includes]="include ordering and duplication in inherited source"
   [locale-dependence]="C++ locale-dependent calls, need per-site review"
+  [concentration]="subject sprawl pending the repartition -- docs/STRUCTURE.md S3"
+  [tables]="undersized tables and files over the ceiling -- TASKS.md C1n"
 )
 
 # --all and --summary are independent: --all widens scope, --summary suppresses
@@ -83,6 +85,21 @@ run_check() {
                   out=$(python3 "$t" --self-test 2>&1) || \
                     printf '%s: %s\n' "$t" "$(printf '%s' "$out" | tail -1)"
                 done ;;
+    tables)     # Table size and per-file count (docs/STRUCTURE.md). A table
+                # needs >=2 rows and rows x cols >= 9; at most 10 per file.
+                # Reported, not gated: the failing tables predate the rule and
+                # the cull is tracked as C1n. No count is restated here -- it
+                # moves with every doc edit; the checker is the authority.
+                # Indent so owned_lines does not count these as gate
+                # findings: the rule postdates the tree and the cull is
+                # tracked work, not a regression.
+                contrib/perf/check_tables.py contrib/perf 2>&1 | sed 's/^/  /' || true ;;
+    concentration) # One owner per subject (docs/MAP.md S3). Reported, not
+                   # gated: Perf.md still holds subject material the
+                   # repartition has not moved yet (docs/STRUCTURE.md S3), so
+                   # a hard gate would fail on known work rather than on a
+                   # regression. Tighten to a gate once the moves land.
+                   contrib/perf/check_concentration.py contrib/perf || true ;;
     citations)  # Measurement figures must name a source, and no tracked
                 # document may carry an absolute path (docs/POLICY.md S7.1,
                 # S7.3). Scoped to docs/: Perf.md is legacy pending retirement
@@ -112,7 +129,7 @@ run_check() {
   esac
 }
 
-CHECKS="self-tests unicode unicode-docs citations json shellcheck whitespace shebang shell-locale
+CHECKS="self-tests unicode unicode-docs citations concentration tables json shellcheck whitespace shebang shell-locale
         python-utf8-encoding include-guards includes locale-dependence
         make-dist cargo-patches"
 

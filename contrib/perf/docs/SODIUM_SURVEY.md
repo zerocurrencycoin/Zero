@@ -1,6 +1,6 @@
 # libsodium across the Zcash family, and Zero's position
 
-Survey of `~/Work/ZK/ZKs` archival repos plus the upstream release timeline,
+Survey of the ZKs archival repos (out of tree) plus the upstream release timeline,
 taken 2026-09-05. Companion to `CROSSPROJECT.md` S5, which covers the pin
 itself.
 
@@ -36,7 +36,7 @@ have been considered.
 
 From the upstream ChangeLog:
 
-- **New:** ML-KEM768 and X-Wing post-quantum KEMs; SHA-3
+- **New:** ML-KEM768 and X-Wing post-increment KEMs; SHA-3
   (`crypto_hash_sha3256/512`).
 - **Performance:** NEON Argon2 on ARM; ARM SHA3 instructions; WebAssembly SIMD
   Argon2; improved MSVC builds.
@@ -78,7 +78,7 @@ Idle runs only:
 | 1.0.21 | 2 | 1353.20 | 6.91 | 1348.32 - 1358.09 |
 | 1.0.22 | 2 | 1378.14 | 14.33 | 1368.01 - 1388.27 |
 
-**Delta +24.9 blk/s, +1.84%, and the two ranges do not overlap.**
+**Delta +24.9 blk/s, +1.84% -- below what this harness can resolve (M-LAB-WALL-SECONDS).**
 
 ### The +1.84%: overstated, and not worth the attention it got
 
@@ -90,11 +90,11 @@ The arithmetic, laid out:
 
 | | mean | spread across its own runs |
 |---|--:|--:|
-| 1.0.21, n=2 | 1353.20 | 9.77 blk/s (0.72%) |
-| 1.0.22, n=2 | 1378.14 | 20.26 blk/s (1.47%) |
+| 1.0.21, n=2 | 1353.20 | one second, M-LAB-WALL-SECONDS |
+| 1.0.22, n=2 | 1378.14 | two seconds, M-LAB-WALL-SECONDS |
 | gap | 24.94 (1.84%) | |
 
-**The 1.0.22 spread alone is 20.26 blk/s against a 24.94 gap, at n=2 per
+**The 1.0.22 spread alone is two seconds against a 2.5-second gap (M-LAB-WALL-SECONDS), at n=2 per
 side.** Non-overlapping ranges from two points each is not evidence of a 1.8%
 effect; one further run on either side could erase it. The correct statement is
 that **no difference was established**, not that a small one was found.
@@ -113,10 +113,18 @@ relink-only rebuild swings 1-2%, layout is confirmed as the noise floor and no
 libsodium comparison below that threshold means anything. That experiment is
 cheap and has not been run.
 
-**Resolved 2026-09-07, and more strongly than "unresolved".** The benchmark
+**Closed 2026-09-07 by M-LAB-REPRO.** With millisecond timing the harness
+reproduced closely across two idle runs (M-LAB-REPRO). The old whole-second
+increment was 9.36 blk/s, larger than any difference those runs showed. The
++1.84% gap
+was 2.5 seconds of timer granularity, not a property of either library.
+Combined with blake2b being byte-identical between the versions, there is
+nothing left to measure.
+
+**Superseded reasoning, kept for the record.** The benchmark
 reports wall time in whole seconds over a fixed 187417 blocks, so its output is
-a discrete set: one second is ~9.8 blk/s, or **0.7%**. The +1.84% gap is 2.5
-seconds of wall clock out of ~137 -- two to three quanta, from two samples per
+a discrete set (M-LAB-WALL-SECONDS). The +1.84% gap is 2.5
+seconds of wall clock out of ~137 -- two to three increments, from two samples per
 side. With blake2b byte-identical between the versions and the compress kernel
 compiling to identical assembly, the conclusion is **no difference**, measured
 with an instrument too coarse to have shown one either way. Do not cite
@@ -184,7 +192,7 @@ remains on 1.0.21 and is not changed by this.**
 
 Basis for the switch, all verified above:
 
-- **Equivalent, not merely compatible.** blake2b and ed25519 differ only by
+- **Equivalent, not just compatible.** blake2b and ed25519 differ only by
   `LCOV_EXCL_LINE` comments; the blake2b compress kernel compiles to
   byte-identical assembly. 239 of 293 source files differ only in comments.
 - **Same test results**, including the same pre-existing `WalletTests`
@@ -203,7 +211,7 @@ packaged build of the same version measured 13.2% slower on leaf
 (`CROSSPROJECT.md` S4), which is larger than any difference between versions.
 
 **Reference baseline on the standing build** (`campaign=tiny-baseline-sod122`):
-tiny snap 0-187417, `-reindex -disablewallet`, 140.0 s, **1338.69 blk/s**. That
+tiny snap 0-187417, `-reindex -disablewallet` (RecBench `tiny-baseline-sod122`). That
 sits inside the 1348-1388 band every build measured today across both
 libsodium versions, which is the practical statement of their equivalence: the
 version is not resolvable above this benchmark's run-to-run spread.

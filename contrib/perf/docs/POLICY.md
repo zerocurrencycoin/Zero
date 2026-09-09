@@ -286,6 +286,19 @@ Two rules, each of which failed in practice before being written down:
 - **Report repeat counts, and state n with every aggregate.** A negative over
   few trials is not evidence of absence. State what was not established as
   plainly as what was.
+- **A long run must leave evidence before it finishes.** The ledger row is
+  written at the end, so a trial that crashes or is killed at 90% previously
+  left nothing measurable -- only a driver log of decisions. Launchers append a
+  flushed `<run_id>-progress.tsv` (utc, elapsed, height) every poll, so a dead
+  run still yields a rate and the height it reached. The same applies to any
+  subtest or agent producing intermediate results: write them out as they
+  arrive, not at exit.
+- **A non-matching glob aborts the command line under zsh.** `rm -rf /tmp/x-*`
+  with no match does not run the rest of the line, and the line still exits 0
+  because the last statement succeeded. This has silently skipped a benchmark
+  and, separately, made a source query report "no call sites" when there were
+  twelve. Guard every glob that may not match: `rm -rf /tmp/x-* 2>/dev/null ||
+  true`, or use `find`. Verify by artifact, not by exit code.
 - **Source `perflib.sh`; do not reimplement it.** Run
   `perflib_selftest.sh` after changing it and `lint-perf.sh` before proposing
   shell changes.

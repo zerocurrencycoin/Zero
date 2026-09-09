@@ -266,7 +266,7 @@ run_rebuild() {
   fi
   log "START rebuild noteidx=$noteidx extras=${extra[*]}"
   local t0
-  t0=$(date +%s)
+  t0=$(now_ms)
   "$ZEROD" -datadir="$SCRATCH" "${extra[@]}" >"$OUT_DIR/zerod.stdout" 2>"$OUT_DIR/zerod.stderr" &
   local pid=$!
   echo "$pid" >"$OUT_DIR/zerod.pid"
@@ -276,8 +276,8 @@ run_rebuild() {
   done
   wait_rebuild_done "$pid"
   local t1 elapsed
-  t1=$(date +%s)
-  elapsed=$((t1 - t0))
+  t1=$(now_ms)
+  elapsed=$(elapsed_s "$t0" "$t1")   # ms resolution, perflib.sh
   stop_node "$pid"
   {
     echo "mode=rebuild noteidx=$noteidx wall_s=$elapsed"
@@ -299,7 +299,7 @@ run_tip_rebuild() {
   log "START tip-rebuild noteidx=$noteidx extras=${extra[*]}"
   # Status allowlist smoke under -33 (best-effort; rebuild may finish fast)
   local t0
-  t0=$(date +%s)
+  t0=$(now_ms)
   "$ZEROD" -datadir="$SCRATCH" "${extra[@]}" >"$OUT_DIR/zerod.stdout" 2>"$OUT_DIR/zerod.stderr" &
   local pid=$!
   echo "$pid" >"$OUT_DIR/zerod.pid"
@@ -316,8 +316,8 @@ run_tip_rebuild() {
   fi
   wait_rebuild_done "$pid"
   local t1 elapsed
-  t1=$(date +%s)
-  elapsed=$((t1 - t0))
+  t1=$(now_ms)
+  elapsed=$(elapsed_s "$t0" "$t1")   # ms resolution, perflib.sh
   local tip wi
   tip=$(cli getblockcount 2>/dev/null || echo NA)
   wi=$(cli getwalletinfo 2>/dev/null || echo '{}')
@@ -382,7 +382,7 @@ run_rescan() {
   fi
   log "START rescan noteidx=$noteidx extras=${extra[*]}"
   local t0
-  t0=$(date +%s)
+  t0=$(now_ms)
   "$ZEROD" -datadir="$SCRATCH" "${extra[@]}" >"$OUT_DIR/zerod.stdout" 2>"$OUT_DIR/zerod.stderr" &
   local pid=$!
   echo "$pid" >"$OUT_DIR/zerod.pid"
@@ -393,8 +393,8 @@ run_rescan() {
   wait_done_loading "$pid"
   wait_rebuild_done "$pid"
   local t1 elapsed tip
-  t1=$(date +%s)
-  elapsed=$((t1 - t0))
+  t1=$(now_ms)
+  elapsed=$(elapsed_s "$t0" "$t1")   # ms resolution, perflib.sh
   tip=$(cli getblockcount 2>/dev/null || echo NA)
   stop_node "$pid"
   {
@@ -424,7 +424,7 @@ run_catchup() {
   fi
   log "START catchup noteidx=$noteidx use_tip=$use_tip extras=${extra[*]}"
   local t0
-  t0=$(date +%s)
+  t0=$(now_ms)
   "$ZEROD" -datadir="$SCRATCH" "${extra[@]}" >"$OUT_DIR/zerod.stdout" 2>"$OUT_DIR/zerod.stderr" &
   local pid=$!
   echo "$pid" >"$OUT_DIR/zerod.pid"
@@ -434,8 +434,8 @@ run_catchup() {
   done
   wait_done_loading "$pid"
   local t1 elapsed tip
-  t1=$(date +%s)
-  elapsed=$((t1 - t0))
+  t1=$(now_ms)
+  elapsed=$(elapsed_s "$t0" "$t1")   # ms resolution, perflib.sh
   tip=$(cli getblockcount 2>/dev/null || echo NA)
   stop_node "$pid"
   {

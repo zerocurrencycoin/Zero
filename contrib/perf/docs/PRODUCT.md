@@ -81,11 +81,11 @@ its six.
 
 **How Zcash handles its own returns**, all three production sites checked:
 
-| Site | On false |
-|------|----------|
-| `wallet_tx_builder.cpp:966` (Sapling) | `return TransactionBuilderResult("Insufficient Sapling witnesses.")` |
-| `wallet_tx_builder.cpp:1079` (Sprout) | same, Sprout wording |
-| `asyncrpcoperation_saplingmigration.cpp:151` | `throw JSONRPCError(RPC_WALLET_ERROR, ...)` |
+Three sites already handle a false return: `wallet_tx_builder.cpp:966`
+(Sapling) and `:1079` (Sprout) return
+`TransactionBuilderResult("Insufficient ... witnesses.")`, and
+`asyncrpcoperation_saplingmigration.cpp:151` throws
+`JSONRPCError(RPC_WALLET_ERROR, ...)`.
 
 The migration site then calls `vInputWitnesses[0].value()` -- *after* the
 guard. That is the same call Zero makes at its line 143 with no guard in
@@ -259,11 +259,10 @@ race this gate causes in tests: `qa/rpc-tests/wallet_witness_defer.py`
 **Tests pinning steps 1-2.** Each was verified to fail with the fix reverted,
 not merely to pass with it:
 
-| Test | Pins |
-|------|------|
-| `WalletTests.GetSproutNoteWitnessesLeavesUnknownNotesUnset` | An unknown note leaves its witness unset -- the precondition every caller must check. Seeded inversion fails the test |
-| `WalletTests.GetSaplingNoteWitnessesLeavesUnknownNotesUnset` | Same contract on the Sapling side, which three call sites rely on |
-| `rpc_zero_exclusive_tests/rpc_getalldata_s5_witness_gate` | Extended to `z_shieldcoinbase` and `z_mergetoaddress`. Reverting the gate reproduces the failure for both |
+Pinned by three tests: `WalletTests.GetSproutNoteWitnessesLeavesUnknownNotesUnset`
+and its Sapling counterpart (an unknown note leaves its witness unset), and
+`rpc_zero_exclusive_tests/rpc_getalldata_s5_witness_gate`, extended to
+`z_shieldcoinbase` and `z_mergetoaddress`.
 
 `sprout_sapling_migration.py` exercises the guarded path but is Tier B fail:
 `get_coinbase_address` needs 720 blocks for a mature coinbase and the harness

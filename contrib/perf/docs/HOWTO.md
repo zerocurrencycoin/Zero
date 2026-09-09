@@ -292,6 +292,7 @@ Per-tool invocation detail lives in `../README.md`; this is the index.
 | `perflib.sh` | sourced, not executed | shared helpers; see 4.1.1 |
 | `perflib_selftest.sh` | no args | tests `perflib.sh`; must print `self-test OK` |
 | `datadir_guard.sh` | sourced, not executed | `refuse_live_datadir`; env `ZERO_PERF_ALLOW_LIVE_DATADIR` to override |
+| `check_tables.py` | `[--max-per-file N] [paths]` | table size (>=2 rows, rows x cols >=9) and per-file count |
 | `snapshot_data.sh` | `FILE [FILE...]` | copy a data file to `FILE.prev-<utc>` before a run overwrites it |
 | `codequery.sh` | `{symbol\|files\|count\|raw} PATTERN [PATH]` | source queries that report no-match instead of returning silence |
 | `sodium_oracle.sh` | `[--build]` | prints the libsodium prefix benchmarks compare against (1.0.22, built -O3); refuses a system fallback |

@@ -53,7 +53,31 @@ runs it, so until F2 lands a contributor who skips it bypasses all of A1.
 
 ## Postponed
 
-**GROTH** -- Sapling Groth16 batch verification. Awaiting a maintainer's choice
+**GROTH** -- Sapling Groth16 batch verification. Everything about it,
+including the librustzcash dependency it rests on, is `../PerfGroth.md`.
+
+- Batch verification: awaiting a maintainer's choice
+- **Precondition: close C1 documentation work, finish Tests, and cut an
+  reference benchmark (5-10 trials preferred) before any algorithm experiment.** Rationale and
+  the exception (fork-for-custody, which is packaging) in `../PerfGroth.md`
+- **Attempt the Ycash/Pirate-level move directly (M).** Proven in action:
+  each fork is upstream history plus ~3 project-specific commits (network
+  prefixes, activation heights, encoding), both trees checked out at
+  `ZK/ZKs/rustzcash/`. Not research -- a bounded change of known shape
+- **Host downloadable artifacts under project control.** 741 MB of Zcash
+  parameters from `download.z.cash`, the librustzcash tarball, and lab
+  snapshots with no canonical source. Parameters are hash-verified so a mirror
+  adds no trust; independent of the fork decision
+- **Fork for custody (S, no consensus risk).** Take `06da3b9a` into
+  `zerocurrencycoin/librustzcash` unchanged, on a node branch with `master` left
+  mirroring upstream; acceptance test is a
+  byte-identical `librustzcash.a`. Then move `librustzcash.h` into
+  `src/rust/include/`. Recommendation, counter-arguments and what would change
+  it: `../PerfGroth.md`
+- **Dependency, and it constrains the above:** Zero pins librustzcash
+  `06da3b9a` (2018-10-27), **6724 commits** behind, and the C FFI crate it
+  pins **no longer exists upstream** -- moved into `zcash/zcash`. There is no
+  newer version of what Zero consumes
 between Option A and Option B; the options diverge at the FFI boundary, so
 starting either wastes the other. Prototype frozen.
 
@@ -173,8 +197,8 @@ every point checked, and two findings are real defects in shipped-by-flag code.
 
 | # | Finding | Verified? | Disposition |
 |---|---------|-----------|-------------|
-| **P0** | FDCACHE: `CacheOpen` releases `LOCK(latch.cs)` at function exit, then the caller deserializes through the shared `FILE*` unlocked | **CONFIRMED** (`main.cpp:4902-4925`) | **Real.** Another thread can `fseek` or `fclose` the same stream mid-read |
-| **P1** | `-mrclogevery=0` divides by zero | **CONFIRMED** (`main.cpp:3232`, `:4950`) | **Real.** `nHeight % logEvery` unvalidated at both sites |
+| **P0** | FDCACHE: `CacheOpen` releases `LOCK(latch.cs)` at function exit, then the caller deserializes through the shared `FILE*` unlocked | **CONFIRMED** (`main.cpp:4924`; read sites `:2130`, `:2617`) | **Real.** Another thread can `fseek` or `fclose` the same stream mid-read |
+| **P1** | `-mrclogevery=0` divides by zero | **CONFIRMED**, since fixed (`main.cpp:3254`, `:4971`) | **Real.** `nHeight % logEvery` was unvalidated at both sites; both now read the startup-validated `nPerfLogEvery` (step b) |
 | P1 | FDCACHE probe always reports false -- flags absent from `HelpMessage` | Not re-checked | Plausible; affects provenance labelling |
 | P1 | CI builds neither `--enable-perf` nor the perf lint | Consistent with F2 | Already tracked as **F2** (Postponed, needs repo settings) |
 | P2 | Evidence set larger than authoritative; doc drift | **CONFIRMED** one case | `POLICY.md:68` said `unicode-docs` was not in default `CHECKS`; it is (`lint-perf.sh:107`). **Fixed** |
@@ -183,10 +207,11 @@ every point checked, and two findings are real defects in shipped-by-flag code.
 | P3 | Out-of-scope wallet docs in `keep/` | Agrees with `NOTES.md` | Already **C1c** |
 | P3 | `git diff --check` trailing whitespace | Not re-checked | Cheap CI addition |
 
-**The P0 finding contradicts a claim in our own documentation.**
-`Perf.md:1525` calls the implementation "functionally correct"; the lock
+**The P0 finding contradicted a claim in our own documentation.**
+`Perf.md` S3 called the implementation "functionally correct"; the lock
 lifetime does not support that. This is the review's most valuable
 contribution and the reason it is worth acting on rather than filing.
+The claim is now **retracted** in place (step d), so the two records agree.
 
 | Step | What | State |
 |------|------|-------|
@@ -194,7 +219,7 @@ contribution and the reason it is worth acting on rather than filing.
 | a2 | Measure FDCACHE on the two workloads where the mechanism could pay: **random `getblock` RPC** and **cold cache / slow storage** | ToDo |
 | b | Validate `-mrclogevery` at startup | **Finished** -- `InitPerfLogEvery()`; 3 build configs clean |
 | c | Split `--enable-perf` into counters (safe) and experimental behaviour (FDCACHE) | ToDo |
-| d | Correct `Perf.md:1525` -- retract "functionally correct" and cite the lock-lifetime defect | ToDo |
+| d | Correct `Perf.md` S3 -- retract "functionally correct" and cite the lock-lifetime defect | **Finished** 2026-09-08 -- retracted in place, both read sites named, reachability and the required fix stated |
 | e | Re-verify the FDCACHE probe and the `HelpMessage` gap | ToDo |
 
 (a) and (b) are the two that touch shipped behaviour. Both are Zero400-owned
@@ -223,38 +248,15 @@ Verified in **three** configurations: default build, `-DZERO_PERF`, and
 `-DZERO_PERF -DZERO_FDCACHE`, all 0 errors. **The perf-only build caught a real
 bug the default build could not**: the first version of the declaration was
 nested inside `#ifdef ZERO_FDCACHE`, so a `ZERO_PERF`-only build failed with
-`use of undeclared identifier`. That is precisely the class of breakage F2/A5
+`use of undeclared identifier`. That is the class of breakage F2/A5
 flags as invisible to current CI -- and an argument for the `--enable-perf` CI
 job, independent of FDCACHE's disposition.
 
-**FDCACHE: RETAINED, by owner decision.** It is optional perf instrumentation,
-not shipped behaviour, and it stays **at least until results are validated on
-x86-64 Linux and Windows**. The null result (S3.2) is one platform, and macOS
-stdio behaviour does not predict either target -- the same reasoning that keeps
-B2 open. The P0 lock-lifetime issue remains **real and documented**, and is a
-prerequisite for *enabling* the flag in any multi-reader context, not a reason
-to delete a compiled-out research path.
-
-#### FDCACHE: the untested cases where it could pay
-
-The null (S3.2) is established for **sequential reindex on macOS/arm64 with a
-warm page cache**. Two workloads have the opposite access pattern and are
-unmeasured. Recorded so the flag's retention has a stated purpose:
-
-| Workload | Why the mechanism could matter | Measurable how |
-|----------|-------------------------------|----------------|
-| **Random `getblock` / REST / explorer serving** | Consecutive requests hit **different** `blk*.dat` files, so every read pays `fopen`+`fclose` that the latch would elide. Sequential reindex hits the same file repeatedly, which is why the cache had nothing to save there | Drive `getblock` over a random height sample against a synced node, with and without `-perffdcache`; compare RPC latency percentiles, not throughput |
-| **Cold cache / slow storage** | The 4.91% syscall share assumes the page cache already holds the data. On first touch, or on network/spinning storage, the read itself dominates and buffer size becomes relevant | Same reindex window with the page cache dropped between trials; **Linux only** (`/proc/sys/vm/drop_caches`), which makes this a B2 item |
-
-**Both are latency questions, not throughput questions**, which is why the
-existing throughput harness measured nothing: it was the wrong instrument for
-the case where the mechanism helps. The reindex null stands and is not
-contradicted by either.
-
-**Prerequisite for the RPC case:** concurrent readers are exactly the P0
-condition (`main.cpp:4902`), so the lock-lifetime fix must land **before** any
-multi-client `getblock` measurement -- otherwise the experiment is measuring an
-unsafe path.
+**FDCACHE: RETAINED, by owner decision.** Optional perf instrumentation, not
+shipped behaviour; kept at least until x86-64 Linux and Windows results exist.
+Why it is retained, the two unmeasured cases that could still pay, and the
+concurrency bound on the RPC case are **`../Perf.md` S3**, which owns the
+subject. A5-a2 is the task for measuring them.
 
 **Assessment of the review itself: accurate and useful.** Every claim spot
 checked held up against the source, including one that contradicts our own
@@ -346,7 +348,89 @@ Analysis and partition plan: `STRUCTURE.md`. Placement rules: `MAP.md`.
 | g | Fix `SCHEMA.md` statements contradicted by the store | ToDo |
 | h | Fold or archive `Perf.md`'s status sections into this file | ToDo -- `STRUCTURE.md` S4 steps 2-3 |
 | i | `equ/`: figures bound to `M-EQ-*` ids | **Finished** 2026-09-06. The "215 restatements" were mostly derivations; 27 bare, most already cross-referenced |
-| j | Concentration checks in `lint-perf.sh` | ToDo -- see T4e |
+| n | **Cut tables.** Detail, examples and criteria below | ToDo |
+
+#### C1n. Tables: prevalence, criteria, and what to do
+
+**Prevalence** [re-measured 2026-09-08]. 472 tables across 40 table-bearing
+documents (43 markdown files scanned). **84 fail the size threshold** and
+**13 files exceed the ten-per-file ceiling**. Three files hold a third of all
+tables: `Perf.md` 64, `TASKS.md` 48, `equ/SOLVER.md` 43.
+
+The figures move as the documents are edited, and this file is one of the three
+offenders: an earlier revision recorded 469/84 with `TASKS.md` at 45, and the
+task list gained tables while describing the table problem, then shed one when
+the FDCACHE exposition moved out (T5a). Re-run
+`check_tables.py` rather than trusting the count here -- the checker is the
+authority and these numbers are a snapshot of it.
+
+**Criteria, enforced by `check_tables.py`, reported in `lint-perf.sh`:**
+
+- at least **2 data rows**
+- **rows x columns at least 9**
+- at most **10 tables per file** -- a ceiling, not a target
+
+A 2x5 A/B passes; a 2x2 does not. The threshold cannot see content, so passing
+it is necessary and not sufficient.
+
+**Failing shapes, most common first:**
+
+| Shape | Count | Usually is | Replace with |
+|---|--:|---|---|
+| 2 x 3 | 20 | a pair of items with a note each | two sentences |
+| 4 x 2 | 18 | a labelled list | vertical list |
+| 3 x 2 | 16 | a labelled list | vertical list or prose |
+| 2 x 4 | 10 | sometimes a real A/B -- read it | keep if the columns differ meaningfully |
+| 2 x 2 | 9 | a phrase | one sentence |
+
+**Worked failures.**
+
+`PerfPlatforms.md:18` -- 4x2, `Tool | macOS-only dependency`. A list of four
+tools and what each needs. A vertical list carries it without the grid.
+
+`Measures.md:363` -- 3x2, `Layer | Format`. Three layers, one format each;
+three sentences or a vertical list.
+
+`Perf.md:759` -- 2x3, `Item | Change | Validation`. Two items. Two sentences.
+
+**Worked improvements, already applied.**
+
+`Measures.md` -- twelve tables shared the header
+`ID | Metric | Result | Type | Tools | Source`: one relation split twelve ways
+by section heading, six of them holding three rows or fewer. Category became a
+**column**, the twelve headers became one, ten now-redundant headings were
+removed. All 105 `M-*` ids survive. 25 tables to 12 headers over one relation.
+
+`docs/PRODUCT.md` -- 12 to 10. Two list-shaped tables became prose: three call
+sites with their false-return handling, and three tests with what each pins.
+
+`docs/HASHLIBS.md` -- 12 to 9. Three tables in S1 duplicated the fuller
+inventory in S1.4 and became four sentences.
+
+`PerfGroth.md` -- a 1x2 table holding two comma-separated crate lists became
+two sentences.
+
+**Automation and what it tracks.**
+
+| Tool | Tracks | Gate |
+|---|---|---|
+| `check_tables.py` | table size, per-file count | reported, not gated -- the failing set predates the rule |
+| `check_concentration.py` | one owner per subject (`MAP.md` S3) | reported, not gated |
+| `check_citations.py` | figures carry an `M-*` id; no absolute paths | **gating** |
+
+`check_tables.py` is self-tested on five boundary cases -- 3x4 passes, 1-row
+fails, 2x2 fails, 2x5 passes, headerless continuation block passes -- and each
+assertion is mutation-tested. It found a bug in its own first version:
+continuation blocks of a table split by prose have no header row, and
+subtracting one reported five real registry rows as one-row tables. 88 dropped
+to 84 when that was fixed.
+
+**Order of work.** The three largest files are already scheduled for splitting
+(S3 in `STRUCTURE.md`); a table that moves to the document owning its subject
+usually stops duplicating one three sections away. Do the splits first, then
+sweep what remains against the threshold.
+| j | Concentration checks in `lint-perf.sh` | **Finished** 2026-09-07 -- `check_concentration.py`, reporting not gating |
+| l | Library inventory consolidated in `HASHLIBS.md` | **Finished** 2026-09-08 -- libsodium 15 functions / 4 subsystems, librustzcash 31 of 32, uniblake 18 calls, three linked blake2b implementations |
 
 ### C2. Remaining measurement gaps
 
@@ -679,7 +763,7 @@ worth knowing.
 |------|-----------------|----------------------|
 | Drop `cs_main` during the witness height walk | Abort-and-restart cannot converge once walk time exceeds block spacing | A design that checkpoints rather than restarts; or NOTEIDX reducing walk time below spacing |
 | CleanIndex gtest harness | Needs anchors and disk-backed blocks the gtest harness lacks | `reindex_shielded.py` proving insufficient, or the gtest harness gaining disk-backed fixtures |
-| FDCACHE buffer-size sweep | Measured null (`FINDINGS.md` S3.2) | A workload that is **not** CPU-bound -- a slower-storage host, random `getblock` serving (A5-a2), or post-Groth-batching |
+| FDCACHE buffer-size sweep | Measured null (`../Perf.md` S3) | A workload that is **not** CPU-bound -- a slower-storage host, random `getblock` serving (A5-a2), or post-Groth-batching |
 | SIMD for the Equihash round merge | Not analysed | **TBD, on hold.** Reopens on a decision to invest in arm64 mining |
 | Halo / Orchard | Not Zero consensus | A deliberate NU that adopts them. Not a lab decision |
 | Post-Sapling bootstrap / sync captures **as a comparison** | A and B agree within ~3 points (`FINDINGS.md` S3.4) | Superseded in part: C4 schedules these as **utilization** cells, which is a different question than re-proving the equivalence |
@@ -913,7 +997,7 @@ Rationale and evidence: `docs/SODIUM_SURVEY.md`, `recbench/RecBench.md`.
 | `codequery.sh` | Source queries; reports no-match explicitly (exit 1) |
 | `sodium_oracle.sh` | One canonical libsodium oracle; refuses a system fallback |
 | `snapshot_data.sh` | `FILE.prev-<utc>` before a run overwrites a collated output |
-| `thread_sample.sh` | Per-thread CPU/RSS. **Disposition open (T4a)** |
+| `thread_sample.sh` | Per-thread CPU/RSS. Standalone by decision -- no callers |
 
 ### T3. Self-tests strengthened
 
@@ -925,7 +1009,49 @@ Detail in each suite's source.
 
 | # | Item | Note |
 |---|---|---|
-| T4a | Fold `thread_sample.sh` into `perflib.sh`, or keep standalone | Decide before it acquires callers |
-| T4b | **Wall time at second resolution** -- `extract_measures.py` derives elapsed from `debug.log` timestamp prefixes (`2026-09-07 07:54:13`), so the reported rate is discrete: one second = ~9.8 blk/s = 0.7% over the tiny window (M-LAB-WALL-QUANTUM). Differences below that are not representable. **Fix:** time the measured span in the launcher, which already holds both endpoints, and pass `--elapsed-s` with millisecond precision; or emit a stamped begin/end marker `zerod` side. Until then, no A/B on this harness can claim better than 0.7% |
-| T4c | Machine-state guard for lab runs | Contention swung a benchmark 15% |
-| T4d | Add concentration checks to `lint-perf.sh` | Enforce `MAP.md` S3: no subject >20% outside its owner; no task id in two files |
+| R0 | **Note locking: assess, document and address Zero's exposure.** Upstream `234aaa3a` (2026-07-27) locks a proved transaction's notes so ordinary selection cannot re-hand them; the fix is in crates absent from Zero's 2018 pin. Determine whether Zero's own note selection can hand the same notes to a second transaction while a proved one is broadcastable, document the finding, and fix if present. Owner: Zero400 if it is a node change |
+| R1 | Profile the non-blake2b libsodium surface (Ed25519 48 calls, AEAD 8, scalarmult 3) | Nothing there is profiled; `docs/HASHLIBS.md` S1.5A. Answer "is it hot" before designing |
+| R2 | Measure `init_salt_personal` share of a one-shot digest | Decides whether `docs/HASHLIBS.md` S1.5D (uniblake parameter-block entry point) is worth building |
+| R3 | Evaluate `CBLAKE2bWriter` on uniblake | Expected null (bulk case is 1.01x); the case is uniformity, not speed, on consensus hashing |
+| T4g | **`witness_lab.sh` -> `ops-campaign.sh` passes numbers as prose.** The producer writes `wall_s=$elapsed` into `SUMMARY.txt`; the consumer recovers it with a regex. An integer-only pattern silently truncated `141.763` to `141` when millisecond timing landed -- caught by review, not by a test. Both are shell scripts in one tree: the value should be written as a machine-readable field (a `key=value` file sourced by the consumer, or a RecBench row) rather than scraped from a summary written for humans |
+| T4e | Use the progress series, not just the endpoint | Every run now yields a height/time series (M-LAB-BAND-TINY). A single blk/s figure hides a 28% spread across height bands; collation reads only the endpoint |
+
+### T5. Landed 2026-09-08: doc-vs-tool drift
+
+Three places where a document stated something the tree no longer supported.
+All were found by running the checkers rather than reading the prose, which is
+the point: **a restated count is a copy, and copies drift.**
+
+| # | Item | Where |
+|---|---|---|
+| T5a | FDCACHE "functionally correct" **retracted** -- the A5 P0 lock-lifetime defect stated in place, with both read sites, its reachability and the required fix | `Perf.md` S3 |
+| T5b | A5 source line references refreshed against the current tree | `TASKS.md` A5 |
+| T5c | Table counts re-measured; the two hardcoded copies in `lint-perf.sh` removed | `TASKS.md` C1n, `STRUCTURE.md`, `lint-perf.sh` |
+
+**T5a, kept in proportion.** `Perf.md` and A5 disagreed about the same parked
+flag. Re-verified against source, tightened to two sentences, and **all FDCACHE
+exposition consolidated into `../Perf.md` S3**, which owns the subject: this
+file had ~40 lines explaining it, against the rule that `TASKS.md` may mention a
+subject but not explain one (`MAP.md`). A documentation-consistency fix, not a
+bug fix -- the flag is compiled out, defaults off, measured null, and its
+single-reader bound is only reachable by the A5-a2 `getblock` case. An earlier
+draft of this entry overstated it. A5-d Finished; A5-a stays deferred to B2.
+
+**T5b.** A5 cited `main.cpp:4902-4925` for P0 and `:3232`, `:4950` for P1;
+the code has moved to `:4924` and `:3254`, `:4971`. Line numbers in a
+document age badly against a tree that is still being edited -- these are kept
+because they are load-bearing evidence for a confirmed defect, and were
+re-derived rather than trusted.
+
+**T5c.** `check_tables.py` reported 85 undersized tables and 13 files over the
+ceiling against documented figures of 84 and 13, with `TASKS.md` itself at 48
+tables against a recorded 45. Counts re-measured (472 tables, 40 table-bearing
+documents) and the snapshots labelled as snapshots. `lint-perf.sh` restated "84" in two
+places, in a set-aside message and a comment; both now name the condition
+without the number, since the checker is the authority and the message was
+wrong every time a table was added.
+
+Verified after the change: `validate.sh` PASS -- lint clean on owned scope, 17
+of 17 self-tests green, `check_tables.py --self-test` OK. Concentration is
+unchanged (four scattered subjects), as expected: none of this moved a
+subject between documents.
