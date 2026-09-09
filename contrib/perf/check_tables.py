@@ -4,7 +4,7 @@
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 """Flag tables too small to earn the form, and files carrying too many.
 
-Two rules, both from docs/STRUCTURE.md:
+Two rules, both from docs/POLICY.md S2.0:
 
   size    A table needs at least 2 data rows and rows x columns >= 9. One row
           is a sentence; two rows over two columns is a phrase. Two rows over
@@ -113,21 +113,21 @@ def self_test():
     with tempfile.TemporaryDirectory() as td:
         big = os.path.join(td, "big.md")
         # 3 rows x 4 cols = 12 cells: passes both rules.
-        open(big, "w").write(
+        open(big, "w", encoding="utf-8").write(
             "| a | b | c | d |\n|---|---|---|---|\n"
             + "| 1 | 2 | 3 | 4 |\n" * 3)
         check(not scan([big]), "3x4 table passes")
 
         one = os.path.join(td, "one.md")
-        open(one, "w").write("| a | b |\n|---|---|\n| 1 | 2 |\n")
+        open(one, "w", encoding="utf-8").write("| a | b |\n|---|---|\n| 1 | 2 |\n")
         check(scan([one]), "1-row table is reported")
 
         two2 = os.path.join(td, "two2.md")
-        open(two2, "w").write("| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n")
+        open(two2, "w", encoding="utf-8").write("| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n")
         check(scan([two2]), "2x2 table (4 cells) is reported")
 
         two5 = os.path.join(td, "two5.md")
-        open(two5, "w").write(
+        open(two5, "w", encoding="utf-8").write(
             "| a | b | c | d | e |\n|---|---|---|---|---|\n"
             "| 1 | 2 | 3 | 4 | 5 |\n| 6 | 7 | 8 | 9 | 0 |\n")
         check(not scan([two5]), "2x5 table (10 cells) passes -- a real A/B")
@@ -135,13 +135,13 @@ def self_test():
         # A continuation block: rows with no header, from a table split by
         # prose. Every line is data, so 3 rows x 7 cols must pass.
         cont = os.path.join(td, "cont.md")
-        open(cont, "w").write(
+        open(cont, "w", encoding="utf-8").write(
             "| a | b | c | d | e | f | g |\n" * 3)
         check(not scan([cont]),
               "headerless continuation block counts every line as data")
 
         many = os.path.join(td, "many.md")
-        open(many, "w").write(
+        open(many, "w", encoding="utf-8").write(
             ("| a | b | c | d |\n|---|---|---|---|\n"
              + "| 1 | 2 | 3 | 4 |\n" * 3 + "\ntext\n\n") * 11)
         hits = scan([many])

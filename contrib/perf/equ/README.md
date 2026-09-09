@@ -9,7 +9,7 @@ spread across the perf tree**: solver internals, lineage, measurement method,
 plans and solve findings all live in these files. The one deliberate exception
 is Equihash's **verification** cost during block connection, which is a sync
 finding and stays in `../Perf.md` S5. Placement rules generally:
-`../docs/MAP.md`.
+`../docs/POLICY.md` S2.0a.
 
 ## The set
 

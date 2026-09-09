@@ -34,16 +34,25 @@ OWNED='^contrib/perf/'
 OWNED_EXCEPT='contrib/perf/datadir_guard\.sh'
 SHELLCHECK_EXCLUDE="SC2046,SC2086,SC2162,SC2035,SC2043,SC2094,SC2129,SC2164,SC2230"
 
+# Ratchets (docs/POLICY.md S2.0 rule 4). Current counts become a ceiling that
+# may only be lowered. A pass that cuts tables or concentrates a subject should
+# lower the number here in the same commit. Raising one is a deliberate act
+# that belongs in its own commit with a reason -- keep/ZeroWallet_Design.md was
+# restored by owner decision (88 -> 92), which is the only raise so far.
+RATCHET_TABLES=92
+RATCHET_CONC="Equihash=42
+Groth16=55
+libsodium=36
+uniblake=38"
+
 # Checks whose findings are entirely in inherited upstream code and are set
 # aside (will not fix). Their TOTAL is high, constant, and uninformative, so it
 # is suppressed by default; --all restores it. Counts as of 2026-08-19.
-SETASIDE_CHECKS="include-guards includes locale-dependence concentration tables"
+SETASIDE_CHECKS="include-guards includes locale-dependence"
 declare -A SETASIDE_NOTE=(
   [include-guards]="52 headers use ZCASH_/ZC_/ASYNCRPCOPERATION_ prefixes"
   [includes]="include ordering and duplication in inherited source"
   [locale-dependence]="C++ locale-dependent calls, need per-site review"
-  [concentration]="subject sprawl pending the repartition -- docs/STRUCTURE.md S3"
-  [tables]="undersized tables and files over the ceiling -- TASKS.md C1n"
 )
 
 # --all and --summary are independent: --all widens scope, --summary suppresses
@@ -85,25 +94,46 @@ run_check() {
                   out=$(python3 "$t" --self-test 2>&1) || \
                     printf '%s: %s\n' "$t" "$(printf '%s' "$out" | tail -1)"
                 done ;;
-    tables)     # Table size and per-file count (docs/STRUCTURE.md). A table
+    tables)     # Table size and per-file count (docs/POLICY.md S2.0). A table
                 # needs >=2 rows and rows x cols >= 9; at most 10 per file.
-                # Reported, not gated: the failing tables predate the rule and
-                # the cull is tracked as C1n. No count is restated here -- it
-                # moves with every doc edit; the checker is the authority.
-                # Indent so owned_lines does not count these as gate
-                # findings: the rule postdates the tree and the cull is
-                # tracked work, not a regression.
+                # RATCHET, not a hard gate: the backlog predates the rule, so
+                # gating on zero would fail on known work. Gating on "no worse
+                # than RATCHET_TABLES" fails only on a regression, and the
+                # ceiling is lowered as the cull proceeds. POLICY S2.0 rule 4:
+                # a check that cannot fail the build is a comment.
+                n=$(contrib/perf/check_tables.py contrib/perf 2>&1 | grep -c .)
+                if [ "$n" -gt "$RATCHET_TABLES" ]; then
+                  printf 'contrib/perf/RATCHET: table findings %d exceed ratchet %d -- cut tables or lower the ratchet\n' \
+                    "$n" "$RATCHET_TABLES"
+                fi
                 contrib/perf/check_tables.py contrib/perf 2>&1 | sed 's/^/  /' || true ;;
-    concentration) # One owner per subject (docs/MAP.md S3). Reported, not
-                   # gated: Perf.md still holds subject material the
-                   # repartition has not moved yet (docs/STRUCTURE.md S3), so
-                   # a hard gate would fail on known work rather than on a
-                   # regression. Tighten to a gate once the moves land.
-                   contrib/perf/check_concentration.py contrib/perf || true ;;
+    concentration) # One owner per subject (docs/POLICY.md S2.0a). Same ratchet
+                   # rule as tables: the target is 20% outside the owner, the
+                   # ceiling is where we are now, and it only moves down.
+                   conc=$(contrib/perf/check_concentration.py contrib/perf 2>&1 || true)
+                   printf '%s\n' "$conc" | while read -r line; do
+                     pct=${line#* is }; pct=${pct%%\%*}
+                     subj=${line#scattered-subject: }; subj=${subj%% *}
+                     case "$pct" in ''|*[!0-9]*) continue ;; esac
+                     ceil=$(printf '%s\n' "$RATCHET_CONC" | sed -n "s/^$subj=//p")
+                     [ -n "$ceil" ] || ceil=100
+                     if [ "$pct" -gt "$ceil" ]; then
+                       printf 'contrib/perf/RATCHET: %s %s%% outside owner exceeds ratchet %s%%\n' \
+                         "$subj" "$pct" "$ceil"
+                     fi
+                   done
+                   printf '%s\n' "$conc" | sed 's/^/  /' ;;
+    docmap)     # Every tracked .md has a row in README.md's Documentation
+                # map, and no row names a file that is gone (docs/POLICY.md
+                # S2.0a). Hard gate, not a ratchet: there is no backlog here,
+                # and a file with no inclusion rule is exactly how the set
+                # accreted. Prefix findings so owned_lines counts them.
+                contrib/perf/check_docmap.py contrib/perf 2>&1 \
+                  | sed 's|^|contrib/perf/|' ;;
     citations)  # Measurement figures must name a source, and no tracked
                 # document may carry an absolute path (docs/POLICY.md S7.1,
                 # S7.3). Scoped to docs/: Perf.md is legacy pending retirement
-                # and would swamp the signal (see docs/MIGRATION.md S6).
+                # and would swamp the signal.
                 contrib/perf/check_citations.py \
                   $(git ls-files 'contrib/perf/docs/*.md') 2>/dev/null ;;
     unicode-docs) # Owned documents only. Inherited src/ and root-level
@@ -129,7 +159,7 @@ run_check() {
   esac
 }
 
-CHECKS="self-tests unicode unicode-docs citations concentration tables json shellcheck whitespace shebang shell-locale
+CHECKS="self-tests unicode unicode-docs citations docmap concentration tables json shellcheck whitespace shebang shell-locale
         python-utf8-encoding include-guards includes locale-dependence
         make-dist cargo-patches"
 

@@ -2,7 +2,7 @@
 
 Work items and their state. The only place a task id lives, so two records
 cannot disagree. Items are listed, not explained: each names its subject and
-links to the document that owns it (`MAP.md`).
+links to the document that owns it (`POLICY.md` S2.0a).
 
 Status (`POLICY.md` S1): Kanban ToDo -> InProgress -> InTest -> Finished;
 disposition Open | Blocked | Finished | Postponed | Aside. Aside means
@@ -17,7 +17,7 @@ postponed pending review, not refused.
 | A5 CodexPerf review triage | **InProgress** | Open | M | `../../CodexPerf.md` |
 | B2 First non-macOS measurement | ToDo | Open | M | `../PerfPlatforms.md` |
 | B2a Suite-run gotchas | ToDo | Open | S | four results that look like defects |
-| C1 Documentation consolidation | **InTest** | Open | M | `MIGRATION.md` |
+| C1 Documentation consolidation | **InTest** | Open | M | `POLICY.md` S2.0 |
 | C2 Remaining measurement gaps | ToDo | Open | M | `FINDINGS.md` S4 |
 | C3 Inherited build/DB defects | ToDo | Open | M | `../BUILD_RECONFIG.md` |
 | C4 Per-workload utilization profile | ToDo | Open | L | this file, C4 |
@@ -335,7 +335,7 @@ so the fix belongs in the product tree. Evidence stays here.
 
 ### C1. Documentation consolidation and clean-up
 
-Analysis and partition plan: `STRUCTURE.md`. Placement rules: `MAP.md`.
+Placement rules and the accretion budget: `POLICY.md` S2.0, S2.0a.
 
 | Step | What | State |
 |------|------|-------|
@@ -346,91 +346,17 @@ Analysis and partition plan: `STRUCTURE.md`. Placement rules: `MAP.md`.
 | e | Strike obsolete history; remove, do not narrate | **In progress** -- SIMD/status swept 2026-09-06 |
 | f | Purge mechanism claims not traceable to code or measurement | ToDo |
 | g | Fix `SCHEMA.md` statements contradicted by the store | ToDo |
-| h | Fold or archive `Perf.md`'s status sections into this file | ToDo -- `STRUCTURE.md` S4 steps 2-3 |
+| h | Delete `Perf.md`'s status sections | **Finished** 2026-09-08 -- S0.1-0.13, S0.15, S9/S9.1 deleted; 1560 -> 1061 lines |
 | i | `equ/`: figures bound to `M-EQ-*` ids | **Finished** 2026-09-06. The "215 restatements" were mostly derivations; 27 bare, most already cross-referenced |
 | n | **Cut tables.** Detail, examples and criteria below | ToDo |
 
-#### C1n. Tables: prevalence, criteria, and what to do
+#### C1n. Cut undersized tables
 
-**Prevalence** [re-measured 2026-09-08]. 472 tables across 40 table-bearing
-documents (43 markdown files scanned). **84 fail the size threshold** and
-**13 files exceed the ten-per-file ceiling**. Three files hold a third of all
-tables: `Perf.md` 64, `TASKS.md` 48, `equ/SOLVER.md` 43.
-
-The figures move as the documents are edited, and this file is one of the three
-offenders: an earlier revision recorded 469/84 with `TASKS.md` at 45, and the
-task list gained tables while describing the table problem, then shed one when
-the FDCACHE exposition moved out (T5a). Re-run
-`check_tables.py` rather than trusting the count here -- the checker is the
-authority and these numbers are a snapshot of it.
-
-**Criteria, enforced by `check_tables.py`, reported in `lint-perf.sh`:**
-
-- at least **2 data rows**
-- **rows x columns at least 9**
-- at most **10 tables per file** -- a ceiling, not a target
-
-A 2x5 A/B passes; a 2x2 does not. The threshold cannot see content, so passing
-it is necessary and not sufficient.
-
-**Failing shapes, most common first:**
-
-| Shape | Count | Usually is | Replace with |
-|---|--:|---|---|
-| 2 x 3 | 20 | a pair of items with a note each | two sentences |
-| 4 x 2 | 18 | a labelled list | vertical list |
-| 3 x 2 | 16 | a labelled list | vertical list or prose |
-| 2 x 4 | 10 | sometimes a real A/B -- read it | keep if the columns differ meaningfully |
-| 2 x 2 | 9 | a phrase | one sentence |
-
-**Worked failures.**
-
-`PerfPlatforms.md:18` -- 4x2, `Tool | macOS-only dependency`. A list of four
-tools and what each needs. A vertical list carries it without the grid.
-
-`Measures.md:363` -- 3x2, `Layer | Format`. Three layers, one format each;
-three sentences or a vertical list.
-
-`Perf.md:759` -- 2x3, `Item | Change | Validation`. Two items. Two sentences.
-
-**Worked improvements, already applied.**
-
-`Measures.md` -- twelve tables shared the header
-`ID | Metric | Result | Type | Tools | Source`: one relation split twelve ways
-by section heading, six of them holding three rows or fewer. Category became a
-**column**, the twelve headers became one, ten now-redundant headings were
-removed. All 105 `M-*` ids survive. 25 tables to 12 headers over one relation.
-
-`docs/PRODUCT.md` -- 12 to 10. Two list-shaped tables became prose: three call
-sites with their false-return handling, and three tests with what each pins.
-
-`docs/HASHLIBS.md` -- 12 to 9. Three tables in S1 duplicated the fuller
-inventory in S1.4 and became four sentences.
-
-`PerfGroth.md` -- a 1x2 table holding two comma-separated crate lists became
-two sentences.
-
-**Automation and what it tracks.**
-
-| Tool | Tracks | Gate |
-|---|---|---|
-| `check_tables.py` | table size, per-file count | reported, not gated -- the failing set predates the rule |
-| `check_concentration.py` | one owner per subject (`MAP.md` S3) | reported, not gated |
-| `check_citations.py` | figures carry an `M-*` id; no absolute paths | **gating** |
-
-`check_tables.py` is self-tested on five boundary cases -- 3x4 passes, 1-row
-fails, 2x2 fails, 2x5 passes, headerless continuation block passes -- and each
-assertion is mutation-tested. It found a bug in its own first version:
-continuation blocks of a table split by prose have no header row, and
-subtracting one reported five real registry rows as one-row tables. 88 dropped
-to 84 when that was fixed.
-
-**Order of work.** The three largest files are already scheduled for splitting
-(S3 in `STRUCTURE.md`); a table that moves to the document owning its subject
-usually stops duplicating one three sections away. Do the splits first, then
-sweep what remains against the threshold.
-| j | Concentration checks in `lint-perf.sh` | **Finished** 2026-09-07 -- `check_concentration.py`, reporting not gating |
-| l | Library inventory consolidated in `HASHLIBS.md` | **Finished** 2026-09-08 -- libsodium 15 functions / 4 subsystems, librustzcash 31 of 32, uniblake 18 calls, three linked blake2b implementations |
+Criteria are `check_tables.py` (>=2 data rows, rows x cols >= 9, <=10 tables
+per file); run it for the current counts. Replace a failing table with a
+sentence, a clause, a vertical list or a subsection -- a table is the last
+resort, not the default. Reported, not gated (`POLICY.md` S2.0 rule 4 says
+that should change).
 
 ### C2. Remaining measurement gaps
 
@@ -715,7 +641,7 @@ Stated explicitly so nothing above reads as finished when it is not.
 | **A4** workload `op` enum | **Open** | `--op` is unvalidated free text, so the S5.1 guard has no workload key. Blocks C4 |
 | **C4** two empty cells | **Blocked, not slow** | `many-utxo-few-tx` needs a wallet that does not exist; the x86-64 column needs B2 |
 | **GROTH** | **Postponed** | A maintainer's decision; nothing else depends on it |
-| **`Perf.md` retirement** | **Not ready** | Holds detail for B1, B3 and GROTH. Re-run the caveat diff (`MIGRATION.md` S6) before retiring |
+| **`Perf.md` retirement** | **Not ready** | Holds detail for B1, B3 and GROTH. Re-run the caveat diff before retiring |
 
 ---
 
@@ -1016,42 +942,16 @@ Detail in each suite's source.
 | T4g | **`witness_lab.sh` -> `ops-campaign.sh` passes numbers as prose.** The producer writes `wall_s=$elapsed` into `SUMMARY.txt`; the consumer recovers it with a regex. An integer-only pattern silently truncated `141.763` to `141` when millisecond timing landed -- caught by review, not by a test. Both are shell scripts in one tree: the value should be written as a machine-readable field (a `key=value` file sourced by the consumer, or a RecBench row) rather than scraped from a summary written for humans |
 | T4e | Use the progress series, not just the endpoint | Every run now yields a height/time series (M-LAB-BAND-TINY). A single blk/s figure hides a 28% spread across height bands; collation reads only the endpoint |
 
-### T5. Landed 2026-09-08: doc-vs-tool drift
-
-Three places where a document stated something the tree no longer supported.
-All were found by running the checkers rather than reading the prose, which is
-the point: **a restated count is a copy, and copies drift.**
+### T5. Landed 2026-09-08
 
 | # | Item | Where |
 |---|---|---|
-| T5a | FDCACHE "functionally correct" **retracted** -- the A5 P0 lock-lifetime defect stated in place, with both read sites, its reachability and the required fix | `Perf.md` S3 |
-| T5b | A5 source line references refreshed against the current tree | `TASKS.md` A5 |
-| T5c | Table counts re-measured; the two hardcoded copies in `lint-perf.sh` removed | `TASKS.md` C1n, `STRUCTURE.md`, `lint-perf.sh` |
+| T5a | FDCACHE consolidated into `Perf.md` S3; "functionally correct" retracted; 12 restatements deleted | `Perf.md`, `PerfGroth.md` (now 0 mentions) |
+| T5b | A5 source line references re-derived against the tree | `TASKS.md` A5 |
+| T5c | Table counts re-measured; hardcoded copies removed | `TASKS.md`, `lint-perf.sh` |
+| T5d | Meta-docs deleted: `MAP.md` (folded into `POLICY.md` S2.0a), `STRUCTURE.md`, `MIGRATION.md`, `OVERVIEW.md`, `docs/README.md` | `docs/` 15 -> 10 files |
+| T5e | `Perf.md` status sections deleted (S0.1-0.13, S0.15, S9/S9.1) | 1560 -> 1061 lines |
+| T5f | Out-of-scope Qt wallet docs deleted | `keep/desys.md`, `keep/ZeroWallet_Design.md` |
 
-**T5a, kept in proportion.** `Perf.md` and A5 disagreed about the same parked
-flag. Re-verified against source, tightened to two sentences, and **all FDCACHE
-exposition consolidated into `../Perf.md` S3**, which owns the subject: this
-file had ~40 lines explaining it, against the rule that `TASKS.md` may mention a
-subject but not explain one (`MAP.md`). A documentation-consistency fix, not a
-bug fix -- the flag is compiled out, defaults off, measured null, and its
-single-reader bound is only reachable by the A5-a2 `getblock` case. An earlier
-draft of this entry overstated it. A5-d Finished; A5-a stays deferred to B2.
-
-**T5b.** A5 cited `main.cpp:4902-4925` for P0 and `:3232`, `:4950` for P1;
-the code has moved to `:4924` and `:3254`, `:4971`. Line numbers in a
-document age badly against a tree that is still being edited -- these are kept
-because they are load-bearing evidence for a confirmed defect, and were
-re-derived rather than trusted.
-
-**T5c.** `check_tables.py` reported 85 undersized tables and 13 files over the
-ceiling against documented figures of 84 and 13, with `TASKS.md` itself at 48
-tables against a recorded 45. Counts re-measured (472 tables, 40 table-bearing
-documents) and the snapshots labelled as snapshots. `lint-perf.sh` restated "84" in two
-places, in a set-aside message and a comment; both now name the condition
-without the number, since the checker is the authority and the message was
-wrong every time a table was added.
-
-Verified after the change: `validate.sh` PASS -- lint clean on owned scope, 17
-of 17 self-tests green, `check_tables.py --self-test` OK. Concentration is
-unchanged (four scattered subjects), as expected: none of this moved a
-subject between documents.
+Accretion budget and the subtractive rules that came out of this:
+`POLICY.md` S2.0.

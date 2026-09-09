@@ -2,7 +2,7 @@
 # Copyright (c) 2026 The Zero developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
-"""Enforce the one-owner rules from docs/MAP.md S3.
+"""Enforce the one-owner rules from docs/POLICY.md S2.0a.
 
 Two failures this catches, both of which happened and were only found by
 reading:
@@ -130,8 +130,8 @@ def self_test():
         own = os.path.join(td, "equ")
         os.makedirs(own)
         # Concentrated: 10 mentions in the owner, 1 outside -> 9% outside.
-        open(os.path.join(own, "S.md"), "w").write("Equihash " * 10)
-        open(os.path.join(td, "other.md"), "w").write("Equihash once")
+        open(os.path.join(own, "S.md"), "w", encoding="utf-8").write("Equihash " * 10)
+        open(os.path.join(td, "other.md"), "w", encoding="utf-8").write("Equihash once")
         files = _docs([td])
         res = concentration(files)
         check("Equihash" in res, "subject detected")
@@ -139,7 +139,7 @@ def self_test():
         check(not scan(files), "concentrated subject reports clean")
 
         # Scattered: flip the ratio.
-        open(os.path.join(td, "other.md"), "w").write("Equihash " * 40)
+        open(os.path.join(td, "other.md"), "w", encoding="utf-8").write("Equihash " * 40)
         files = _docs([td])
         bad = scan(files)
         check(bad, "scattered subject is reported")
@@ -147,7 +147,7 @@ def self_test():
         check(bad and "other.md" in bad[0], "worst offender is named")
 
         # A subject with no owner declared is not checked at all.
-        open(os.path.join(td, "x.md"), "w").write("Frobnicate " * 99)
+        open(os.path.join(td, "x.md"), "w", encoding="utf-8").write("Frobnicate " * 99)
         check(len(scan(_docs([td]))) == len(bad), "undeclared subject is ignored")
 
     print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)

@@ -25,13 +25,11 @@ per-tool caveats. It is deliberately the only place those live in long form.
 | One-line index of every tool | `docs/HOWTO.md` S4.1 |
 | Findings and method | `Perf.md` |
 | Numbers bound to `M-*` | `Measures.md` |
-| Task state and what to do next | `docs/TASKS.md`, `docs/TASKS.md` |
-| Governance, ownership, lab discipline | `docs/POLICY.md` |
+| Task state and what to do next | `docs/TASKS.md` |
+| Rules, ownership, placement, lab discipline | `docs/POLICY.md` |
 | Recording results so they compare | `recbench/RecBench.md` |
 | Measuring across projects; uniblake practice | `docs/CROSSPROJECT.md` |
 | Which library computes which hash | `docs/HASHLIBS.md` |
-| **Where does this belong?** | **`docs/MAP.md`** |
-| Document structure and repartition plan | `docs/STRUCTURE.md` |
 | libsodium versions, peers, .21 vs .22 | `docs/SODIUM_SURVEY.md` |
 
 `docs/HOWTO.md` S4.1 lists every tool as a one-line index; the detail
@@ -445,3 +443,43 @@ Do not merge callees into `ops-campaign.sh` itself. It stays a catalog + resume 
 `witness_lab.sh` also accepts `rescan`, `rescan-noteidx`, `catchup`,
 `catchup-noteidx`, `tip-catchup`, `tip-catchup-note` as single trials.
 ```
+
+---
+
+## Documentation map
+
+Every markdown file in `contrib/perf`, what it owns, and what it does not
+hold. **A file with no inclusion rule accretes** -- nobody can say what does
+not belong in it, so everything does; that is how this set reached 43 files,
+five of them about the set itself. When two documents could hold something,
+the owner takes it and non-owners cite it. Adding a file means adding a row
+here and deleting another file (`docs/POLICY.md` S2.0 rule 1).
+
+`lint-perf.sh` `docmap` fails if a tracked `.md` has no row, or a row names a
+file that does not exist.
+
+| Document | Owns | Does not hold |
+|---|---|---|
+| `Perf.md` | ConnectBlock CPU, disk I/O and FDCACHE, the Merkle-root latch, memory, `AddToBlockIndex` | Task state. Solver internals. Hashing kernels. Witness mechanics |
+| `PerfGroth.md` | Sapling Groth16 cost and batch headroom | Non-Groth findings; scheduling |
+| `equ/` | Equihash: solver internals, lineage, method, plans, solve findings | Equihash verification cost during sync, which is a `Perf.md` finding |
+| `docs/HASHLIBS.md` | Which library computes which hash, and what that costs | Kernel internals; Equihash solving |
+| `docs/SODIUM_SURVEY.md` | Which libsodium version, and why | Hashing performance |
+| `docs/CROSSPROJECT.md` | Recording results comparably across projects | Either project's findings |
+| `docs/PRODUCT.md` | Node-code changes perf work identified, and the evidence | Their state |
+| `docs/TASKS.md` | Every task id and its state, one line each | Exposition, findings, numbers |
+| `README.md` | Per-tool invocation, env vars, per-tool caveats | Findings; task state |
+| `docs/HOWTO.md` | How to take a measurement and read it | Per-tool detail |
+| `Measures.md` | The `M-*` registry and metric vocabulary | Narrative |
+| `docs/SCHEMA.md`, `recbench/RecBench.md` | Row shape, identity, store topology | Results |
+| `docs/POLICY.md` | Rules, ownership, lab discipline, retention | Anything specific to one subject |
+| `docs/FINDINGS.md` | What is known, newest first | Groth16 (its own file); task state |
+| `docs/NOTES.md`, `mine/*.md` | Point-in-time records, kept as written | Anything durable |
+| `PerfTimers.md` | Spec for the block-processing phase timers (`IMP-BENCH-ALWAYS`) | Measured results; task state |
+| `PerfPlatforms.md` | What the harness needs per platform, and the Linux/Windows equivalents | Findings taken on any one platform |
+| `Stores.md` | Zero's on-disk data structures and local stores | Performance findings about them |
+| `BUILD_RECONFIG.md` | The autotools re-configure trap and its options | Anything not about configure |
+| `zcash-lint/ZEROPERF.md` | What the vendored Zcash linters are, and which findings are set aside | Lint results |
+| `keep/*.md` | Archived point-in-time notes, kept as written (S5): `Peer.md` node/RPC ops, `TENT.md` and `TENTZero.md` TENT lineage and port map, `ZcashV.md` 2026 Sprout/Orchard vulnerabilities across zcashd forks, `ZeroWallet_Design.md` Qt wallet design (out of node scope, kept as reference) | Anything durable or maintained; these are not updated |
+
+Rules, ownership, retention and lab discipline: **`docs/POLICY.md`**.

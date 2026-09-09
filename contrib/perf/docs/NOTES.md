@@ -49,9 +49,9 @@ so their absence is not mistaken for loss:
 | `BENCHMARKING.md` | `HOWTO.md` |
 | `PerfTasks.md`, `PerfNext.md` | `TASKS.md`, `FINDINGS.md` |
 | `PerfStores.md` | `SCHEMA.md` |
-| `PerfDocReview.md` | `MIGRATION.md`, this file |
+| `PerfDocReview.md` | this file |
 | `PerfDoc.md` | `POLICY.md` (S7.1 routing, S7.2 scope), `HOWTO.md` |
-| `PERF_RESTRUCTURE.md` | Diagnosis acted on in `MIGRATION.md`; every claim validated before retirement |
+| `PERF_RESTRUCTURE.md` | Diagnosis acted on; every claim validated before retirement |
 
 ## Live specs, not notes
 
@@ -81,5 +81,5 @@ Four notes are not about node performance and are in `contrib/perf/` by
 accident of where the work happened. Two of them -- the zerowallet UI
 documents -- are out of scope for this repository entirely (`POLICY.md` S2).
 
-Proposed relocations, **pending confirmation**, are in `MIGRATION.md` S3.
+
 Nothing is moved or deleted without it.

@@ -565,7 +565,7 @@ single-list optimization and roughly doubles peak memory.
 **This is a consensus change.** It alters which solutions are valid, so it is
 a hard fork, not an optimization. It is out of scope for this document set,
 which is explicitly bounded to changes that "accept exactly the proofs the
-per-proof path accepts" (`../docs/OVERVIEW.md` S6).
+per-proof path accepts".
 
 **Recorded because the direction is opposite to ours.** Zero's mining track is
 trying to make the solver *faster and leaner*; Requihash argues that the

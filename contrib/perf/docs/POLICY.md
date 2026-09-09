@@ -53,10 +53,44 @@ From `AGENTS.md`, which governs the whole tree:
 
 Plus, for this directory:
 
-- **One subject per document.** A new file needs a stated reason and
-  confirmation.
-- **Numbers live in one place** and are cited by `M-*` id, never restated.
+- **One subject per document, and one owner per subject.** Non-owners cite;
+  they do not restate. A figure lives in `Measures.md` under an `M-*` id and is
+  cited, never copied.
+- **One task id, one file.** Task state lives in `TASKS.md` and nowhere else.
+  `TASKS.md` may mention a subject; it may not explain one.
 - **Point-in-time notes are archived, not updated** (S5).
+
+### 2.0 The accretion rule
+
+This set has been restructured three times. Each pass produced a better
+partition and a larger set: 43 files and 15,645 lines, including five files
+whose subject was the reorganisation of the other files. **Partitioning was
+never the problem. The absence of a removal step was.**
+
+So the rules are now subtractive, and they are budgets rather than intentions:
+
+1. **File budget: 11 in `docs/`, 6 in `equ/`.** Adding one requires deleting
+   one. There is no "stated reason and confirmation" escape hatch -- that
+   clause is how the set went from seven files to fifteen.
+2. **No meta-documentation.** No file whose subject is the documentation set:
+   no map, no migration plan, no restructuring diagnosis, no per-directory
+   README that indexes the others. A rule about documents goes in this section.
+   A plan to move material is executed or dropped, not filed.
+3. **A consolidation pass whose diff is net-positive has failed.** Deletion is
+   the deliverable. Moving material from one file to another is not
+   consolidation if both files grow.
+4. **A check that cannot fail the build is a comment.** `check_tables.py` and
+   `check_concentration.py` ran as "reported, not gated" for weeks while the
+   counts they reported got worse. Either gate it or delete it.
+5. **Status is not a finding.** A findings document that carries a status
+   section will restate every item's state in each of its tables. Delete the
+   section; the state is in `TASKS.md`.
+
+### 2.0a Where material belongs
+
+The per-file map -- every document, what it owns, what it does not hold -- is
+the **Documentation map** at the end of `../README.md`. It is there because
+that is the file someone opens first. `lint-perf.sh` `docmap` gates it.
 
 ### 2.1 What enforces what
 
