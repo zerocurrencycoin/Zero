@@ -473,6 +473,9 @@ file that does not exist.
 | `Measures.md` | The `M-*` registry and metric vocabulary | Narrative |
 | `docs/SCHEMA.md`, `recbench/RecBench.md` | Row shape, identity, store topology | Results |
 | `docs/POLICY.md` | Rules, ownership, lab discipline, retention | Anything specific to one subject |
+| `docs/TOOLING_FAILURES.md` | Shell/search invocations that returned wrong answers, and what closes each | Anything not about tooling reliability |
+| `docs/CONCURRENCY.md` | Thread pools, their sizing, solver synchronisation, and how to validate locking | Performance findings (`Perf.md`); task state |
+| `docs/RECORDS_READINESS.md` | Whether the store can type a given result, and the interim rule | Row shape itself (`SCHEMA.md`); measurement results |
 | `docs/FINDINGS.md` | What is known, newest first | Groth16 (its own file); task state |
 | `docs/NOTES.md`, `mine/*.md` | Point-in-time records, kept as written | Anything durable |
 | `PerfTimers.md` | Spec for the block-processing phase timers (`IMP-BENCH-ALWAYS`) | Measured results; task state |
@@ -480,6 +483,7 @@ file that does not exist.
 | `Stores.md` | Zero's on-disk data structures and local stores | Performance findings about them |
 | `BUILD_RECONFIG.md` | The autotools re-configure trap and its options | Anything not about configure |
 | `zcash-lint/ZEROPERF.md` | What the vendored Zcash linters are, and which findings are set aside | Lint results |
+| `reporoot/*.md` | Transient drafts and decision papers for Zero400-owned material: root-document reviews, open questions, migration and RPC plans (`docs/POLICY.md` S7.1) | Anything authoritative; disposition is the owner's |
 | `keep/*.md` | Archived point-in-time notes, kept as written (S5): `Peer.md` node/RPC ops, `TENT.md` and `TENTZero.md` TENT lineage and port map, `ZcashV.md` 2026 Sprout/Orchard vulnerabilities across zcashd forks, `ZeroWallet_Design.md` Qt wallet design (out of node scope, kept as reference) | Anything durable or maintained; these are not updated |
 
 Rules, ownership, retention and lab discipline: **`docs/POLICY.md`**.

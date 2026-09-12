@@ -83,7 +83,7 @@ function zerod_start {
         *)
             dispose_datadir "$DATADIR" DATADIR
             mkdir -p "$DATADIR/regtest"
-            touch "$DATADIR/zcash.conf"
+            touch "$DATADIR/zero.conf"   # Zero reads zero.conf, not zcash.conf
     esac
     ./src/zerod -regtest -datadir="$DATADIR" -rpcuser=user -rpcpassword=password -rpcport=23961 -showmetrics=0 &
     ZEROD_PID=$!
@@ -113,7 +113,7 @@ function zerod_massif_start {
         *)
             dispose_datadir "$DATADIR" DATADIR
             mkdir -p "$DATADIR/regtest"
-            touch "$DATADIR/zcash.conf"
+            touch "$DATADIR/zero.conf"   # Zero reads zero.conf, not zcash.conf
     esac
     rm -f massif.out
     valgrind --tool=massif --time-unit=ms --massif-out-file=massif.out ./src/zerod -regtest -datadir="$DATADIR" -rpcuser=user -rpcpassword=password -rpcport=23961 -showmetrics=0 &

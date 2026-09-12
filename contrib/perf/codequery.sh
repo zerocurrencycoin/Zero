@@ -16,7 +16,8 @@
 #
 #   codequery.sh symbol <regex> [path...]   -- C/C++ callers of a symbol
 #   codequery.sh files  <regex> [path...]   -- files containing a match
-#   codequery.sh count  <regex> [path...]   -- per-file match counts
+#   codequery.sh count    <regex> [path...] -- per-file match counts, ALL file types
+#   codequery.sh countcxx <regex> [path...] -- per-file match counts, C/C++ only
 #   codequery.sh raw    <rg args...>        -- escape hatch, still checked
 #
 # Exit: 0 matches found, 1 no matches (explicitly reported), 2 bad usage.
@@ -27,15 +28,28 @@ set -uo pipefail
 die() { echo "codequery: $*" >&2; exit 2; }
 command -v rg >/dev/null 2>&1 || die "ripgrep (rg) not installed"
 
-mode="${1:-}"; shift || die "usage: codequery.sh {symbol|files|count|raw} PATTERN [PATH...]"
+mode="${1:-}"; shift || die "usage: codequery.sh {symbol|files|count|countcxx|raw} PATTERN [PATH...]"
 [ -n "$mode" ] || die "missing mode"
+
+# Scope is always stated. With no PATH, search the repository root rather than
+# whatever the caller happened to cd into: a query answered over an assumed
+# subtree and reported as tree-wide is how "no bitcoin.conf anywhere" was
+# recorded when nine files had it.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+scope_note() {
+  if [ "$#" -eq 0 ]; then
+    echo "codequery: scope = repository root ($REPO_ROOT)" >&2
+  fi
+}
 
 # Build-artifact and vendored trees that make a source question unanswerable:
 # .deps/*.Po list every header a translation unit touched, so any symbol
 # appears to be "used" everywhere.
 COMMON=(--no-heading --line-number --color never
         --glob '!**/.deps/**' --glob '!**/*.Po' --glob '!depends/work/**'
-        --glob '!**/obj/**' --glob '!**/build/**')
+        --glob '!**/obj/**' --glob '!**/build/**'
+        --glob '!.git/**' --glob '!depends/**' --glob '!**/.prev-*'
+        --glob '!test-logs/**' --glob '!reindex-profile/**')
 
 case "$mode" in
   symbol)
@@ -51,7 +65,18 @@ case "$mode" in
        --type-add 'cxx:*.{c,cc,cpp,h,hpp,tcc}' -t cxx "$pat" "$@" | sort
     ;;
   count)
+    # No -t filter: count answers "how many, where", and restricting it to C++
+    # silently excludes shell, Python, docs and service files. A question about
+    # a config filename or a flag name lives mostly outside src/, and reporting
+    # "no matches" for a file type that was never searched is the exact failure
+    # this tool exists to prevent. Use `countcxx` for the C/C++-only count.
     pat="${1:-}"; [ -n "$pat" ] || die "count: missing PATTERN"; shift
+    scope_note "$@"; set -- "${@:-$REPO_ROOT}"
+    rg "${COMMON[@]}" --count-matches "$pat" "$@" | sort -t: -k2 -rn
+    ;;
+  countcxx)
+    pat="${1:-}"; [ -n "$pat" ] || die "countcxx: missing PATTERN"; shift
+    scope_note "$@"; set -- "${@:-$REPO_ROOT}"
     rg "${COMMON[@]}" --count-matches \
        --type-add 'cxx:*.{c,cc,cpp,h,hpp,tcc}' -t cxx "$pat" "$@" | sort -t: -k2 -rn
     ;;

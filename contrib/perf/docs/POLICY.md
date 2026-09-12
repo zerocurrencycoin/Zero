@@ -299,6 +299,34 @@ Two rules, each of which failed in practice before being written down:
 
 ---
 
+## 3.3 Code and build changes: what must accompany one
+
+A source change that this tree proposes or makes is not done when it compiles.
+Each of the steps below has been skipped at least once here, and each skip cost
+a re-run or a wrong record.
+
+| Step | Requirement | Why -- what went wrong without it |
+|------|-------------|-----------------------------------|
+| **1. Locate every site** | Change all of them, or state which are deliberately left | `-equihashsolver` had three defaults (`miner.cpp`, `init.cpp` help, `metrics.cpp` reporting) and two conf templates. Changing one would have left the help text lying |
+| **2. Check reachability** | Say which builds and which chains reach the code | Defaulting to tromp made a (192,7)-only solver reachable on regtest (48,5) for the first time. The guard exists because the *default* changed, not the solver |
+| **3. Build it** | A change that is not built is not a change | -- |
+| **4. Exercise the changed path** | Run the binary, not just the compiler. Verify by artifact | `generate` never consults `-equihashsolver` (it calls `EhBasicSolveUncancellable` directly, `rpc/mining.cpp:240`), so a regtest `generate` would have "confirmed" a default it does not read |
+| **5. Pin it with a test** | If no test fails when the change is reverted, the change is unprotected | No test pinned the solver default. A silent revert would not have been caught |
+| **6. Record the measurement** | Bind the figure to an `M-*` id, with n and the paired method | -- |
+| **7. Record the decision** | What was chosen, what was rejected, and why | -- |
+
+**Provenance before modification.** Before changing inherited code, establish
+where it came from: `git log -S` in this tree, then the same search across
+`ZKs/{zcash,ycash,hush3,zclassic,pirate}`. A construct identical in five forks
+is upstream and its rationale is usually in the originating commit message --
+which is how the single-worker policy's reason was found after being called
+"unexplained" here. **Older, widely-shared formulations are less safe to
+modify, not more**, and diverging from one needs a stated reason.
+
+**Retention.** Keep the build log, the exercise log and the test output for a
+change that alters behaviour, under `test-logs/<change>-<utc>/`. The commit
+records what changed; these record that it worked.
+
 ## 4. Lab discipline
 
 - **No unrestartable long batches.** Do not start a batch where each trial
@@ -320,13 +348,33 @@ Two rules, each of which failed in practice before being written down:
 - **Report repeat counts, and state n with every aggregate.** A negative over
   few trials is not evidence of absence. State what was not established as
   plainly as what was.
-- **A long run must leave evidence before it finishes.** The ledger row is
-  written at the end, so a trial that crashes or is killed at 90% previously
-  left nothing measurable -- only a driver log of decisions. Launchers append a
-  flushed `<run_id>-progress.tsv` (utc, elapsed, height) every poll, so a dead
-  run still yields a rate and the height it reached. The same applies to any
-  subtest or agent producing intermediate results: write them out as they
-  arrive, not at exit.
+- **Any long-running producer writes evidence as it goes -- run, subtest or
+  agent.** One rule, because they failed the same way twice. A launcher's
+  ledger row is written at the end, so a trial killed at 90% left only a driver
+  log; and on 2026-09-09 two research agents ran for minutes and were stopped
+  with nothing recoverable, so the work was redone by hand. Both are the same
+  defect: results held in memory until exit.
+
+  **Before starting one, it must have a durable output path.** Concretely:
+
+  | Producer | Writes | When |
+  |---|---|---|
+  | Launcher / long trial | flushed `<run_id>-progress.tsv` (utc, elapsed, height) | every poll |
+  | Subtest / script stage | its own result line | as each stage completes |
+  | Agent | an append-only findings file **named in its prompt** | as each finding lands, never only in a final report |
+
+  - **Location:** `test-logs/<task>-<utc>/`, so retention, provenance and the
+    datadir rules apply unchanged.
+  - **Resumable, not just recorded:** each entry says what was checked and what
+    it showed, so a stopped producer is continued from its last line rather
+    than restarted.
+  - **Verify by artifact, not by the summary.** A producer reporting "done"
+    with no file wrote nothing; that is the same rule as for any wrapper exit
+    code. Check the file before believing the report.
+  - **A partial file is a result.** It is evidence of what was established
+    before the stop, and it is the difference between a costly re-run and a
+    resume.
+
 - **A non-matching glob aborts the command line under zsh.** `rm -rf /tmp/x-*`
   with no match does not run the rest of the line, and the line still exits 0
   because the last statement succeeded. This has silently skipped a benchmark

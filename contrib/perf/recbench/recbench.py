@@ -61,31 +61,47 @@ MERGED_DIR = "merged"
 LEDGER_TSV = "ledger.tsv"
 
 TSV_FIELDS = [
-    "fingerprint",
-    "context_id",
+    # -- Mandatory: without these a row is not a measurement -------------
+    "metric",           # what was measured
+    "value",            # the number
+    "unit",             # what the number is in
+    "kind",             # point | median | cumulative | series | share | count
+    "recorded_at",      # when, UTC
+
+    # -- Computed by append_row; a caller supplying one is a bug ---------
+    "fingerprint",      # row identity, for de-duplication
+    "context_id",       # platform+build+config+dataset, hashed
     "platform_id",
     "build_id",
     "config_id",
     "dataset_id",
-    "superseded",
-    "metric",
-    "value",
-    "unit",
-    "kind",
-    "exec",
-    "recorded_at",
+
+    # -- Provenance: which run produced this, and is it still current ----
     "campaign",
     "run_id",
+    "binary",
+    "superseded",
+    "notes",
+
+    # -- Execution context ----------------------------------------------
+    "exec",             # how the binary ran
     "mode",
     "condition",
     "trial",
+
+    # -- Sync workload: empty on a microbenchmark row --------------------
     "warmup_height",
     "end_height",
     "blocks",
     "elapsed_s",
     "blocks_per_sec",
-    "binary",
-    "notes",
+
+    # -- Rep-based workload: empty on a sync row -------------------------
+    "n_reps",           # repetitions behind `value`
+    "warmup_dropped",   # leading reps excluded before summarising
+    "dispersion",       # spread of the kept reps, as a decimal fraction
+    "dispersion_kind",  # cv | stdev | iqr | range  (cv is a fraction, not %)
+    "pair_key",         # groups rows that are one paired measurement
 ]
 
 
@@ -383,6 +399,64 @@ def _stamp(row: dict) -> dict:
     return row
 
 
+# Stored values are decimal fractions, never percentages: cv 0.073, not 7.3.
+# A percent in a store is a display format that has escaped into the data --
+# it invites a second /100 or a missing one, and neither is detectable later.
+# Formatting to "7.3%" is the reader's job.
+DISPERSION_KINDS = ("cv", "stdev", "iqr", "range")
+
+
+def validate_reps(row: dict) -> None:
+    """Reject rep fields that cannot be read back correctly.
+
+    A dispersion with no kind is unreadable -- 7.3 could be a percent or a
+    stdev in seconds, and a later comparison would silently mix the two. A
+    warmup count without n_reps cannot be checked for sanity. These are cheap
+    guards on the write path because a bad row is discovered months later, by
+    which time the run that produced it is gone.
+    """
+    def num(field):
+        v = row.get(field, "")
+        if v in ("", None):
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            raise ValueError("recbench: %s must be numeric, got %r" % (field, v))
+
+    n = num("n_reps")
+    dropped = num("warmup_dropped")
+    disp = num("dispersion")
+    kind = row.get("dispersion_kind", "") or ""
+
+    if n is not None and n < 1:
+        raise ValueError("recbench: n_reps must be >= 1, got %g" % n)
+    if dropped is not None:
+        if dropped < 0:
+            raise ValueError("recbench: warmup_dropped must be >= 0")
+        if n is None:
+            raise ValueError("recbench: warmup_dropped needs n_reps")
+        if dropped >= n:
+            raise ValueError(
+                "recbench: warmup_dropped %g >= n_reps %g leaves no reps"
+                % (dropped, n))
+    if disp is not None:
+        if disp < 0:
+            raise ValueError("recbench: dispersion must be >= 0")
+        if not kind:
+            raise ValueError("recbench: dispersion needs dispersion_kind")
+        if kind == "cv" and disp > 1.0:
+            raise ValueError(
+                "recbench: cv %g > 1.0 -- store a fraction (0.073), not a "
+                "percentage (7.3)" % disp)
+    if kind:
+        if kind not in DISPERSION_KINDS:
+            raise ValueError("recbench: dispersion_kind must be one of %s"
+                             % (DISPERSION_KINDS,))
+        if disp is None:
+            raise ValueError("recbench: dispersion_kind needs dispersion")
+
+
 def append_row(store_dir: Path, caller_row: dict) -> bool:
     """Append if fingerprint new. Returns True if written.
 
@@ -390,6 +464,7 @@ def append_row(store_dir: Path, caller_row: dict) -> bool:
     fingerprint it needs for a later --superseded.
     """
     row = dict(caller_row)
+    validate_reps(row)
     row.setdefault("recorded_at", utc_now())
     row.setdefault("binary", "")
     row.setdefault("notes", "")
@@ -916,6 +991,39 @@ def self_test() -> int:
     # pre-existing row becomes its own singleton.
     bare = dict(base, metric="m", value=10.0, unit="u")
     check(len(collate([pt, bare])) == 1, "absent kind/exec default to point/native")
+
+    # Rep-field validation. Each assertion is a shape that was possible to
+    # write before validate_reps existed, and unreadable afterwards.
+    def rejects(row, why):
+        try:
+            validate_reps(row)
+        except ValueError:
+            return True
+        print("FAIL: accepted bad row (%s): %r" % (why, row), file=sys.stderr)
+        return False
+
+    def accepts(row, why):
+        try:
+            validate_reps(row)
+            return True
+        except ValueError as e:
+            print("FAIL: rejected good row (%s): %s" % (why, e), file=sys.stderr)
+            return False
+
+    ok &= accepts({}, "empty row: all rep fields optional")
+    ok &= accepts({"n_reps": 1000, "warmup_dropped": 10,
+                   "dispersion": 0.073, "dispersion_kind": "cv"},
+                  "the A3 shape, cv as a fraction")
+    ok &= accepts({"n_reps": 4, "pair_key": "g5-nonce-sweep"}, "paired, no dispersion")
+    ok &= rejects({"dispersion": 0.073}, "dispersion without kind")
+    ok &= rejects({"dispersion_kind": "cv"}, "kind without dispersion")
+    ok &= rejects({"dispersion": 0.073, "dispersion_kind": "furlongs"}, "unknown kind")
+    ok &= rejects({"dispersion": 7.3, "dispersion_kind": "cv"}, "cv as a percent, not a fraction")
+    ok &= rejects({"dispersion": -1.0, "dispersion_kind": "stdev"}, "negative dispersion")
+    ok &= rejects({"n_reps": 0}, "zero reps")
+    ok &= rejects({"warmup_dropped": 5}, "warmup without n_reps")
+    ok &= rejects({"n_reps": 4, "warmup_dropped": 4}, "drops every rep")
+    ok &= rejects({"n_reps": "many"}, "non-numeric n_reps")
 
     print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)
     return 0 if ok else 1

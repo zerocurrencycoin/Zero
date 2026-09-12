@@ -170,6 +170,8 @@ Use case: gate RPC clients and harnesses; **not** ops-ready.
 | Reindex / bootstrap / catch-up throughput | M-EQ-XT-ROUND0 | `EhOptimisedSolve` (192,7) | `Xt` at round 0: 33.5M rows x 70 B = **2.19 GB** | `spot` | computed | `equ/FINDINGS.md` |
 | Reindex / bootstrap / catch-up throughput | M-EQ-PEAK-DEFAULT | `EhOptimisedSolve` (192,7) | Measured peak **7.15 GB**; **6.6 GB** physical footprint | `spot` | `lab_monitor` | `equ/FINDINGS.md` |
 | Reindex / bootstrap / catch-up throughput | M-EQ-PEAK-TROMP | tromp (192,7) | Peak physical footprint **3.3 GB** | `spot` | `lab_monitor` | `equ/VENDORED.md` |
+| Reindex / bootstrap / catch-up throughput | M-EQ-TROMP-PAIRED | tromp vs reference (192,7), 4 paired nonces, one session | **8.99x** mean / **9.11x** median speedup; solution sets **identical** (11 each); default CV 8.4%, tromp CV 2.28% | `paired` | `lab_monitor` | `test-logs/g5-paired-20260910/FINDINGS.md` |
+| Reindex / bootstrap / catch-up throughput | M-EQ-SOLVE-1927-FIXED | reference solver (192,7), fixed nonces 0-3 | **40.58 s** mean / **39.76 s** median per solve, CV 11.0%, ~0.0246 Sol/s | `paired` | `lab_monitor` | `test-logs/g5-solve-20260910/FINDINGS.md` |
 | Reindex / bootstrap / catch-up throughput | M-EQ-TROMP-SPEEDUP | tromp vs default (192,7) | **5.69x** mean over n=4 paired nonces; solution sets identical | `paired` | `lab_monitor` | `equ/VENDORED.md` |
 | Reindex / bootstrap / catch-up throughput | M-EQ-D3-SORT | `EhOptimisedSolve` (192,7) | Sort patch **1.22x**, paired nonces | `paired` | `lab_monitor` | `equ/FINDINGS.md` |
 | Reindex / bootstrap / catch-up throughput | M-MINE-REGTEST-SMOKE | regtest `generate` (48,5) | **8** blocks in **1 s** wall (~125 ms/blk wall); util sampled; solve too cheap for Instruments-grade ms -- smoke for BENCH-MINE env | `campaign` | `lab_monitor` | `test-logs/mine-20260812T153357Z/` |
@@ -276,7 +278,9 @@ Use case: ops reliability under tip quiet; not consensus validation cost.
 
 Use case: CI / contributor expectation only. **Do not** compare to IBD/reindex.
 
-| Microbenchmarks (`zcbenchmark`) | M-ZCB-SUITE | JoinSplit / Sapling / Equihash / connectblockslow / ... | **No checked-in numeric archive** | `capability` / `repro` | `zcbench` | `contrib/perf/performance-measurements.sh`; `src/zcbenchmarks.cpp` |
+| Microbenchmarks (`zcbenchmark`) | M-ZCB-SAP-VERIFY | `verifysaplingspend` / `verifysaplingoutput`, regtest, n=1000 each | **2.349 ms** / **2.058 ms** steady median per proof, n=1000 reps each, CV **7.3%** / **7.7%** after dropping 10 warmup reps (15.4/15.6% undropped; first rep ~3.9x steady) | `repro` | `zcbench` | `test-logs/a3-zcbench-20260910/FINDINGS.md` |
+| Microbenchmarks (`zcbenchmark`) | M-ZCB-SAP-CREATE | `createsaplingspend` n=10 / `createsaplingoutput` n=50 | **330.0 ms** (n=10) / **48.8 ms** (n=50) median; createsaplingoutput CV 6.5%, no warmup effect | `repro` | `zcbench` | `test-logs/a3-zcbench-20260910/FINDINGS.md` |
+| Microbenchmarks (`zcbenchmark`) | M-ZCB-SUITE | JoinSplit / Sapling / Equihash / connectblockslow / ... | Partial archive 2026-09-10: 4 of 17 (see M-ZCB-SAP-*); `parameterloading` fails RPC -3 | `capability` / `repro` | `zcbench` | `contrib/perf/performance-measurements.sh`; `src/zcbenchmarks.cpp` |
 
 | Peer / misc | M-PEER-LOAD | peers.dat load | **3073** addrs in **3 ms** | `spot` | `debug_log` | `keep/Peer.md` (ZeroPerf) |
 

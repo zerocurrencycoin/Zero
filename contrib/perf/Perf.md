@@ -815,7 +815,7 @@ Groth16, disk I/O, and tree/anchor per-block cost all vary substantially (21-46%
 
 **Parked.** Compiled out of release builds (`ZERO_FDCACHE` `#undef`), off by
 default under `--enable-perf`, and no throughput win at either era
-(M-CPU-FD-THR). Retained pending Linux/Windows validation (`docs/TASKS.md` A5).
+(M-CPU-FD-THR). Retained pending Linux/Windows validation; disposition is `docs/TASKS.md` **P8**.
 
 **Mechanism.** `OpenBlockFile`/`OpenUndoFile` both call `OpenDiskFile`, which does a **fresh, unconditional `fopen()` on every call** -- no persistent or cached `FILE*` anywhere in this path. Every call site wraps the fresh `FILE*` in a stack-local `CAutoFile`, whose destructor calls `fclose()` unconditionally the moment the function returns. `ConnectBlock`/`LoadExternalBlockFile` call these once or twice per block (a read, usually an undo-data write) -- a full ~2.5M-block reindex therefore performs on the order of **2.5-5 million `fopen`/`fclose` pairs**, even though the underlying `blkNNNNN.dat`/`revNNNNN.dat` files are ~128MB each holding thousands of consecutive blocks: the overwhelming majority of those pairs reopen a file that was just closed moments earlier for the previous block. Each pair is a full kernel `open`/`close` round-trip, and `fopen` additionally re-initializes stdio's internal buffer from scratch every time -- cost paid once per block instead of once per file, a 100-1000x amplification.
 
@@ -871,7 +871,7 @@ This closes §0 item 1's open question: post-Sapling heights behave the same as 
 
 **Both are latency questions, not throughput questions**, which is why the existing throughput harness measured nothing: it was the wrong instrument for the case where the mechanism helps. The reindex null stands and neither contradicts it.
 
-**The RPC case is gated on the concurrency fix.** Multiple simultaneous readers are exactly the unsafe condition above, so the lock lifetime must be fixed **before** any multi-client `getblock` measurement -- otherwise the experiment measures an unsafe path. Task state: `docs/TASKS.md` A5-a, A5-a2.
+**The RPC case is gated on the concurrency fix.** Multiple simultaneous readers are exactly the unsafe condition above, so the lock lifetime must be fixed **before** any multi-client `getblock` measurement -- otherwise the experiment measures an unsafe path. Task state: `docs/TASKS.md` **P8** (postponed).
 
 ---
 

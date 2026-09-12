@@ -12,21 +12,23 @@ postponed pending review, not refused.
 
 | Item | Kanban | Disposition | Effort | Why |
 |------|--------|-------------|--------|-----|
-| A3 Microbenchmark baseline | ToDo | Open | S | `FINDINGS.md` S4 |
+| A3 Microbenchmark baseline | **InTest** | Open | S | 4 of 17 run; M-ZCB-SAP-VERIFY/CREATE; `test-logs/a3-zcbench-20260910/` |
 | A4 Workload taxonomy A-E | ToDo | Open | S-M | this file, A4 |
-| A5 CodexPerf review triage | **InProgress** | Open | M | `../../CodexPerf.md` |
-| B2 First non-macOS measurement | ToDo | Open | M | `../PerfPlatforms.md` |
+| A5 CodexPerf review triage | Finished | -- | M | `../../CodexPerf.md` |
+| B2 First non-macOS measurement | ToDo | **Postponed** | M | needs a Linux host; see Linux/Windows group |
 | B2a Suite-run gotchas | ToDo | Open | S | four results that look like defects |
 | C1 Documentation consolidation | **InTest** | Open | M | `POLICY.md` S2.0 |
+| E2 Script corpus + schema | **InProgress** | Open | M | this file, E2 |
 | C2 Remaining measurement gaps | ToDo | Open | M | `FINDINGS.md` S4 |
 | C3 Inherited build/DB defects | ToDo | Open | M | `../BUILD_RECONFIG.md` |
 | C4 Per-workload utilization profile | ToDo | Open | L | this file, C4 |
 | D1 Equihash / blake2 integration | **InProgress** | Open | M | `../equ/README.md` |
-| D2 `Xc.reserve()` | ToDo | Open | XS | `../equ/FINDINGS.md` S1.1b |
-| D3 Fold `len` to compile-time | **InTest** | Open | XS | **1.22x solve measured**; `../equ/FINDINGS.md` S3.2 |
-| D5 Measure the **vendored tromp** path | **InTest** | Open | S | **5.69x, V5 PASSED**; `../equ/FINDINGS.md` S2f.4 |
+| D2 `Xc.reserve()` | **Ready** | Open | XS | verified `equihash.cpp:384`; this file, D2 |
+| D3 Fold `len` to compile-time | **InTest** | Open | XS | **applied** `equihash.cpp:557` (`05cdcefe6`); 1.22x (M-EQ-D3-SORT) |
+| D5 tromp path + **now the default** | **Finished** | -- | S | 5.69x (M-EQ-TROMP-SPEEDUP); `test-logs/tromp-default-20260909/` |
 | F1 Regression gate on validate | **InTest** | Open | S | `validate.sh` |
 | F2 CI wiring | -- | **Postponed** | S | needs repo settings |
+| R0 Note locking | -- | **Assessed** | -- | closed into P9 |
 | GROTH | -- | Postponed | L-XL | `../PerfGroth.md` |
 
 ### Where to start next session
@@ -83,6 +85,58 @@ starting either wastes the other. Prototype frozen.
 
 Everything: **`../PerfGroth.md`**. Nothing below depends on it.
 
+### GROTH -- status review, 2026-09-09
+
+**Remains postponed.** Reviewed, not reopened: the review is of whether the
+description and its pending decisions are still accurate, and they are.
+
+**Verified against the dependency, not the document:**
+
+| Claim | Check |
+|---|---|
+| Pin is `06da3b9a` (2018-10-27) | **Confirmed** -- `depends/packages/librustzcash.mk:7`, and the commit dates 2018-10-27 |
+| 6724 commits behind | **Confirmed exactly** -- `git rev-list --count 06da3b9a..HEAD` = 6724 against upstream HEAD 2026-09-03 |
+| The C FFI crate no longer exists upstream | **Confirmed** -- `librustzcash/` now holds only a README: "This crate has been moved into https://github.com/zcash/zcash" |
+
+So the load-bearing fact is intact: **there is no newer version of what Zero
+consumes.** Option B is not "upgrade a dependency", it is "adopt a different
+integration boundary", and that is the whole of the A-vs-B cost difference.
+
+**The decision is genuinely blocked on a person, not on evidence.** Both
+options are scoped, the math was proved on the pinned crates (Phases 0-1,
+scratchpad only), and the branch point is the FFI boundary -- so starting
+either wastes the other. That is a maintainer's call about risk appetite on
+consensus-critical code, and no further lab work changes it.
+
+**What is worth doing while postponed, in order:**
+
+| # | Item | Why now |
+|---|------|---------|
+| 1 | **A3 microbenchmark baseline** | A batching result needs a per-proof baseline taken *beforehand*. Taken afterwards it is not a comparison. This is the only genuinely time-sensitive item on the whole board |
+| 2 | **P1 proof-verification counters** | Groth16 verification is inside no timer at all, so a phase summary today omits 88-91% of post-Sapling cost while looking complete. Any before/after needs this first |
+| 3 | **Fork for custody** (S, no consensus risk) | Take `06da3b9a` into a Zero-owned mirror unchanged; acceptance test is a byte-identical `librustzcash.a`. Independent of A-vs-B, and it stops the build depending on an upstream path that has already moved once |
+| 4 | **Host the downloadable artifacts** | 741 MB of parameters from `download.z.cash` plus the librustzcash tarball. Parameters are hash-verified so a mirror adds no trust. Independent of everything else |
+
+(3) and (4) are packaging, carry no consensus risk, and are the two things that
+reduce exposure without pre-empting the decision. (1) and (2) are prerequisites
+for measuring any outcome.
+
+**Proposed resolution of the decision itself, with justification.** If forced
+to recommend: **Option B (migrate to the upstream batcher) is the better
+target, and Option A (hand-port onto pinned crates) is the better first step**
+-- but only if the fork-for-custody work (3) lands first, because both options
+then build on a boundary Zero controls. The reason B is the target is that it
+is production-proven in zcashd and Zebra and also covers signature batching,
+so the same migration buys two wins; the reason A is the first step is that
+the Phase 0-1 math is already proved on the pinned crates and gives a
+correctness oracle that B's output can be checked against. **This is a
+recommendation for the maintainer to accept or reject, not a decision.**
+
+**Documentation state:** `../PerfGroth.md` is 938 lines and 23 tables, over
+the ten-per-file ceiling. It is the single largest findings document after
+`Perf.md` and holds the whole subject correctly (0 FDCACHE mentions after
+T5a). No content problem found; the table count is the open item.
+
 ---
 
 ## A -- do first
@@ -95,7 +149,19 @@ Everything: **`../PerfGroth.md`**. Nothing below depends on it.
 Time-sensitive in one direction: a batching result needs a per-proof baseline
 taken beforehand, so this is worth more during the postponement than after.
 
-**Kanban: ToDo. Effort S.**
+**Kanban: InTest 2026-09-10.** Four of seventeen benchmarks recorded --
+`verifysaplingspend` / `verifysaplingoutput` (n=1000 each) and their `create`
+counterparts, bound to **M-ZCB-SAP-VERIFY** and **M-ZCB-SAP-CREATE**. The two
+verify rows are the per-proof Groth16 baseline GROTH needs taken beforehand,
+so the time-sensitive part is done.
+
+Two defects found by running it: the runner wrote `zcash.conf` where Zero needs
+`zero.conf`, so no node started and **the script still exited 0** (fixed,
+`performance-measurements.sh:86,116`); and `parameterloading` fails with RPC
+error -3 (recorded, not fixed). Detail:
+`test-logs/a3-zcbench-20260910/FINDINGS.md`.
+
+Remaining: the other thirteen, several of which need a populated wallet.
 
 ### A4. Name the demanding workloads, and make the names selectable
 
@@ -191,80 +257,29 @@ publishes per-class tables and needs the classes to exist first.
 
 ### A5. Triage the CodexPerf external review
 
-`CodexPerf.md` (repo root, 2026-08-21, 180 lines) is an independent review of
-the branch. **Verified against source before triage** -- it is accurate on
-every point checked, and two findings are real defects in shipped-by-flag code.
+`CodexPerf.md` (repo root, 2026-08-21) is an independent review of the branch,
+verified against source. Two findings were real defects in shipped-by-flag code;
+**neither is reachable in a release build** (`bitcoin-config.h` has
+`/* #undef ZERO_PERF */` and `/* #undef ZERO_FDCACHE */`).
 
-| # | Finding | Verified? | Disposition |
-|---|---------|-----------|-------------|
-| **P0** | FDCACHE: `CacheOpen` releases `LOCK(latch.cs)` at function exit, then the caller deserializes through the shared `FILE*` unlocked | **CONFIRMED** (`main.cpp:4924`; read sites `:2130`, `:2617`) | **Real.** Another thread can `fseek` or `fclose` the same stream mid-read |
-| **P1** | `-mrclogevery=0` divides by zero | **CONFIRMED**, since fixed (`main.cpp:3254`, `:4971`) | **Real.** `nHeight % logEvery` was unvalidated at both sites; both now read the startup-validated `nPerfLogEvery` (step b) |
-| P1 | FDCACHE probe always reports false -- flags absent from `HelpMessage` | Not re-checked | Plausible; affects provenance labelling |
-| P1 | CI builds neither `--enable-perf` nor the perf lint | Consistent with F2 | Already tracked as **F2** (Postponed, needs repo settings) |
-| P2 | Evidence set larger than authoritative; doc drift | **CONFIRMED** one case | `POLICY.md:68` said `unicode-docs` was not in default `CHECKS`; it is (`lint-perf.sh:107`). **Fixed** |
-| P2 | Portability unproven, one host | Agrees with `FINDINGS.md` S4 | Already **B2** |
-| P2 | `--enable-perf` couples counters with behaviour change | Accurate reading of `configure.ac` | Worth splitting; see (c) |
-| P3 | Out-of-scope wallet docs in `keep/` | Agrees with `NOTES.md` | Already **C1c** |
-| P3 | `git diff --check` trailing whitespace | Not re-checked | Cheap CI addition |
+| # | Finding | Disposition |
+|---|---------|-------------|
+| **P0** | FDCACHE lock lifetime (`main.cpp:4924`; read sites `:2130`, `:2617`) | **Moved to P8** (postponed) |
+| **P1** | `-mrclogevery=0` divides by zero (`main.cpp:3254`, `:4971`) | **Finished** -- `InitPerfLogEvery()` validates once at startup; 3 build configs clean |
+| P1 | FDCACHE probe reports false; flags absent from `HelpMessage` | **Moved to P8** |
+| P1 | CI builds neither `--enable-perf` nor the perf lint | **F2** (Postponed, needs repo settings) |
+| P2 | `--enable-perf` couples counters with behaviour change | **Moved to P8** |
+| P2 | Doc drift, evidence set larger than authoritative | **Fixed** -- `POLICY.md` corrected |
+| P2 | Portability unproven, one host | **B2** |
+| P3 | Out-of-scope wallet docs in `keep/`; `git diff --check` | `keep/` reviewed and mapped; whitespace is a cheap CI addition under F2 |
 
-**The P0 finding contradicted a claim in our own documentation.**
-`Perf.md` S3 called the implementation "functionally correct"; the lock
-lifetime does not support that. This is the review's most valuable
-contribution and the reason it is worth acting on rather than filing.
-The claim is now **retracted** in place (step d), so the two records agree.
+**The P1 fix caught a bug the default build could not.** The first version of
+the `nPerfLogEvery` declaration was nested inside `#ifdef ZERO_FDCACHE`, so a
+`ZERO_PERF`-only build failed with `use of undeclared identifier`. That class of
+breakage is invisible to current CI and is an argument for the `--enable-perf`
+job independent of FDCACHE's disposition.
 
-| Step | What | State |
-|------|------|-------|
-| a | **FDCACHE retained** pending x86-64 Linux and Windows validation (B2). Fix the lock lifetime **before enabling** it with concurrent readers: RAII lease across seek+read, or positional `pread` | **Deferred to B2** |
-| a2 | Measure FDCACHE on the two workloads where the mechanism could pay: **random `getblock` RPC** and **cold cache / slow storage** | ToDo |
-| b | Validate `-mrclogevery` at startup | **Finished** -- `InitPerfLogEvery()`; 3 build configs clean |
-| c | Split `--enable-perf` into counters (safe) and experimental behaviour (FDCACHE) | ToDo |
-| d | Correct `Perf.md` S3 -- retract "functionally correct" and cite the lock-lifetime defect | **Finished** 2026-09-08 -- retracted in place, both read sites named, reachability and the required fix stated |
-| e | Re-verify the FDCACHE probe and the `HelpMessage` gap | ToDo |
-
-(a) and (b) are the two that touch shipped behaviour. Both are Zero400-owned
-(`src/`), so they are specified here and reviewed there.
-
-#### Reachability, and the disposition of each
-
-Verified: `src/config/bitcoin-config.h` has `/* #undef ZERO_PERF */` and
-`/* #undef ZERO_FDCACHE */`. **A default build compiles out both.**
-
-| Defect | Reachable in a release build? |
-|--------|-------------------------------|
-| FDCACHE lock lifetime (P0) | **No** -- needs `--enable-perf` **and** `-perffdcache=1` (default false) |
-| `-mrclogevery=0` (P1) | **No** -- both modulo sites are inside `#ifdef ZERO_PERF` |
-
-**`-mrclogevery`: FIXED.** One validated read at startup replaces two unguarded
-`GetArg` lookups:
-
-- `InitPerfLogEvery()` (`main.cpp`) reads once, rejects `< 1` and
-  `> PERF_LOG_EVERY_MAX`, and throws a specific message at startup rather than
-  dividing by zero mid-sync.
-- Called from `init.cpp` before any block is connected.
-- Both call sites now read `nPerfLogEvery`.
-
-Verified in **three** configurations: default build, `-DZERO_PERF`, and
-`-DZERO_PERF -DZERO_FDCACHE`, all 0 errors. **The perf-only build caught a real
-bug the default build could not**: the first version of the declaration was
-nested inside `#ifdef ZERO_FDCACHE`, so a `ZERO_PERF`-only build failed with
-`use of undeclared identifier`. That is the class of breakage F2/A5
-flags as invisible to current CI -- and an argument for the `--enable-perf` CI
-job, independent of FDCACHE's disposition.
-
-**FDCACHE: RETAINED, by owner decision.** Optional perf instrumentation, not
-shipped behaviour; kept at least until x86-64 Linux and Windows results exist.
-Why it is retained, the two unmeasured cases that could still pay, and the
-concurrency bound on the RPC case are **`../Perf.md` S3**, which owns the
-subject. A5-a2 is the task for measuring them.
-
-**Assessment of the review itself: accurate and useful.** Every claim spot
-checked held up against the source, including one that contradicts our own
-documentation -- which is the kind of finding an internal reviewer is least
-likely to produce. Its P2/P3 items largely restate work already tracked (B2,
-C1c, F2), so its marginal value is concentrated in P0 and the two P1 defects.
-
-**Kanban: InProgress. Effort M.**
+**Kanban: Finished.** Everything remaining is P8 or F2.
 
 ### B2. First non-macOS measurement
 
@@ -501,9 +516,69 @@ items and state only.
 | # | Item | State | Effort | Detail |
 |---|---|---|---|---|
 | D1 | Integrate the queued Equihash / blake2 work | **InProgress** | M | `../equ/README.md` |
-| D2 | `Xc.reserve()` sizing | ToDo | S | `../equ/PLAN.md` (queued solver work) |
+| D2 | `Xc.reserve()` sizing | **Ready to run** | S | below |
 | D3 | Per-variant solve measurement | ToDo | M | `../equ/METHOD.md` |
 | D4 | Keep the `blake2b` bucket ordered before `equihash` | ToDo | S | `../equ/PLAN.md` |
+
+**Verified in source 2026-09-09** (`a2a691fb3`), because three of these were
+carried on documentation alone:
+
+| Item | Claim | Source check |
+|---|---|---|
+| D2 | `Xc` has no `reserve()` | **Confirmed.** `crypto/equihash.cpp:384` declares `std::vector<FullStepRow<FullWidth>> Xc;` with no reserve, while `X` (`:337`) and `Xt` (`:541`) both reserve `init_size` |
+| D3 | 1.22x measured, patch applied | **Confirmed both.** `CompareSRFixed<CollisionByteLength>()` at `equihash.cpp:557`, template at `equihash.h:90`, committed in `05cdcefe6`. **Correction:** an earlier revision of this row said the patch was "measured then reverted". That was wrong -- it read the `hashLen`/`lenIndices` declarations at `:537-538`, which serve the *other* sort sites, and missed the converted call at `:557` |
+| D5 | tromp 5.69x | **Confirmed both.** Vendored solver at `src/pow/tromp/`, selected by `equihashsolver=tromp` (`miner.cpp:540`, `:663`); figure is M-EQ-TROMP-SPEEDUP |
+
+**D2 -- ready, and here is the whole change.** `Xc` accumulates collision rows
+while `X` is still live, so it reallocates repeatedly with both full-size
+buffers resident; `M-EQ-PEAK-DEFAULT` is 7.15 GB peak / 6.6 GB footprint and
+`equ/FINDINGS.md` S1.1b attributes roughly half of it to this. One line,
+before the fill loop:
+
+```cpp
+std::vector<FullStepRow<FullWidth>> Xc;
+Xc.reserve(/* expected collisions this round */);   // D2
+```
+
+- **Reward:** the memory half of the (192,7) problem. Peak footprint is what
+  gates independent-solve parallelism (`equ/PLAN.md` S6.0), so this is worth
+  more than its cost suggests.
+- **Risk: low, and bounded by the gates.** It cannot change solutions -- only
+  the allocation schedule. V1 is "solutions unchanged"; the V2 oracle
+  (`test-logs/eqvectors/solver_baseline_192_7.txt`, 5 distinct solutions,
+  archived and `0444`) is the check.
+- **Dependencies: none outstanding.** The fixed-nonce paired harness exists
+  (`SOLVE_TIMING_1927`), the baseline is archived (C4e Finished), and D3 proved
+  the paired method resolves a ~20% effect. A binary is present (`src/zerod`,
+  `src/test/test_bitcoin`, built 2026-09-05) but must be **rebuilt** after the
+  edit.
+- **Sizing is the only judgement.** Reserving too much wastes what the change
+  is trying to save. `equ/PLAN.md` proposes per-round counters (C4 automation
+  item 4) to size it from data rather than guessing -- worth doing first if the
+  first guess measures badly.
+
+**D3 -- what moves it to Finished.** Patch applied, measured, committed, and
+the rationale is terse in-code (`equihash.h:85-88` says which sites are
+constant and which are not). What is outstanding is only **V2 revalidation on
+the committed form** -- the 1.22x was taken on a working-tree patch, and no
+recorded run confirms the committed code still produces the 5 baseline
+solutions. That run is D3's exit condition, not a re-implementation.
+
+**Only site 557 was converted, and that is correct.** `hashLen` shrinks by
+`CollisionByteLength` each round, so the final-round and partial-merge sorts
+(`:436`, `:622`, `:692`) pass a genuinely runtime length; folding those needs
+per-round instantiation, which is the per-round-width work in `equ/PLAN.md`
+S1.2, not this item. `:378` is the same sort in `BasicSolve`, which mining does
+not use.
+
+**D5 -- Finished 2026-09-09.** tromp is now the default (`miner.cpp:544`),
+with a parameter guard falling back to the reference solver off (192,7)
+(`:552`) -- required, because the vendored solver is compiled for fixed WN/WK
+and the default change made regtest reach it for the first time. Help text and
+metrics reporting aligned; conf templates already said `tromp`. New test
+`miner_tests/equihashsolver_default_and_param_guard` pins both halves and was
+mutation-tested. Full record: `test-logs/tromp-default-20260909/FINDINGS.md`.
+Needs a release note.
 
 ## F -- regression gating and CI
 
@@ -626,6 +701,59 @@ Steps:
 (i) is the one that matters; the rest are tidiness with a small safety
 component.
 
+**Disposition, 2026-09-09.** Eight open steps is a backlog, not a plan. Sorted
+by whether anything actually depends on them:
+
+| Step | Disposition | Why |
+|------|-------------|-----|
+| **i** consolidate datadir protection | **Do it.** Effort S | Three implementations of the guard that stops a lab destroying a production datadir (`perflib.sh:147`, `prep_lab_datadir.sh:37`, `datadir_guard.sh:33`). POLICY S3.1 records this class of bug already destroying a datadir once. This is the only safety item on the list |
+| **j** promote the timeout-guarded `cli()` | **Do it with (i).** Effort XS | `res_sample.sh:34` wraps in `timeout`, `witness_lab.sh:78` does not, and the unguarded one is exactly the documented `getwalletinfo`/`cs_wallet` blocking hazard. Promoting the safer version turns a caveat into a default |
+| **n/o/p** `checkpoint_row` -> `progress.tsv` -> ledger | **Defer to C4.** | These exist to make long runs restartable and only pay off when a long run is actually scheduled. C4 is the campaign that needs them; building them earlier means guessing the column set |
+| **k** `utc_iso()` beside `utc_stamp()` | **Close as won't-do.** | Three UTC formats across 16 sites, all three legitimate (filenames, row fields, logs). Unifying them changes filenames for no benefit |
+| **m** source `perflib.sh` in 3 more scripts | **Fold into (i).** | Two of the three are the datadir-guard scripts (i) already rewrites |
+| **q** state restartability in POLICY S4 | **Do it.** Effort XS | One paragraph; the ~20 min heuristic is misleading without it (a 17-minute restartable trial and an unrestartable multi-hour rescan are not the same risk) |
+
+Net: (i)+(j)+(m) as one change, (q) as a paragraph, (n/o/p) deferred to C4,
+(k) closed. That is one task instead of eight.
+
+### E2. Script corpus and schema -- one item
+
+**Consolidates E1, T4e, T4g, A2 and A4**, which tracked one body of work under
+five ids. Subitems keep their letters so existing references resolve.
+
+| Subitem | From | State |
+|---------|------|-------|
+| Shared library, datadir policy, value guards, launcher migration (a-h) | E1 | **Finished** |
+| Consolidate datadir protection on one implementation (i) + `cli()` timeout (j) + source perflib in 3 scripts (m) | E1 | **In process** -- one change, the only safety item |
+| Restartability paragraph in POLICY S4 (q) | E1 | **In process** -- with (i) |
+| `checkpoint_row` -> `progress.tsv` -> ledger (n/o/p), and use the series not the endpoint | E1, T4e | **Postponed to C4** -- needs a scheduled long run to size the columns |
+| `utc_iso()` unification (k) | E1 | **Closed, won't do** -- three formats, all legitimate |
+| Machine-readable handoff between `witness_lab.sh` and `ops-campaign.sh` | T4g | **Undecided** -- `key=value` file or a RecBench row; both work, pick one |
+| `op` enum + validation + back-annotation (A4a/b/f, A2c) | A4, A2 | **In process** -- load-bearing; blocks C4 |
+| `wallet_shape`, `era` derivation, pooling guard (A4c/d/e) | A4 | **Postponed** -- needs the enum first |
+| Fingerprint v2, cross-platform pooling guard (A2e/f) | A2 | **Postponed** -- blocked on B2, no Linux row exists to test against |
+
+**Why one item:** all of it is the harness that records measurements, and the
+five ids meant a reader had to assemble the state from five places. The
+duplicate pair (A2c and A4f were the same job) is now stated once.
+
+### T4/T4g/T4e -- disposition
+
+| Item | Disposition | Why |
+|------|-------------|-----|
+| **T4g** numbers passed as prose | **Do it.** Effort S | `witness_lab.sh` writes `wall_s=$elapsed` into `SUMMARY.txt`; `ops-campaign.sh` recovers it by regex, and an integer-only pattern silently truncated `141.763` to `141`. Caught by review, not by a test -- so the same class of bug is undetectable elsewhere in the chain. Fix: write a `key=value` file the consumer sources, or a RecBench row |
+| **T4e** endpoint vs progress series | **Fold into C4 (n/o/p).** | Same subject: the series exists in `debug.log`, collation reads only the endpoint, and a single blk/s figure hides a 28% spread across height bands (M-LAB-BAND-TINY). It is the reason (n/o/p) is worth doing, so track it there rather than twice |
+
+### A2/A4 -- schema items, and what actually blocks what
+
+| Item | Disposition | Why |
+|------|-------------|-----|
+| **A4a/b** `op` enum + validation | **Do first of the schema items.** Effort S | `--op` is unvalidated free text, so the pooling guard has no key and every existing row reads `reindex`. An enum nothing checks is a comment. (a) and (b) are load-bearing; (c)-(f) are not |
+| **A4f** back-annotate 49 rows | **Do with (a)/(b).** Effort XS | Only `op` and `era` are derivable; both are. The point is that old rows can be *correctly excluded*, not that they be complete |
+| **A4c/d/e** wallet_shape, era derivation, pooling guard | **After (a)/(b).** | (e) is what converts the taxonomy into a guard, but it needs the enum to key on |
+| **A2c** `features` back-annotation | **Same work as A4f.** Close the duplicate id | Two ids for one job is the double-record problem the board exists to prevent |
+| **A2e/f** fingerprint v2, pooling guard | **Blocked on B2, not on effort.** | A2f refuses to pool a Linux row with a macOS one. There are no Linux rows, so it cannot be tested. Do it when B2 produces one |
+
 **Kanban: InProgress. Effort M**, dominated by (e) and (f).
 
 ---
@@ -660,52 +788,273 @@ of P4. P1, P2 and P5 are independent of each other.
 
 | Item | Kanban | Disposition | Effort | Evidence |
 |------|--------|-------------|--------|----------|
-| P1 Proof-verification counters | ToDo | Open | S-M | `../PerfTimers.md` S3, `FINDINGS.md` S1.1 |
+| P1 Proof-verification counters | **InTest** | Open | S-M | prototype builds both configs; `test-logs/p1-proto-20260910/` |
 | P2 NOTEIDX staleness | ToDo | Open | S | `FINDINGS.md` S3.1 |
 | P4 Witness RPC gate inconsistent | **InTest** | Open | S-M | this file, P4. Steps 1-2 landed |
 | P5 `boost::optional` -> `std::optional` | ToDo | Open | M | this file, P5 |
 | P6 Anchor depth for shielded spends | ToDo | Open | L | this file, P6 |
 | P7 Coin-selection call clarity | ToDo | Open | S-M | this file, P7 |
+| P8 FDCACHE disposition | -- | **Postponed** | S-M | `../Perf.md` S3 |
+| P9 Note locking / single-worker | ToDo | Open | S | this file, P9 -- **needs a decision** |
+| P10 Explicit parameters at defaulted calls | ToDo | Open | S | this file, P10 |
+| P11 tromp driver duplicated | ToDo | Open | S | this file, P11 |
 
-## Aside -- postponed, pending review
+### P11. The tromp solver driver is written twice
 
-**Renamed from "will not do".** Nothing here has been refused on the merits;
-each was set down because something else was worth more at the time, or because
-the evidence then available said the return was small. That is a **judgement
-against a snapshot**, and several of the snapshots are already stale -- the
-Equihash analysis (`../equ/`) re-examined vectorisation on the mining track after it had
-been set aside on the sync track, and found the share larger but the work
-harder. That item has since been **settled outright**: the kernel was built in
-uniblake and measured slower than scalar, so it left the Aside list as a
-negative result rather than as a reopened one. That is the pattern this rename
-anticipates -- the snapshot changes, so the judgement is revisited; a revisit
-can close an item as readily as reopen it.
+`miner.cpp:668-700` and `src/test/equihash_tests.cpp:414-450` each contain the
+same call sequence -- `setstate`, `digit0`, the `digitodd`/`digiteven` round
+loop, `digitK`, then the solution walk. **Copied, not shared**, and the copies
+have already drifted: the test zeroes `xfull`/`bfull`/`hfull` *before*
+`digit0`, the miner does not; the miner calls `showbsizes()` per round, the
+test does not.
 
-Each item states the condition that would reopen it. An item with no such
-condition is either genuinely closed or has not been thought through -- both
-worth knowing.
+The test comment says the driver is "lifted verbatim from `miner.cpp` so this
+measures the code path a miner actually runs". That is the intent, and
+duplication is exactly what breaks it -- a change to the miner's sequence
+silently stops the benchmark measuring the miner.
 
-| Item | Reason set down | What would reopen it |
-|------|-----------------|----------------------|
-| Drop `cs_main` during the witness height walk | Abort-and-restart cannot converge once walk time exceeds block spacing | A design that checkpoints rather than restarts; or NOTEIDX reducing walk time below spacing |
-| CleanIndex gtest harness | Needs anchors and disk-backed blocks the gtest harness lacks | `reindex_shielded.py` proving insufficient, or the gtest harness gaining disk-backed fixtures |
-| FDCACHE buffer-size sweep | Measured null (`../Perf.md` S3) | A workload that is **not** CPU-bound -- a slower-storage host, random `getblock` serving (A5-a2), or post-Groth-batching |
-| SIMD for the Equihash round merge | Not analysed | **TBD, on hold.** Reopens on a decision to invest in arm64 mining |
-| Halo / Orchard | Not Zero consensus | A deliberate NU that adopts them. Not a lab decision |
-| Post-Sapling bootstrap / sync captures **as a comparison** | A and B agree within ~3 points (`FINDINGS.md` S3.4) | Superseded in part: C4 schedules these as **utilization** cells, which is a different question than re-proving the equivalence |
-| Remove dead `nNotarizations` | Not worth a commit of its own | `chain.h` being touched for another reason |
-| Native Windows ETW profiling | Blocked on symbol format and an unvalidated MXE build path (`../PerfPlatforms.md`) | A validated Windows build, which is a prerequisite anyway. Reopens if Windows becomes a mining target (`../equ/PLAN.md` S8) |
+**Proposed resolution:** extract one `EhSolveTromp(state, nsols_out, ...)`
+helper, called by both. `miner.cpp` keeps its cancellation and
+`showbsizes` handling around it; the test keeps its `PERF_PROBE`
+instrumentation around it. **Effort S.**
+
+**Why it is not urgent:** both copies currently produce identical solution
+sets on the same nonces (M-EQ-TROMP-PAIRED), so the drift has not yet changed
+behaviour. It is a maintenance hazard, not a live defect.
+
+**Memory and concurrency, checked while reading this:**
+
+- Allocation is **per-instance**: `htalloc::alloc` uses `calloc`, freed by
+  `~equi() -> dealloctrees()` (`equi_miner.h:281,323`). Two `equi` objects
+  share nothing, so concurrent *independent* solves need no lock -- they need
+  memory (~3.3 GB each, M-EQ-PEAK-TROMP).
+- Slot and solution counters are `au32`, which is `std::atomic<u32>` **only
+  under `EQUIHASH_TROMP_THREADED`** (`equi_miner.h:39-44`). `miner.cpp`
+  constructs `equi eq(1)`, so that is off and the plain `u32` path is used.
+- **`xfull` / `bfull` / `hfull` are plain `u32` regardless** (`:302-304`) and
+  are incremented in the hot path (`:566`). They are diagnostics, not
+  correctness state, but they would race if the threaded path were ever
+  enabled. The header already documents that threads, atomics and the barrier
+  "are one feature and must move together"; these three counters are **not**
+  covered by that statement and should be, if `nthreads > 1` is ever passed.
+
+### P8. FDCACHE: lock lifetime, flag split, probe
+
+**Postponed.** Everything about the `-perffdcache` / `-perfbufsize` experiment
+that is node code, collected here so it is one item rather than five scattered
+across A5. The subject itself -- mechanism, measured result, concurrency bound
+-- is `../Perf.md` S3.
+
+**Why postponed rather than open:** the flag is compiled out of release builds,
+defaults off even under `--enable-perf`, and measured no throughput win at
+either era (M-CPU-FD-THR). Nothing depends on it. It is retained because the
+null is one platform (macOS/arm64, warm page cache) and macOS stdio does not
+predict Linux or Windows -- so the disposition is a **B2 output**, not a
+decision to take now.
+
+| Step | What | Reachable today? |
+|------|------|------------------|
+| a | Lock lifetime: `CacheOpen` drops `LOCK(latch.cs)` at return, caller reads the shared `FILE*` unlocked. Fix with an RAII lease across seek+read, or positional `pread` | No -- needs `--enable-perf` **and** `-perffdcache=1` |
+| b | Split `--enable-perf` into counters (safe) and experimental behaviour (FDCACHE), so the counters can be built without the experiment | No -- build-time only |
+| c | Re-verify the FDCACHE probe and the `HelpMessage` gap; the probe reportedly always returns false, which mislabels provenance | No -- affects lab labelling, not the node |
+
+**Order if it resumes:** (a) before any multi-reader measurement, because
+concurrent readers are exactly the unsafe condition. (b) is independent and is
+the one worth doing even if FDCACHE is dropped -- it decouples safe counters
+from the experiment. (c) is lab hygiene.
+
+**What would reopen it:** a B2 result on Linux or Windows showing a non-null
+effect, or a workload that is not CPU-bound -- random `getblock` serving, cold
+cache, slow storage (`../Perf.md` S3 names both and how to measure them).
+
+**What would close it:** a B2 null on both platforms. Then delete the flag, the
+latch and `bench_matrix.sh`'s FDCACHE conditions rather than carrying a
+compiled-out path indefinitely.
+
+### P9. Shielded-note locking and the single-worker policy
+
+**Assessed 2026-09-09** against `src/` at `a2a691fb3` and the sibling forks in
+`ZKs/`. The original R0 premise cited upstream `234aaa3a`; **that hash does not
+resolve in the upstream repo**, so the claim "the fix is in crates absent from
+Zero's pin" is **unverified and probably wrong** -- what was found instead is
+below, and it is a C++ wallet matter, not a Rust crate one.
+
+**What exists.** Zero has shielded-note locking: `setLockedSaplingNotes`
+(`wallet.h:1110`), `IsLockedNote` for `JSOutPoint` and `SaplingOutPoint`
+(`:1135`, `:1146`). Selection honours it -- `GetFilteredNotes` skips locked
+notes at `wallet.cpp:6034` / `:6107`, with `ignoreLocked` defaulting true.
+
+| Operation | Locks its inputs? |
+|-----------|-------------------|
+| `z_mergetoaddress` | **Yes** -- `lock_notes()` / `unlock_notes()` (`asyncrpcoperation_mergetoaddress.cpp:116`, `:130`, `:185`) |
+| `z_sendmany` | **No** -- zero `LockNote` calls |
+| `z_shieldcoinbase` | **No** |
+
+**The single-worker policy: found, with the reason in the commit.** Searched
+Zcash history rather than inferring:
+
+| Commit | Date | What |
+|---|---|---|
+| `8d08172d0` | 2016-08-19 | Adds `-rpcasyncthreads`, default 1. Shipped in release-notes-1.0.0-beta1 |
+| `008fccfa4` | **2016-09-01** | **Disables it, 13 days later, same author** |
+| `4e6400bc0` | 2018-03-15 | **Note locking for `z_mergetoaddress`** (PR #3106, issue #3046, "mergetoaddress-concurrent"). This is the `lock_notes()`/`unlock_notes()` Zero has |
+| `0e0f5e4ea` | 2018-09-12 | **Sapling note locking in `CWallet`** (PR #3496, closes issue #3442). This is `setLockedSaplingNotes` / `IsLockedNote` -- **Zero has this too**, commit `b6b2b5d26` |
+| `06553d139` | 2022-10-24 | **Note locking for the send path**, in `wallet_tx_builder` (PR #6408), fixing issues **#2621** and **#5654**. Orchard deliberately excluded, tracked separately |
+| `69ab52cb3` | 2023-03-30 | Doxygen for note locking |
+| `2d456afeb` | 2023-03-31 | Merge of #6408 |
+
+The disabling commit states the reason in the code it left behind:
+
+> `// Disabled until we can lock notes and also tune performance of libsnark`
+> `// which by default uses multiple threads`
+
+**So note locking was always the named precondition for multiple workers** --
+this is not an inference. Upstream met it in 2022 and the worker loop is live
+again in current zcashd (`rpc/server.cpp:349`), while the help text stays
+commented out.
+
+**Zero has the first two and not the third.** It carries `4e6400bc0`
+(mergetoaddress locking) and `0e0f5e4ea` (Sapling note locking in `CWallet`,
+as `b6b2b5d26`), which is why the mechanism exists and `mergetoaddress` uses
+it. It stops before `06553d139`, which is the one that put locking on the
+**send** path -- and that landed in `wallet_tx_builder`, a file Zero does not
+have and which upstream introduced as part of a wholesale restructure of
+transaction construction.
+
+So the gap is real, its shape is known, and closing it upstream's way means
+adopting `wallet_tx_builder`. That is the honest scope: **not a 20-line patch**
+as an earlier revision of this item estimated. The original R0 note was
+directionally right about the exposure and wrong about the location -- it is
+C++ wallet code, not a Rust crate version.
+
+**Issue trail, for anyone re-opening this:** upstream #3046 (concurrent
+mergetoaddress) -> #3442 (Sapling note locking) -> **#2621 / #5654** (the send
+path, fixed 2022). Zero closed the first two.
+
+**Provenance: this is inherited, not a Zero defect.** Checked across
+`ZKs/{zcash,ycash,hush3,zclassic,pirate}`:
+
+- The `mergetoaddress`-locks / `sendmany`-does-not asymmetry comes from the
+  2018-era Zcash base Zero forked from.
+- **Modern upstream deleted the convenience overload entirely.** Current
+  zcashd has one `GetFilteredNotes` with every parameter explicit, including a
+  `NoteFilter` and `asOfHeight` (`zcash/src/wallet/wallet.h:2203`). It also
+  restructured the async operations, so neither `LockNote` in `sendmany` nor
+  `lock_notes` in `mergetoaddress` survives in that form.
+- **The single-worker policy is upstream and deliberate.** The comment
+  "Launch one async rpc worker. The ability to launch multiple workers is not
+  recommended at present and thus the option is disabled" is **byte-identical
+  in all five forks**, predates Zcash's 2016 `rpc/` move (`4519a766b`), and is
+  still in zcashd as of 2023. It is a ten-year-stable decision, not an
+  oversight.
+
+**So the disposition changes.** The safety property is upstream policy that
+five independent projects have kept. Zero is not exposed today, and matching
+upstream means **keeping one worker**, not adding locks to work around removing
+it.
+
+| # | Action | Recommendation |
+|---|--------|----------------|
+| 1 | Comment at `rpc/server.cpp:311` recording *why* single-worker matters -- that `z_sendmany` selection is unreserved and serialisation is what makes it safe | **Do.** Zero risk, and it is the missing half of an existing upstream comment that says "not recommended" without saying what breaks |
+| 2 | Add `lock_notes()`/`unlock_notes()` to `sendmany`, mirroring `mergetoaddress` | **Ask first.** It is ~20 lines against an in-tree pattern and removes the dependency on worker count -- but it diverges from a 2018 base that upstream has since restructured wholesale, and it touches wallet spend selection. See the question below |
+| 3 | Same for `z_shieldcoinbase` | With (2) or not at all |
+
+**Open question for the maintainer.** Do we harden `sendmany` (2), or record
+the coupling and leave it (1 only)?
+
+- **Pro hardening:** defence in depth; the property stops depending on a
+  comment; the pattern already exists two files away.
+- **Con:** it is local divergence on wallet spend selection in a tree that
+  pins a 2018 base; upstream's own answer was to restructure the whole async
+  path, which Zero is not doing; and the failure it prevents is unreachable
+  unless someone re-enables a disabled option.
+- **Recommendation: (1) now, (2) only if `-rpcasyncthreads` is ever
+  reconsidered.** The comment is what makes the coupling discoverable, and it
+  is the change that cannot be wrong.
+
+**Kanban: ToDo (item 1). Disposition: Open.** Owner Zero400.
+
+### P10. Explicit parameters at defaulted call sites
+
+**Rule.** A call that relies on defaulted parameters must be justified in a
+terse comment naming the values taken and why, **or** pass them explicitly.
+When in doubt, pass them explicitly.
+
+**The case that prompted it.** `asyncrpcoperation_sendmany.cpp:955` calls the
+6-argument `GetFilteredNotes(sproutEntries, saplingEntries, fromaddress_,
+mindepth_)` -- and that overload has **no `ignoreLocked` parameter at all**. It
+forwards to the 9-argument form (`wallet.cpp:5982`), which defaults
+`ignoreLocked=true`. Reading the call site, nothing says whether locked notes
+are skipped; it takes two hops and a header to find out.
+
+**Scope of the change, measured before proposing it:**
+
+| Site | What is hidden |
+|------|----------------|
+| `asyncrpcoperation_sendmany.cpp:955` | `maxDepth=INT_MAX`, `ignoreSpent=true`, `requireSpendingKey=true`, `ignoreLocked=true` |
+| Other `GetFilteredNotes` callers | To be enumerated as part of the item |
+
+**Provenance, and why that matters here.** The wrapper is **upstream Zcash**
+(`39e58e79b`, 2018-10-09, "Add functionality from GetUnspentFilteredNotes to
+GetFilteredNotes") and is present identically in ycash, hush3, zclassic and
+pirate. Zero did not write it. Modern upstream **removed** it in favour of one
+fully-explicit signature -- so making Zero's call sites explicit moves *toward*
+upstream's own conclusion rather than away from it, which is the opposite of
+the usual divergence risk.
+
+**Proposed resolution:** add the explicit arguments at the call sites (no
+signature change, no behaviour change, trivially reviewable), and a one-line
+comment where a default is genuinely load-bearing. Do **not** delete the
+overload -- that is upstream's restructure, not ours.
+
+**Applies beyond this function.** The rule is general: prefer explicit
+arguments at any call where a defaulted parameter changes what the code does,
+and where the default is not obvious from the call site.
+
+**Kanban: ToDo. Effort S.** Owner Zero400 (`src/wallet/`).
+
+### Linux and Windows -- one postponed group, pending a current-version build
+
+Scattered across B2, C3, the release track and the Aside list. Grouped here
+because **every one of them has the same prerequisite**: a validated build on
+that platform at the current version. Scheduling any single item still pays
+that cost, so they are one unit of work, and listing them separately overstates
+how much is ready to start. This is WIP pending a remeasure, not a backlog.
+
+| Item | Platform | State |
+|------|----------|-------|
+| **B2** first non-macOS capture (steps a, b, d) | Linux | Step (c) Finished -- the folded-stack parser works and is self-tested. (d) needs a host to validate `psutil` against |
+| FDCACHE validation (**P8**) | Linux + Windows | The null is macOS-only; macOS stdio predicts neither |
+| Cold-cache measurement | Linux only | Needs `/proc/sys/vm/drop_caches` |
+| `--strict` / `--suite` release track | Linux | Last run predates this branch's build and test changes; needs a retest, not a first run |
+| MXE cross-build | Windows | **Never executed in this program.** No baseline exists -- this is a first run, not a retest |
+| Windows hardening; native ETW profiling | Windows | Blocked on the MXE build above |
+| Params archival, branch-id CI, OpenSSL 3, Debian packaging | Both | Release engineering behind the same gate |
+
+**Two different things in one group.** Linux items are a **remeasure** -- the
+capability exists and the numbers are stale. Windows items are a **first
+build** -- MXE has never been executed here, so "unproven" understates it.
+Keeping them together is right because both wait on the same host work, but
+they should not be estimated as if they were the same risk.
+
+**What unblocks it:** one Linux host with a clean checkout. That single run
+also moves A2e/f, F1, C1 and D3/D5 out of InTest, which is why B2 is the
+highest-value item on the board and why this group is postponed rather than
+abandoned.
+
+**Postponed, not refused.** Reopens the moment a non-macOS host is available.
 
 ---
 
 ## Vectorisation
 
-Subject owner: `uniblake/docs/NEON.md` for kernel results; `equ/` for solver
-ISA work. This section lists items only.
+Items and state only. Solver ISA work is owned by `../equ/`; blake2b kernel
+results are **not this tree's** and are cited from `docs/HASHLIBS.md`, which
+owns the library division.
 
 | Item | State | Note |
 |---|---|---|
-| blake2b vector kernel A/B | **Closed** | Measured in uniblake; slower than scalar there. Not restated here |
+| blake2b vector kernel A/B | **Closed** | Negative result adopted from the kernel library; figures and their provenance are `docs/HASHLIBS.md`. Not restated here |
 | Solver ISA work (AVX2 / Arm SIMD) | **Open** | Owner: `equ/PLAN.md` S2 |
 | `INV-ARM-MIX` -- deployment fleet mix | **Open** | Gates whether any ARM vector work is worth scheduling |
 | `mine_bench.sh` probe mode | **Kept** | Test mode; not used in production in the current version |
@@ -935,10 +1284,45 @@ Detail in each suite's source.
 
 | # | Item | Note |
 |---|---|---|
-| R0 | **Note locking: assess, document and address Zero's exposure.** Upstream `234aaa3a` (2026-07-27) locks a proved transaction's notes so ordinary selection cannot re-hand them; the fix is in crates absent from Zero's 2018 pin. Determine whether Zero's own note selection can hand the same notes to a second transaction while a proved one is broadcastable, document the finding, and fix if present. Owner: Zero400 if it is a node change |
-| R1 | Profile the non-blake2b libsodium surface (Ed25519 48 calls, AEAD 8, scalarmult 3) | Nothing there is profiled; `docs/HASHLIBS.md` S1.5A. Answer "is it hot" before designing |
-| R2 | Measure `init_salt_personal` share of a one-shot digest | Decides whether `docs/HASHLIBS.md` S1.5D (uniblake parameter-block entry point) is worth building |
-| R3 | Evaluate `CBLAKE2bWriter` on uniblake | Expected null (bulk case is 1.01x); the case is uniformity, not speed, on consensus hashing |
+| R0 | **Note locking -- assessed 2026-09-09; see P9.** The premise was wrong in one direction and right in another: Zero **does** have shielded-note locking, and the async RPC queue runs **one worker**, so the double-hand scenario is not reachable today. `z_sendmany` never locks the notes it selects, so the protection depends entirely on that single-worker serialisation. Moved to **P9** |
+| R1 | Profile the non-blake2b libsodium surface (Ed25519 48 calls, AEAD 8, scalarmult 3) | Nothing there is profiled; `docs/HASHLIBS.md` S1.5A. Answer "is it hot" before designing. **Plan below** |
+| R2 | Measure `init_salt_personal` share of a one-shot digest | Decides whether `docs/HASHLIBS.md` S1.5D is worth building. **Plan below** |
+| R3 | Evaluate `CBLAKE2bWriter` on uniblake | Expected null (bulk case is 1.01x); the case is uniformity, not speed. **Plan below** |
+
+#### R1-R3: where each runs, and why
+
+Not one topic: **R1 is a node profiling question; R2 and R3 are kernel
+questions** and belong in the sibling library's tree with its own bench harness
+and measurement format (`docs/HASHLIBS.md` owns the division).
+
+| | Question | Tree | Records to |
+|---|---|---|---|
+| **R1** | Is any non-blake2b libsodium call hot during sync? | ZeroPerf | `M-*` in `Measures.md` |
+| **R2** | What share of a one-shot digest is parameter-block setup? | Kernel library | its `measurements.tsv` |
+| **R3** | Does the streaming entry point behave like the bulk one? | Kernel library, then a node A/B only if non-null | tsv, then `M-*` if it reaches the node |
+
+**R1 needs no new run.** The six-capture sequence behind M-CPU-SEQ already
+contains these frames; `classify()` in `bucket_profile2.py` folds them into a
+general bucket. Add `crypto_sign_*`, `crypto_aead_*`, `crypto_scalarmult*` as
+their own buckets, re-bucket the archived captures, done. Cheapest of the
+three, so first.
+
+**R2 and R3 are library properties, independent of Zero.** The harness and a
+provenance-carrying format already exist there; re-implementing either here
+would duplicate both and produce figures that cannot sit beside the 2.03x
+Equihash-pattern result they need to be compared with.
+
+**R3's node half is gated on its kernel half.** `CBLAKE2bWriter` is the only
+high-volume consensus site (`docs/HASHLIBS.md` S1.5C). A null on the streaming
+pattern -- expected, bulk is 1.01x -- closes R3 as a negative result with
+nothing to port. Only a non-null justifies a node A/B, and that is consensus
+hashing, so it needs the bit-identical gate the Equihash swap used.
+
+**Order:** R1, then R2 (decides whether S1.5D is worth building), then R3
+(close it either way).
+
+**Prerequisite for all three:** none. They do not depend on B2, GROTH, or the
+documentation work.
 | T4g | **`witness_lab.sh` -> `ops-campaign.sh` passes numbers as prose.** The producer writes `wall_s=$elapsed` into `SUMMARY.txt`; the consumer recovers it with a regex. An integer-only pattern silently truncated `141.763` to `141` when millisecond timing landed -- caught by review, not by a test. Both are shell scripts in one tree: the value should be written as a machine-readable field (a `key=value` file sourced by the consumer, or a RecBench row) rather than scraped from a summary written for humans |
 | T4e | Use the progress series, not just the endpoint | Every run now yields a height/time series (M-LAB-BAND-TINY). A single blk/s figure hides a 28% spread across height bands; collation reads only the endpoint |
 
