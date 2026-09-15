@@ -422,32 +422,27 @@ BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
 #ifdef PERF_PROBE
             // Diagnostic only. genSecs isolates leaf generation (all the
             // blake2b) from the merge rounds; sumX/sumB/sumH accumulate the
-            // drop counters that are otherwise reset and discarded per round:
+            // drop counters that EhTrompSolveRounds resets after each round:
             // xfull = xhash list (XFULL) overflow, bfull = bucket (NSLOTS)
             // overflow, hfull = duplicate-hash rejects. Nonzero xfull/bfull
             // mean pairs were dropped and solutions may be lost.
             u32 sumX = 0, sumB = 0, sumH = 0;
             const int64_t g0 = GetTimeMicros();
-#endif
-            eq.digit0(0);
-#ifdef PERF_PROBE
-            const int64_t g1 = GetTimeMicros();
+            int64_t g1 = 0;
+            EhTrompSolveRounds(eq, [&](u32 r, equi &e) {
+                if (r == 0) g1 = GetTimeMicros();
+                sumX += e.xfull; sumB += e.bfull; sumH += e.hfull;
+            });
             genSecs = (g1 - g0) / 1000000.0;
-            sumX += eq.xfull; sumB += eq.bfull; sumH += eq.hfull;
-#endif
-            eq.xfull = eq.bfull = eq.hfull = 0;
-            for (u32 r = 1; r < WK; r++) {
-                (r & 1) ? eq.digitodd(r, 0) : eq.digiteven(r, 0);
-#ifdef PERF_PROBE
-                sumX += eq.xfull; sumB += eq.bfull; sumH += eq.hfull;
-#endif
-                eq.xfull = eq.bfull = eq.hfull = 0;
-            }
-            eq.digitK(0);
-#ifdef PERF_PROBE
+            // digitK's drops are not covered by the hook (it fires for rounds
+            // 0..WK-1, matching what the miner observed), so add them here.
             sumX += eq.xfull; sumB += eq.bfull; sumH += eq.hfull;
             BOOST_TEST_MESSAGE("  tromp drops: xfull=" << sumX
                                << " bfull=" << sumB << " hfull=" << sumH);
+#else
+            // Same round sequence the miner runs -- one definition, in
+            // pow/tromp/equi_miner.h, so the two cannot drift.
+            EhTrompSolveRounds(eq, EhTrompNoHook());
 #endif
             rawSols = eq.nsols;
             for (size_t si = 0; si < eq.nsols; si++) {
@@ -479,8 +474,18 @@ BOOST_AUTO_TEST_CASE(solver_timing_192_7) {
                                " truncated and this nonce is not comparable");
         }
 
-        // Every solution must verify: a faster solver emitting garbage is not
-        // faster. V1 inside the timing loop so a bad number cannot be recorded.
+        // V1: every solution must verify. A faster solver that emits garbage is
+        // not faster, and a "speedup" that drops solutions is a loss in Sol/s,
+        // which is why nsols is reported beside the time.
+        //
+        // Placement: inside the per-nonce loop, but AFTER t1 -- so verification
+        // is not in the timed window and cannot inflate the measurement. It is
+        // in the loop rather than after it so a bad solution fails the trial
+        // that produced it, naming the nonce, instead of surfacing at the end
+        // with nothing to attribute it to.
+        //
+        // Cost is not on the hot path either way: EhIsValidSolution over 2-5
+        // solutions is milliseconds against a multi-second solve.
         for (const auto& idx : sols) {
             std::vector<eh_index> ehidx(idx.begin(), idx.end());
             bool ok = false;

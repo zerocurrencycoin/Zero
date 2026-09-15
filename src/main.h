@@ -258,6 +258,32 @@ static const int64_t PERF_LOG_EVERY_MAX = 100000000;
  *  Call from init before any block is connected: it is a modulo divisor. */
 void InitPerfLogEvery();
 extern int64_t nPerfLogEvery;
+
+/** P1 prototype: proof-verification counters.
+ *
+ *  Groth16 and JoinSplit proof verification sit outside every existing
+ *  ConnectBlock timer -- Sprout JoinSplit verification runs in CheckBlock
+ *  before nTimeStart, and Sapling spend/output verification runs in
+ *  ContextualCheckTransaction during block acceptance, outside ConnectTip
+ *  entirely. So -debug=bench cannot see the dominant post-Sapling cost
+ *  (48-55% chain-wide, 88-91% deep post-Sapling; ZeroPerf M-CPU-SEQ).
+ *
+ *  These accumulate wall micros and call counts at the four verification
+ *  sites so a phase summary can report what actually dominates. Read-only
+ *  instrumentation: no consensus effect, compiled out unless ZERO_PERF.
+ *
+ *  Counters are process-global and monotonic. They are incremented under no
+ *  lock: each site is already serialised by the caller during block
+ *  connection, and a lost increment would cost accuracy, never correctness. */
+struct PerfProofCounters {
+    int64_t usSaplingSpend;    int64_t nSaplingSpend;
+    int64_t usSaplingOutput;   int64_t nSaplingOutput;
+    int64_t usSaplingFinal;    int64_t nSaplingFinal;
+    int64_t usJoinSplit;       int64_t nJoinSplit;
+};
+extern PerfProofCounters perfProof;
+/** Log and (optionally) reset the accumulated proof counters. */
+void LogPerfProofCounters(int nHeight);
 #endif
 
 #ifdef ZERO_FDCACHE

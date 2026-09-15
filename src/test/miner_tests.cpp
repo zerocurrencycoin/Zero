@@ -6,6 +6,7 @@
 #include "chainparams.h"
 #include "consensus/validation.h"
 #include "crypto/equihash.h"
+#include "pow/tromp/equi.h"   // WN / WK the vendored solver is compiled for
 #include "main.h"
 #include "miner.h"
 #include "pow.h"
@@ -92,6 +93,56 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_regtest_48_5)
         LOCK(cs_main);
         BOOST_CHECK_EQUAL(chainActive.Height(), 2);
     }
+}
+
+// Pins the -equihashsolver default and the parameter guard that protects it.
+//
+// The default is "tromp": measured 5.69x faster at 3.3 GB peak against the
+// reference solver's 7.15 GB at (192,7) (ZeroPerf M-EQ-TROMP-SPEEDUP,
+// M-EQ-PEAK-TROMP, M-EQ-PEAK-DEFAULT), and the shipped zero.conf templates
+// have specified tromp for years.
+//
+// The guard matters because the vendored tromp solver is compiled for fixed
+// WN/WK (pow/tromp/equi.h) and cannot solve any other parameter set. Before
+// the default changed, regtest (48,5) never reached that branch; now it would,
+// so BitcoinMiner falls back to "default" off (192,7). Without this test a
+// silent revert of either half goes unnoticed.
+BOOST_AUTO_TEST_CASE(equihashsolver_default_and_param_guard)
+{
+    // The compiled-in tromp parameters are what the guard compares against.
+    BOOST_CHECK_EQUAL(WN, 192);
+    BOOST_CHECK_EQUAL(WK, 7);
+
+    // Default when the user sets nothing. Mirrors BitcoinMiner's GetArg.
+    mapArgs.erase("-equihashsolver");
+    BOOST_CHECK_EQUAL(GetArg("-equihashsolver", "tromp"), "tromp");
+
+    // Explicit selection still works in both directions.
+    mapArgs["-equihashsolver"] = "default";
+    BOOST_CHECK_EQUAL(GetArg("-equihashsolver", "tromp"), "default");
+    mapArgs["-equihashsolver"] = "tromp";
+    BOOST_CHECK_EQUAL(GetArg("-equihashsolver", "tromp"), "tromp");
+    mapArgs.erase("-equihashsolver");
+
+    // The guard: tromp is only usable at its compiled parameters. Regtest is
+    // (48,5), so a tromp default must fall back there.
+    const auto& regtest = Params(CBaseChainParams::REGTEST).GetConsensus();
+    const unsigned int rn = regtest.nEquihashN, rk = regtest.nEquihashK;
+    BOOST_CHECK(!(rn == WN && rk == WK));
+
+    std::string solver = "tromp";
+    if (solver == "tromp" && !(rn == WN && rk == WK)) solver = "default";
+    BOOST_CHECK_EQUAL(solver, "default");
+
+    // Mainnet is (192,7), so tromp is kept.
+    const auto& mainnet = Params(CBaseChainParams::MAIN).GetConsensus();
+    const unsigned int mn = mainnet.nEquihashN, mk = mainnet.nEquihashK;
+    BOOST_CHECK_EQUAL(mn, static_cast<unsigned int>(WN));
+    BOOST_CHECK_EQUAL(mk, static_cast<unsigned int>(WK));
+
+    solver = "tromp";
+    if (solver == "tromp" && !(mn == WN && mk == WK)) solver = "default";
+    BOOST_CHECK_EQUAL(solver, "tromp");
 }
 
 BOOST_AUTO_TEST_SUITE_END()

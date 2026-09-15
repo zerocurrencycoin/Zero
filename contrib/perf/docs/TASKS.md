@@ -797,7 +797,577 @@ of P4. P1, P2 and P5 are independent of each other.
 | P8 FDCACHE disposition | -- | **Postponed** | S-M | `../Perf.md` S3 |
 | P9 Note locking / single-worker | ToDo | Open | S | this file, P9 -- **needs a decision** |
 | P10 Explicit parameters at defaulted calls | ToDo | Open | S | this file, P10 |
-| P11 tromp driver duplicated | ToDo | Open | S | this file, P11 |
+| P11 tromp driver duplicated | **Finished** | -- | S | `EhTrompSolveRounds`; `test-logs/p11-refactor-20260911/` |
+| P12 `GetSpentIndex` lock contract | ToDo | Open | S | this file, P12 |
+| P13 `CheckBlock` runs 3x per block | ToDo | Open | M | this file, P13 |
+| P14 Defensive recursive `LOCK`s | -- | **Postponed** | M | upstream-proven; no measurable gain |
+| P15 `getblockdeltas` missing `LOCK(cs_main)` | ToDo | Open | XS | with P12; upstream `14ec1016b` |
+| P16 Log volume and classification | ToDo | Open | S-M | this file, P16 |
+| P17 Out-of-order child on reindex | ToDo | Open | S | this file, P17 |
+| P18 `ShrinkDebugFile` keeps the tail | ToDo | Open | S | this file, P18 |
+| P19 Delete unbuilt `src/snark/` | ToDo | Open | XS | `docs/LIBSNARK.md` |
+| P20 `-par=0` allocates 13 idle workers | ToDo | Open | S | `docs/THREADS.md` S3e |
+
+### P19. `src/snark/` is dead code
+
+284 KB, 30 files, **not in any makefile, no objects, zero includes**. Entered
+as a subtree in 2017 (`f4d8cd127`), last touched 2017-10-11. Zcash removed
+libsnark in `9ce0caf20` (2019-06-25, v2.1.0); Pirate, Hush3 and Firo have
+removed it; **Zero and Zclassic are the only two still carrying it**, and Zero
+does not compile it. Full provenance and the ecosystem comparison:
+**`docs/LIBSNARK.md`**.
+
+**Side effect already felt:** the 2016 commit disabling multi-worker async RPC
+cited "libsnark which by default uses multiple threads". That half of the
+rationale is **void for Zero** -- the library is not built. Only the
+note-locking half (P9) still applies.
+
+### P20. `-par=0` starts 13 script-check threads on an idle node
+
+**Measured** (`docs/THREADS.md` S3e): a regtest node with default flags runs
+**29 threads, 13 of them `zcash-scriptch`** -- 45% of all threads, created at
+startup regardless of whether any script will be checked.
+
+The objection is not core-counting accuracy. It is that **the workers are
+allocated before it is known whether work exists**, and three routine
+workloads here -- regtest, `-disablewallet` reindex, RPC-only serving -- never
+use them.
+
+**Measured 2026-09-15, and it complicates the case**
+(`test-logs/scriptq-20260915/FINDINGS.md`). `CCheckQueue` was instrumented:
+over a tiny reindex the pool took **201,657 batches** with
+**`max_concurrent` = 14** -- every worker engages within the first 32k blocks.
+
+**So the pool is not dormant during reindex.** The "13 idle threads"
+observation was from an *idle regtest node* and does not generalise. What
+remains open is whether 14 workers are used *well*: 1.12 batches/block at
+`nBatchSize` 128, and 2.03 wakeups per batch, is consistent with many workers
+each taking a sliver and re-parking.
+
+**Revised proposal: default `-par` to 4, and `-rpcthreads` to 2**, justified
+below -- but **gated on the A/B** in `CONCURRENCY.md` S5.1, which is now more
+informative: if 4 threads match 14 on wall time while `max_concurrent` falls
+from 14 to 4, the extra workers were contending rather than helping.
+
+#### Ecosystem provenance of the defaults
+
+| Knob | Zero | Bitcoin today | History |
+|------|-----:|--------------:|---------|
+| `-rpcthreads` | **4** | **16** | 4 introduced 2013 (`21eb5adadb`); raised to 16 in `e56fc7ce6a` (2024-11-04, Vasil Dimov), citing bitcoin#29386 |
+| `-rpcworkqueue` | **16** | **64** | 16 introduced 2015 (`40b556d374`); raised to 64 in the same 2024 commit |
+| `-par` | cores, cap 16 | cores, cap 16 | unchanged since 2013 |
+
+**Bitcoin moved in the opposite direction on RPC threads** -- it raised them
+because its RPC load grew. That is a reason to be careful about lowering
+Zero's, and to state the workload the choice serves.
+
+**Justification for `-rpcthreads=2` regardless of Bitcoin's move:** Zero's RPC
+consumers are a wallet UI polling `getalldata` and an explorer. The
+`getalldata` path is already serialised by its own in-flight gate
+(`rpczerowallet.cpp:62`, returns `-34` rather than running concurrently), so
+additional HTTP workers cannot parallelise the expensive call. Four workers
+for a surface whose hottest RPC refuses concurrency is capacity that cannot be
+used. **2 leaves headroom for a cheap call to proceed while an expensive one
+holds the gate**, which is the actual concurrency requirement.
+
+#### `-par` scaling, and where the cap should sit
+
+`-par=0` resolves to `GetNumCores()`, capped at `MAX_SCRIPTCHECK_THREADS = 16`
+(`init.cpp:1125-1132`), then creates `nScriptCheckThreads - 1` workers:
+
+| Host | workers created |
+|------|----------------:|
+| 1 core | **0** -- no pool, checks run inline |
+| **2-CPU VPS** | **1** |
+| 4 cores | 3 |
+| 8 cores | 7 |
+| 14 (this host) | **13** |
+| 16 or more | **15** (capped) |
+
+**The scaling is proportional, so a small VPS is not over-threaded** -- a
+2-CPU host gets one worker, which is correct. The concern about a VPS
+"not needing 14 threads for anything" is well founded as a *principle* but
+does not describe this code path: it never allocates 14 on a 2-CPU machine.
+
+**Where it does go wrong is the top end.** On a 16+ core host the node creates
+15 script-check workers regardless of whether the workload is validation-heavy,
+and holds them for the process lifetime. The measured evidence
+(`test-logs/scriptq-20260915/`) shows they are *engaged* during reindex --
+`max_concurrent` = 14 -- but engagement is not efficiency: 1.12 batches/block
+at `nBatchSize` 128, with 2.03 wakeups per batch, is the signature of many
+workers each taking a sliver and re-parking.
+
+**Proposed: lower `MAX_SCRIPTCHECK_THREADS` from 16 to 4**, leaving the
+proportional scaling intact. Effect: unchanged for hosts up to 4 cores
+(including every small VPS), capped at 3 workers above that.
+
+*Justification:* the cap is the only part of the formula that is a free
+choice -- the proportional part is defensible and Bitcoin-inherited. 16 dates
+from 2013 hardware assumptions and a workload dominated by ECDSA script
+verification. Zero's post-Sapling sync is Groth16-bound on a single import
+thread, and script checks are not the bottleneck at any core count this tree
+has measured.
+
+**Still gated on the A/B** (`CONCURRENCY.md` S5.1), which now has a sharper
+question: does capping at 4 change `blocks_per_sec` on a 14-core host? If not,
+the cap costs nothing and removes 10 threads.
+
+**Do not change the proportional formula.** A 2-CPU VPS already gets 1 worker
+and a 1-core host gets none; that behaviour is correct and should stay.
+
+### P15. `getblockdeltas` is missing the same lock as `getspentinfo`
+
+Zcash `14ec1016b` (2019-12-27, Larry Ruane, "insightexplorer: LOCK(cs_main)
+during rpcs", first released in **v2.1.1**) added `LOCK(cs_main)` to **two**
+RPCs, not one:
+
+| RPC | Upstream | Zero |
+|-----|----------|------|
+| `getspentinfo` (`rpc/misc.cpp`) | scoped `LOCK(cs_main)` around the `GetSpentIndex` call | **missing** |
+| `getblockdeltas` (`rpc/blockchain.cpp`) | `LOCK(cs_main)` before `mapBlockIndex.count(hash)`, covering the `blockToDeltasJSON` helper that calls `GetSpentIndex` | **missing** |
+
+**No sibling fork has the 2019 fix** -- checked `pirate`, `hush3`,
+`zclassic`, `firo`: none takes the lock. Zero is not unusual in lacking it;
+upstream Zcash is the only one that fixed it.
+
+**Do P15 with P12** -- same commit, same rationale, two call sites. Porting
+upstream's change verbatim is the whole task.
+
+### P16. Classify the remaining log volume
+
+After gating the two worst offenders, a tiny reindex still emits **187,827
+lines / 40 MB**. That is ~1 line per block, which is defensible, but it has
+**not been classified** -- the earlier breakdown only identified the top three
+sources.
+
+| Step | What |
+|------|------|
+| a | Bucket all 187,827 by message prefix, as was done for the 883,626 |
+| b | For each bucket over ~1% of volume: is it `LogPrintf` (unconditional) or `LogPrint` (categorised)? |
+| c | Propose a category for anything unconditional that is not an error or a state transition |
+
+`UpdateTip` is expected to dominate and **should stay** -- it is the progress
+record every measurement reads. The question is what else is there.
+
+### P17. `Processing out of order child` -- why it happens
+
+133,524 occurrences in a 163k-block reindex, now gated behind `-debug=reindex`.
+**The mechanism is understood but not written down**, and the count deserves a
+sanity check.
+
+During reindex, `LoadExternalBlockFile` walks `blk*.dat` **in file order**,
+which is the order blocks were *received*, not height order. A block whose
+parent has not been processed yet is stashed in `mapBlocksUnknownParent`; when
+the parent later arrives, the child is reprocessed -- emitting this line.
+
+**Open question:** ~0.8 reparentings per block is high enough to ask whether
+the stash is being walked more than necessary. `main.cpp:5744` already logs
+the sibling "Out of order block ... parent not known" under the same category;
+comparing the two counts would show whether each stashed block is reprocessed
+once or repeatedly.
+
+### P18. `ShrinkDebugFile` keeps the tail, which is the wrong half
+
+`util.cpp:795-812` trims `debug.log` at 10 MB by keeping the **last 200 KB**,
+and runs **only at startup** (`init.cpp:1348`).
+
+**The retained 200 KB is whatever happened most recently -- typically shutdown
+chatter -- while the startup banner, the configuration echo, the parameter
+paths and the first errors are discarded.** Those are the causal, diagnostic
+lines: what this node was configured to do and what first went wrong.
+
+| Option | Note |
+|--------|------|
+| Keep head + tail | Retain the first ~64 KB and the last ~136 KB. Preserves the startup record and recent events. Needs a marker line so the discontinuity is obvious |
+| Keep head only | Simplest; loses recent context, which is what an operator usually wants first |
+| Rotate instead of truncate | `debug.log.1`, matching the `--rotated` names the perf tooling already understands (`README.md` debug.log path spec). Larger change |
+| Leave it | Defensible if the log is small; it was not -- 103 MB before gating |
+
+**Recommendation: head + tail with an explicit marker**, and revisit only if
+rotation is wanted for other reasons. Upstream Bitcoin has the same tail-only
+behaviour, so this is a deliberate divergence and needs a note.
+
+### P14. Nine sites produce 2.9M recursive lock acquisitions
+
+Attributed by site 2026-09-13 (`test-logs/lockattr-20260913/FINDINGS.md`).
+**~15.5 per block, from only 9 distinct call paths, four of which re-lock at
+their own source line** with integer-exact per-block counts:
+
+| Count/block | Site | Lock |
+|---:|---|---|
+| 2 | `main.cpp:3435` `FlushStateToDisk` | `LOCK2(cs_main, cs_LastBlockFile)` under itself |
+| 1 | `main.cpp:4285` | `cs_nBlockSequenceId` under itself -- a **leaf lock nesting under itself** |
+| 1 | `main.cpp:4314` | `cs_LastBlockFile` under itself |
+| 1 | `main.cpp:4373` | `cs_LastBlockFile` under itself |
+
+Exact integers per block are the signature of **defensive `LOCK` statements in
+functions already called under the lock**, not of a design needing recursion.
+
+**Proposed:** replace the inner `LOCK` with `AssertLockHeld` where the caller
+provably holds it -- converting a silent assumption into a checked contract
+and removing ~950k acquisitions per tiny reindex. Start with `:4285`, the
+smallest and least defensible. **Do not touch the four cross-site nestings**
+until that is done; those are structural.
+
+**Validation:** re-run the attribution and confirm the site disappears while
+`POTENTIAL DEADLOCK` and `underflows` stay 0.
+
+#### Upstream Bitcoin already did exactly this
+
+**`cs_nBlockSequenceId` -- removed in Bitcoin `0bd882b740` (2021-08-28),
+Sebastian Falbesoner, "refactor: remove RecursiveMutex cs_nBlockSequenceId".**
+The commit message is the P14 argument verbatim:
+
+> The RecursiveMutex cs_nBlockSequenceId is only used at one place in
+> `CChainState::ReceivedBlockTransactions()` to atomically read-and-increment
+> the nBlockSequenceId member. **At this point, the cs_main lock is set, hence
+> we can use a plain int** for the member and mark it as guarded by cs_main.
+
+Modern Bitcoin has `int32_t nBlockSequenceId GUARDED_BY(::cs_main) = 1;`
+(`validation.h:1055`) and no separate mutex. **Zero still has the 2013-era
+`LOCK(cs_nBlockSequenceId)`**, which the attribution measured re-entering
+itself once per block.
+
+**`cs_LastBlockFile` -- also refactored away.** Bitcoin moved it into
+`BlockManager` (`fade2a44f4`, 2022-01-02, "Move BlockManager to
+node/blockstorage") and the `LOCK2(cs_main, cs_LastBlockFile)` in
+`FlushStateToDisk` is gone; what remains is a scoped
+`LOCK(m_blockman.cs_LastBlockFile)` (`validation.cpp:2786`). An earlier step,
+`83f1ec33ce` (2017-07-24), had already stopped holding it across a callback:
+**"[wallet] Don't hold cs_LastBlockFile while calling setBestChain"**.
+
+**Zcash is on the old structure too** -- `LOCK2(cs_main, cs_LastBlockFile)` at
+`main.cpp:3818` and `:5491`, `LOCK(cs_nBlockSequenceId)` at `:4859`. So these
+are **inherited 2013-2014 Bitcoin patterns that upstream has since removed**,
+not Zero defects, and the removals are proven upstream rather than speculative.
+
+**This raises P14's confidence considerably**: the smallest and least
+defensible site (`cs_nBlockSequenceId`) has an upstream commit doing precisely
+the proposed change, with a stated rationale that applies unchanged to Zero.
+
+#### Upstream fix history, consolidated
+
+| Commit | Date | Project | What |
+|--------|------|---------|------|
+| `83f1ec33ce` | 2017-07-24 | Bitcoin | "[wallet] Don't hold cs_LastBlockFile while calling setBestChain" -- stops holding the lock across a callback |
+| `0bd882b740` | 2021-08-28 | Bitcoin | "refactor: remove RecursiveMutex cs_nBlockSequenceId" -- replaced by `int32_t ... GUARDED_BY(::cs_main)` |
+| `fade2a44f4` | 2022-01-02 | Bitcoin | "Move BlockManager to node/blockstorage" -- `cs_LastBlockFile` becomes `m_blockman.cs_LastBlockFile`; the `LOCK2` in `FlushStateToDisk` disappears |
+
+Neither fix has been ported to Zcash, which still has `LOCK2(cs_main,
+cs_LastBlockFile)` at `main.cpp:3818` / `:5491` and `LOCK(cs_nBlockSequenceId)`
+at `:4859`. **Zero inherits both from the 2013-2014 Bitcoin lineage.**
+
+#### Performance impact: measured, negligible
+
+`boost::recursive_mutex` is **not a system call** -- 20M iterations, `-O2`,
+aarch64:
+
+| Operation | ns |
+|-----------|---:|
+| Uncontended `lock()`+`unlock()` | 7.07 |
+| Recursive re-acquire while held | **4.55** |
+
+2,901,309 acquisitions x 4.55 ns = **0.013 s**, against a ~190 s tiny reindex:
+**0.007% of wall time**, ~70 ns per block.
+
+#### Disposition: POSTPONED
+
+**Nothing measurable to gain.** The rate is high -- ~15.5 per block from nine
+sites, four of them self-recursive with integer-exact per-block counts, which
+is the signature of defensive locking rather than design -- and that remains
+worth fixing on correctness grounds. But it buys 0.007% of wall time, the
+upstream fixes are structural refactors (Bitcoin moved the whole
+`BlockManager`), and P12/P15 are the same class of defect with an actual
+consequence and a verbatim upstream patch available.
+
+**Reopens when:** `src/main.cpp` is being restructured for another reason, or
+if a lock-order inversion is ever found that traces to one of these paths.
+**Do P12 and P15 first** -- they are the ones where the ambiguity has already
+produced a defect.
+
+#### What postponing P14 does NOT dispose of
+
+Postponement covers the **upstream-heritage refactors** -- moving
+`BlockManager`, deleting `cs_nBlockSequenceId` -- because those are structural
+changes Bitcoin made over three commits and the gain here is 0.007% of wall
+time.
+
+**It does not answer why the rate is ~11.5 per block at all**, and the
+decomposition shows most of it is not Bitcoin heritage:
+
+| Source | per block | share |
+|--------|----------:|------:|
+| **`IsInitialBlockDownload`** (`:2249` under `:3906` and `:4791`) | **5.00** | **44%** |
+| `FlushStateToDisk` `LOCK2` under itself (`:3435`) | 2.00 | 17% |
+| `cs_LastBlockFile` self-recursion (`:4314`, `:4373`) | 2.00 | 17% |
+| `cs_nBlockSequenceId` self-recursion (`:4285`) | 1.00 | 9% |
+| `cs_main` `:3435` under `:3906` | 1.00 | 9% |
+| `GetSpendHeight` (`:2471` under `:3906`) | 0.48 | 4% |
+
+**`IsInitialBlockDownload` is the single largest source and is separable from
+P14.** It is called **exactly 4.00 times per block** from 19 call sites. It
+carries an atomic fast path -- `latchToFalse`, checked before the lock -- but
+**that latch only trips once IBD ends**, so during a reindex or initial sync,
+which is precisely when block throughput matters, every one of those calls
+takes `cs_main`.
+
+Every caller in the block-connection path is **already holding `cs_main`**,
+which is why these register as recursive.
+
+**This is worth its own item, not deferral under P14:** it is one function,
+the fix does not touch `BlockManager` or any lock's lifetime, and it removes
+44% of the recursive rate. Tracked as **P21**.
+
+### P21. `IsInitialBlockDownload` takes `cs_main` 4x per block during sync
+
+`main.cpp:2249`. Measured 937,088 recursive acquisitions over a tiny reindex,
+**exactly 4.00 per block**, 44% of all recursive locking.
+
+The existing `latchToFalse` optimisation is a no-op for the workload that
+needs it: it short-circuits only *after* IBD completes, so during reindex and
+initial sync every call falls through to `LOCK(cs_main)`.
+
+**Options:**
+
+| # | Approach | Note |
+|---|----------|------|
+| 1 | `AssertLockHeld(cs_main)` instead of `LOCK`, for the call sites that provably hold it | Converts an implicit contract into a checked one. Needs each of the 19 sites classified; some are RPC paths that may not hold it |
+| 2 | Split into `IsInitialBlockDownload()` (takes the lock) and `IsInitialBlockDownloadLocked()` (asserts) | Explicit, no ambiguity at the call site, mirrors the `_Locked` convention used elsewhere in Bitcoin-family code |
+| 3 | Cache the result per block-connection rather than per call | Smallest change, but introduces staleness where currently there is none |
+
+**Recommendation: (2).** It is mechanical, each call site states which
+contract it relies on, and it makes the remaining `LOCK` calls the ones that
+genuinely need it. (1) is the same work with a worse failure mode -- a missed
+site aborts instead of failing to compile.
+
+**Effort S-M** -- 19 call sites to classify. **Not postponed**: unlike P14
+this is one function, no structural change, and the largest single contributor
+to the rate.
+
+### P13. `CheckBlock` runs three times per block during reindex
+
+**Measured, not inferred.** `CheckBlock` emits
+`skipping transaction locking checks` once per call; that line appeared
+**562,254 times over 187,418 blocks = exactly 3.00 per block**
+(`test-logs/lockstats-20260912/FINDINGS.md`).
+
+| Site | Caller | PoW | Merkle | Proof verifier |
+|------|--------|-----|--------|----------------|
+| `main.cpp:4836` | `TestBlockValidity` | caller's flag | caller's flag | `Disabled()` |
+| `main.cpp:4738` | `AcceptBlock` | **default true** | **default true** | `Disabled()` |
+| `main.cpp:3045` | `ConnectBlock` | `!fJustCheck` | `!fJustCheck` | `fExpensiveChecks ? Strict : Disabled` |
+
+**What is genuinely repeated per call:** `CheckBlockHeader` (which upstream's
+own comment at `:4441` calls "mostly redundant with the call in
+AcceptBlockHeader"), the **Equihash solution check** inside it, the
+**merkle-root recomputation** over every transaction, and the mutation check.
+
+#### What each call actually costs
+
+`CheckBlock` -> `CheckBlockHeader` runs **`CheckEquihashSolution`** whenever
+`fCheckPOW` is true, plus a merkle-root recomputation over every transaction
+when `fCheckMerkleRoot` is true. Both flags are **`true` by default**
+(`main.h:558`), and all three sites reach them:
+
+| Site | `fCheckPOW` | Equihash verified? |
+|------|-------------|--------------------|
+| `:4836` `TestBlockValidity` | caller's flag | yes, when the caller asks |
+| `:4738` `AcceptBlock` | **default `true`** | **yes** |
+| `:3045` `ConnectBlock` | `!fJustCheck` -- false only for `TestBlockValidity`'s dummy connect | **yes** on the real connect path |
+
+**Estimated impact: ~24% of reindex wall time.** M-CPU-SEQ reports Equihash at
+**0.252 ms/block**; over 187,418 blocks that is **47.2 s of a measured 130 s
+tiny reindex (36%)**. If that per-block figure aggregates all three calls,
+each is ~0.084 ms and **eliding two would save ~31.5 s, about 24% of wall**.
+
+**State the assumption plainly:** M-CPU-SEQ is a *per-block* profile bucket,
+so it already contains whatever number of calls occur -- it does not
+independently confirm that three happen. The 3.00-per-block log ratio
+establishes the call count; the split of the 0.252 ms across those calls is
+inferred, not measured. **A counter on `CheckEquihashSolution` would settle
+it, and that is step 1 below.**
+
+**Do not "combine" the three by deleting calls.** Each has a distinct caller
+contract:
+
+- `TestBlockValidity` validates a candidate that is not being connected.
+- `AcceptBlock` validates a block arriving from the network before storing it.
+- `ConnectBlock` validates immediately before applying state.
+
+Upstream keeps all three deliberately -- a block can reach `ConnectBlock` by a
+path that did not go through `AcceptBlock` (reindex from disk is exactly that
+case).
+
+**Proposed resolution, in order of confidence:**
+
+1. **Measure first.** Counter on `CheckBlock` entry, split by caller, plus a
+   timer. Cheap, and it turns "3x" into a share of wall time. Until then any
+   fix is speculative.
+2. **Skip what provably cannot change.** `CheckBlockHeader`'s PoW check is a
+   pure function of the header; if the header was validated at
+   `AcceptBlockHeader`, re-validating it in `CheckBlock` is recomputation of a
+   known answer. A `fPoWChecked` flag threaded from the index entry would
+   remove two of the three Equihash verifications per block **without changing
+   any caller contract**.
+3. **Do not touch the merkle check.** It is the malleability guard
+   (CVE-2012-2459) and the cost is proportional to a block's own transaction
+   count, which is small pre-Sapling and is not the post-Sapling bottleneck.
+
+#### Proposed resolution
+
+**Do not delete calls. Cache the result.** Each site has a real caller
+contract -- `TestBlockValidity` checks a candidate not being connected,
+`AcceptBlock` checks a block arriving before storing it, `ConnectBlock` checks
+immediately before applying state -- and reindex reaches `ConnectBlock` by a
+path that never went through `AcceptBlock`. Removing any of them changes when
+a bad block is rejected.
+
+What is genuinely redundant is **recomputing a pure function of the header**.
+`CheckEquihashSolution(&block, params)` depends only on the header bytes; if
+it passed once for this block, it passes again.
+
+| Step | Change | Risk |
+|------|--------|------|
+| 1 | **Counter on `CheckEquihashSolution`**, under `ZERO_PERF`, reporting calls and micros per block. Settles the 3x split that is currently inferred | none -- instrumentation |
+| 2 | **`BLOCK_VALID_HEADER` short-circuit.** `CBlockIndex::nStatus` already records validation depth. When the index entry for this hash is at or above `BLOCK_VALID_HEADER`, skip `CheckBlockHeader`'s PoW branch | low: it is the flag the index already maintains for exactly this purpose |
+| 3 | Re-measure, and require solution sets and `blocks_per_sec` to move in the expected direction | -- |
+
+**Why (2) rather than a new flag threaded through three call sites:** the
+index already answers "has this header been validated", and threading a
+`fPoWChecked` parameter would add a fourth thing each caller must get right.
+An index-backed check cannot be forgotten by a new caller.
+
+**Explicitly not proposed:**
+
+- **Touching the merkle check.** It is the CVE-2012-2459 malleability guard
+  and its cost scales with a block's own transaction count -- small
+  pre-Sapling and not the post-Sapling bottleneck.
+- **Reordering the checks inside `CheckBlock`.** The current order is
+  header -> merkle -> transactions, i.e. cheapest and most likely to reject
+  first. That is correct as-is.
+- **Merging `AcceptBlock` and `ConnectBlock` validation.** Different
+  lifecycle points; merging them would mean storing unvalidated blocks or
+  validating twice anyway.
+
+#### How to validate the change
+
+The risk is accepting a block that should be rejected, so the tests must
+exercise rejection, not just acceptance:
+
+| Scenario | What it catches |
+|----------|-----------------|
+| `qa/rpc-tests/invalidblockrequest.py` | A block with an invalid header reaching `ConnectBlock` via a path where the index was pre-marked |
+| **Corrupt the Equihash solution after `AcceptBlock`, before `ConnectBlock`** | The exact failure mode: cached "valid" used where the bytes changed. Needs a targeted unit test -- none exists |
+| Reindex from disk, full tiny + short snaps | The path that skips `AcceptBlock`; solution sets and tip hash must be unchanged |
+| `reorg_limit.py`, `mempool_reorg.py` | Reorg re-validation, where an index entry may be reused across chains |
+| **Concurrent:** RPC `getblock` during reindex | `nStatus` read while the connecting thread writes it -- the P12 class of defect |
+
+**The second and fifth rows are the ones that do not exist today.** Both are
+prerequisites, not follow-ups: the change is only safe if a stale cache is
+detectable.
+
+**Kanban: ToDo. Effort M** -- step 1 is S and unblocks the estimate; step 2 is
+consensus-adjacent and needs Zero400 review plus the two missing tests.
+
+### P12. `GetSpentIndex` asserts a lock none of its callers hold
+
+Found by the first `DEBUG_LOCKORDER` run in this tree
+(`test-logs/lockorder-20260912/FINDINGS.md`).
+
+`GetSpentIndex` (`main.cpp:1816`) opens with `AssertLockHeld(cs_main)` -- an
+assertion that **only compiles under `DEBUG_LOCKORDER`**, so it had never
+fired. All three RPC call sites reach it without the lock:
+`rpc/misc.cpp:1104` (`getspentinfo`), `rpc/blockchain.cpp:165`,
+`rpc/rawtransaction.cpp:181` and `:211`.
+
+**One of the two is wrong.** Either the lock is required and three paths are
+missing it, or the assertion is wrong and should be removed. The reads are of
+`pblocktree`, so the realistic exposure is a torn read during a concurrent
+chain update rather than a hang.
+
+#### The four call sites, compared
+
+Reviewed 2026-09-12. All four build a `CSpentIndexKey`, call `GetSpentIndex`,
+and derive a destination -- with **four different behaviours for the same
+condition**:
+
+| Site | `fSpentIndex` guard? | On miss | Lock |
+|------|---------------------|---------|------|
+| `rawtransaction.cpp:181` (vin) | **yes** | skip the fields silently | none |
+| `rawtransaction.cpp:211` (vout) | **yes** | skip the fields silently | none |
+| `blockchain.cpp:165` | **no** | `throw RPC_INTERNAL_ERROR` | none |
+| `misc.cpp:1104` (`getspentinfo`) | **no** | `throw RPC_INVALID_ADDRESS_OR_KEY` | none |
+
+**Three inconsistencies, none of them obviously deliberate:**
+
+1. **The `fSpentIndex` guard is present in two sites and absent in two.**
+   `GetSpentIndex` itself checks `fSpentIndex` and returns false
+   (`main.cpp:1819`), so the guard is redundant -- but its *absence* changes
+   behaviour: with the index disabled, `blockchain.cpp` throws
+   `RPC_INTERNAL_ERROR` ("Spent information not available") for what is a
+   configuration state, not an internal error.
+2. **Two different error codes for the same miss** --
+   `RPC_INTERNAL_ERROR` vs `RPC_INVALID_ADDRESS_OR_KEY`.
+3. **A miss is fatal in two sites and ignorable in two.** For
+   `getrawtransaction` the spent fields are decoration; for `getspentinfo`
+   they are the entire answer. That difference is justified. The *codes* and
+   the guard asymmetry are not.
+
+**Proposed resolution:** one helper beside the existing index accessors --
+
+```cpp
+// Returns false when the index is disabled or the entry is absent; callers
+// decide whether that is fatal.
+bool GetSpentIndexChecked(const CSpentIndexKey&, CSpentIndexValue&);  // takes cs_main
+```
+
+then each caller keeps its own policy: the two `getrawtransaction` sites skip
+the fields, `getspentinfo` throws `RPC_INVALID_ADDRESS_OR_KEY`, and
+`blockchain.cpp` throws the same code rather than `RPC_INTERNAL_ERROR`.
+
+*Justification:* it puts the lock in exactly one place -- which is what P12 is
+about -- removes the redundant guard, and normalises the error code without
+flattening the one behavioural difference that is real. It does **not** merge
+the JSON-building, which legitimately differs per RPC.
+
+#### Upstream already fixed this, and Zero is missing the line
+
+Checked across `ZKs/{zcash,pirate,hush3,zclassic,firo}`:
+
+| Project | `AssertLockHeld(cs_main)` in `GetSpentIndex`? | `LOCK(cs_main)` in `getspentinfo`? |
+|---------|---|---|
+| **zcash** | **yes** | **yes** -- `rpc/misc.cpp:1189`, a scoped block around the call |
+| **Zero** | **yes** (inherited) | **no** |
+| pirate, hush3 | no | n/a |
+
+So the assertion is upstream Zcash's, Zero inherited it, and **upstream also
+added the matching `LOCK(cs_main)` that Zero does not have**:
+
+```cpp
+    {
+        LOCK(cs_main);
+        if (!GetSpentIndex(key, value)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unable to get spent info");
+        }
+```
+
+Upstream's other two callers (`blockchain.cpp:169`,
+`rawtransaction.cpp:247`) also lack it, so those remain open questions there
+too -- but `getspentinfo` is settled: **Zero is missing a line upstream has.**
+
+**Recommendation: port upstream's scoped `LOCK(cs_main)` into
+`rpc/misc.cpp` verbatim.** No design decision, no divergence, and it is the
+site the assertion actually fired on. The other three callers stay as a
+separate question, since upstream has not resolved them either. `cs_main` is recursive so the cost is near zero on paths that
+already hold it, the sibling index accessors in the same file assert the same
+lock, and deleting an assertion to make a test pass is the wrong direction
+when the assertion is the only thing that found the gap. **Verify by
+re-running the suite under `DEBUG_LOCKORDER`** -- it is the only build where
+this is observable. Owner: Zero400.
+
+**Not a live deadlock**, and no lock-order inversion was found: the same run
+reported **zero** `POTENTIAL DEADLOCK` detections across the whole Boost
+suite.
 
 ### P11. The tromp solver driver is written twice
 
@@ -813,14 +1383,11 @@ measures the code path a miner actually runs". That is the intent, and
 duplication is exactly what breaks it -- a change to the miner's sequence
 silently stops the benchmark measuring the miner.
 
-**Proposed resolution:** extract one `EhSolveTromp(state, nsols_out, ...)`
-helper, called by both. `miner.cpp` keeps its cancellation and
-`showbsizes` handling around it; the test keeps its `PERF_PROBE`
-instrumentation around it. **Effort S.**
-
-**Why it is not urgent:** both copies currently produce identical solution
-sets on the same nonces (M-EQ-TROMP-PAIRED), so the drift has not yet changed
-behaviour. It is a maintenance hazard, not a live defect.
+**Finished 2026-09-11.** `EhTrompSolveRounds(equi&, RoundHook)` in
+`pow/tromp/equi_miner.h`; the hook fires after rounds 0..WK-1 so each caller
+observes what it needs. Verified behaviour-preserving: **identical solution
+sets** (11 = 11 over 4 nonces), nsols unchanged, timing -2.12% (noise).
+`test-logs/p11-refactor-20260911/FINDINGS.md`.
 
 **Memory and concurrency, checked while reading this:**
 

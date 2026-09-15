@@ -255,7 +255,7 @@ int printMiningStatus(bool mining)
         auto nThreads = miningTimer.threadCount();
         if (nThreads > 0) {
             std::cout << strprintf(_("You are mining with the %s solver on %d threads."),
-                                   GetArg("-equihashsolver", "default"), nThreads) << std::endl;
+                                   GetArg("-equihashsolver", "tromp"), nThreads) << std::endl;
         } else {
             bool fvNodesEmpty;
             {

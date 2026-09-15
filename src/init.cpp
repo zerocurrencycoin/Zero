@@ -196,6 +196,8 @@ void Interrupt(boost::thread_group& threadGroup)
 void Shutdown()
 {
     LogPrintf("%s: In progress...\n", __func__);
+    // Lock-hygiene totals for the run. No-op unless DEBUG_LOCKORDER.
+    LogLockStats();
     static CCriticalSection cs_Shutdown;
     TRY_LOCK(cs_Shutdown, lockShutdown);
     if (!lockShutdown)
@@ -548,7 +550,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageGroup(_("Mining options:"));
     strUsage += HelpMessageOpt("-gen", strprintf(_("Generate coins (default: %u)"), 0));
     strUsage += HelpMessageOpt("-genproclimit=<n>", strprintf(_("Set the number of threads for coin generation if enabled (-1 = all cores, default: %d)"), 1));
-    strUsage += HelpMessageOpt("-equihashsolver=<name>", _("Specify the Equihash solver to be used if enabled (default: \"default\")"));
+    strUsage += HelpMessageOpt("-equihashsolver=<name>", _("Specify the Equihash solver to be used if enabled: \"tromp\" or \"default\" (default: \"tromp\")"));
     strUsage += HelpMessageOpt("-mineraddress=<addr>", _("Send mined coins to a specific single address"));
     strUsage += HelpMessageOpt("-minetolocalwallet", strprintf(
             _("Require that mined blocks use a coinbase address in the local wallet (default: %u)"),
@@ -2328,8 +2330,14 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     }
 #endif
 
-    // SENDALERT
-    threadGroup.create_thread(boost::bind(ThreadSendAlert));
+    // SENDALERT -- opt-in. The P2P alert system is slated for removal
+    // (OPS-ALERT-STRIP); until that lands, do not start a thread for it by
+    // default. -sendalert=1 restores the old behaviour for anyone who needs
+    // to exercise the path.
+    if (GetBoolArg("-sendalert", false)) {
+        LogPrintf("Starting alert thread (-sendalert=1)\n");
+        threadGroup.create_thread(boost::bind(ThreadSendAlert));
+    }
 
     return !fRequestShutdown;
 }

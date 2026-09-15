@@ -474,6 +474,10 @@ file that does not exist.
 | `docs/SCHEMA.md`, `recbench/RecBench.md` | Row shape, identity, store topology | Results |
 | `docs/POLICY.md` | Rules, ownership, lab discipline, retention | Anything specific to one subject |
 | `docs/TOOLING_FAILURES.md` | Shell/search invocations that returned wrong answers, and what closes each | Anything not about tooling reliability |
+| `docs/LIBSNARK.md` | What `src/snark/` is, where it came from, and whether it is used | Groth16 findings (`PerfGroth.md`) |
+| `docs/BUILDCONFIG.md` | How to validate that a binary has the build configuration it was meant to have | Findings from any one build |
+| `docs/TSAN.md` | How to build and run ThreadSanitizer on Linux, and how to triage its reports | Findings from a run (its own `test-logs/` record) |
+| `docs/THREADS.md` | Census of every thread the node launches, with counts and conditions | Sizing logic and locking (`CONCURRENCY.md`) |
 | `docs/CONCURRENCY.md` | Thread pools, their sizing, solver synchronisation, and how to validate locking | Performance findings (`Perf.md`); task state |
 | `docs/RECORDS_READINESS.md` | Whether the store can type a given result, and the interim rule | Row shape itself (`SCHEMA.md`); measurement results |
 | `docs/FINDINGS.md` | What is known, newest first | Groth16 (its own file); task state |

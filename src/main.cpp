@@ -1007,6 +1007,42 @@ int GetIXConfirmations(uint256 nTXHash)
  *    and ContextualCheckBlock (which calls this function).
  * 3. The isInitBlockDownload argument is only to assist with testing.
  */
+#if defined(ZERO_PERF) || defined(ZERO_FDCACHE)
+// P1 prototype: see main.h. Proof verification is outside every ConnectBlock
+// timer, so these are the only measurement of the dominant post-Sapling cost.
+PerfProofCounters perfProof = {0,0,0,0,0,0,0,0};
+
+void LogPerfProofCounters(int nHeight)
+{
+    if (nPerfLogEvery <= 0 || nHeight % nPerfLogEvery != 0)
+        return;
+    const int64_t usTotal = perfProof.usSaplingSpend + perfProof.usSaplingOutput
+                          + perfProof.usSaplingFinal + perfProof.usJoinSplit;
+    LogPrintf("PerfProof: height=%d total=%.3fs "
+              "spend=%.3fs/%d output=%.3fs/%d final=%.3fs/%d joinsplit=%.3fs/%d\n",
+              nHeight, usTotal * 1e-6,
+              perfProof.usSaplingSpend  * 1e-6, (int)perfProof.nSaplingSpend,
+              perfProof.usSaplingOutput * 1e-6, (int)perfProof.nSaplingOutput,
+              perfProof.usSaplingFinal  * 1e-6, (int)perfProof.nSaplingFinal,
+              perfProof.usJoinSplit     * 1e-6, (int)perfProof.nJoinSplit);
+}
+
+// Scoped accumulator: adds elapsed micros and one call to a counter pair.
+namespace {
+class PerfProofTimer {
+    int64_t* pUs; int64_t* pN; int64_t t0;
+public:
+    PerfProofTimer(int64_t& us, int64_t& n)
+        : pUs(&us), pN(&n), t0(GetTimeMicros()) {}
+    ~PerfProofTimer() { *pUs += GetTimeMicros() - t0; ++*pN; }
+};
+} // namespace
+#define PERF_PROOF_TIMER(field) \
+    PerfProofTimer perfProofTimer_(perfProof.us##field, perfProof.n##field)
+#else
+#define PERF_PROOF_TIMER(field) do {} while (0)
+#endif
+
 bool ContextualCheckTransaction(
         const CTransaction& tx,
         CValidationState &state,
@@ -1145,6 +1181,7 @@ bool ContextualCheckTransaction(
         auto ctx = librustzcash_sapling_verification_ctx_init();
 
         for (const SpendDescription &spend : tx.vShieldedSpend) {
+            PERF_PROOF_TIMER(SaplingSpend);
             if (!librustzcash_sapling_check_spend(
                 ctx,
                 spend.cv.begin(),
@@ -1163,6 +1200,7 @@ bool ContextualCheckTransaction(
         }
 
         for (const OutputDescription &output : tx.vShieldedOutput) {
+            PERF_PROOF_TIMER(SaplingOutput);
             if (!librustzcash_sapling_check_output(
                 ctx,
                 output.cv.begin(),
@@ -1177,6 +1215,7 @@ bool ContextualCheckTransaction(
             }
         }
 
+        PERF_PROOF_TIMER(SaplingFinal);
         if (!librustzcash_sapling_final_check(
             ctx,
             tx.valueBalance,
@@ -1208,6 +1247,7 @@ bool CheckTransaction(const CTransaction& tx, CValidationState &state,
     } else {
         // Ensure that zk-SNARKs verify
         BOOST_FOREACH(const JSDescription &joinsplit, tx.vJoinSplit) {
+            PERF_PROOF_TIMER(JoinSplit);
             if (!joinsplit.Verify(*pzcashParams, verifier, tx.joinSplitPubKey)) {
                 return state.DoS(100, error("CheckTransaction(): joinsplit does not verify"),
                                     REJECT_INVALID, "bad-txns-joinsplit-verification-failed");
@@ -3278,6 +3318,26 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     if (!control.Wait())
         return state.DoS(100, false);
+#ifdef ZERO_PERF
+    // Script-check pool utilization. -par starts nScriptCheckThreads-1
+    // workers at init regardless of workload; this reports whether any of
+    // them was ever needed.
+    if (nPerfLogEvery > 0 && pindex->nHeight % nPerfLogEvery == 0) {
+        uint64_t batches = 0, wakeups = 0; int maxcc = 0;
+        scriptcheckqueue.GetUtilization(batches, wakeups, maxcc);
+        LogPrintf("PerfScriptQueue: height=%d threads=%d batches=%llu "
+                  "wakeups=%llu max_concurrent=%d\n",
+                  pindex->nHeight, nScriptCheckThreads,
+                  (unsigned long long)batches, (unsigned long long)wakeups,
+                  maxcc);
+    }
+#endif
+#if defined(ZERO_PERF) || defined(ZERO_FDCACHE)
+    // P1: the only report of proof-verification cost. Note that nTimeVerify
+    // below measures from nTimeStart and so *includes* nTimeConnect -- summing
+    // the two double-counts. Neither covers proof verification at all.
+    LogPerfProofCounters(pindex->nHeight);
+#endif
     int64_t nTime2 = GetTimeMicros(); nTimeVerify += nTime2 - nTimeStart;
     LogPrint("bench", "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs]\n", nInputs - 1, 0.001 * (nTime2 - nTimeStart), nInputs <= 1 ? 0 : 0.001 * (nTime2 - nTimeStart) / (nInputs-1), nTimeVerify * 0.000001);
 
@@ -4450,7 +4510,12 @@ bool CheckBlock(const CBlock& block, CValidationState& state,
              }
          }
      } else {
-         LogPrintf("CheckBlock() : skipping transaction locking checks\n");
+         // Gated: this is the normal state whenever the IX locking spork is
+         // off, and it fired once per block per CheckBlock call -- 562,254 of
+         // 883,626 lines (64%) in a 163k-block reindex, 103 MB of debug.log.
+         // An unconditional log for an expected condition is noise that
+         // buries the lines an operator needs. -debug=zeronode to see it.
+         LogPrint("zeronode", "CheckBlock(): skipping transaction locking checks\n");
      }
 
 
@@ -5719,7 +5784,11 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                         std::multimap<uint256, CDiskBlockPos>::iterator it = range.first;
                         if (ReadBlockFromDisk(block, it->second, chainparams.GetConsensus()))
                         {
-                            LogPrintf("%s: Processing out of order child %s of %s\n", __func__, block.GetHash().ToString(),
+                            // Gated: expected on every reindex -- blocks arrive
+                            // out of parent order in blk*.dat, so this fires
+                            // per reparented block (133,524 lines, 15% of a
+                            // 163k-block reindex log). -debug=reindex to see it.
+                            LogPrint("reindex", "%s: Processing out of order child %s of %s\n", __func__, block.GetHash().ToString(),
                                     head.ToString());
                             CValidationState dummy;
                             if (ProcessNewBlock(dummy, chainparams, NULL, &block, true, &it->second))

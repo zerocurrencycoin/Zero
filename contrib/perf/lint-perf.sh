@@ -47,10 +47,18 @@ SHELLCHECK_EXCLUDE="SC2046,SC2086,SC2162,SC2035,SC2043,SC2094,SC2129,SC2164,SC22
 # reporoot/MIGRATION_PLAN.md documents a provenance break -- three tracked
 # documents cite uniblake docs that are uncommitted. Naming the repo and the
 # files is the finding, not sprawl.
+# Equihash 49 -> 50: P13 resolution names CheckEquihashSolution.
 # Equihash 48 -> 49: TOOLING_FAILURES.md cites the equihash.cpp misread as
 # a worked example of a search failure.
 # Equihash 47 -> 48: P11 records the duplicated tromp driver in TASKS.md,
 # which is task state naming its subject.
+# tables 110 -> 113: P14 upstream history, P19/P20, thread census, LIBSNARK.
+# tables 108 -> 110: P15-P18 work items, upstream lock precedent.
+# tables 105 -> 108: locking risk tables, core-count derivation,
+# HIST/SPARK resolution, BUILDCONFIG.
+# tables 104 -> 105: CONCURRENCY.md experiment plan, THREADS.md review.
+# tables 102 -> 104: docs/THREADS.md (thread census) and the P12 lock finding.
+# Groth16 57 -> 58: LIBSNARK.md states what replaced it (Groth16/bellman).
 # Groth16 56 -> 57, tables 101 -> 102: docs/CONCURRENCY.md names the
 # proof-verification path when listing what is not parallelised.
 # Groth16 55 -> 56: reporoot/LIBRUSTZCASH_DECISION.md states the batching
@@ -61,9 +69,9 @@ SHELLCHECK_EXCLUDE="SC2046,SC2086,SC2162,SC2035,SC2043,SC2094,SC2129,SC2164,SC22
 # Equihash 42 -> 45: the D2/D3/D5 source-verification rows name the solver
 # in TASKS.md. That is task state (what was checked, where), not exposition,
 # so it belongs there; the ceiling moves rather than the text.
-RATCHET_TABLES=102
-RATCHET_CONC="Equihash=49
-Groth16=57
+RATCHET_TABLES=113
+RATCHET_CONC="Equihash=50
+Groth16=58
 libsodium=36
 uniblake=50"
 
@@ -145,6 +153,17 @@ run_check() {
                      fi
                    done
                    printf '%s\n' "$conc" | sed 's/^/  /' ;;
+    buildconfig) # The default build must have the platform defines and must
+                # NOT have lab instrumentation. Five silent build-flag failures
+                # in one session (docs/TOOLING_FAILURES.md S4a) motivated this:
+                # every one of them built successfully and produced a wrong
+                # binary. Skipped when src/zerod is absent -- a missing binary
+                # is a build question, not a lint finding.
+                if [ -f src/zerod ]; then
+                  contrib/perf/check_buildconfig.py src/zerod \
+                    --expect MAC_OSX --reject ZERO_PERF --reject DEBUG_LOCKORDER \
+                    2>&1 | grep -v 'as expected' | sed 's|^|contrib/perf/|'
+                fi ;;
     docmap)     # Every tracked .md has a row in README.md's Documentation
                 # map, and no row names a file that is gone (docs/POLICY.md
                 # S2.0a). Hard gate, not a ratchet: there is no backlog here,
@@ -181,7 +200,7 @@ run_check() {
   esac
 }
 
-CHECKS="self-tests unicode unicode-docs citations docmap concentration tables json shellcheck whitespace shebang shell-locale
+CHECKS="self-tests unicode unicode-docs citations buildconfig docmap concentration tables json shellcheck whitespace shebang shell-locale
         python-utf8-encoding include-guards includes locale-dependence
         make-dist cargo-patches"
 

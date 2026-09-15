@@ -210,6 +210,15 @@ UniValue generate(const UniValue& params, bool fHelp)
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
 
+        // `generate` always uses the reference solver, whatever
+        // -equihashsolver says: it calls EhBasicSolveUncancellable directly
+        // below, and the vendored tromp solver is compiled for (192,7) only
+        // (pow/tromp/equi.h) while this RPC is regtest-only (48,5). Logged in
+        // the same shape as BitcoinMiner's line so the two are comparable and
+        // neither silently implies the other's solver.
+        LogPrint("pow", "Using Equihash solver \"default\" with n = %u, k = %u "
+                        "(generate RPC; -equihashsolver does not apply)\n", n, k);
+
         // I = the block header minus nonce and solution.
         CEquihashInput I{*pblock};
         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);

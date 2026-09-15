@@ -299,9 +299,24 @@ struct equi {
   proof *sols;
   au32 nsols;
   u32 nthreads;
-  u32 xfull;
-  u32 hfull;
-  u32 bfull;
+  // Overflow/reject diagnostics. NOT correctness state -- a lost increment
+  // costs a counter, never a solution -- but they are incremented from inside
+  // digit0/digitodd/digiteven, which every worker runs concurrently, while
+  // their resets in worker() are barrier-protected and run on thread 0 only.
+  // So the increments race under EQUIHASH_TROMP_THREADED and the resets do
+  // not. au32 makes the increments atomic when threading is on and compiles
+  // to a plain u32 when it is off, which is the same rule the slot and
+  // solution counters already follow (see the typedef above).
+  //
+  //   xfull  xhash list (XFULL) overflow -- pairs dropped, solutions may be lost
+  //   bfull  bucket (NSLOTS) overflow    -- rows dropped, solutions may be lost
+  //   hfull  duplicate-hash rejects      -- expected, not a loss
+  //
+  // Nonzero xfull or bfull means the run is not comparable with one that has
+  // none: the search space was silently truncated.
+  au32 xfull;
+  au32 hfull;
+  au32 bfull;
 #ifdef EQUIHASH_TROMP_THREADED
   pthread_barrier_t barry;
 #endif
@@ -387,6 +402,12 @@ struct equi {
     if (soli < MAXSOLS)
       listindices1(WK, t, sols[soli]); // assume WK odd
   }
+  // Inert in every configuration. With none of HIST/SPARK/LOGSPARK defined
+  // the body preprocesses away entirely; with SPARK or LOGSPARK defined it
+  // does not compile, because SPARKSCALE (used at :418, :422) is defined
+  // nowhere in this tree. HIST's own printf is commented out upstream.
+  // Kept for parity with upstream tromp. For per-round diagnostics use the
+  // xfull/bfull/hfull counters, which the benchmark reports under PERF_PROBE.
   void showbsizes(u32 r) {
 #if defined(HIST) || defined(SPARK) || defined(LOGSPARK)
     u32 binsizes[65];
@@ -780,3 +801,47 @@ inline void *worker(void *vp) {
   return 0;
 }
 #endif // EQUIHASH_TROMP_THREADED
+
+// ---------------------------------------------------------------------------
+// Single-threaded driver, shared by the miner and the benchmark.
+//
+// The round sequence below was duplicated in miner.cpp and in
+// src/test/equihash_tests.cpp, and the copies had already drifted: one zeroed
+// the overflow counters before digit0 and the other did not; one called
+// showbsizes() per round and the other did not. The benchmark claims to
+// measure "the code path a miner actually runs", and two copies is exactly
+// what makes that claim stop being true. One definition, two callers.
+//
+// Scope: eq must be constructed single-threaded (equi eq(1)). The threaded
+// path has its own driver in worker() above, with barriers between rounds.
+//
+// The counters are zeroed *after* each round rather than before, because
+// showbsizes() reports the round that just finished; a caller that wants the
+// per-round values reads them inside the hook.
+//
+// RoundHook is called after rounds 0..WK-1 with (round, eq) so a caller can
+// observe bucket sizes or accumulate the overflow counters without this
+// function knowing why. miner.cpp passes showbsizes; the benchmark passes an
+// accumulator under PERF_PROBE and a no-op otherwise.
+template <typename RoundHook>
+inline void EhTrompSolveRounds(equi &eq, RoundHook hook)
+{
+  eq.digit0(0);
+  hook(0, eq);
+  eq.xfull = eq.bfull = eq.hfull = 0;
+  for (u32 r = 1; r < WK; r++) {
+    (r & 1) ? eq.digitodd(r, 0) : eq.digiteven(r, 0);
+    hook(r, eq);
+    eq.xfull = eq.bfull = eq.hfull = 0;
+  }
+  eq.digitK(0);
+  // No hook after digitK: the original miner loop called showbsizes() only for
+  // rounds 0..WK-1, and nslots[] for the final round is not what the earlier
+  // calls report. Callers wanting a post-solve observation take it from eq
+  // directly, which is what the benchmark's PERF_PROBE accumulator does.
+}
+
+// Hook that does nothing, for callers with no per-round interest.
+struct EhTrompNoHook {
+  void operator()(u32, equi &) const {}
+};

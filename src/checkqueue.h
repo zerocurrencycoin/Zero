@@ -65,6 +65,26 @@ private:
     //! The maximum number of elements to be processed in one batch
     unsigned int nBatchSize;
 
+#ifdef ZERO_PERF
+public:
+    //! Utilization instrumentation. -par sizes this pool from the core count,
+    //! so a node starts nScriptCheckThreads-1 workers whether or not any
+    //! script is ever checked. These count what the pool actually did:
+    //!   nBatchesTaken   work batches pulled by any worker
+    //!   nWakeups        times a worker left cond.wait() with work
+    //!   nMaxConcurrent  high-water mark of workers simultaneously non-idle
+    //! Read via GetUtilization(); reported by ConnectBlock's perf logger.
+    uint64_t nBatchesTaken = 0;
+    uint64_t nWakeups = 0;
+    int nMaxConcurrent = 0;
+    void GetUtilization(uint64_t& batches, uint64_t& wakeups, int& maxcc)
+    {
+        boost::unique_lock<boost::mutex> lock(mutex);
+        batches = nBatchesTaken; wakeups = nWakeups; maxcc = nMaxConcurrent;
+    }
+private:
+#endif
+
     /** Internal function that does bulk of the verification work. */
     bool Loop(bool fMaster = false)
     {
@@ -101,6 +121,9 @@ private:
                     nIdle++;
                     cond.wait(lock); // wait
                     nIdle--;
+#ifdef ZERO_PERF
+                    nWakeups++;
+#endif
                 }
                 // Decide how many work units to process now.
                 // * Do not try to do everything at once, but aim for increasingly smaller batches so
@@ -108,6 +131,13 @@ private:
                 // * Try to account for idle jobs which will instantly start helping.
                 // * Don't do batches smaller than 1 (duh), or larger than nBatchSize.
                 nNow = std::max(1U, std::min(nBatchSize, (unsigned int)queue.size() / (nTotal + nIdle + 1)));
+#ifdef ZERO_PERF
+                nBatchesTaken++;
+                // nTotal counts participants; nIdle those parked. The
+                // difference is how many are actually working right now.
+                if (nTotal - nIdle > nMaxConcurrent)
+                    nMaxConcurrent = nTotal - nIdle;
+#endif
                 vChecks.resize(nNow);
                 for (unsigned int i = 0; i < nNow; i++) {
                     // We want the lock on the mutex to be as short as possible, so swap jobs from the global

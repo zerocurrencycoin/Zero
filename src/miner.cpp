@@ -536,8 +536,24 @@ void static BitcoinMiner(const CChainParams& chainparams)
     unsigned int n = chainparams.GetConsensus().nEquihashN;
     unsigned int k = chainparams.GetConsensus().nEquihashK;
 
-    std::string solver = GetArg("-equihashsolver", "default");
+    // Default is tromp: measured 5.69x faster and 3.3 GB peak against the
+    // reference solver's 7.15 GB at (192,7) (ZeroPerf M-EQ-TROMP-SPEEDUP,
+    // M-EQ-PEAK-TROMP, M-EQ-PEAK-DEFAULT). The shipped zero.conf templates
+    // have specified tromp for years; this aligns the code default with them.
+    // "default" selects the reference EhOptimisedSolve and remains supported.
+    std::string solver = GetArg("-equihashsolver", "tromp");
     assert(solver == "tromp" || solver == "default");
+
+    // The vendored tromp solver is compiled for fixed WN/WK (192,7)
+    // (pow/tromp/equi.h). It cannot solve any other parameter set, so fall
+    // back to the reference solver when the chain is not (192,7) -- regtest is
+    // (48,5). Without this, defaulting to tromp would silently produce invalid
+    // solutions off mainnet/testnet.
+    if (solver == "tromp" && !(n == WN && k == WK)) {
+        LogPrint("pow", "Equihash solver \"tromp\" supports only (%u,%u); "
+                        "using \"default\" for (%u,%u)\n", WN, WK, n, k);
+        solver = "default";
+    }
     LogPrint("pow", "Using Equihash solver \"%s\" with n = %u, k = %u\n", solver, n, k);
 
     std::mutex m_cs;
@@ -665,16 +681,10 @@ void static BitcoinMiner(const CChainParams& chainparams)
                     equi eq(1);
                     eq.setstate(curr_state.get());
 
-                    // Initialization done, start algo driver.
-                    eq.digit0(0);
-                    eq.xfull = eq.bfull = eq.hfull = 0;
-                    eq.showbsizes(0);
-                    for (u32 r = 1; r < WK; r++) {
-                        (r&1) ? eq.digitodd(r, 0) : eq.digiteven(r, 0);
-                        eq.xfull = eq.bfull = eq.hfull = 0;
-                        eq.showbsizes(r);
-                    }
-                    eq.digitK(0);
+                    // Round sequence is EhTrompSolveRounds (pow/tromp/equi_miner.h),
+                    // shared with the benchmark so the two cannot drift apart.
+                    // showbsizes() reports the round that just finished.
+                    EhTrompSolveRounds(eq, [](u32 r, equi &e) { e.showbsizes(r); });
                     ehSolverRuns.increment();
 
                     // Convert solution indices to byte array (decompress) and pass it to validBlock method.

@@ -8,6 +8,9 @@
 #include "utilstrencodings.h"
 
 #include <stdio.h>
+#include <algorithm>
+#include <map>
+#include <vector>
 
 #include <boost/foreach.hpp>
 #include <boost/thread.hpp>
@@ -58,6 +61,27 @@ private:
 typedef std::vector<std::pair<void*, CLockLocation> > LockStack;
 
 static boost::mutex dd_mutex;
+
+// Lock-hygiene counters, reported by LogLockStats(). Guarded by dd_mutex like
+// everything else here.
+//
+//   nLockRecursive  same thread re-acquiring a lock it already holds. Legal,
+//                   but the prevalence is worth knowing: a path that locks at
+//                   two depths is where a lock contract is easiest to break.
+//   nLockUnderflow  LeaveCritical() with an empty stack. Always a defect --
+//                   an unbalanced LOCK/unlock, or a lock released twice.
+static uint64_t nLockRecursive = 0;
+static uint64_t nLockUnderflow = 0;
+
+// Per-site attribution for recursive acquires. ~30 per block is high enough
+// that "recursive mutexes allow it" is not an answer -- the question is which
+// call sites, and whether the same site re-locks or different ones nest.
+//
+// Key: "<mutex> <file>:<line> under <file>:<line>" -- the acquiring site and
+// the site that already holds it. Same file:line on both sides means one
+// function re-locking itself, which is almost always removable; different
+// sites mean genuine nesting, which may be structural.
+static std::map<std::string, uint64_t> recursiveSites;
 static std::map<std::pair<void*, void*>, LockStack> lockorders;
 static boost::thread_specific_ptr<LockStack> lockstack;
 
@@ -123,8 +147,25 @@ static void push_lock(void* c, const CLockLocation& locklocation, bool fTry)
 
     if (!fTry) {
         BOOST_FOREACH (const PAIRTYPE(void*, CLockLocation) & i, (*lockstack)) {
-            if (i.first == c)
+            if (i.first == c) {
+                // Record acquiring site and holding site. lockstack.back() is
+                // the entry just pushed for this acquisition.
+                if ((*lockstack).size() >= 2) {
+                    const CLockLocation& acquiring = (*lockstack).back().second;
+                    recursiveSites[i.second.MutexName() + " " +
+                                   acquiring.ToString() + " under " +
+                                   i.second.ToString()]++;
+                }
+                // This thread already holds c: a recursive acquisition. Legal
+                // for the recursive mutexes Zero uses, and the loop must stop
+                // here or it would compare c against itself. Counted because
+                // without concurrency the prevalence should be low and a
+                // *rising* count is a signal: it means a call path acquires
+                // the same lock at two depths, which is where an
+                // AssertLockHeld contract is easiest to get wrong (P12).
+                nLockRecursive++;
                 break;
+            }
 
             std::pair<void*, void*> p1 = std::make_pair(i.first, c);
             if (lockorders.count(p1))
@@ -142,8 +183,40 @@ static void push_lock(void* c, const CLockLocation& locklocation, bool fTry)
 static void pop_lock()
 {
     dd_mutex.lock();
-    (*lockstack).pop_back();
+    // Unlocking something never locked is a real defect, not a curiosity:
+    // pop_back() on an empty vector is undefined behaviour, so the original
+    // would corrupt the stack rather than report. Count and refuse instead.
+    if ((*lockstack).empty()) {
+        nLockUnderflow++;
+        LogPrintf("LOCK UNDERFLOW: LeaveCritical() with no lock held\n");
+    } else {
+        (*lockstack).pop_back();
+    }
     dd_mutex.unlock();
+}
+
+void LogLockStats()
+{
+    dd_mutex.lock();
+    const uint64_t rec = nLockRecursive, und = nLockUnderflow;
+    dd_mutex.unlock();
+    LogPrintf("LockStats: recursive_acquires=%llu underflows=%llu\n",
+              (unsigned long long)rec, (unsigned long long)und);
+
+    // Top sites, descending. Attribution is the point: a flat total cannot
+    // distinguish a hot path re-locking itself from deep structural nesting.
+    dd_mutex.lock();
+    std::vector<std::pair<uint64_t, std::string> > v;
+    for (std::map<std::string, uint64_t>::const_iterator it = recursiveSites.begin();
+         it != recursiveSites.end(); ++it)
+        v.push_back(std::make_pair(it->second, it->first));
+    dd_mutex.unlock();
+    std::sort(v.rbegin(), v.rend());
+    for (size_t i = 0; i < v.size() && i < 25; i++)
+        LogPrintf("LockStats:   %10llu  %s\n",
+                  (unsigned long long)v[i].first, v[i].second.c_str());
+    LogPrintf("LockStats: %llu distinct recursive sites\n",
+              (unsigned long long)v.size());
 }
 
 void EnterCritical(const char* pszName, const char* pszFile, int nLine, void* cs, bool fTry)

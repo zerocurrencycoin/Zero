@@ -11,8 +11,19 @@
 #include <boost/scoped_ptr.hpp>
 #include <boost/function.hpp>
 
+//! Zero's hottest RPC, getalldata, serialises itself behind an in-flight gate
+//! (wallet/rpczerowallet.cpp), returning RPC_DATA_CONTINUE (-34) rather than
+//! running concurrently. Extra HTTP workers cannot parallelise it, so the
+//! requirement is headroom for a cheap call while an expensive one holds the
+//! gate -- not a large pool. Both are runtime-tunable: -rpcthreads,
+//! -rpcworkqueue.
+//!
+//! Upstream history: 4 threads dates from Bitcoin 2013 (21eb5adadb), a queue
+//! of 16 from 2015 (40b556d374). Bitcoin raised them to 16/64 in 2024
+//! (e56fc7ce6a, bitcoin#29386) for its own RPC load; Zero's consumers are a
+//! wallet UI and an explorer, so that reasoning does not carry over.
 static const int DEFAULT_HTTP_THREADS=4;
-static const int DEFAULT_HTTP_WORKQUEUE=16;
+static const int DEFAULT_HTTP_WORKQUEUE=4;
 static const int DEFAULT_HTTP_SERVER_TIMEOUT=30;
 
 struct evhttp_request;
