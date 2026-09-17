@@ -267,8 +267,17 @@ contrib/perf/mine_bench.sh mainnet-template # (192,7) env + notes; opt-in solve
 
 Env: `MINE_BLOCKS`, `MINE_TIMEOUT_S`, `CAMPAIGN=mine-equihash-*`.
 **Done:** regtest smoke (M-MINE-REGTEST-SMOKE).
-**Scheduled (Track M / G5):** mainnet (192,7) timed solve -- Instruments + `MINE_MAINNET_SOLVE=1`;
-`mainnet-template` mode alone only writes an env stub. Parallel with witness Cycle 1; one trial.
+**G5 (Track M), mainnet (192,7) timed solve -- the timing half is DONE, the
+profiling half is not.** `mainnet-template` mode alone only writes an env stub
+and never solves; that is the "G5 problem". The timing was taken instead
+through the fixed-nonce harness in `equihash_tests`
+(`SOLVE_TIMING_1927` / `SOLVE_TIMING_SOLVER`), which is the better instrument
+-- paired nonces, both solver arms in one process, solutions verified in-loop.
+Results: M-EQ-SOLVE-1927-FIXED and M-EQ-TROMP-PAIRED.
+
+**What remains of G5:** the Instruments capture, for a per-phase CPU
+breakdown of a mainnet solve. `MINE_MAINNET_SOLVE=1` plus an external
+`xctrace` attach; not run.
 
 KATs: **`src/test/data/`** (`1927EQ.txt`, `1927EQ_h1.hex`; see `kats/README.md`). TST-05 green;
 further test adaptation **postponed (G9)**.
@@ -382,6 +391,70 @@ and an `awk -F=` against colon-separated `vmmap` output recorded every memory
 value as blank. Both failed silently. Prefer this over a hand-written grep
 when the answer will be written down.
 
+## Lab wallets: where they are and how to use them
+
+**The catalog is `contrib/ops-validate.sh wallets`** -- it prints each id, its
+size and its resolved path. That command is the answer to "where are the test
+wallets"; this section says what they are, because no document did.
+
+| Id | Default path | What it is |
+|----|--------------|------------|
+| `p0` | `<datadir>/wallet.zero0` | small personal wallet |
+| `p1` | `<datadir>/wallet.zero.personalbak-<date>` | second personal wallet |
+| `fat` | `<datadir>/wallet.zero` | the **golden fat wallet**: ~749 MB, **801,619 tx**, 1,403 note-bearing (0.175%) |
+| `none` | -- | `-disablewallet` (default for every lab run) |
+
+Select with a positional id, `--wallet=PATH`, or `ZERO_OPS_WALLET` /
+`ZERO_PERF_WALLET_FILE`:
+
+```bash
+contrib/ops-validate.sh wallets                  # catalog + sizes
+contrib/ops-validate.sh reindex all p0           # inject wallet id 0
+ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
+  contrib/perf/wallet_sync_profile.sh            # fat reindex profile
+```
+
+**Why the golden fat wallet is not in this tree, and why that was hard to
+discover.** `docs/POLICY.md` S7.2 keeps DevFee wallet material out of the tree
+and uses it **by reference only** -- no addresses, no host paths in tracked
+documents. That is deliberate and correct. What was missing is any statement
+of *what the referenced thing is*, so `fat` appeared in eight `M-*` rows and
+several analyses with no definition anywhere. Hence this table.
+
+**On this host:** `p0` and `p1` are **MISSING**, and `fat` resolves to a
+110 KB `wallet.zero` -- **not** the golden 749 MB wallet the `M-WAL-*` rows
+were taken against. A wallet-on run here produces valid numbers that are
+**not comparable** to those rows.
+
+**The fat-wallet finding, since it is the largest in the tree:** a fat-wallet
+reindex of the tiny snap runs at **~19 blk/s against ~1,000 for
+`-disablewallet`** -- **~50x slower** (M-WAL-SYNC-FAT, 2.75 h for 187,417
+blocks). The bottleneck is `BuildWitnessCache` ->
+`VerifyAndSetInitialWitness`, ~97% of CPU (M-CPU-WAL-FAT), not
+`OrderedTxItems`. Two opt-in flags recover most of it:
+`-walletwitness=ibd-defer` **~35x** (M-WAL-WITNESS-IBD-AB) and
+`-walletwitnessnote=1` **~33x** (M-WAL-WITNESS-NOTEIDX-AB).
+
+## codectx.py
+
+Structural source queries that `grep` and `awk` answer wrongly. Tracks brace
+depth and function extents, so "is this lock held here" means *in this
+function*, not *somewhere earlier in the file*.
+
+```bash
+contrib/perf/codectx.py enclosing src/main.cpp 3110    # which function
+contrib/perf/codectx.py holds src/rpc/misc.cpp 1104 'LOCK\(cs_main\)'
+contrib/perf/codectx.py calls src/main.cpp GetSpentIndex
+contrib/perf/codectx.py phrase 'mostly\s+redundant' src/main.cpp
+```
+
+Written after three failures in one session: an `awk 'NR<=N'` scan reported a
+lock from a *different function* as covering a call site (twice, on the
+`FlushStateToDisk` and `getspentinfo` questions); and a comment phrase split
+across two lines was reported absent when present. `phrase` folds line breaks
+and comment markers before matching. Exit 1 on no match, as `codequery.sh`
+does.
+
 ## snapshot_data.sh
 
 Copy a data file aside before a run overwrites it. Collated outputs
@@ -478,6 +551,8 @@ file that does not exist.
 | `docs/BUILDCONFIG.md` | How to validate that a binary has the build configuration it was meant to have | Findings from any one build |
 | `docs/TSAN.md` | How to build and run ThreadSanitizer on Linux, and how to triage its reports | Findings from a run (its own `test-logs/` record) |
 | `docs/THREADS.md` | Census of every thread the node launches, with counts and conditions | Sizing logic and locking (`CONCURRENCY.md`) |
+| `docs/SCRIPTQUEUE.md` | Why `max_concurrent` misled, and what occupancy actually is | Thread census (`THREADS.md`) |
+| `docs/CPU_MEASUREMENT.md` | Which CPU quantity a figure is, and how to sample it without contradiction | Any specific measurement's result |
 | `docs/CONCURRENCY.md` | Thread pools, their sizing, solver synchronisation, and how to validate locking | Performance findings (`Perf.md`); task state |
 | `docs/RECORDS_READINESS.md` | Whether the store can type a given result, and the interim rule | Row shape itself (`SCHEMA.md`); measurement results |
 | `docs/FINDINGS.md` | What is known, newest first | Groth16 (its own file); task state |

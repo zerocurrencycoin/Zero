@@ -807,6 +807,45 @@ of P4. P1, P2 and P5 are independent of each other.
 | P18 `ShrinkDebugFile` keeps the tail | ToDo | Open | S | this file, P18 |
 | P19 Delete unbuilt `src/snark/` | ToDo | Open | XS | `docs/LIBSNARK.md` |
 | P20 `-par=0` allocates 13 idle workers | ToDo | Open | S | `docs/THREADS.md` S3e |
+| P22 Multi-threaded Equihash solve: unmeasured | ToDo | Open | M | this file, P22 |
+
+### P22. The threaded tromp solver has never been measured
+
+**It is buildable on this host, contrary to an earlier assumption.**
+`EQUIHASH_TROMP_THREADED` compiles clean at `-DEQUIHASH_TROMP_THREADED`, and
+macOS's missing `pthread_barrier_t` is supplied by an in-tree shim,
+**`src/pow/tromp/osx_barrier.h`** -- which exists precisely so this path can
+build here.
+
+**What blocks the measurement is not the platform but the driver.** Both
+production call sites construct `equi eq(1)` (`miner.cpp:681`,
+`equihash_tests.cpp:416`) and then call `digit0`/`digitodd`/`digiteven`/
+`digitK` inline. The threaded path instead needs `worker()`
+(`equi_miner.h:769`): a `thread_ctx` array, `pthread_create` per worker, and
+the round barrier between phases. Adding a `SOLVE_TIMING_THREADS` env knob to
+the harness is not sufficient -- the whole dispatch differs.
+
+**Why it is worth doing:** `equ/PLAN.md` S6.0 estimates intra-solve
+parallelism at only ~1.15x without a parallel merge, but that is an estimate,
+not a measurement, and it gates whether ARM SIMD work is worth scheduling
+(`INV-ARM-MIX`). The memory coupling is the real constraint -- ~3.3 GB per
+tromp instance (M-EQ-PEAK-TROMP) means independent parallel solves scale
+memory x N, while intra-solve parallelism holds memory constant.
+
+**Steps:**
+
+| # | What |
+|---|------|
+| 1 | Extract a threaded driver beside `EhTrompSolveRounds` -- spawn N `worker()` threads on one `equi`, join, collect. Mirrors what `worker()` already expects |
+| 2 | Add `SOLVE_TIMING_THREADS` to the fixed-nonce harness, dispatching to it when > 1 |
+| 3 | Measure 1 / 2 / 4 / 8 threads on the same four nonces; require **identical solution sets** at every width |
+| 4 | Sample `phys_mb` per width -- confirm memory is constant in N, which is the claim S6.0 rests on |
+
+**Effort M.** Step 3's solution-set equality is the gate: a threaded solver
+that drops solutions is a loss in Sol/s regardless of wall time.
+
+**Note the `?full` counters are now `au32`** (atomic under this define), so the
+race that would have corrupted the drop diagnostics at N>1 is already fixed.
 
 ### P19. `src/snark/` is dead code
 
@@ -1238,6 +1277,42 @@ index already answers "has this header been validated", and threading a
 An index-backed check cannot be forgotten by a new caller.
 
 **Explicitly not proposed:**
+
+#### CVE-2012-2459: the guard, and how the ecosystem carries it
+
+**The flaw.** The merkle tree duplicates the last hash when a level has an odd
+node count, so a block whose transaction list repeats a trailing sequence
+produces the **same merkle root** as the honest block while being invalid. An
+attacker mutates a valid block and relays it; a node that computes the same
+root, finds it invalid, and marks *that root* bad will then reject the honest
+block permanently -- a denial of service against the real chain.
+
+**The fix** detects the duplication during construction rather than comparing
+roots: `BuildMerkleTree(&mutated)` sets `mutated` when a level pairs a node
+with itself, and `CheckBlock` rejects with `bad-txns-duplicate`.
+
+**Bitcoin's history:** `01c28073ba` (2014-09-20) added the warning,
+`584a358997` (2014-09-16) made duplicate and root checks simultaneous, and
+`ee60e5625b` (2015-11-17) moved it to `consensus/merkle.cpp` with a generic
+implementation that never materialises the tree.
+
+**Verified across the ecosystem:**
+
+| Project | `mutated` refs | Implementation |
+|---------|---------------:|----------------|
+| Bitcoin (modern) | 3 | `consensus/merkle.cpp`, `BlockMerkleRoot(block, &mutated)` |
+| Zcash, Pirate, Hush3, Zclassic, Firo | 3 each | pre-2015 in-block form |
+| **Zero** | 3 | **pre-2015 in-block form** -- `CBlock::BuildMerkleTree(bool*)` (`primitives/block.cpp:18`), materialises `vMerkleTree` |
+
+**The guard is present and identical in all six; no fork dropped it.** Only
+the vintage differs: the zcashd descendants build the full tree vector
+(`reserve(vtx.size() * 2 + 16)`), Bitcoin since 2015 computes the root without
+storing it.
+
+**Relevance today is undiminished** -- the flaw is in the tree shape, not in
+version-specific code. That is exactly why `fCheckMerkleRoot` was excluded
+from the P13 short-circuit: its input is the transaction list, about which a
+cached header-validity bit says nothing.
 
 - **Touching the merkle check.** It is the CVE-2012-2459 malleability guard
   and its cost scales with a block's own transaction count -- small

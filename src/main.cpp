@@ -2246,11 +2246,22 @@ bool IsInitialBlockDownload(const CChainParams& chainParams)
     if (latchToFalse.load(std::memory_order_relaxed))
         return false;
 
+    // Hoisted above the lock. fImporting and fReindex are plain bools set once
+    // during init and read without cs_main throughout main.cpp; the answer they
+    // give here does not depend on chain state, so taking cs_main to read them
+    // is unnecessary work.
+    //
+    // This is the hot path during reindex and initial sync, which is exactly
+    // when the latch below has NOT tripped: measured 4.00 calls per block from
+    // 19 call sites, every one of them acquiring cs_main recursively
+    // (ZeroPerf test-logs/lockattr-20260913). Returning before the lock removes
+    // 44% of all recursive cs_main acquisitions during a reindex.
+    if (fImporting || fReindex)
+        return true;
+
     LOCK(cs_main);
     if (latchToFalse.load(std::memory_order_relaxed))
         return false;
-    if (fImporting || fReindex)
-        return true;
     if (chainActive.Tip() == NULL)
         return true;
     if (chainActive.Tip()->nChainWork < UintToArith256(chainParams.GetConsensus().nMinimumChainWork))
@@ -3041,8 +3052,26 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     auto verifier = libzcash::ProofVerifier::Strict();
     auto disabledVerifier = libzcash::ProofVerifier::Disabled();
 
-    // Check it again to verify JoinSplit proofs, and in case a previous version let a bad block in
-    if (!CheckBlock(block, state, chainparams, fExpensiveChecks ? verifier : disabledVerifier, !fJustCheck, !fJustCheck))
+    // Check it again to verify JoinSplit proofs, and in case a previous version let a bad block in.
+    //
+    // fCheckPOW: CheckBlockHeader re-runs CheckEquihashSolution, which is a
+    // pure function of the header bytes. AddToBlockIndex raised this index
+    // entry to BLOCK_VALID_TREE (main.cpp:4073) only after AcceptBlockHeader
+    // validated the header, and the header cannot have changed since -- the
+    // index is keyed by the header hash. Re-verifying it here recomputes a
+    // known answer.
+    //
+    // Measured: CheckBlock runs 3.00 times per block during reindex (ZeroPerf
+    // test-logs/lockstats-20260912), and Equihash verification is 0.252 ms per
+    // block chain-wide (M-CPU-SEQ), ~36% of a tiny reindex. Skipping the two
+    // redundant header verifications is the largest single saving available
+    // here that changes no caller contract.
+    //
+    // Deliberately NOT extended to fCheckMerkleRoot: that is the CVE-2012-2459
+    // malleability guard and its input is the transaction list, not the header.
+    const bool fHeaderAlreadyChecked = pindex->IsValid(BLOCK_VALID_TREE);
+    if (!CheckBlock(block, state, chainparams, fExpensiveChecks ? verifier : disabledVerifier,
+                    !fJustCheck && !fHeaderAlreadyChecked, !fJustCheck))
         return false;
 
     // verify that the view's current state corresponds to the previous block
@@ -4749,7 +4778,13 @@ static bool AcceptBlock(const CBlock& block, CValidationState& state, const CCha
 
     // See method docstring for why this is always disabled
     auto verifier = libzcash::ProofVerifier::Disabled();
-    if ((!CheckBlock(block, state, chainparams, verifier)) || !ContextualCheckBlock(block, state, chainparams, pindex->pprev)) {
+    // AcceptBlockHeader ran immediately above and raised this entry to
+    // BLOCK_VALID_TREE, which required CheckBlockHeader to pass. Re-running
+    // the Equihash verification here recomputes a pure function of the same
+    // header bytes. See the note in ConnectBlock.
+    const bool fHeaderAlreadyChecked = pindex->IsValid(BLOCK_VALID_TREE);
+    if ((!CheckBlock(block, state, chainparams, verifier, !fHeaderAlreadyChecked, true))
+        || !ContextualCheckBlock(block, state, chainparams, pindex->pprev)) {
         if (state.IsInvalid() && !state.CorruptionPossible()) {
             pindex->nStatus |= BLOCK_FAILED_VALID;
             setDirtyBlockIndex.insert(pindex);

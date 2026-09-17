@@ -47,6 +47,7 @@ SHELLCHECK_EXCLUDE="SC2046,SC2086,SC2162,SC2035,SC2043,SC2094,SC2129,SC2164,SC22
 # reporoot/MIGRATION_PLAN.md documents a provenance break -- three tracked
 # documents cite uniblake docs that are uncommitted. Naming the repo and the
 # files is the finding, not sprawl.
+# Equihash 50 -> 51: G5 clarification in README names the solver harness.
 # Equihash 49 -> 50: P13 resolution names CheckEquihashSolution.
 # Equihash 48 -> 49: TOOLING_FAILURES.md cites the equihash.cpp misread as
 # a worked example of a search failure.
@@ -58,6 +59,8 @@ SHELLCHECK_EXCLUDE="SC2046,SC2086,SC2162,SC2035,SC2043,SC2094,SC2129,SC2164,SC22
 # HIST/SPARK resolution, BUILDCONFIG.
 # tables 104 -> 105: CONCURRENCY.md experiment plan, THREADS.md review.
 # tables 102 -> 104: docs/THREADS.md (thread census) and the P12 lock finding.
+# Groth16 58 -> 59, tables 113 -> 118: CPU_MEASUREMENT.md uses the Groth16
+# bucket share as the worked example of share-vs-rate confusion; codectx.py.
 # Groth16 57 -> 58: LIBSNARK.md states what replaced it (Groth16/bellman).
 # Groth16 56 -> 57, tables 101 -> 102: docs/CONCURRENCY.md names the
 # proof-verification path when listing what is not parallelised.
@@ -69,9 +72,9 @@ SHELLCHECK_EXCLUDE="SC2046,SC2086,SC2162,SC2035,SC2043,SC2094,SC2129,SC2164,SC22
 # Equihash 42 -> 45: the D2/D3/D5 source-verification rows name the solver
 # in TASKS.md. That is task state (what was checked, where), not exposition,
 # so it belongs there; the ceiling moves rather than the text.
-RATCHET_TABLES=113
-RATCHET_CONC="Equihash=50
-Groth16=58
+RATCHET_TABLES=118
+RATCHET_CONC="Equihash=51
+Groth16=59
 libsodium=36
 uniblake=50"
 

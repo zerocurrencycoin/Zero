@@ -215,3 +215,67 @@ connected.
 | Lock-order inversions: **0**; `AssertLockHeld` violation: **1** (P12) | `test-logs/lockorder-20260912/` |
 | Recursive acquires: **5,567,609** (~29.7/block); underflows: **0** | `test-logs/lockstats-20260912/` |
 | `?full` atomics cost: **-1.03%**, not distinguishable from noise | `test-logs/atomics-timing-20260911/` |
+
+## 6. The block read path, confirmed
+
+Asked directly: does `ReadBlockFromDisk` fetch large increments, or is it
+stuck opening and closing files with small kernel transfers? **The latter.**
+
+| Step | What happens |
+|------|--------------|
+| `OpenDiskFile` (`main.cpp`) | **fresh `fopen(path, "rb+")` per call** -- no persistent handle on the default path |
+| | `fseek(file, pos.nPos, SEEK_SET)` to the block offset |
+| stdio buffer | **libc default.** macOS sizes it from `st_blksize`; the lab filesystem reports **4096**, so reads are 4 KB transfers, not 1 MB |
+| `filein >> block` | deserialises through that buffer |
+| `CAutoFile` destructor | **`fclose`** |
+
+**No readahead is requested and no increment larger than the stdio buffer is
+ever asked for.** There is no batching of "100 blocks" or a 1 MB window --
+each block is an independent open/seek/read/close cycle.
+
+**Scale:** `blk*.dat` files are **128 MB** (43 of them, mean 125.4 MB) holding
+blocks of ~1-2 KB pre-Sapling. So one 4 KB stdio read spans 2-4 consecutive
+blocks, and during a sequential reindex the next block is usually already in
+the page cache -- which is why the measured `disk_syscall` bucket is only
+**4.91%** of CPU (`Perf.md` S3) despite ~750,000 open/close pairs over a tiny
+reindex.
+
+**"Sequential access index increment is implicit" -- correct, and that is the
+point.** Reindex walks heights in order, so the access pattern is sequential
+*within* a file, and the kernel's own readahead plus the page cache absorb
+what the userspace path does naively. That is precisely why the `-perffdcache`
+latch and `-perfbufsize` both measured **null** (M-CPU-FD-THR): they optimise
+a path the OS had already made cheap.
+
+**Where it would matter, and does not here:** random access -- explorer
+`getblock` over scattered heights -- hits a different file per request and
+pays the full `fopen`/`fclose` each time with no locality. That is the
+unmeasured case recorded in `../Perf.md` S3, and the reason the flag is
+retained rather than deleted.
+
+## 7. `FlushStateToDisk` relocking: examined, not trivially removable
+
+`main.cpp:3476` opens with `LOCK2(cs_main, cs_LastBlockFile)` and the
+attribution measured it re-entering itself **exactly 2.00 times per block**.
+
+**Internal callers do hold `cs_main`** -- `:3627`, `:3716`, `:3985` are all
+inside functions that took it. But the function is also exposed through two
+public wrappers (`FlushStateToDisk()` at `:3574`, `PruneAndFlush()` at
+`:3580`) with **three external callers**: `init.cpp:245`, `init.cpp:2107`,
+`rpc/blockchain.cpp:795`.
+
+`init.cpp:245` takes `cs_main` immediately above the call. The other two were
+**not** verified -- a textual search finds a `LOCK` earlier in the file, but in
+a different function, which proves nothing.
+
+**So the `LOCK2` cannot simply become an `AssertLockHeld`** without
+establishing the contract at all five call sites, including an RPC path where
+the lock is most likely genuinely needed. That is the same shape as P12, and
+the same reason it is P14 rather than a quick fix.
+
+**Recommended if pursued:** annotate the two wrappers as the lock-acquiring
+entry points, convert the static `FlushStateToDisk(state, mode)` to
+`AssertLockHeld(cs_main)`, and have the wrappers take the lock. That preserves
+every external contract while removing the recursive acquisition on the hot
+internal path. **Effort S-M; blocked on verifying `init.cpp:2107` and
+`rpc/blockchain.cpp:795`.**
