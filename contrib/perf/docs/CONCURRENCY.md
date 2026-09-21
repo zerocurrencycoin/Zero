@@ -30,7 +30,7 @@ interesting ones:
 
 | Path | Why |
 |------|-----|
-| Groth16 / JoinSplit proof verification | Runs on the import thread; `scriptcheck` workers never see it. This is why post-Sapling sync is single-core bound (`../Perf.md` S2) |
+| Shielded proof verification | Runs on the import thread; `scriptcheck` workers never see it. This is why post-Sapling sync is single-core bound (`../Perf.md` S2) |
 | Block connection / state write | Serial by design |
 | Wallet note selection | No reservation mechanism on the `sendmany` path; safety currently comes from the single async worker (P9) |
 
@@ -144,7 +144,7 @@ Written 2026-09-12. **Nothing here has been run** except where marked.
 all-cores-up-to-16.
 
 **The argument for it**, on the evidence this tree has: post-Sapling sync is
-Groth16-bound on `ThreadImport` (`../Perf.md` S2), and script checking is not
+proof-verification-bound on `ThreadImport` (`../Perf.md` S2), and script checking is not
 the bottleneck. Threads that cannot help still contend for memory bandwidth
 and, on this host, for 4 efficiency cores that are slower than the 10
 performance cores -- a pool sized to 14 schedules work onto cores that finish

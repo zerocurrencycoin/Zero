@@ -13,7 +13,7 @@ while how the solver works belongs to `equ/`. It carries no task state; that is
 
 **Quantitative inventory** (`M-*` campaigns, vocabulary, comparability, extraction, ledger `CAMPAIGN=` map): **[Measures.md](Measures.md)** -- cite IDs only here; means/stdevs live there. This file keeps optimization narrative, **BENCH-/FIX-/IMP-***, baseline tracks **L0-L7**, Stages 0-6, priorities **G**/**P1-P4**, Groth decision, and **lab materials** (§1). Doc-map, lab discipline, and harness inventory: **`docs/POLICY.md`**.
 
-**Program: recreate the ConnectBlock / import performance baseline** so Groth and other decisions sit on current measured numbers. Already-shipped product work with tests stays in the tree (§3 fd-cache, §4 root latch + anchor index, reindex resume, ExtTests **B1** `reindex_shielded`, founders integer subsidy, FIX-LBI/IMPORT). **Baseline tracks** (§0.13 F **L0-L7**): tiny/short, pre-Sap reindex+bootstrap, post-Sap reindex+bootstrap, era segments, util; then Groth decision inputs. FDCACHE 4x2 postponed. Accounts/W5 pending review.
+**Program: recreate the ConnectBlock / import performance baseline** so pending decisions sit on current measured numbers. Already-shipped product work with tests stays in the tree (§3 fd-cache, §4 root latch + anchor index, reindex resume, ExtTests **B1** `reindex_shielded`, founders integer subsidy, FIX-LBI/IMPORT). **Baseline tracks** (§0.13 F **L0-L7**): tiny/short, pre-Sap reindex+bootstrap, post-Sap reindex+bootstrap, era segments, util; then Groth decision inputs. FDCACHE 4x2 postponed. Accounts/W5 pending review.
 
 **ID note:** ExtTests **B1** (`reindex_shielded`) is unrelated to baseline track **L1**. Do not reuse bare B0-B7 for lab tracks.
 
@@ -809,7 +809,7 @@ Post-Sapling (captures 2-6), Groth16 is consistently dominant (48-55%) across fi
 
 Groth16, disk I/O, and tree/anchor per-block cost all vary substantially (21-46% CV) -- expected, each scales with shielded-tx volume or block/undo-file size. **Equihash's per-block cost is essentially constant (0.252ms +/- 1.2% CV)** across pre- and post-Sapling heights and blocks/sec ranging 237-1,103 -- the signature of a fixed per-call cost independent of block content (root cause: §5).
 
-**Not yet investigated:** nothing has targeted Groth16 verification cost specifically (§0 item 2) -- the latch (§4) and the proposed root-existence index (§0 item 4) both target the tree/anchor bucket only, ~6-14% of CPU, not the 48-60% Groth16 bucket.
+**Not yet investigated:** the latch (S4) and the proposed root-existence index both target the tree/anchor bucket only, ~6-14% of CPU. The dominant proof-verification bucket has had nothing aimed at it; that work and its decision are `PerfGroth.md`.
 
 **Memory profiling:** Instruments' Allocations/Leaks templates attach successfully (`task_for_pid`, entitlement + Developer Mode satisfied) but their recorded data is a GUI-only proprietary blob with no `xctrace export` schema in this Instruments version -- headless readout is a dead end via that template. `vmmap`/`heap`/`malloc_history` are CLI-native with no export-format dependency and haven't been tried yet (§0 item 5).
 

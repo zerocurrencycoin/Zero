@@ -24,15 +24,15 @@ tools in `contrib/perf/` carry macOS assumptions:
 
 Zero ships Linux and Windows binaries. **No profile has ever been taken on
 either**, so no CPU attribution figure here is known to hold off macOS/arm64 --
-a caveat worth stating explicitly next to the numbers, because the Groth16
-share is the basis of the pending GROTH-DECIDE and that decision is not
+a caveat worth stating explicitly next to the numbers, because the
+proof-verification share is the basis of a pending decision and that decision is not
 macOS-specific.
 
 Two specific reasons the numbers might not transfer:
 
 - **Architecture, not just OS.** All captures are arm64. x86-64 has different
   vector width and a different bls12_381 code path; the pinned crates ship
-  assembly for both. The Groth16 share could plausibly differ by more than the
+  assembly for both. The proof-verification share could plausibly differ by more than the
   4% same-host repeat spread.
 - **blake2b.** `docs/FINDINGS.md` S2.3 records that stock arm64 still links
   `blake2b_compress_ref` (the portable C fallback). On x86-64 an SSE/AVX path
@@ -111,7 +111,7 @@ profilers can feed the same path.
 **`callgrind` is worth a specific note.** `performance-measurements.sh` already
 has a valgrind runner. Determinism is exactly what the FDCACHE A/B lacked, its
 effect sitting inside its own noise floor (`contrib/perf/Perf.md` S3). For small,
-CPU-bound comparisons -- a Groth16 batching before/after, say -- instruction
+CPU-bound comparisons -- a proof-verification before/after, say -- instruction
 counts would resolve differences that wall-clock cannot, at the cost of not
 being real time.
 
@@ -184,7 +184,7 @@ caveats that materially affect measurement:
   it explicitly on any WSL2 number regardless.
 
 WSL2 is the cheapest way to get *any* non-macOS data point, and CPU
-attribution -- the figure that actually underpins GROTH-DECIDE -- should
+attribution -- the figure that underpins the pending decision -- should
 transfer, since it is dominated by userspace arithmetic rather than syscalls.
 
 ### 4.3 What a Windows number would and would not tell us
@@ -242,7 +242,7 @@ tool is not.
   obvious model if per-function benchmarks are ever wanted.
 - **`zcash/zcash` performance work** -- same lineage; their Sapling batching
   measurements are directly comparable and are the natural cross-check for any
-  Groth16 result here.
+  proof-verification result here.
 - **`benchstat`** -- for its output discipline: report a delta only when it
   clears noise.
 
@@ -252,7 +252,7 @@ tool is not.
 
 | Rank | Item | Effort | Rationale |
 |-----:|------|--------|-----------|
-| 1 | **State the platform caveat** next to published CPU numbers | **S** | All numbers are macOS/arm64; GROTH-DECIDE rests on them. Costs one sentence per document, removes a silent assumption |
+| 1 | **State the platform caveat** next to published CPU numbers | **S** | All numbers are macOS/arm64; a pending decision rests on them. Costs one sentence per document, removes a silent assumption |
 | 2 | **Document the `parse()` input contract** in `bucket_profile2.py` | **S** | Makes the portable/non-portable boundary explicit before a second parser exists (S2) |
 | 3 | **Linux `perf` + folded-stack `parse()`** | **M** | One new parse function reusing all bucketing. First non-macOS data point; validates or breaks the arch assumption |
 | 4 | **`psutil`-based resource sampler** | **M** | Collapses the most platform-specific shell code; works on all three targets |

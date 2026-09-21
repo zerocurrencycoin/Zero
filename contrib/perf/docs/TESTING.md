@@ -40,137 +40,16 @@ a held test is not a failing test -- is the generalisation.
 
 ## Suite-run gotchas
 
-| C1 Documentation consolidation | **InTest** | Open | M | `POLICY.md` S2.0 |
-| E2 Script corpus + schema | **InProgress** | Open | M | this file, E2 |
-| C2 Remaining measurement gaps | ToDo | Open | M | `FINDINGS.md` S4 |
-| C3 Inherited build/DB defects | ToDo | Open | M | `../BUILD_RECONFIG.md` |
-| C4 Per-workload utilization profile | ToDo | Open | L | this file, C4 |
-| D1 Equihash / blake2 integration | **InProgress** | Open | M | `../equ/README.md` |
-| D2 `Xc.reserve()` | **Ready** | Open | XS | verified `equihash.cpp:384`; this file, D2 |
-| D3 Fold `len` to compile-time | **InTest** | Open | XS | **applied** `equihash.cpp:557` (`05cdcefe6`); 1.22x (M-EQ-D3-SORT) |
-| D5 tromp path + **now the default** | **Finished** | -- | S | 5.69x (M-EQ-TROMP-SPEEDUP); `test-logs/tromp-default-20260909/` |
-| F1 Regression gate on validate | **InTest** | Open | S | `validate.sh` |
-| F2 CI wiring | -- | **Postponed** | S | needs repo settings |
-| R0 Note locking | -- | **Assessed** | -- | closed into P9 |
-| GROTH | -- | Postponed | L-XL | `../PerfGroth.md` |
+Four results that look like platform defects and are not. Each cost time once.
 
-### Where to start next session
+| Item | What |
+|------|------|
+| a | **`Tests completed:`, not just exit code.** A runner can exit 0 having run nothing: a guard that declines to start the payload, or a killed waiter, is indistinguishable from a clean pass. Confirm the marker, then cross-check the totals against the per-script lines (`require_marker`, `require_counts_agree`) |
+| b | **uniblake sibling.** Resolves to the checkout beside this tree with no configuration; its short HEAD is the package version, so a uniblake commit rebuilds it on its own |
+| c | **Deliberately held.** `WalletTests.CachedWitnessesCleanIndex` is excluded in `qa/zcash/test_filters.sh` and fails unfiltered on every platform -- its reindex scenario needs the `pcoinsTip` + `ReadBlockFromDisk` path the gtest harness cannot provide |
+| d | **`Permission denied` is a file mode**, not a port problem. `core.fileMode=true` strips a local `+x` on checkout, so a test committed `100644` fails before it runs. Check `git ls-files -s` first |
+| e | **A skip is not a pass.** Three more instances found by sweeping for the shape: `check-security` failures were discarded by `\|\| true`; `rpc-tests.sh` fell off the end with status 0 when wallet/utils/bitcoind were not all enabled; and a tier selecting nothing printed "Tests completed: 0" and exited 0. All now fail |
 
-Everything below is Open unless marked otherwise. Three items are at **InTest**
-and share one exit condition: **none has been exercised from a clean checkout
-on a second machine.** That is the single highest-value next step, because it
-is also what would validate the cross-platform schema work.
-
-| Next | Item | Why it is next |
-|------|------|----------------|
-| 1 | **B2** first non-macOS capture | Now recordable (A2/F1b landed). Would move A1, A2, F1 and C1 out of InTest together, since a clean-checkout Linux run exercises all four |
-| 2 | **A3** microbenchmark baseline | Effort S, no decision needed, and worth more the longer GROTH stays postponed: a batching result needs a per-proof baseline taken beforehand |
-| 3 | **D2** `Xc.reserve()` | One line, V1, and the most informative single measurement in the Equihash plan. The harness and paired method now exist (D4), so this is a ~30 min run. Steps: D2 below |
-| 4 | **B1c/d** proof counters + `BenchSummary` | Product change, Zero400 review. B1a/b (parser side) are Finished |
-
-**Do not start** GROTH (maintainer's decision) or F2 (needs repository
-settings). Both are Postponed, not forgotten.
-
-**Standing caveat:** every gate is local. `validate.sh` runs only when a person
-runs it, so until F2 lands a contributor who skips it bypasses all of A1.
-
----
-
-## Postponed
-
-**GROTH** -- Sapling Groth16 batch verification. Everything about it,
-including the librustzcash dependency it rests on, is `../PerfGroth.md`.
-
-- Batch verification: awaiting a maintainer's choice
-- **Precondition: close C1 documentation work, finish Tests, and cut an
-  reference benchmark (5-10 trials preferred) before any algorithm experiment.** Rationale and
-  the exception (fork-for-custody, which is packaging) in `../PerfGroth.md`
-- **Attempt the Ycash/Pirate-level move directly (M).** Proven in action:
-  each fork is upstream history plus ~3 project-specific commits (network
-  prefixes, activation heights, encoding), both trees checked out at
-  `ZK/ZKs/rustzcash/`. Not research -- a bounded change of known shape
-- **Host downloadable artifacts under project control.** 741 MB of Zcash
-  parameters from `download.z.cash`, the librustzcash tarball, and lab
-  snapshots with no canonical source. Parameters are hash-verified so a mirror
-  adds no trust; independent of the fork decision
-- **Fork for custody (S, no consensus risk).** Take `06da3b9a` into
-  `zerocurrencycoin/librustzcash` unchanged, on a node branch with `master` left
-  mirroring upstream; acceptance test is a
-  byte-identical `librustzcash.a`. Then move `librustzcash.h` into
-  `src/rust/include/`. Recommendation, counter-arguments and what would change
-  it: `../PerfGroth.md`
-- **Dependency, and it constrains the above:** Zero pins librustzcash
-  `06da3b9a` (2018-10-27), **6724 commits** behind, and the C FFI crate it
-  pins **no longer exists upstream** -- moved into `zcash/zcash`. There is no
-  newer version of what Zero consumes
-between Option A and Option B; the options diverge at the FFI boundary, so
-starting either wastes the other. Prototype frozen.
-
-Everything: **`../PerfGroth.md`**. Nothing below depends on it.
-
-### GROTH -- status review, 2026-09-09
-
-**Remains postponed.** Reviewed, not reopened: the review is of whether the
-description and its pending decisions are still accurate, and they are.
-
-**Verified against the dependency, not the document:**
-
-| Claim | Check |
-|---|---|
-| Pin is `06da3b9a` (2018-10-27) | **Confirmed** -- `depends/packages/librustzcash.mk:7`, and the commit dates 2018-10-27 |
-| 6724 commits behind | **Confirmed exactly** -- `git rev-list --count 06da3b9a..HEAD` = 6724 against upstream HEAD 2026-09-03 |
-| The C FFI crate no longer exists upstream | **Confirmed** -- `librustzcash/` now holds only a README: "This crate has been moved into https://github.com/zcash/zcash" |
-
-So the load-bearing fact is intact: **there is no newer version of what Zero
-consumes.** Option B is not "upgrade a dependency", it is "adopt a different
-integration boundary", and that is the whole of the A-vs-B cost difference.
-
-**The decision is genuinely blocked on a person, not on evidence.** Both
-options are scoped, the math was proved on the pinned crates (Phases 0-1,
-scratchpad only), and the branch point is the FFI boundary -- so starting
-either wastes the other. That is a maintainer's call about risk appetite on
-consensus-critical code, and no further lab work changes it.
-
-**What is worth doing while postponed, in order:**
-
-| # | Item | Why now |
-|---|------|---------|
-| 1 | **A3 microbenchmark baseline** | A batching result needs a per-proof baseline taken *beforehand*. Taken afterwards it is not a comparison. This is the only genuinely time-sensitive item on the whole board |
-| 2 | **P1 proof-verification counters** | Groth16 verification is inside no timer at all, so a phase summary today omits 88-91% of post-Sapling cost while looking complete. Any before/after needs this first |
-| 3 | **Fork for custody** (S, no consensus risk) | Take `06da3b9a` into a Zero-owned mirror unchanged; acceptance test is a byte-identical `librustzcash.a`. Independent of A-vs-B, and it stops the build depending on an upstream path that has already moved once |
-| 4 | **Host the downloadable artifacts** | 741 MB of parameters from `download.z.cash` plus the librustzcash tarball. Parameters are hash-verified so a mirror adds no trust. Independent of everything else |
-
-(3) and (4) are packaging, carry no consensus risk, and are the two things that
-reduce exposure without pre-empting the decision. (1) and (2) are prerequisites
-for measuring any outcome.
-
-**Proposed resolution of the decision itself, with justification.** If forced
-to recommend: **Option B (migrate to the upstream batcher) is the better
-target, and Option A (hand-port onto pinned crates) is the better first step**
--- but only if the fork-for-custody work (3) lands first, because both options
-then build on a boundary Zero controls. The reason B is the target is that it
-is production-proven in zcashd and Zebra and also covers signature batching,
-so the same migration buys two wins; the reason A is the first step is that
-the Phase 0-1 math is already proved on the pinned crates and gives a
-correctness oracle that B's output can be checked against. **This is a
-recommendation for the maintainer to accept or reject, not a decision.**
-
-**Documentation state:** `../PerfGroth.md` is 938 lines and 23 tables, over
-the ten-per-file ceiling. It is the single largest findings document after
-`Perf.md` and holds the whole subject correctly (0 FDCACHE mentions after
-T5a). No content problem found; the table count is the open item.
-
----
-
-## A -- do first
-
-### A3. Record the microbenchmark baseline
-
-`M-ZCB-SUITE` has no numeric archive. Runner exists
-(`performance-measurements.sh`).
-
-Time-sensitive in one direction: a batching result needs a per-proof baseline
-taken beforehand, so this is worth more during the postponement than after.
 ## Suite plan: constants, tiers, failure modes
 
 30/30). Tier U created, validated and emptied. Full Bfail/Efail sweep run: 16

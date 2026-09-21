@@ -229,7 +229,7 @@ or `features.bundle` is **refused by default**, and overridable with an
 explicit flag that is recorded in the output.
 
 Reason: the failure is silent and authoritative-looking. An arm64 and an
-x86-64 capture averaged into one "Groth16 share" produces a number that is
+x86-64 capture averaged into one "proof-verification share" produces a number that is
 wrong in a way no reader can detect. Refusing by default converts a documented
 convention into an enforced one.
 

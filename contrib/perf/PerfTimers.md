@@ -56,7 +56,7 @@ flaws.
 
 ### 2.1 Proof verification is not inside any timer -- the significant one
 
-Groth16 proof verification is **48-55% of chain-wide `zcash-loadblk` CPU and
+Shielded proof verification is **48-55% of chain-wide `zcash-loadblk` CPU and
 88-91% post-Sapling** (`PerfGroth.md` S1). It is covered by **no bench timer at
 all**. Two separate paths, both outside:
 
@@ -217,7 +217,7 @@ variable-sample-size problem above.
 | A new RPC surfacing the counters | `getblockchaininfo`-style polling is a different feature with a different consumer; log lines are what field reports already carry |
 | Replacing the `-debug=bench` lines | They stay; this is a summary layer over the same counters |
 | Timing inside the script-check thread pool | `CCheckQueueControl` is concurrent; a wall-clock span there is not attributable to a phase without per-thread accounting |
-| Sub-phase Groth16 breakdown | That is Time Profiler work (`docs/HOWTO.md` Part 2), not log instrumentation |
+| Sub-phase proof breakdown | That is Time Profiler work (`docs/HOWTO.md` Part 2), not log instrumentation |
 
 ---
 
@@ -280,7 +280,7 @@ Steps 2 and 3 touch `src/main.cpp`, which is **Zero400-owned**
 (`docs/POLICY.md` S1). They are specified here and reviewed there. Step 1 is
 `contrib/perf/` and can proceed independently.
 
-**Not gated on GROTH-DECIDE.** Measuring proof cost is not the same as changing
+**Not gated on the batching decision.** Measuring proof cost is not the same as changing
 how proofs are verified, and better measurement is useful whichever of Option A
 or Option B is eventually chosen. If batching does land, these counters are how
 its effect gets measured in the field.

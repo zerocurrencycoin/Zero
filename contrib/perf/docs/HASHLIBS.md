@@ -129,7 +129,7 @@ profiled. The questions, in order of likely payoff:
 
 **The first question to answer is whether any of this is hot.** The reindex
 profile attributes 57.5% to anchor computation, 20.5% to disk, 16.5% to
-Equihash and 5.6% to Groth16 -- leaving little room, which suggests the answer
+Equihash and 5.6% to proof verification -- leaving little room, which suggests the answer
 is "no" for sync and "possibly" for wallet operations that were never profiled.
 
 ### B. librustzcash / librustcrypto

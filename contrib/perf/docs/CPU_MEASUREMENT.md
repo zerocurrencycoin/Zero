@@ -15,9 +15,9 @@ number.
 | **Bucket share** | what fraction of *sampled stacks* were in function X | `xctrace` / folded stacks |
 | **Wall-clock share** | what fraction of elapsed time a phase took | launcher timing |
 
-A bucket share of 48-55% (Groth16, M-CPU-SEQ) and a process rate of 100% are
+A bucket share of 48-55% (proof verification, M-CPU-SEQ) and a process rate of 100% are
 both correct and are not comparable: the first is a share of CPU *spent*, the
-second is a share of *one core*. Reporting "Groth16 is 50%" beside "CPU is
+second is a share of *one core*. Reporting "that bucket is 50%" beside "CPU is
 100%" invites the reading that half the machine is idle when in fact one core
 is saturated and thirteen are not being asked to do anything.
 
