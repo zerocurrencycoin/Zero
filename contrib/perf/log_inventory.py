@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Inventory every logging call site in src/, as TSV.
 
-PLAN.md M1. Produces data for the M2 review; makes no judgement about whether
+PLAN.md C1. Produces data for the C2 review; makes no judgement about whether
 a level or category is correct.
 
 Columns: file, line, construct, category, gated, func, text
@@ -53,7 +53,7 @@ def escape(s, limit=160):
 def scan(path, root):
     """Yield one record per logging call site."""
     try:
-        with open(path, "r", errors="replace") as fh:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
             lines = fh.readlines()
     except OSError as exc:
         print(f"warn: {path}: {exc}", file=sys.stderr)
@@ -130,7 +130,7 @@ def main():
             print(f"  {v:5d}  {k}")
         return
 
-    out = open(args.out, "w") if args.out else sys.stdout
+    out = open(args.out, "w", encoding="utf-8") if args.out else sys.stdout
     try:
         print("file\tline\tconstruct\tcategory\tgated\tfunc\ttext", file=out)
         for row in rows:

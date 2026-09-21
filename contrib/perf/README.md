@@ -603,7 +603,8 @@ file that does not exist.
 | `docs/SODIUM_SURVEY.md` | Which libsodium version, and why | Hashing performance |
 | `docs/CROSSPROJECT.md` | Recording results comparably across projects | Either project's findings |
 | `docs/PRODUCT.md` | Node-code changes perf work identified, and the evidence | Their state |
-| `docs/PLAN.md` | Every work item, grouped by subject and code area, with the plan for items decided here | Findings. Measurement detail. Anything with an owner elsewhere |
+| `docs/PLAN.md` | What to decide and what to do next, one line per item | Any detail whose subject is owned elsewhere |
+| `docs/TESTING.md` | Test and validation state: how to run the suites, suite rules, known defects, suite plan | Performance findings |
 | `docs/TASKS.md` | Frozen, superseded by `docs/PLAN.md`; retained until migration (PLAN X1) completes | New items -- do not add |
 | `README.md` | Per-tool invocation, env vars, per-tool caveats | Findings; task state |
 | `docs/HOWTO.md` | How to take a measurement and read it | Per-tool detail |
