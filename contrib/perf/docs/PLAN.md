@@ -9,11 +9,10 @@ Status carries two independent ratings:
 | Axis | Values | Means |
 |------|--------|-------|
 | **Kanban** | ToDo, InProgress, InTest, Closed | where the card is |
-| **Disposition** | Open, Blocked, Fixed, Postponed, Done | what happened to the issue |
+| **Disposition** | Open, Blocked, Fixed, Postponed | what happened to the issue |
 
-`Closed/Fixed` is repaired. `Closed/Postponed` is dropped without repair.
-`Closed/Done` is finished work that was never a defect. A card is not Closed
-until its result is recorded where the subject lives.
+`Closed/Fixed` is repaired; `Closed/Postponed` is dropped without repair. A
+card is not Closed until its result is recorded where the subject lives.
 
 `TASKS.md` is frozen and superseded; ids are preserved.
 
@@ -25,9 +24,11 @@ These block or redirect work below. Nothing else here needs an answer.
 
 | # | Decision | Bearing |
 |---|----------|---------|
-| 1 | **GROTH**: pursue Sapling batch verification, or leave it | Proof verification is 48-60% of post-Sapling CPU and nothing targets it. Two completed fixes aimed at 6-14% buckets both measured flat. `PerfGroth.md` |
-| 2 | **Push** `6571990ea` to `origin/perf_b1b2` | Committed, not pushed |
-| 3 | **Documentation target shape**: seven owned files, from twenty-two | Group D below |
+| 1 | **Documentation target shape**: seven owned files | Group D below |
+
+**GROTH** is deferred to the maintainer's own schedule, after this
+consolidation effort is validated and released. It is not raised again here;
+its state is `PerfGroth.md`.
 
 ---
 

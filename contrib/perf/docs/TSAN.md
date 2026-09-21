@@ -25,7 +25,7 @@ that would.
 ```bash
 ./autogen.sh
 ./configure --enable-tsan --enable-debug --with-incompatible-bdb
-make -j$(nproc)
+make -j4
 ```
 
 Notes from `configure.ac:470-477`:

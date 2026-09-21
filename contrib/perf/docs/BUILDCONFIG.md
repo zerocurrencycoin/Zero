@@ -46,7 +46,7 @@ verified on every `validate.sh` run.
 
 ```bash
 ./configure --enable-perf        # or --enable-debug; never CPPFLAGS= on make
-make -j$(nproc)
+make -j4
 contrib/perf/check_buildconfig.py src/zerod --expect ZERO_PERF --expect MAC_OSX
 ```
 
@@ -55,7 +55,7 @@ contrib/perf/check_buildconfig.py src/zerod --expect ZERO_PERF --expect MAC_OSX
 ```bash
 make -C src clean          # removes exactly what src/Makefile built
 ./configure                # back to defaults
-make -j$(nproc)
+make -j4
 contrib/perf/check_buildconfig.py src/zerod --expect MAC_OSX --reject ZERO_PERF
 ```
 

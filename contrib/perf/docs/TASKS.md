@@ -460,37 +460,11 @@ Needs a release note.
 
 ### F1. Where the gate attaches -- **implemented**
 
-`contrib/perf/validate.sh` is the gate. Stages run fastest-first so a broken
-tree fails in seconds:
-
-| Stage | What | Default |
-|-------|------|---------|
-| `lint` | `lint-perf.sh`, failing on any owned-scope finding | on |
-| `selftest` | every tool's `--self-test` plus `perflib` (15 total) | on |
-| `harness` | `contrib/run-tests.sh --strict` | `--with-harness` |
-
-`contrib/run-tests.sh` is Zero400-owned, so `validate.sh` **composes** it
-rather than editing it. Verified to exit 1 on a seeded regression and 0 on a
-clean tree -- a gate that reports FAIL but exits 0 is not a gate, and this one
-did until the summary loop was moved off a pipeline.
-
-**Kanban: InTest.** Exit condition: run it from a clean checkout on another
-machine.
+Implemented. `validate.sh`.
 
 ### F1b. Where the stamp is emitted -- **decided, shipped**
 
-Three options were weighed for A2d; **B was chosen and has landed**. Stamping
-happens in RecBench / `profile_collate.py` at row-append, not in
-each of the 10 launchers, which makes the invariant structural rather than
-procedural: an unstamped row is unrepresentable. Per-launcher calls would have
-been ten chances to forget; post-hoc backfill would have recorded a guess.
-
-Two caveats it had to handle, both live in the code now: the writer runs after
-the node exits, so `build.*` comes from the binary that actually ran rather
-than whatever `src/zerod` is at write time; and `features.workload` is passed
-in by the launcher, since the writer cannot infer it.
-
-**Kanban: Finished.** What still keeps A2 in InTest is A2e/f, not this.
+Decided and shipped.
 
 ### F2. CI wiring -- **Postponed**
 
@@ -853,21 +827,7 @@ and a 1-core host gets none; that behaviour is correct and should stay.
 
 ### P15. `getblockdeltas` is missing the same lock as `getspentinfo`
 
-Zcash `14ec1016b` (2019-12-27, Larry Ruane, "insightexplorer: LOCK(cs_main)
-during rpcs", first released in **v2.1.1**) added `LOCK(cs_main)` to **two**
-RPCs, not one:
-
-| RPC | Upstream | Zero |
-|-----|----------|------|
-| `getspentinfo` (`rpc/misc.cpp`) | scoped `LOCK(cs_main)` around the `GetSpentIndex` call | **missing** |
-| `getblockdeltas` (`rpc/blockchain.cpp`) | `LOCK(cs_main)` before `mapBlockIndex.count(hash)`, covering the `blockToDeltasJSON` helper that calls `GetSpentIndex` | **missing** |
-
-**No sibling fork has the 2019 fix** -- checked `pirate`, `hush3`,
-`zclassic`, `firo`: none takes the lock. Zero is not unusual in lacking it;
-upstream Zcash is the only one that fixed it.
-
-**Do P15 with P12** -- same commit, same rationale, two call sites. Porting
-upstream's change verbatim is the whole task.
+Fixed. `rpc/blockchain.cpp`, upstream `14ec1016b`.
 
 ### P16. Classify the remaining log volume
 
@@ -1056,29 +1016,7 @@ the fix does not touch `BlockManager` or any lock's lifetime, and it removes
 
 ### P21. `IsInitialBlockDownload` takes `cs_main` 4x per block during sync
 
-`main.cpp:2249`. Measured 937,088 recursive acquisitions over a tiny reindex,
-**exactly 4.00 per block**, 44% of all recursive locking.
-
-The existing `latchToFalse` optimisation is a no-op for the workload that
-needs it: it short-circuits only *after* IBD completes, so during reindex and
-initial sync every call falls through to `LOCK(cs_main)`.
-
-**Options:**
-
-| # | Approach | Note |
-|---|----------|------|
-| 1 | `AssertLockHeld(cs_main)` instead of `LOCK`, for the call sites that provably hold it | Converts an implicit contract into a checked one. Needs each of the 19 sites classified; some are RPC paths that may not hold it |
-| 2 | Split into `IsInitialBlockDownload()` (takes the lock) and `IsInitialBlockDownloadLocked()` (asserts) | Explicit, no ambiguity at the call site, mirrors the `_Locked` convention used elsewhere in Bitcoin-family code |
-| 3 | Cache the result per block-connection rather than per call | Smallest change, but introduces staleness where currently there is none |
-
-**Recommendation: (2).** It is mechanical, each call site states which
-contract it relies on, and it makes the remaining `LOCK` calls the ones that
-genuinely need it. (1) is the same work with a worse failure mode -- a missed
-site aborts instead of failing to compile.
-
-**Effort S-M** -- 19 call sites to classify. **Not postponed**: unlike P14
-this is one function, no structural change, and the largest single contributor
-to the rate.
+Fixed. Hoist, not split. Measure. `PLAN.md` B2.
 
 ### P13. `CheckBlock` runs three times per block during reindex
 
@@ -1243,139 +1181,11 @@ consensus-adjacent and needs Zero400 review plus the two missing tests.
 
 ### P12. `GetSpentIndex` asserts a lock none of its callers hold
 
-Found by the first `DEBUG_LOCKORDER` run in this tree
-(`test-logs/lockorder-20260912/FINDINGS.md`).
-
-`GetSpentIndex` (`main.cpp:1816`) opens with `AssertLockHeld(cs_main)` -- an
-assertion that **only compiles under `DEBUG_LOCKORDER`**, so it had never
-fired. All three RPC call sites reach it without the lock:
-`rpc/misc.cpp:1104` (`getspentinfo`), `rpc/blockchain.cpp:165`,
-`rpc/rawtransaction.cpp:181` and `:211`.
-
-**One of the two is wrong.** Either the lock is required and three paths are
-missing it, or the assertion is wrong and should be removed. The reads are of
-`pblocktree`, so the realistic exposure is a torn read during a concurrent
-chain update rather than a hang.
-
-#### The four call sites, compared
-
-Reviewed 2026-09-12. All four build a `CSpentIndexKey`, call `GetSpentIndex`,
-and derive a destination -- with **four different behaviours for the same
-condition**:
-
-| Site | `fSpentIndex` guard? | On miss | Lock |
-|------|---------------------|---------|------|
-| `rawtransaction.cpp:181` (vin) | **yes** | skip the fields silently | none |
-| `rawtransaction.cpp:211` (vout) | **yes** | skip the fields silently | none |
-| `blockchain.cpp:165` | **no** | `throw RPC_INTERNAL_ERROR` | none |
-| `misc.cpp:1104` (`getspentinfo`) | **no** | `throw RPC_INVALID_ADDRESS_OR_KEY` | none |
-
-**Three inconsistencies, none of them obviously deliberate:**
-
-1. **The `fSpentIndex` guard is present in two sites and absent in two.**
-   `GetSpentIndex` itself checks `fSpentIndex` and returns false
-   (`main.cpp:1819`), so the guard is redundant -- but its *absence* changes
-   behaviour: with the index disabled, `blockchain.cpp` throws
-   `RPC_INTERNAL_ERROR` ("Spent information not available") for what is a
-   configuration state, not an internal error.
-2. **Two different error codes for the same miss** --
-   `RPC_INTERNAL_ERROR` vs `RPC_INVALID_ADDRESS_OR_KEY`.
-3. **A miss is fatal in two sites and ignorable in two.** For
-   `getrawtransaction` the spent fields are decoration; for `getspentinfo`
-   they are the entire answer. That difference is justified. The *codes* and
-   the guard asymmetry are not.
-
-**Proposed resolution:** one helper beside the existing index accessors --
-
-```cpp
-// Returns false when the index is disabled or the entry is absent; callers
-// decide whether that is fatal.
-bool GetSpentIndexChecked(const CSpentIndexKey&, CSpentIndexValue&);  // takes cs_main
-```
-
-then each caller keeps its own policy: the two `getrawtransaction` sites skip
-the fields, `getspentinfo` throws `RPC_INVALID_ADDRESS_OR_KEY`, and
-`blockchain.cpp` throws the same code rather than `RPC_INTERNAL_ERROR`.
-
-*Justification:* it puts the lock in exactly one place -- which is what P12 is
-about -- removes the redundant guard, and normalises the error code without
-flattening the one behavioural difference that is real. It does **not** merge
-the JSON-building, which legitimately differs per RPC.
-
-#### Upstream already fixed this, and Zero is missing the line
-
-Checked across `ZKs/{zcash,pirate,hush3,zclassic,firo}`:
-
-| Project | `AssertLockHeld(cs_main)` in `GetSpentIndex`? | `LOCK(cs_main)` in `getspentinfo`? |
-|---------|---|---|
-| **zcash** | **yes** | **yes** -- `rpc/misc.cpp:1189`, a scoped block around the call |
-| **Zero** | **yes** (inherited) | **no** |
-| pirate, hush3 | no | n/a |
-
-So the assertion is upstream Zcash's, Zero inherited it, and **upstream also
-added the matching `LOCK(cs_main)` that Zero does not have**:
-
-```cpp
-    {
-        LOCK(cs_main);
-        if (!GetSpentIndex(key, value)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unable to get spent info");
-        }
-```
-
-Upstream's other two callers (`blockchain.cpp:169`,
-`rawtransaction.cpp:247`) also lack it, so those remain open questions there
-too -- but `getspentinfo` is settled: **Zero is missing a line upstream has.**
-
-**Recommendation: port upstream's scoped `LOCK(cs_main)` into
-`rpc/misc.cpp` verbatim.** No design decision, no divergence, and it is the
-site the assertion actually fired on. The other three callers stay as a
-separate question, since upstream has not resolved them either. `cs_main` is recursive so the cost is near zero on paths that
-already hold it, the sibling index accessors in the same file assert the same
-lock, and deleting an assertion to make a test pass is the wrong direction
-when the assertion is the only thing that found the gap. **Verify by
-re-running the suite under `DEBUG_LOCKORDER`** -- it is the only build where
-this is observable. Owner: Zero400.
-
-**Not a live deadlock**, and no lock-order inversion was found: the same run
-reported **zero** `POTENTIAL DEADLOCK` detections across the whole Boost
-suite.
+Fixed. `rpc/misc.cpp`, upstream `14ec1016b`.
 
 ### P11. The tromp solver driver is written twice
 
-`miner.cpp:668-700` and `src/test/equihash_tests.cpp:414-450` each contain the
-same call sequence -- `setstate`, `digit0`, the `digitodd`/`digiteven` round
-loop, `digitK`, then the solution walk. **Copied, not shared**, and the copies
-have already drifted: the test zeroes `xfull`/`bfull`/`hfull` *before*
-`digit0`, the miner does not; the miner calls `showbsizes()` per round, the
-test does not.
-
-The test comment says the driver is "lifted verbatim from `miner.cpp` so this
-measures the code path a miner actually runs". That is the intent, and
-duplication is exactly what breaks it -- a change to the miner's sequence
-silently stops the benchmark measuring the miner.
-
-**Finished 2026-09-11.** `EhTrompSolveRounds(equi&, RoundHook)` in
-`pow/tromp/equi_miner.h`; the hook fires after rounds 0..WK-1 so each caller
-observes what it needs. Verified behaviour-preserving: **identical solution
-sets** (11 = 11 over 4 nonces), nsols unchanged, timing -2.12% (noise).
-`test-logs/p11-refactor-20260911/FINDINGS.md`.
-
-**Memory and concurrency, checked while reading this:**
-
-- Allocation is **per-instance**: `htalloc::alloc` uses `calloc`, freed by
-  `~equi() -> dealloctrees()` (`equi_miner.h:281,323`). Two `equi` objects
-  share nothing, so concurrent *independent* solves need no lock -- they need
-  memory (~3.3 GB each, M-EQ-PEAK-TROMP).
-- Slot and solution counters are `au32`, which is `std::atomic<u32>` **only
-  under `EQUIHASH_TROMP_THREADED`** (`equi_miner.h:39-44`). `miner.cpp`
-  constructs `equi eq(1)`, so that is off and the plain `u32` path is used.
-- **`xfull` / `bfull` / `hfull` are plain `u32` regardless** (`:302-304`) and
-  are incremented in the hot path (`:566`). They are diagnostics, not
-  correctness state, but they would race if the threaded path were ever
-  enabled. The header already documents that threads, atomics and the barrier
-  "are one feature and must move together"; these three counters are **not**
-  covered by that statement and should be, if `nthreads > 1` is ever passed.
+Fixed. `EhTrompSolveRounds`; `test-logs/p11-refactor-20260911/`.
 
 ### P8. FDCACHE: lock lifetime, flag split, probe
 

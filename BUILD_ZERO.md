@@ -38,6 +38,16 @@ cd Zero
 ./zcutil/build.sh -j4
 ```
 
+**Choosing `-jN`.** This build is memory- and I/O-bound before it is CPU-bound: each translation unit is large, and the link steps contend. `-j$(nproc)` oversubscribes small hosts and gains little on large ones.
+
+| Host | Use |
+|------|-----|
+| 2-core VPS | `-j2`, or `-j1` with under 4 GB RAM |
+| 4-core x86_64 | `-j3` to `-j4` |
+| Apple silicon (4 performance + N efficiency cores) | `-j4` to `-j6`; `hw.ncpu` counts efficiency cores that contribute little here |
+
+Prefer a fixed number over `-j$(nproc)`. If the build is killed or the machine swaps, halve it.
+
 `fetch-params.sh` is **system setup** (once per machine, before first `zerod` start). Confirm with `zcutil/check-setup.sh`. It is not a step in `zcutil/check-release.sh` / `zcutil/build.sh`. Later rebuilds: `./zcutil/build.sh` only.
 
 Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. The Qt desktop wallet is a separate application (not built from this tree).
@@ -89,7 +99,7 @@ sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib \
 **Build:**
 ```bash
 ./zcutil/fetch-params.sh
-./zcutil/build.sh -j$(nproc)
+./zcutil/build.sh -j4      # see S2.1 for choosing -jN
 ```
 
 **Other Linux distros:** Install the same toolchain roles as the Ubuntu list above. BDB comes from `depends/`. If `make -C depends` fails, see §4.7.

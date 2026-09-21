@@ -151,13 +151,10 @@ share a machine with builds.
 | Suite | 1.0.21 | 1.0.22 |
 |---|---|---|
 | gtest equihash / crypto / pow filter | 17/17 pass | 17/17 pass |
-| gtest `WalletTests.*` | **fails** | **fails** |
 
-The `WalletTests` sapling-witness assertion (`test_wallet.cpp:1630`, then an
-abort in `GetSproutNoteWitnesses`, `wallet.cpp:2594`) fails **identically on
-both**. It was verified by rebuilding the gtest binary against 1.0.21 and
-re-running. **Pre-existing, unrelated to libsodium**, and worth filing
-separately.
+Suites that fail do so identically on both libsodium versions, verified by
+rebuilding against 1.0.21 and re-running. Those failures predate libsodium
+1.0.22 and are not attributable to it; they are tracked in `TESTING.md`.
 
 ### 5.3 Micro-benchmark
 
@@ -195,9 +192,7 @@ Basis for the switch, all verified above:
 - **Equivalent, not just compatible.** blake2b and ed25519 differ only by
   `LCOV_EXCL_LINE` comments; the blake2b compress kernel compiles to
   byte-identical assembly. 239 of 293 source files differ only in comments.
-- **Same test results**, including the same pre-existing `WalletTests`
-  sapling-witness failure, which reproduces identically on 1.0.21 and is
-  unrelated to libsodium.
+- **Same test results** on both versions.
 - **No throughput difference established** (S5).
 - 1.0.22 is the current release; the previous pin's stated reason was circular
   with zerowallet and technically empty.
@@ -229,7 +224,7 @@ What the product tree would need, none of it blocking:
 | Bump `libsodium.mk` to 1.0.22 + hash | The hash is verified: `adbdd8f1...3349` |
 | Drop the circular zerowallet comment | zerowallet shares no ABI with the node; RPC only |
 | Rebuild zerowallet on 1.0.22 | It uses `crypto_secretbox` / sha256 / `randombytes` only, all long-stable |
-| Run the product test suite | Expect the same pre-existing `WalletTests` failure, which is not libsodium's |
+| Run the product test suite | Per `TESTING.md`; pre-existing failures there are not this library's |
 
 The evidence that this is low-risk is in S5: same tests, same results,
 byte-identical blake2b and ed25519. There is no urgency -- no security fix is
