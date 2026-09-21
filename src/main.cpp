@@ -181,8 +181,25 @@ namespace {
     {
         bool operator()(CBlockIndex *pa, CBlockIndex *pb) const {
             // First sort by most total work, ...
-            if (pa->nChainWork > pb->nChainWork) return false;
-            if (pa->nChainWork < pb->nChainWork) return true;
+            //
+            // One CompareTo, not two. operator> and operator< are each
+            // `a.CompareTo(b) > 0` / `< 0` (arith_uint256.h:222-223), and
+            // CompareTo is an out-of-line symbol the compiler cannot merge
+            // across translation units -- so the original pair walked the
+            // eight 32-bit limbs twice to answer one question.
+            //
+            // This is the hot comparator for setBlockIndexCandidates, and
+            // chain work accumulates monotonically, so consecutive entries
+            // differ only in the low limbs: each walk traverses 6-7 identical
+            // high limbs before reaching the difference. Measured at startup
+            // on a 2.5M-block index, CompareTo was 626 of 951 AppInit2
+            // samples (66%), ~13 s of a 19.7 s block-index load
+            // (ZeroPerf test-logs/lab812-startup-20260917).
+            //
+            // Semantics are unchanged: the same three-way result, read once.
+            const int cw = pa->nChainWork.CompareTo(pb->nChainWork);
+            if (cw > 0) return false;
+            if (cw < 0) return true;
 
             // ... then by earliest time received, ...
             if (pa->nSequenceId < pb->nSequenceId) return false;

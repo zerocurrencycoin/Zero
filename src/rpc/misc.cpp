@@ -1101,8 +1101,16 @@ UniValue getspentinfo(const UniValue& params, bool fHelp)
     CSpentIndexKey key(txid, outputIndex);
     CSpentIndexValue value;
 
-    if (!GetSpentIndex(key, value)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unable to get spent info");
+    // GetSpentIndex opens with AssertLockHeld(cs_main) (main.cpp), which only
+    // compiles under DEBUG_LOCKORDER -- so this omission never fired in a
+    // normal build. Ported verbatim from upstream Zcash 14ec1016b
+    // ("insightexplorer: LOCK(cs_main) during rpcs", 2019-12-27, released in
+    // v2.1.1), which added the same scoped lock at the same call site.
+    {
+        LOCK(cs_main);
+        if (!GetSpentIndex(key, value)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unable to get spent info");
+        }
     }
     UniValue obj(UniValue::VOBJ);
     obj.push_back(Pair("txid", value.txid.GetHex()));

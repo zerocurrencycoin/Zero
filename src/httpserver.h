@@ -22,8 +22,18 @@
 //! of 16 from 2015 (40b556d374). Bitcoin raised them to 16/64 in 2024
 //! (e56fc7ce6a, bitcoin#29386) for its own RPC load; Zero's consumers are a
 //! wallet UI and an explorer, so that reasoning does not carry over.
+//
+// Measured 2026-09-17 on a full-tip node: with a queue depth of 4, two
+// concurrent clients issuing 40 sequential getblockcount each produced
+// **7 "request rejected - work queue full" warnings**; the same load at
+// depth 16 produced **zero**. A lowered queue rejects work the node could
+// have served, so the depth stays at the upstream default.
+//
+// The thread count is a different question and stays at 4: getalldata
+// serialises itself behind an in-flight gate, so extra workers cannot
+// parallelise the hot RPC. Depth buffers bursts; threads do the work.
 static const int DEFAULT_HTTP_THREADS=4;
-static const int DEFAULT_HTTP_WORKQUEUE=4;
+static const int DEFAULT_HTTP_WORKQUEUE=16;
 static const int DEFAULT_HTTP_SERVER_TIMEOUT=30;
 
 struct evhttp_request;

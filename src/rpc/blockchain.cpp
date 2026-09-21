@@ -475,6 +475,12 @@ UniValue getblockdeltas(const UniValue& params, bool fHelp)
     std::string strHash = params[0].get_str();
     uint256 hash(uint256S(strHash));
 
+    // Covers mapBlockIndex and the blockToDeltasJSON helper below, which calls
+    // GetSpentIndex -- that asserts cs_main. Ported verbatim from upstream
+    // Zcash 14ec1016b ("insightexplorer: LOCK(cs_main) during rpcs",
+    // 2019-12-27, v2.1.1), which added the lock at this same point.
+    LOCK(cs_main);
+
     if (mapBlockIndex.count(hash) == 0)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
 

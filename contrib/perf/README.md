@@ -25,7 +25,7 @@ per-tool caveats. It is deliberately the only place those live in long form.
 | One-line index of every tool | `docs/HOWTO.md` S4.1 |
 | Findings and method | `Perf.md` |
 | Numbers bound to `M-*` | `Measures.md` |
-| Task state and what to do next | `docs/TASKS.md` |
+| Work items and what to do next | `docs/PLAN.md` |
 | Rules, ownership, placement, lab discipline | `docs/POLICY.md` |
 | Recording results so they compare | `recbench/RecBench.md` |
 | Measuring across projects; uniblake practice | `docs/CROSSPROJECT.md` |
@@ -391,6 +391,69 @@ and an `awk -F=` against colon-separated `vmmap` output recorded every memory
 value as blank. Both failed silently. Prefer this over a hand-written grep
 when the answer will be written down.
 
+## Snapshot archives: the Insight flags are required
+
+**`chainblocks812*.tgz` and any full-tip snap need two flags in `zero.conf`
+before the node will use the chainstate they carry:**
+
+```
+experimentalfeatures=1
+insightexplorer=1
+```
+
+**Without them the node reindexes from genesis** -- a multi-hour run -- instead
+of loading the tip in seconds. The snapshot's `chainstate/` was built by a node
+with Insight indexes enabled; a node started without them does not recognise
+that state as usable.
+
+Verified 2026-09-17 on `chainblocks812-clean.tgz`: with the flags, startup
+reached **height 2,518,018** with `LoadBlockIndexDB: insight explorer enabled`
+and **`block index 19709ms`** -- 20 seconds, no reindex.
+
+Minimal working lab conf (no wallet, no network, no mining):
+
+```
+server=1
+rpcuser=lab
+rpcpassword=lab
+rpcport=23991
+port=23981
+listen=0
+connect=0
+maxconnections=0
+gen=0
+experimentalfeatures=1
+insightexplorer=1
+```
+
+then `./src/zerod -datadir=<LAB> -disablewallet -daemon`.
+
+**`bootstrap.dat` needs neither flag.** It is a flat serialised block stream
+with no index and no chainstate, so there is nothing for Insight settings to
+be consistent with -- the node builds both from scratch as it imports. The
+flags only matter when *transplanting* a prebuilt `chainstate/`.
+
+### Why the snapshot loads in 20 s and the bootstrap takes 2 h
+
+Two different operations, and the log lines name the difference:
+
+| | `chainblocks812-clean.tgz` | `bootstrap.dat` |
+|---|---|---|
+| What is supplied | `blocks/` **and** a built `chainstate/` + `blocks/index/` | blocks only, as a byte stream |
+| Startup work | read an existing LevelDB index | **validate and connect 2,468,990 blocks** |
+| `block index` time | **19,709 ms** | **37 ms** (nothing to load) |
+| Verification at start | last **288** blocks, level 3 | none -- every block validated during import |
+| Total to usable tip | **~20 s** | **7,191 s (2.00 h)** |
+
+The snapshot is not faster at the same work; it **skips the work**, having had
+it done once already. The 37 ms bootstrap figure is the tell -- its index load
+is instant because the index is empty.
+
+**Consequence for lab design:** use the snapshot when the question is about a
+node *at* the tip (RPC behaviour, memory at rest, witness operations), and
+`bootstrap.dat` when the question is about *reaching* the tip (validation
+throughput, CPU during import). They are not substitutes.
+
 ## Lab wallets: where they are and how to use them
 
 **The catalog is `contrib/ops-validate.sh wallets`** -- it prints each id, its
@@ -540,7 +603,8 @@ file that does not exist.
 | `docs/SODIUM_SURVEY.md` | Which libsodium version, and why | Hashing performance |
 | `docs/CROSSPROJECT.md` | Recording results comparably across projects | Either project's findings |
 | `docs/PRODUCT.md` | Node-code changes perf work identified, and the evidence | Their state |
-| `docs/TASKS.md` | Every task id and its state, one line each | Exposition, findings, numbers |
+| `docs/PLAN.md` | Every work item, grouped by subject and code area, with the plan for items decided here | Findings. Measurement detail. Anything with an owner elsewhere |
+| `docs/TASKS.md` | Frozen, superseded by `docs/PLAN.md`; retained until migration (PLAN X1) completes | New items -- do not add |
 | `README.md` | Per-tool invocation, env vars, per-tool caveats | Findings; task state |
 | `docs/HOWTO.md` | How to take a measurement and read it | Per-tool detail |
 | `Measures.md` | The `M-*` registry and metric vocabulary | Narrative |
@@ -553,6 +617,7 @@ file that does not exist.
 | `docs/THREADS.md` | Census of every thread the node launches, with counts and conditions | Sizing logic and locking (`CONCURRENCY.md`) |
 | `docs/SCRIPTQUEUE.md` | Why `max_concurrent` misled, and what occupancy actually is | Thread census (`THREADS.md`) |
 | `docs/CPU_MEASUREMENT.md` | Which CPU quantity a figure is, and how to sample it without contradiction | Any specific measurement's result |
+| `docs/LOCKS.md` | **Every lock finding**: rates, sites, upstream precedent, disposition | Task state (`TASKS.md`); thread census (`THREADS.md`) |
 | `docs/CONCURRENCY.md` | Thread pools, their sizing, solver synchronisation, and how to validate locking | Performance findings (`Perf.md`); task state |
 | `docs/RECORDS_READINESS.md` | Whether the store can type a given result, and the interim rule | Row shape itself (`SCHEMA.md`); measurement results |
 | `docs/FINDINGS.md` | What is known, newest first | Groth16 (its own file); task state |

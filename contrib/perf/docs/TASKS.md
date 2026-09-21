@@ -1,5 +1,10 @@
 # Tasks
 
+**Frozen 2026-09-21. Superseded by `PLAN.md`; do not add items here.**
+Retained until migration (PLAN X1) completes, so existing citations to its ids
+keep resolving. Ids are preserved in `PLAN.md`, regrouped by subject and code
+area.
+
 Work items and their state. The only place a task id lives, so two records
 cannot disagree. Items are listed, not explained: each names its subject and
 links to the document that owns it (`POLICY.md` S2.0a).
@@ -798,15 +803,17 @@ of P4. P1, P2 and P5 are independent of each other.
 | P9 Note locking / single-worker | ToDo | Open | S | this file, P9 -- **needs a decision** |
 | P10 Explicit parameters at defaulted calls | ToDo | Open | S | this file, P10 |
 | P11 tromp driver duplicated | **Finished** | -- | S | `EhTrompSolveRounds`; `test-logs/p11-refactor-20260911/` |
-| P12 `GetSpentIndex` lock contract | ToDo | Open | S | this file, P12 |
+| P12 `GetSpentIndex` lock contract | **Finished** | -- | S | `rpc/misc.cpp:1110`, upstream `14ec1016b` |
 | P13 `CheckBlock` runs 3x per block | ToDo | Open | M | this file, P13 |
 | P14 Defensive recursive `LOCK`s | -- | **Postponed** | M | upstream-proven; no measurable gain |
-| P15 `getblockdeltas` missing `LOCK(cs_main)` | ToDo | Open | XS | with P12; upstream `14ec1016b` |
+| P15 `getblockdeltas` missing `LOCK(cs_main)` | **Finished** | -- | XS | `rpc/blockchain.cpp:482`, same commit |
 | P16 Log volume and classification | ToDo | Open | S-M | this file, P16 |
 | P17 Out-of-order child on reindex | ToDo | Open | S | this file, P17 |
 | P18 `ShrinkDebugFile` keeps the tail | ToDo | Open | S | this file, P18 |
 | P19 Delete unbuilt `src/snark/` | ToDo | Open | XS | `docs/LIBSNARK.md` |
 | P20 `-par=0` allocates 13 idle workers | ToDo | Open | S | `docs/THREADS.md` S3e |
+| P23 `CBlockIndexWorkComparator` double CompareTo | **Finished** | -- | XS | 14.7% off index load; `test-logs/comparetofix-20260917/` |
+| P24 `getchaintips` is O(chain length) | ToDo | Open | S | `test-logs/rpc-test-20260917/` |
 | P22 Multi-threaded Equihash solve: unmeasured | ToDo | Open | M | this file, P22 |
 
 ### P22. The threaded tromp solver has never been measured
@@ -939,6 +946,25 @@ workers each taking a sliver and re-parking.
 **Proposed: lower `MAX_SCRIPTCHECK_THREADS` from 16 to 4**, leaving the
 proportional scaling intact. Effect: unchanged for hosts up to 4 cores
 (including every small VPS), capped at 3 workers above that.
+
+**Suitability at small core counts, checked explicitly:**
+
+| CPUs | workers created | total participants | Adequate? |
+|-----:|----------------:|-------------------:|-----------|
+| 1 | **0** | 1 (calling thread only) | **Yes.** A dedicated worker on a single CPU adds a context switch and a queue round-trip for no parallelism. Running inline is correct |
+| 2 | **1** | 2 | **Yes.** One worker plus the calling thread saturates both CPUs. A second worker would oversubscribe |
+| 4 | **3** | 4 | **Yes.** Matches core count exactly |
+
+The formula already produces the right answer at these sizes, and
+`MAX=4` changes **nothing** for any host with 4 or fewer CPUs -- it only
+truncates the 8-, 14- and 16+-core cases. So the cap is not a small-host
+question at all; it is purely about whether 15 workers on a large host earn
+their keep, which the occupancy measurement says they do not
+(`docs/SCRIPTQUEUE.md`).
+
+**Note the calling thread participates** (`CCheckQueueControl` runs
+`Loop(fMaster=true)`), which is why `nScriptCheckThreads - 1` workers are
+spawned. Counting only the spawned threads understates the pool by one.
 
 *Justification:* the cap is the only part of the formula that is a free
 choice -- the proportional part is defensible and Bitcoin-inherited. 16 dates
