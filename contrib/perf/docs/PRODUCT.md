@@ -1,10 +1,10 @@
 # Product changes identified by perf work
 
 Node-code changes this investigation found. They cannot be made from ZeroPerf
-(`POLICY.md` S7); each is specified here with its evidence and reviewed in
+(`POLICY.md`, "Tree ownership"); each is specified here with its evidence and reviewed in
 Zero400.
 
-Items and their state are in `TASKS.md` under Product handoff. This file holds
+Items and their state are in `PLAN.md` under Product handoff. This file holds
 the evidence: what was found, in which source, and what the alternatives are.
 
 ### P1. Proof-verification counters
@@ -324,6 +324,73 @@ still exists there; it is **215 lines against Zero's 1270**, and contains no
 `saplingmigration.cpp:143` is separable from both and is the only part with a
 crash behind it. The annotation of positional arguments is separable again, and
 smaller still.
+
+
+#### Expanding the gate: 1 -> 4, not 2 -> 4
+
+**Only one RPC is gated today.** The work is generalising a single in-line
+check into a named guard, then applying it -- not adding a second instance of
+an existing pattern.
+
+**Candidates.**
+
+The Zero-unique wallet reporting surface in `rpczerowallet.cpp`:
+
+| RPC | Line | Walks the wallet? | Gate it? |
+|-----|-----:|-------------------|----------|
+| `getalldata` | 2037 | Yes -- the whole point of the gate | **Already gated** |
+| `zs_listtransactions` | 813 | Yes, full `mapWallet` walk | **Yes** |
+| `zs_listreceivedbyaddress` | 1477 | Yes | **Yes** |
+| `zs_listsentbyaddress` | 1753 | Yes | Candidate; lower traffic |
+| `zs_listspentbyaddress` | 1201 | Yes | Candidate; lower traffic |
+| `zs_gettransaction` | 1089 | **No** -- single txid lookup | **No.** Nothing to coalesce |
+| `getsupply` | 2577 | No -- chain aggregate | **No** |
+
+**Recommended set of four:** `getalldata` (existing) plus
+`zs_listtransactions`, `zs_listreceivedbyaddress`, and one of the two
+`zs_list*byaddress` pair -- chosen by which a wallet UI actually polls.
+
+**Justification for the shape, not just the count.** The gate earns its place
+where a client *polls* an expensive full-wallet walk. `zs_gettransaction` is a
+point lookup, so gating it would return `-34` for a cheap call and break a
+legitimate access pattern. Gating by cost, not by file membership.
+
+**Design.**
+
+### Option A -- one guard per RPC, independent state
+
+Each gated RPC gets its own in-flight flag and last-success timestamp.
+
+- **Pro:** a slow `getalldata` never blocks `zs_listtransactions`; each RPC's
+  coalesce window is its own.
+- **Con:** four copies of the state; four places to get the RAII wrong; and it
+  does not stop four *different* polls from each starting a wallet walk, which
+  is the load the gate exists to bound.
+
+### Option B -- one shared gate, keyed by RPC name (recommended)
+
+One `cs` and a small map from RPC name to `{inFlight, lastSuccess}`, with a
+single `CWalletWalkGuard(const std::string& rpcName)`.
+
+- **Pro:** one implementation, one place to fix; adding the fifth RPC is a
+  one-line registration; per-RPC coalesce windows are preserved because the
+  state is per-key.
+- **Con:** one lock covers registration for all of them -- negligible, since it
+  is held only to read and set two fields, never across the walk itself.
+- **This is the upstream-shaped answer**, matching how the current guard
+  already separates "acquire" from "mark success", and it is what the
+  "combining through some helper" note intended.
+
+**Recommendation: B.** The mechanism is already RAII and already separates
+acquire from mark; keying it is a smaller change than writing three more
+copies, and it makes the count a configuration rather than a code change.
+
+**Open sub-question for the owner:** should the four share **one** in-flight
+slot (any wallet walk excludes any other) or **one per RPC**? Sharing bounds
+total wallet load, which is the real resource; per-RPC is friendlier to a UI
+that legitimately wants two different views. **Recommend per-RPC in-flight
+plus a shared concurrency cap of 1** if that proves insufficient under load --
+but start per-RPC, because it cannot break an existing client.
 
 ### P5. Migrate `boost::optional` to `std::optional`
 

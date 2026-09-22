@@ -1502,7 +1502,7 @@ documentation work.
 | T5a | FDCACHE consolidated into `Perf.md` S3; "functionally correct" retracted; 12 restatements deleted | `Perf.md`, `PerfGroth.md` (now 0 mentions) |
 | T5b | A5 source line references re-derived against the tree | `TASKS.md` A5 |
 | T5c | Table counts re-measured; hardcoded copies removed | `TASKS.md`, `lint-perf.sh` |
-| T5d | Meta-docs deleted: `MAP.md` (folded into `POLICY.md` S2.0a), `STRUCTURE.md`, `MIGRATION.md`, `OVERVIEW.md`, `docs/README.md` | `docs/` 15 -> 10 files |
+| T5d | Meta-docs deleted: `MAP.md` (folded into `POLICY.md` S2.0a), `STRUCTURE.md`, `MIGRATION.md`, `OVERVIEW.md`, `README.md` | `docs/` 15 -> 10 files |
 | T5e | `Perf.md` status sections deleted (S0.1-0.13, S0.15, S9/S9.1) | 1560 -> 1061 lines |
 | T5f | Out-of-scope Qt wallet docs deleted | `keep/desys.md`, `keep/ZeroWallet_Design.md` |
 

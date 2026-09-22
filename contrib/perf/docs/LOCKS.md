@@ -5,8 +5,7 @@ call-rate analysis, upstream precedent and disposition. Task state lives in
 `TASKS.md` under the item ids named here; nothing about locks is recorded
 anywhere else.
 
-Tracking item: **P25** (this file's contents as a unit). Individual fixes keep
-their own ids: P9, P12, P14, P15, P21.
+Work items for everything here are `PLAN.md` group B.
 
 ## 1. What was measured
 
@@ -69,7 +68,7 @@ lineage. The Zcash fix **was** available and Zero lacked it -- now applied.
 | **P15** `getblockdeltas` missing `LOCK(cs_main)` | **Finished** | `rpc/blockchain.cpp:482`, same commit |
 | **P21** `IsInitialBlockDownload` 4x/block | **Finished** | `fImporting \|\| fReindex` hoisted above the lock; removes 44% of recursion during reindex |
 | **P14** defensive recursive `LOCK`s | **Postponed** | 0.007% of wall; upstream fixes are structural refactors. Reopens if `main.cpp` is restructured, or if an inversion traces here |
-| **P9** `z_sendmany` note reservation | **Needs a decision** | Single async worker is what makes it safe; see `reporoot/OPEN_QUESTIONS.md` Q1 |
+| **B4** `z_sendmany` note reservation | **Needs a decision** | Shared lists need locking whatever the call rate; decision in `PLAN.md` |
 
 ## 6. What is NOT a lock finding
 

@@ -179,6 +179,65 @@ contrib/perf/profile_collate.py report --scenario S3-groth-after
 Compare against the recorded S3 baselines (88.5% none, 91.5% p1). Throughput
 side: `postsapling_reindex.sh`, ledger `CAMPAIGN=`.
 
+### 8.1 Verification and validation plan
+
+What must pass before a batching change is accepted. Nothing below exists
+today; each names where it goes and what it is adapted from.
+
+**Coverage today, stated plainly.** No test exercises proof verification
+directly. Coverage is incidental, through `test_transaction_builder.cpp` and
+`test_checktransaction.cpp`, which build and validate transactions that happen
+to contain proofs. A batching defect would surface as a transaction-level
+failure with no pointer to cause. On the performance side four of seventeen
+`zcbenchmark` samples are recorded; the two that matter,
+`verifysaplingspend` and `verifysaplingoutput`, are the per-proof baseline a
+batch result is measured against, and they are already banked.
+
+**Unit -- new `src/gtest/test_proofverify.cpp`.** Model on
+`test_joinsplit.cpp`, which already constructs proofs and asserts accept and
+reject.
+
+| Case | Assertion |
+|------|-----------|
+| Valid batch, n = 1, 2, 8, 64 | Accepts; equals per-proof result for the same inputs |
+| One invalid proof in a batch | Rejects |
+| Position of the invalid proof: first, middle, last | Rejects in every position -- guards a short-circuit that stops early |
+| All invalid | Rejects |
+| Empty batch | Accepts, and touches no verifier |
+| Mixed spend and output proofs | Accepts; both kinds verified |
+
+The equivalence case is the one that matters: same proofs through both paths
+must give the same accept or reject, since that is the consensus property.
+
+**Failure attribution -- the open design question.** Upstream rejects the whole
+block with one generic error; the plan of record preserves per-transaction
+error codes by falling back to per-proof verification on batch failure. A test
+must assert whichever is chosen, because the two behaviours are
+indistinguishable at the block level and differ for every RPC client. This is
+a decision before it is a test.
+
+**System -- `qa/rpc-tests/`.** Adapt `wallet_sapling.py`: send shielded, mine,
+restart with batching toggled, assert the same chain state and the same
+balances. Add a block containing a known-bad proof and assert the node rejects
+it identically with and without batching.
+
+**Load.** Two shapes, both needed: a post-Sapling reindex over a height range
+dense in shielded transactions, which is what `postsapling_reindex.sh` already
+drives; and a batch-size sweep against the per-proof baseline, since the
+headroom claim is about batch size and a single size proves nothing about the
+curve.
+
+**Consensus equivalence, the gate.** Reindex a real post-Sapling range with
+and without batching and compare the resulting chainstate hash. This needs the
+disposable tip that is a prerequisite for the witness benchmarks as well; it
+is the only test that can show the change is consensus-neutral, and no unit
+test substitutes for it.
+
+**Sequence.** Unit and attribution first, since they are cheap and catch
+design errors before measurement. Then the batch-size sweep against the
+recorded baseline. Consensus equivalence last, because it needs the tip and
+takes hours.
+
 
 ---
 
@@ -601,7 +660,7 @@ per spend and per output.
 **libsodium's role in Groth16: none.** Sapling proof verification is entirely
 Rust-side. libsodium appears elsewhere in the same block-validation path --
 Ed25519 for JoinSplit signatures, blake2b for sighash -- but not inside proof
-verification. The division is `../docs/HASHLIBS.md`; it is not restated here.
+verification. The division is `HASHLIBS.md`; it is not restated here.
 
 ### Who maintains this code
 

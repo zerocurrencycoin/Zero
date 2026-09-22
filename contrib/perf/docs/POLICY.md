@@ -104,7 +104,7 @@ So the rules are now subtractive, and they are budgets rather than intentions:
 ### 2.0a Where material belongs
 
 The per-file map -- every document, what it owns, what it does not hold -- is
-the **Documentation map** at the end of `../README.md`. It is there because
+the **Documentation map** at the end of `README.md`. It is there because
 that is the file someone opens first. `lint-perf.sh` `docmap` gates it.
 
 ### 2.1 What enforces what

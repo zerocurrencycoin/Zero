@@ -261,7 +261,7 @@ are `FINDINGS.md` S4.
 
 # Part 4 -- Tool reference
 
-Per-tool invocation detail lives in `../README.md`; this is the index.
+Per-tool invocation detail lives in `README.md`; this is the index.
 
 ## 4.1 Perf tooling in this directory
 

@@ -1,7 +1,15 @@
-# librustzcash: decision and remaining validation
+# librustzcash
 
-**Draft. Recommendation, not a decision.** Verified 2026-09-09 against
-`depends/`, `BUILD_ZERO.md`, and `ZKs/{zcash,pirate,ycash}`.
+The Rust proof dependency: what it replaced, what is already validated, and
+what validation remains. Recommendation, not a decision.
+
+**Background: it replaced libsnark, and that is settled.** libsnark
+implemented the Sprout proving system (BCTV14/PGHR13 over alt_bn128) in C++.
+Sapling moved proving and verification to Rust `bellman`, after which the C++
+system was on no live path -- Sprout proof verification also routes through
+librustzcash. Zcash removed libsnark in v2.1.0; Zebra never had it; Pirate,
+Ycash and Hush all removed it. Zero still carries `src/snark/` unbuilt, which
+is a deletion item, not an open question.
 
 ## 1. What is already validated (do not re-run)
 

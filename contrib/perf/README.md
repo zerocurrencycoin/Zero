@@ -605,31 +605,52 @@ file that does not exist.
 | `docs/PRODUCT.md` | Node-code changes perf work identified, and the evidence | Their state |
 | `docs/PLAN.md` | What to decide and what to do next, one line per item | Any detail whose subject is owned elsewhere |
 | `docs/TESTING.md` | Test and validation state: how to run the suites, suite rules, known defects, suite plan | Performance findings |
-| `docs/TASKS.md` | Frozen, superseded by `docs/PLAN.md`; retained until migration (PLAN X1) completes | New items -- do not add |
+| `docs/TASKS.md` | Frozen, superseded by `PLAN.md`; retained until migration (PLAN X1) completes | New items -- do not add |
 | `README.md` | Per-tool invocation, env vars, per-tool caveats | Findings; task state |
 | `docs/HOWTO.md` | How to take a measurement and read it | Per-tool detail |
 | `docs/Measures.md` | The `M-*` registry and metric vocabulary | Narrative |
 | `docs/SCHEMA.md`, `recbench/RecBench.md` | Row shape, identity, store topology | Results |
 | `docs/POLICY.md` | Rules, ownership, lab discipline, retention | Anything specific to one subject |
 | `docs/TOOLING_FAILURES.md` | Shell/search invocations that returned wrong answers, and what closes each | Anything not about tooling reliability |
-| `docs/LIBSNARK.md` | What `src/snark/` is, where it came from, and whether it is used | Proof-verification findings (`docs/PerfGroth.md`) |
-| `docs/LIBRUSTZCASH.md` | The Rust proof dependency: what is validated, what the siblings did, remaining validation | Proof cost and batching (`docs/PerfGroth.md`) |
+| `docs/LIBRUSTZCASH.md` | The Rust proof dependency: what is validated, what the siblings did, remaining validation | Proof cost and batching (`PerfGroth.md`) |
 | `docs/BUILDCONFIG.md` | How to validate that a binary has the build configuration it was meant to have | Findings from any one build |
 | `docs/TSAN.md` | How to build and run ThreadSanitizer on Linux, and how to triage its reports | Findings from a run (its own `test-logs/` record) |
 | `docs/THREADS.md` | Census of every thread the node launches, with counts and conditions | Sizing logic and locking (`CONCURRENCY.md`) |
 | `docs/SCRIPTQUEUE.md` | Why `max_concurrent` misled, and what occupancy actually is | Thread census (`THREADS.md`) |
 | `docs/CPU_MEASUREMENT.md` | Which CPU quantity a figure is, and how to sample it without contradiction | Any specific measurement's result |
-| `docs/LOCKS.md` | **Every lock finding**: rates, sites, upstream precedent, disposition | Task state (`TASKS.md`); thread census (`THREADS.md`) |
-| `docs/CONCURRENCY.md` | Thread pools, their sizing, solver synchronisation, and how to validate locking | Performance findings (`docs/Perf.md`); task state |
+| `docs/LOCKS.md` | **Every lock finding**: rates, sites, upstream precedent, disposition | Work items (`PLAN.md`); thread census (`THREADS.md`) |
+| `docs/CONCURRENCY.md` | Thread pools, their sizing, solver synchronisation, and how to validate locking | Performance findings (`Perf.md`); task state |
 | `docs/RECORDS_READINESS.md` | Whether the store can type a given result, and the interim rule | Row shape itself (`SCHEMA.md`); measurement results |
-| `docs/FINDINGS.md` | What is known, newest first | Groth16 (its own file); task state |
+| `docs/FINDINGS.md` | What is known, newest first | Proof verification (its own file); work items |
 | `docs/NOTES.md`, `mine/*.md` | Point-in-time records, kept as written | Anything durable |
 | `docs/PerfTimers.md` | Spec for the block-processing phase timers (`IMP-BENCH-ALWAYS`) | Measured results; task state |
 | `docs/PerfPlatforms.md` | What the harness needs per platform, and the Linux/Windows equivalents | Findings taken on any one platform |
 | `docs/Stores.md` | Zero's on-disk data structures and local stores | Performance findings about them |
 | `docs/BUILD_RECONFIG.md` | The autotools re-configure trap and its options | Anything not about configure |
 | `zcash-lint/ZEROPERF.md` | What the vendored Zcash linters are, and which findings are set aside | Lint results |
-| `reporoot/*.md` | Transient drafts and decision papers for Zero400-owned material: root-document reviews, open questions, migration and RPC plans (`docs/POLICY.md` S7.1) | Anything authoritative; disposition is the owner's |
+| `reporoot/*.md` | Transient drafts and decision papers for Zero400-owned material: root-document reviews, migration and cleanup plans (`POLICY.md`) | Anything authoritative; disposition is the owner's |
 | `keep/*.md` | Archived point-in-time notes, kept as written (S5): `Peer.md` node/RPC ops, `TENT.md` and `TENTZero.md` TENT lineage and port map, `ZcashV.md` 2026 Sprout/Orchard vulnerabilities across zcashd forks, `ZeroWallet_Design.md` Qt wallet design (out of node scope, kept as reference) | Anything durable or maintained; these are not updated |
 
 Rules, ownership, retention and lab discipline: **`docs/POLICY.md`**.
+
+## Before adding a document or a cross-reference
+
+**One subject, one file.** Everything about a topic goes in the single file
+that owns it -- findings, method, defects, and the plan for it together. Do not
+open a second file to cover the same subject from another angle, and do not
+leave a summary behind in the first. A developer should be able to read one
+file and be done, not assemble the picture from five.
+
+**Adding a file requires retiring one.** A new document must name the document
+it replaces or the material it removes from elsewhere. Without that, a set like
+this one grows a file per idea and covers every subject four times.
+
+**Cross-reference only when the reader must go there to act.** Name the
+document and, if needed, a heading title -- never a section number, and never a
+path: the map above locates every file. A reference that merely notes another
+document also discusses the subject is noise, and it is one more link to keep
+correct.
+
+The check is not "could this be its own document?" but "is this subject
+already owned?" If it is, the material belongs in the owner, however
+inconvenient that file is to edit.

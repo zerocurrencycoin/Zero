@@ -18,8 +18,9 @@ This directory is not a second home for product documentation.
 | Draft | Source document | State |
 |-------|-----------------|-------|
 | `TODO.review.md` | `TODO.md` | Proposed; not applied |
-| `OPEN_QUESTIONS.md` | -- | Decisions needed; not a draft of anything |
 | `MIGRATION_PLAN.md` | -- | Repo consolidation plan; proposal only |
+| `CLEANUP.md` | -- | Inherited `src/` material: inert, unused, misnamed |
+| `MAINTREE_CHANGES.md` | -- | Changes this tree made outside `contrib/perf` |
 
 **Disposition of this directory is the owner's.** Nothing here is deleted or
 moved without instruction; the lifecycle note above describes intent, not a
