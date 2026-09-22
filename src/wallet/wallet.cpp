@@ -1629,7 +1629,7 @@ void CWallet::EnsureNoteTxIndex()
         return;
     vNoteTxHashes.clear();
     for (const auto& wtxItem : mapWallet) {
-        if (!wtxItem.second.mapSproutNoteData.empty() || !wtxItem.second.mapSaplingNoteData.empty())
+        if (HasNoteData(wtxItem.second))
             vNoteTxHashes.push_back(wtxItem.first);
     }
     fNoteTxIndexStale = false;
@@ -2149,10 +2149,18 @@ void CWallet::UpdateNullifierNoteMapForBlock(const CBlock *pblock) {
 bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletDB* pwalletdb)
 {
     uint256 hash = wtxIn.GetHash();
-    InvalidateNoteTxIndex();
 
+    // NOTEIDX membership changes only when a tx gains or loses note data, so
+    // that is the only thing that invalidates the index. Invalidating here
+    // unconditionally cost an O(mapWallet) EnsureNoteTxIndex rebuild on the
+    // next witness scan for every transparent tx and every no-op merge -- on a
+    // fat wallet the founders coinbase arriving each block after height
+    // 1600000 set the flag per block, which is what made the rebuild, not the
+    // scan, the cost of a wallet-on sync.
     if (fFromLoadWallet)
     {
+        if (HasNoteData(wtxIn))
+            InvalidateNoteTxIndex();
         mapWallet[hash] = wtxIn;
         mapWallet[hash].BindWallet(this);
         UpdateNullifierNoteMapWithTx(mapWallet[hash]);
@@ -2169,8 +2177,11 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
         pair<map<uint256, CWalletTx>::iterator, bool> ret = mapWallet.insert(make_pair(hash, wtxIn));
         CWalletTx& wtx = (*ret.first).second;
         wtx.BindWallet(this);
-        UpdateNullifierNoteMapWithTx(wtx);
+        // Note membership before the merge below can change it. For an insert
+        // the entry is wtxIn itself, so there is no prior state to compare.
         bool fInsertedNew = ret.second;
+        const bool hadNotes = !fInsertedNew && HasNoteData(wtx);
+        UpdateNullifierNoteMapWithTx(wtx);
         if (fInsertedNew)
         {
             wtx.nTimeReceived = GetAdjustedTime();
@@ -2244,6 +2255,12 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
                 fUpdated = true;
             }
         }
+
+        // Membership is settled once the merge above has run: an insert joins
+        // the index iff it carries notes, and an existing entry only matters
+        // if UpdatedNoteData took it from empty to non-empty (or the reverse).
+        if (fInsertedNew ? HasNoteData(wtx) : (hadNotes != HasNoteData(wtx)))
+            InvalidateNoteTxIndex();
 
         //// debug print
         LogPrintf("AddToWallet %s  %s%s\n", wtxIn.GetHash().ToString(), (fInsertedNew ? "new" : ""), (fUpdated ? "update" : ""));
@@ -2417,9 +2434,12 @@ void CWallet::EraseFromWallet(const uint256 &hash)
         LOCK(cs_wallet);
         map<uint256, CWalletTx>::iterator it = mapWallet.find(hash);
         if (it != mapWallet.end()) {
+            // Read membership before the erase invalidates the iterator.
+            const bool hadNotes = HasNoteData(it->second);
             RemoveFromWtxOrdered(&it->second);
             mapWallet.erase(it);
-            InvalidateNoteTxIndex();
+            if (hadNotes)
+                InvalidateNoteTxIndex();
             CWalletDB(strWalletFile).EraseTx(hash);
         }
     }

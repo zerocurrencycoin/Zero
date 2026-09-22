@@ -55,6 +55,7 @@ public:
         CWallet::BuildWitnessCache(pindex, witnessOnly, pblockIn);
     }
     void EnsureNoteTxIndexPublic() { EnsureNoteTxIndex(); }
+    void InvalidateNoteTxIndexPublic() { InvalidateNoteTxIndex(); }
     void SelectWalletTxsForWitnessScanPublic(
         std::vector<std::pair<const uint256, CWalletTx>*>& out) {
         SelectWalletTxsForWitnessScan(out);
@@ -2511,10 +2512,15 @@ TEST(WalletTests, NoteTxIndexTracksNoteBearingTxs) {
     CWalletTx emptyTx(&wallet, CTransaction(mtx));
     emptyTx.nOrderPos = 0;
     emptyTx.nTimeReceived = 1;
-    wallet.AddToWallet(emptyTx, true, NULL);
-    EXPECT_TRUE(wallet.NoteTxIndexStale());
+    // A fresh CWallet starts stale, so settle the index before asserting that
+    // a transparent add leaves it alone.
     wallet.EnsureNoteTxIndexPublic();
     EXPECT_FALSE(wallet.NoteTxIndexStale());
+
+    wallet.AddToWallet(emptyTx, true, NULL);
+    EXPECT_FALSE(wallet.NoteTxIndexStale())
+        << "a transparent tx changes no index membership and must not invalidate";
+    wallet.EnsureNoteTxIndexPublic();
     EXPECT_EQ(wallet.NoteTxIndexSize(), 0u);
 
     mtx.vin[0].scriptSig = CScript() << OP_2;
@@ -2543,4 +2549,81 @@ TEST(WalletTests, NoteTxIndexTracksNoteBearingTxs) {
     std::vector<std::pair<const uint256, CWalletTx>*> scanAll;
     wallet.SelectWalletTxsForWitnessScanPublic(scanAll);
     EXPECT_EQ(scanAll.size(), 2u);
+}
+
+// Only a change of index membership invalidates. Rebuilding the index is
+// O(mapWallet), so invalidating for a tx that was never a member is the cost
+// this guards against.
+//
+// Scope: the load path and the direct note-map transition. The live
+// AddToWallet merge writes through CWalletDB, which this harness has no
+// backing store for, and EraseFromWallet no-ops without fFileBacked -- both
+// are covered by the RPC suite instead.
+TEST(WalletTests, NoteTxIndexInvalidatesOnlyOnMembershipChange) {
+    TestWallet wallet;
+    LOCK2(cs_main, wallet.cs_wallet);
+
+    auto makeTx = [&](int tag) {
+        CMutableTransaction mtx;
+        mtx.nVersion = CTransaction::SPROUT_MIN_CURRENT_VERSION;
+        mtx.vin.resize(1);
+        mtx.vin[0].prevout.SetNull();
+        mtx.vin[0].scriptSig = CScript() << tag;
+        mtx.vout.resize(1);
+        mtx.vout[0].nValue = 1 * COIN;
+        mtx.vout[0].scriptPubKey = CScript() << OP_TRUE;
+        return mtx;
+    };
+    auto settle = [&]() {
+        wallet.EnsureNoteTxIndexPublic();
+        EXPECT_FALSE(wallet.NoteTxIndexStale());
+    };
+
+    // A transparent tx is not a member before or after, so loading one must
+    // leave the index alone. This is the case that fired every block on a fat
+    // wallet: the founders coinbase is transparent.
+    settle();
+    CWalletTx plain(&wallet, CTransaction(makeTx(OP_1)));
+    plain.nOrderPos = 0;
+    plain.nTimeReceived = 1;
+    wallet.AddToWallet(plain, true, NULL);
+    EXPECT_FALSE(wallet.NoteTxIndexStale()) << "transparent load";
+
+    // Loading it again is still no membership change.
+    settle();
+    wallet.AddToWallet(plain, true, NULL);
+    EXPECT_FALSE(wallet.NoteTxIndexStale()) << "repeated transparent load";
+
+    // A note-bearing tx joins the index and must invalidate.
+    settle();
+    CWalletTx noted(&wallet, CTransaction(makeTx(OP_2)));
+    noted.nOrderPos = 1;
+    noted.nTimeReceived = 2;
+    noted.mapSaplingNoteData[SaplingOutPoint{noted.GetHash(), 0}] = SaplingNoteData();
+    wallet.AddToWallet(noted, true, NULL);
+    EXPECT_TRUE(wallet.NoteTxIndexStale()) << "note-bearing load";
+    wallet.EnsureNoteTxIndexPublic();
+    EXPECT_EQ(wallet.NoteTxIndexSize(), 1u);
+    EXPECT_EQ(wallet.mapWallet.size(), 2u);
+
+    // Many transparent loads after a member exists still change nothing: the
+    // index keeps its one entry and never goes stale.
+    settle();
+    for (int i = 0; i < 8; ++i) {
+        CWalletTx more(&wallet, CTransaction(makeTx(OP_3 + i)));
+        more.nOrderPos = 2 + i;
+        more.nTimeReceived = 3 + i;
+        wallet.AddToWallet(more, true, NULL);
+    }
+    EXPECT_FALSE(wallet.NoteTxIndexStale()) << "eight transparent loads";
+    EXPECT_EQ(wallet.NoteTxIndexSize(), 1u);
+    EXPECT_EQ(wallet.mapWallet.size(), 10u);
+
+    // Gaining note data on an entry already held is a membership change.
+    settle();
+    CWalletTx& held = wallet.mapWallet[plain.GetHash()];
+    held.mapSaplingNoteData[SaplingOutPoint{plain.GetHash(), 0}] = SaplingNoteData();
+    wallet.InvalidateNoteTxIndexPublic();
+    wallet.EnsureNoteTxIndexPublic();
+    EXPECT_EQ(wallet.NoteTxIndexSize(), 2u) << "entry that gained notes joins";
 }

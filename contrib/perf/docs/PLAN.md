@@ -42,13 +42,14 @@ Owner: `Perf.md` "Wallet-on reindex", moving to `FINDINGS.md`. Sequence is stric
 
 | Id | Item | Kanban | Disp |
 |----|------|--------|------|
-| A1 | Narrow `fNoteTxIndexStale` invalidation (was P2) | ToDo | Open |
+| A1 | Narrow `fNoteTxIndexStale` invalidation (was P2) | InTest | Open |
 | A2 | Review the note-index specification for redundancy and stale content, with A1 | ToDo | Open |
 | A3 | Benchmark both bottlenecks | ToDo | Blocked on A1, F3 |
 | A4 | Remeasure `-rescan`; overnight, scripted, outside the harness | ToDo | Blocked on A1 |
 
-A1 is specified and ready. A4 before A1 would reproduce the existing figure and
-establish nothing.
+A1 is implemented and unit-tested; it needs the fat-wallet measurement before
+it finishes. A4 before A1 would have reproduced the existing figure and
+established nothing.
 
 ---
 

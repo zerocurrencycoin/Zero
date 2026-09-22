@@ -903,6 +903,11 @@ public:
     void RebuildWitnessCacheForChainTip();
 
     /** Opt-in note-bearing tx index (NOTEIDX): Verify + height walk. */
+    /** A tx belongs to the index iff it carries note data; this is the membership test. */
+    static bool HasNoteData(const CWalletTx& wtx)
+    {
+        return !wtx.mapSproutNoteData.empty() || !wtx.mapSaplingNoteData.empty();
+    }
     void InvalidateNoteTxIndex();
     void EnsureNoteTxIndex(); // requires cs_wallet
     size_t NoteTxIndexSize() const { return vNoteTxHashes.size(); }

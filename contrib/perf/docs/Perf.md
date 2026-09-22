@@ -21,7 +21,7 @@ while how the solver works belongs to `equ/`. It carries no task state; that is
 
 Task state for everything below is `TASKS.md`.
 
-**Settled:** With a large `mapWallet`, IBD/reindex wall is dominated by per-block `BuildWitnessCache(..., witnessOnly=true)` -> `VerifyAndSetInitialWitness` -- **not** by `OrderedTxItems` (WAL-WTXORDERED already incremental). Evidence: M-WAL-SYNC-FAT / M-CPU-WAL-FAT; archive `test-logs/archives/walletsync-fat-g0-20260812.tar.gz`. Genesis `-rescan` on the same Id 3 fat wallet (M-WAL-RESCAN-FAT) is the same Verify path, not ConnectBlock: **finished** 2,518,691 blocks in ~**11.9 h**; cliff at height **1600000** (Halving 2 / founders payee) to ~**19 blk/s** with Select **~98%**; end height-walk **2.0 s**. Next product: **FIX-WAL-WITNESS-NOTEIDX-STALE**.
+**Settled:** With a large `mapWallet`, IBD/reindex wall is dominated by per-block `BuildWitnessCache(..., witnessOnly=true)` -> `VerifyAndSetInitialWitness` -- **not** by `OrderedTxItems` (WAL-WTXORDERED already incremental). Evidence: M-WAL-SYNC-FAT / M-CPU-WAL-FAT; archive `test-logs/archives/walletsync-fat-g0-20260812.tar.gz`. Genesis `-rescan` on the same Id 3 fat wallet (M-WAL-RESCAN-FAT) is the same Verify path, not ConnectBlock: **finished** 2,518,691 blocks in ~**11.9 h**; cliff at height **1600000** (Halving 2 / founders payee) to ~**19 blk/s** with Select **~98%**; end height-walk **2.0 s**. The rescan figure predates the invalidation narrowing and is due a remeasure (`PLAN.md` A4).
 
 **Lab flags (opt-in, not default):**
 - `-walletwitness=ibd-defer` -- skip per-block IBD `BuildWitnessCache`; rebuild once after `ThreadImport` (M-WAL-WITNESS-IBD-AB ~**35x** to h15k).
@@ -63,7 +63,7 @@ Effort bands: **S** small, **M** medium, **L** large (no calendar estimates). Im
 **What NOTEIDX does** (`-walletwitnessnote=1`):
 
 - `vNoteTxHashes` + `fNoteTxIndexStale`; `EnsureNoteTxIndex()` / `SelectWalletTxsForWitnessScan()`.
-- Invalidate on **note-membership** change only (FIX-WAL-WITNESS-NOTEIDX-STALE). **Today** every `AddToWallet` / `EraseFromWallet` invalidates.
+- Invalidate on **note-membership** change only. Implemented: `CWallet::HasNoteData` is the membership test, `AddToWallet` invalidates iff an insert carries notes or a merge crosses empty/non-empty, `EraseFromWallet` iff the erased entry carried notes.
 - Used by **`VerifyAndSetInitialWitness`** and the **`BuildWitnessCache` height walk** (`witnessOnly=false`).
 - Measured IBD: ~33x blk/s (M-WAL-WITNESS-NOTEIDX-AB). Walk logs `BuildWitnessCache height-walk begin/done` with `scan_txs` + `elapsed_ms`.
 
