@@ -8,11 +8,12 @@ Status carries two independent ratings:
 
 | Axis | Values | Means |
 |------|--------|-------|
-| **Kanban** | ToDo, InProgress, InTest, Closed | where the card is |
-| **Disposition** | Open, Blocked, Fixed, Postponed | what happened to the issue |
+| **Kanban** | ToDo, InProgress, InTest, Finished | where the card is |
+| **Disposition** | Open, Blocked, Fixed, Postponed, Aside | what happened to the issue |
 
-`Closed/Fixed` is repaired; `Closed/Postponed` is dropped without repair. A
-card is not Closed until its result is recorded where the subject lives.
+Vocabulary is `POLICY.md` "Status vocabulary"; the two axes share no word.
+`Finished/Fixed` is repaired, `Finished/Postponed` dropped without repair. A
+card is not Finished until its result is recorded where the subject lives.
 
 `TASKS.md` is frozen and superseded; ids are preserved.
 
@@ -24,22 +25,25 @@ These block or redirect work below. Nothing else here needs an answer.
 
 | # | Decision | Bearing |
 |---|----------|---------|
-| 1 | **Documentation target shape**: seven owned files | Group D below |
+| 1 | **Documentation target shape** | Group D |
+| 2 | **`z_sendmany` note reservation**: explicit locking, or a documented single-worker constraint | B4. Correctness, not throughput |
+| 3 | **Gated RPC**: one shared in-flight slot, or per-method slots | C5. Affects which methods can be gated without starving cheap calls |
+| 4 | **`nTimeVerify` field**: relabel cumulative, report exclusive, or both | P1. The field currently double-counts and covers no proof work |
+| 5 | **librustzcash base**: stay pinned, or move to a fork's newer base | `LIBRUSTZCASH.md`. Vendor in-tree first either way |
 
-**GROTH** is deferred to the maintainer's own schedule, after this
-consolidation effort is validated and released. It is not raised again here;
-its state is `PerfGroth.md`.
+Deferred by the maintainer until this consolidation is validated and released:
+the shielded proof-verification batching decision (`PerfGroth.md`).
 
 ---
 
 ## A. Witness bottleneck -- the largest measured win available
 
-Owner: `Perf.md` S0, moving to `FINDINGS.md`. Sequence is strict.
+Owner: `Perf.md` "Wallet-on reindex", moving to `FINDINGS.md`. Sequence is strict.
 
 | Id | Item | Kanban | Disp |
 |----|------|--------|------|
 | A1 | Narrow `fNoteTxIndexStale` invalidation (was P2) | ToDo | Open |
-| A2 | Review `Perf.md` L85-194 for redundancy and stale content, with A1 | ToDo | Open |
+| A2 | Review the note-index specification for redundancy and stale content, with A1 | ToDo | Open |
 | A3 | Benchmark both bottlenecks | ToDo | Blocked on A1, F3 |
 | A4 | Remeasure `-rescan`; overnight, scripted, outside the harness | ToDo | Blocked on A1 |
 
@@ -77,6 +81,7 @@ gated, 798 always-on, 31 categories.
 | C2 | Review level and area assignment (was P16) | ToDo | Blocked on C1 |
 | C3 | Work-queue rejection returns no client-visible error | ToDo | Open |
 | C4 | Alerting criteria: what an operator must see, and how | ToDo | Blocked on C2 |
+| C5 | Gated RPC entry points: one shared guard keyed by RPC name | ToDo | Open |
 
 C1's output is a reviewable list in the owning document, not in this file.
 
@@ -84,11 +89,11 @@ C1's output is a reviewable list in the owning document, not in this file.
 
 ## D. Documentation
 
-Owner: `POLICY.md` S2.0. Target: seven owned files.
+Owner: `POLICY.md` "The accretion rule". Target: seven owned files.
 
 | Target | Absorbs |
 |--------|---------|
-| `FINDINGS.md` | `Perf.md` less its B1/B3/GROTH detail, `NOTES.md` |
+| `FINDINGS.md` | `Perf.md` less the detail its successors own, `NOTES.md` |
 | `PerfGroth.md` | -- |
 | `CONCURRENCY.md` | `THREADS.md`, `SCRIPTQUEUE.md` |
 | `LOCKS.md` | -- |
@@ -99,7 +104,7 @@ Owner: `POLICY.md` S2.0. Target: seven owned files.
 | Id | Item | Kanban | Disp |
 |----|------|--------|------|
 | D1 | Consolidate to the target shape; keep a retirement ledger | InProgress | Open |
-| D2 | Unify `Perf.md` section numbering, then retire it | ToDo | Blocked on A2, D1 |
+| D2 | Unify `Perf.md` headings, then retire it | ToDo | Blocked on A2, D1 |
 | D3 | Prune cross-references to those still valid; extend `check_citations.py` to catch the rest | ToDo | Blocked on D1 |
 | D4 | Migrate remaining `TASKS.md` ids; retire the A-F and T/R letters | InProgress | Open |
 
@@ -152,8 +157,8 @@ Owner: `TESTING.md`. All test state, defects and suite work live there.
 
 | Id | Item | Kanban | Disp |
 |----|------|--------|------|
-| H1 | No presentation-only edits to inherited files; `validate.sh` check | Closed | Fixed |
-| H2 | A card closes only with its result recorded; `validate.sh` check | ToDo | Open |
+| H1 | No presentation-only edits to inherited files; `validate.sh` check | Finished | Fixed |
+| H2 | A card finishes only with its result recorded; `validate.sh` check | ToDo | Open |
 
 H1's rule: formatting changes only inside a hunk already being changed for a
 functional reason. Such edits otherwise recur at every upstream merge and bury
@@ -192,5 +197,5 @@ P24: measure insert and erase separately before choosing a fix. The ordered set
 is maintained continuously by its comparator and only 214 survivors need
 ordering; not materialising the full set may remove the cost entirely.
 
-Closed: P11, P12, P15, P23 (Fixed). P14 to B3, P16 to C2, P21 to B2, P22 to E4,
+Finished: P11, P12, P15, P23 (Fixed). P14 to B3, P16 to C2, P21 to B2, P22 to E4,
 P9 to B4, P2 to A1. Never allocated: P3, P25.

@@ -5,8 +5,8 @@ Ubuntu Linux and Windows 11 (native and WSL2), and which existing open-source
 tools would do the processing rather than being written here.
 
 Written as a **survey and recommendation**, not a plan of record. Nothing here
-is scheduled; items judged worth doing are tracked in `docs/TASKS.md`, with the
-reasoning in `docs/FINDINGS.md`.
+is scheduled; items judged worth doing are tracked in `TASKS.md`, with the
+reasoning in `FINDINGS.md`.
 
 ---
 
@@ -34,7 +34,7 @@ Two specific reasons the numbers might not transfer:
   vector width and a different bls12_381 code path; the pinned crates ship
   assembly for both. The proof-verification share could plausibly differ by more than the
   4% same-host repeat spread.
-- **blake2b.** `docs/FINDINGS.md` S2.3 records that stock arm64 still links
+- **blake2b.** `FINDINGS.md` S2.3 records that stock arm64 still links
   `blake2b_compress_ref` (the portable C fallback). On x86-64 an SSE/AVX path
   may be selected instead, which would move the blake2b bucket -- 18-21%
   pre-Sapling -- without any source change.
@@ -50,7 +50,7 @@ xctrace-specific**. `classify()`, `pool_of()` and the `BUCKETS` table are pure
 That table is where the accumulated knowledge lives -- including the two
 orderings that must not be "tidied" (groth16 before tree_anchor; witness_cache
 before wallet_other), each of which was a published wrong number first
-(`docs/HOWTO.md` S3.1).
+(`HOWTO.md` S3.1).
 
 **Consequence for any porting work:** the task is to write a new `parse()` that
 yields the same `(thread, weight_ns, frames)` tuples from a Linux or Windows
@@ -110,7 +110,7 @@ profilers can feed the same path.
 
 **`callgrind` is worth a specific note.** `performance-measurements.sh` already
 has a valgrind runner. Determinism is exactly what the FDCACHE A/B lacked, its
-effect sitting inside its own noise floor (`contrib/perf/Perf.md` S3). For small,
+effect sitting inside its own noise floor (`Perf.md` S3). For small,
 CPU-bound comparisons -- a proof-verification before/after, say -- instruction
 counts would resolve differences that wall-clock cannot, at the cost of not
 being real time.
@@ -128,7 +128,7 @@ being real time.
 | Pageins, compressed | `vm_stat` | `/proc/vmstat`, `/proc/meminfo` |
 | Thermal | `xctrace` thermal-state | `/sys/class/thermal/`, `turbostat` -- **better than macOS here**, exposes per-core frequency directly |
 
-Linux is the **easier** platform for the thermal gap (`docs/FINDINGS.md` S4):
+Linux is the **easier** platform for the thermal gap (`FINDINGS.md` S4):
 `turbostat` reports actual achieved frequency, so throttling is directly
 observable rather than inferred from a coarse Nominal/Serious state.
 
@@ -209,13 +209,13 @@ RecBench / `profile_collate.py` are append-only JSONL ledgers with
 campaign grouping and n/mean/stdev/min/max. That is a small amount of code
 closely fitted to the comparability rules in `Measures.md`, and those rules are
 the actual asset. A general framework would not know that a capture needs a
-window and a thread to be comparable (`docs/HOWTO.md` S4.5).
+window and a thread to be comparable (`HOWTO.md` S4.5).
 
 ### 5.2 Where existing tools would genuinely help
 
 | Need | Candidate | Why |
 |------|-----------|-----|
-| Statistical rigour on A/B results | **`hyperfine`** (MIT) | Warmup runs, outlier detection, and it reports when a difference is within noise -- exactly the FDCACHE A/B case (`contrib/perf/Perf.md` S3) |
+| Statistical rigour on A/B results | **`hyperfine`** (MIT) | Warmup runs, outlier detection, and it reports when a difference is within noise -- exactly the FDCACHE A/B case (`Perf.md` S3) |
 | Significance testing | `scipy.stats`, or `benchstat` from Go's toolchain | `REPORT.md` gives n/mean/stdev but no confidence statement. `benchstat`'s model (report a delta only when significant) directly suits the ledger |
 | Flame graphs from existing captures | **FlameGraph** (`stackcollapse-*`, `flamegraph.pl`) | Also the recommended Linux ingest path (S3.1) -- one dependency serving two purposes |
 | Cross-platform process sampling | **`psutil`** (Python, BSD) | Replaces most of `res_sample.sh`'s per-platform shelling out with one API across macOS/Linux/Windows |
@@ -229,7 +229,7 @@ needs no privilege. It does not cover thermal or per-core frequency, so
 `turbostat`/`xctrace` stay for that.
 
 **`hyperfine` caveat.** It is built for short repeatable commands. A multi-hour
-reindex violates the "no unrestartable long batches" rule in `docs/POLICY.md` S2 --
+reindex violates the "no unrestartable long batches" rule in `POLICY.md` S2 --
 so use it for microbenchmarks and short trials, **not** as a replacement for the
 campaign ledger. Its statistical *approach* is worth borrowing even where the
 tool is not.
@@ -264,4 +264,4 @@ Ranks 1 and 2 are documentation-only, cost almost nothing, and make every later
 item cheaper. Rank 3 is the first that produces a new number.
 
 **None of this is scheduled.** It is a survey; scheduling is
-`docs/TASKS.md`.
+`TASKS.md`.

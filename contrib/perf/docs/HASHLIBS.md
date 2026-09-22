@@ -135,7 +135,7 @@ is "no" for sync and "possibly" for wallet operations that were never profiled.
 ### B. librustzcash / librustcrypto
 
 Zero pins a 2018 commit of a crate that no longer exists upstream
-(`../PerfGroth.md`). Any optimisation here is downstream of that decision:
+(`PerfGroth.md`). Any optimisation here is downstream of that decision:
 current upstream has years of arithmetic improvements in `bls12_381` and
 `bellman`, none of which reach Zero. **Do not scope micro-optimisation of the
 pinned code** -- the same effort spent on the dependency question returns more.

@@ -23,8 +23,8 @@ per-tool caveats. It is deliberately the only place those live in long form.
 |-------------|------|
 | How to take a profile and read it | `docs/HOWTO.md` |
 | One-line index of every tool | `docs/HOWTO.md` S4.1 |
-| Findings and method | `Perf.md` |
-| Numbers bound to `M-*` | `Measures.md` |
+| Findings and method | `docs/Perf.md` |
+| Numbers bound to `M-*` | `docs/Measures.md` |
 | Work items and what to do next | `docs/PLAN.md` |
 | Rules, ownership, placement, lab discipline | `docs/POLICY.md` |
 | Recording results so they compare | `recbench/RecBench.md` |
@@ -38,9 +38,9 @@ section here.
 
 **Numbers inventory:** `M-*` campaign IDs, metric tokens (`height_per_s`,
 `wall_s`, `cpu_pct`, ...), comparability rules, extraction schema, and the
-ledger `CAMPAIGN=` map live in **`Measures.md`** (§8 for bindings). **Plans /
+ledger `CAMPAIGN=` map live in **`docs/Measures.md`** (§8 for bindings). **Plans /
 specs** (BENCH-*, FIX-*, IMP-*, L0-L7, Stages) and **lab materials**:
-**`Perf.md`** (in this directory, not the repo root). Prefer Measures tokens in new TSV/JSONL columns when extending
+**`docs/Perf.md`** (in this directory, not the repo root). Prefer Measures tokens in new TSV/JSONL columns when extending
 these scripts.
 
 **Datadir rule:** never use the default `~/Library/Application Support/zero`
@@ -107,7 +107,7 @@ catalog and conf templates: Zero400 **TEST_ZERO.md** §8 and
 **ConnectBlock vs wallet-on:** `capture_sequence` / `bench_matrix` target import
 CPU on `zcash-loadblk`. Wallet-on fat reindex is a separate track
 (`wallet_sync_profile.sh`, M-WAL-SYNC-FAT / M-CPU-WAL-FAT) -- bottleneck is
-`VerifyAndSetInitialWitness`, not `OrderedTxItems` (see **Perf.md** §0.14).
+`VerifyAndSetInitialWitness`, not `OrderedTxItems` (see **docs/Perf.md** §0.14).
 
 ## extract_measures.py
 
@@ -182,7 +182,7 @@ if the copied index was built with Insight).
 Opt-in witness flags (defaults off; wallet required -- do not combine with
 `-disablewallet`): `-walletwitness=ibd-defer` `-walletwitnessnote=1`.
 Caught-up follow-tip: `ibd-defer` applies on the next IBD/reindex; to rebuild
-now add `-walletwitness=rebuild` for that start only. See **Perf.md** §0.14.
+now add `-walletwitness=rebuild` for that start only. See **docs/Perf.md** §0.14.
 
 ## tiny_baseline.sh
 
@@ -253,8 +253,8 @@ ZERO_PERF_SRC_DATADIR="$HOME/Library/Application Support/zero" \
 #   -> per-trial util.tsv (ps %cpu/%mem/rss + vmmap Physical footprint at milestones)
 ```
 
-Plans/specs: **Perf.md** §0.13 (BENCH-BOOT / FIX-*).
-Lab materials / density banding: **Perf.md** §0.9 / §1.
+Plans/specs: **docs/Perf.md** §0.13 (BENCH-BOOT / FIX-*).
+Lab materials / density banding: **docs/Perf.md** §0.9 / §1.
 
 ## mine_bench.sh
 
@@ -301,7 +301,7 @@ M-WAL-SYNC-P0, M-WAL-SYNC-P1, M-WAL-SYNC-FAT, M-CPU-WAL-FAT. **Caveat:**
 -- tip time then from `debug.log`; hygiene timeout is queue **G0b**.
 
 Archive: `test-logs/archives/walletsync-fat-g0-20260812.tar.gz` + per-run
-`FINDINGS.md`. Mitigations: **Perf.md** §0.14. Queue: **Perf.md** §0.13 G.
+`FINDINGS.md`. Mitigations: **docs/Perf.md** §0.14. Queue: **docs/Perf.md** §0.13 G.
 
 `WALLETINFO_TIMEOUT_S` (default 5; `0` skips txcount). `ZEROD_EXTRA_ARGS` for
 **opt-in** witness flags (defaults off; see `zerod -help`):
@@ -312,9 +312,9 @@ Archive: `test-logs/archives/walletsync-fat-g0-20260812.tar.gz` + per-run
 `getwalletinfo` extras: `note_tx_count`, `sprout_note_count`, `sapling_note_count`.
 While rebuilding (`-33`): status allowlist `stop`/`help`/`getblockcount`/`getblockchaininfo`/`getnetworkinfo`
 (deny-by-default; `getblockcount` still stalls on `cs_main` until the walk ends).
-R5c / **FIX-WIT-WALK-UNLOCK**: product, not a lab e2e -- **Perf.md** §0.16.
+R5c / **FIX-WIT-WALK-UNLOCK**: product, not a lab e2e -- **docs/Perf.md** §0.16.
 Held and known-fail tests are excluded by `qa/zcash/test_filters.sh`; do not re-list them here. B1 `reindex_shielded.py` covers reindex spend.
-Witness RPC lockout / peer comparison / risk: **Perf.md** §0.14 / §0.16.
+Witness RPC lockout / peer comparison / risk: **docs/Perf.md** §0.14 / §0.16.
 
 ## witness_lab.sh
 
@@ -329,7 +329,7 @@ ZERO_PERF_WALLET_FILE=... contrib/perf/witness_lab.sh rebuild-noteidx
 
 Reusable automation; **one-time** lab samples (not CI). Tiny/short tips are pre-Sapling
 (187417 / 245992) -- DIRTY-CONT `note_visits` and tip height-walk need
-`ZERO_PERF_CHAIN_SNAP=full` (disposable full tip; see Perf.md §0.16). E2E:
+`ZERO_PERF_CHAIN_SNAP=full` (disposable full tip; see docs/Perf.md §0.16). E2E:
 `wallet_witness_defer.py`.
 
 Post-Sap WIT-REBUILD (one trial at a time):
@@ -543,7 +543,7 @@ should reference its internals by path.
 
 ## ops-campaign.sh
 
-Rematch the same wallet x op matrix after each integration cycle (Perf.md §0.16).
+Rematch the same wallet x op matrix after each integration cycle (docs/Perf.md §0.16).
 **ZeroPerf only.** **One trial per invocation.** Do not batch fat/full/long trials.
 
 Catalog: `contrib/perf/cycle_trials.tsv` (`SET=smoke|gate|long`).
@@ -596,9 +596,9 @@ file that does not exist.
 
 | Document | Owns | Does not hold |
 |---|---|---|
-| `Perf.md` | ConnectBlock CPU, disk I/O and FDCACHE, the Merkle-root latch, memory, `AddToBlockIndex` | Task state. Solver internals. Hashing kernels. Witness mechanics |
-| `PerfGroth.md` | Sapling Groth16 cost and batch headroom | Non-Groth findings; scheduling |
-| `equ/` | Equihash: solver internals, lineage, method, plans, solve findings | Equihash verification cost during sync, which is a `Perf.md` finding |
+| `docs/Perf.md` | ConnectBlock CPU, disk I/O and FDCACHE, the Merkle-root latch, memory, `AddToBlockIndex` | Task state. Solver internals. Hashing kernels. Witness mechanics |
+| `docs/PerfGroth.md` | Sapling Groth16 cost and batch headroom | Non-Groth findings; scheduling |
+| `equ/` | Equihash: solver internals, lineage, method, plans, solve findings | Equihash verification cost during sync, which is a `docs/Perf.md` finding |
 | `docs/HASHLIBS.md` | Which library computes which hash, and what that costs | Kernel internals; Equihash solving |
 | `docs/SODIUM_SURVEY.md` | Which libsodium version, and why | Hashing performance |
 | `docs/CROSSPROJECT.md` | Recording results comparably across projects | Either project's findings |
@@ -608,25 +608,26 @@ file that does not exist.
 | `docs/TASKS.md` | Frozen, superseded by `docs/PLAN.md`; retained until migration (PLAN X1) completes | New items -- do not add |
 | `README.md` | Per-tool invocation, env vars, per-tool caveats | Findings; task state |
 | `docs/HOWTO.md` | How to take a measurement and read it | Per-tool detail |
-| `Measures.md` | The `M-*` registry and metric vocabulary | Narrative |
+| `docs/Measures.md` | The `M-*` registry and metric vocabulary | Narrative |
 | `docs/SCHEMA.md`, `recbench/RecBench.md` | Row shape, identity, store topology | Results |
 | `docs/POLICY.md` | Rules, ownership, lab discipline, retention | Anything specific to one subject |
 | `docs/TOOLING_FAILURES.md` | Shell/search invocations that returned wrong answers, and what closes each | Anything not about tooling reliability |
-| `docs/LIBSNARK.md` | What `src/snark/` is, where it came from, and whether it is used | Groth16 findings (`PerfGroth.md`) |
+| `docs/LIBSNARK.md` | What `src/snark/` is, where it came from, and whether it is used | Proof-verification findings (`docs/PerfGroth.md`) |
+| `docs/LIBRUSTZCASH.md` | The Rust proof dependency: what is validated, what the siblings did, remaining validation | Proof cost and batching (`docs/PerfGroth.md`) |
 | `docs/BUILDCONFIG.md` | How to validate that a binary has the build configuration it was meant to have | Findings from any one build |
 | `docs/TSAN.md` | How to build and run ThreadSanitizer on Linux, and how to triage its reports | Findings from a run (its own `test-logs/` record) |
 | `docs/THREADS.md` | Census of every thread the node launches, with counts and conditions | Sizing logic and locking (`CONCURRENCY.md`) |
 | `docs/SCRIPTQUEUE.md` | Why `max_concurrent` misled, and what occupancy actually is | Thread census (`THREADS.md`) |
 | `docs/CPU_MEASUREMENT.md` | Which CPU quantity a figure is, and how to sample it without contradiction | Any specific measurement's result |
 | `docs/LOCKS.md` | **Every lock finding**: rates, sites, upstream precedent, disposition | Task state (`TASKS.md`); thread census (`THREADS.md`) |
-| `docs/CONCURRENCY.md` | Thread pools, their sizing, solver synchronisation, and how to validate locking | Performance findings (`Perf.md`); task state |
+| `docs/CONCURRENCY.md` | Thread pools, their sizing, solver synchronisation, and how to validate locking | Performance findings (`docs/Perf.md`); task state |
 | `docs/RECORDS_READINESS.md` | Whether the store can type a given result, and the interim rule | Row shape itself (`SCHEMA.md`); measurement results |
 | `docs/FINDINGS.md` | What is known, newest first | Groth16 (its own file); task state |
 | `docs/NOTES.md`, `mine/*.md` | Point-in-time records, kept as written | Anything durable |
-| `PerfTimers.md` | Spec for the block-processing phase timers (`IMP-BENCH-ALWAYS`) | Measured results; task state |
-| `PerfPlatforms.md` | What the harness needs per platform, and the Linux/Windows equivalents | Findings taken on any one platform |
-| `Stores.md` | Zero's on-disk data structures and local stores | Performance findings about them |
-| `BUILD_RECONFIG.md` | The autotools re-configure trap and its options | Anything not about configure |
+| `docs/PerfTimers.md` | Spec for the block-processing phase timers (`IMP-BENCH-ALWAYS`) | Measured results; task state |
+| `docs/PerfPlatforms.md` | What the harness needs per platform, and the Linux/Windows equivalents | Findings taken on any one platform |
+| `docs/Stores.md` | Zero's on-disk data structures and local stores | Performance findings about them |
+| `docs/BUILD_RECONFIG.md` | The autotools re-configure trap and its options | Anything not about configure |
 | `zcash-lint/ZEROPERF.md` | What the vendored Zcash linters are, and which findings are set aside | Lint results |
 | `reporoot/*.md` | Transient drafts and decision papers for Zero400-owned material: root-document reviews, open questions, migration and RPC plans (`docs/POLICY.md` S7.1) | Anything authoritative; disposition is the owner's |
 | `keep/*.md` | Archived point-in-time notes, kept as written (S5): `Peer.md` node/RPC ops, `TENT.md` and `TENTZero.md` TENT lineage and port map, `ZcashV.md` 2026 Sprout/Orchard vulnerabilities across zcashd forks, `ZeroWallet_Design.md` Qt wallet design (out of node scope, kept as reference) | Anything durable or maintained; these are not updated |

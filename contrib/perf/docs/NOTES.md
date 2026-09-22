@@ -21,7 +21,7 @@ not maintained.
 | Note | Date | Applies to | Subject |
 |------|------|-----------|---------|
 | `../keep/ZcashV.md` | 2026-06-08 | Zcash 2026 CVEs; RPC samples at h2,471,322 | Sprout `fChecked` and Orchard counterfeiting bugs; relevance to zcashd-lineage forks |
-| `../keep/Peer.md` | 2026-06-10 | Zero400 v4.0.1, macOS | Peer and RPC operations: paths, config, DNS seeds, addrman. Cited by `../Measures.md` (M-PEER-LOAD) and `../Stores.md` |
+| `../keep/Peer.md` | 2026-06-10 | Zero400 v4.0.1, macOS | Peer and RPC operations: paths, config, DNS seeds, addrman. Cited by `Measures.md` (M-PEER-LOAD) and `Stores.md` |
 | `../keep/ZeroWallet_Design.md` | 2026-06-26 | zerowallet400, Qt5 | Desktop wallet UI styling and themes |
 | `../keep/desys.md` | 2026-06 (est.) | zerowallet400, Qt5 | Ice-blue light theme design system |
 | `../keep/TENT.md` | frozen | TENT `bcb429b` (2021-11-13) | TENT masternode fork lineage and comparison |
@@ -61,18 +61,18 @@ until the work they specify lands, then their durable content moves to
 
 | Document | Subject | Status |
 |----------|---------|--------|
-| `../PerfGroth.md` | Groth16: evidence, options, implementation path | **The focused Groth16 document.** Frozen pending review, not archived |
-| `../PerfTimers.md` | Phase-timer design and spec | Live until `TASKS.md` B1 lands |
-| `../PerfPlatforms.md` | Cross-platform tooling survey | Live until `TASKS.md` B2 lands |
-| `../BUILD_RECONFIG.md` | Autotools reconfigure options | Live until `TASKS.md` C3 lands |
+| `PerfGroth.md` | Groth16: evidence, options, implementation path | **The focused Groth16 document.** Frozen pending review, not archived |
+| `PerfTimers.md` | Phase-timer design and spec | Live until `TASKS.md` B1 lands |
+| `PerfPlatforms.md` | Cross-platform tooling survey | Live until `TASKS.md` B2 lands |
+| `BUILD_RECONFIG.md` | Autotools reconfigure options | Live until `TASKS.md` C3 lands |
 | `../equ/README.md` | Equihash (192,7): entry point, status, inclusion rules | Live; the plan for `TASKS.md` D1 |
 | `../equ/FINDINGS.md` | What is measured and computed at (192,7) | Live |
 | `../equ/SOLVER.md` | Solver internals: keys, widths, tags, buckets | Live |
 | `../equ/VENDORED.md` | Which solver runs, its lineage, and the default-vs-tromp comparison | Live |
 | `../equ/METHOD.md` | How to measure a solver change and how hard to validate it | Live |
 | `../equ/PLAN.md` | Staged optimization plan, S0 -> S4, across three platforms | Live |
-| `../Measures.md` | `M-*` inventory | Live; the numbers authority |
-| `../Stores.md` | Chain / datadir storage | Live. Name collides with `SCHEMA.md`'s subject; rename when next touched |
+| `Measures.md` | `M-*` inventory | Live; the numbers authority |
+| `Stores.md` | Chain / datadir storage | Live. Name collides with `SCHEMA.md`'s subject; rename when next touched |
 | `../README.md` | Per-tool reference | Live; `HOWTO.md` S4.1 is the index |
 
 ## Off-subject

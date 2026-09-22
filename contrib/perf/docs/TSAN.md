@@ -49,7 +49,7 @@ TSAN_OPTIONS="halt_on_error=0 history_size=4 second_deadlock_stack=1" \
   ./src/test/test_bitcoin --log_level=message 2>&1 | tee tsan-unit.log
 
 # 2. RPC/functional suite. Exercises the P2P and wallet threads the unit
-#    tests never start -- this is where the 17 launch sites (docs/THREADS.md)
+#    tests never start -- this is where the 17 launch sites (THREADS.md)
 #    actually run.
 TSAN_OPTIONS="halt_on_error=0 history_size=4" \
   ./qa/pull-tester/rpc-tests.sh 2>&1 | tee tsan-rpc.log
@@ -85,7 +85,7 @@ So that a clean run is informative rather than reassuring:
 - **libsnark.** The 2016 commit disabling multi-worker async RPC cites
   "libsnark which by default uses multiple threads". Whether the pinned crates
   spawn threads inside proof verification has never been verified here
-  (`docs/THREADS.md` S4). TSan on a reindex would answer it.
+  (`THREADS.md` S4). TSan on a reindex would answer it.
 - **leveldb.** Has its own threading (`env_posix.cc`); expect noise.
 - **The script-check pool at `-par>1`.** The one genuinely parallel path in
   normal operation.

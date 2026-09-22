@@ -364,6 +364,6 @@ Build with instrumentation: `./autogen.sh && ./configure --enable-perf && make`
 | `reindex-profile/bench-summaries/REPORT.md` | collated throughput with n, stdev, min/max |
 | `test-logs/DATA_INDEX.md` | recent numbers with their source |
 | `test-logs/<run>/` | per-run artifacts |
-| `../Measures.md` | published numbers bound to `M-*` ids |
+| `Measures.md` | published numbers bound to `M-*` ids |
 
 Schema for these rows: `SCHEMA.md`. What may be reclaimed: `POLICY.md` S6.

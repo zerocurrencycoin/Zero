@@ -6,7 +6,7 @@ found by reading the call sites, the proposed shape, and what each change must
 be checked against.
 
 **No code changes are made by this document.** Tracking item and state:
-`docs/TASKS.md` B1. Findings that motivate it: `docs/FINDINGS.md` S1.1.
+`TASKS.md` B1. Findings that motivate it: `FINDINGS.md` S1.1.
 
 Numbers cited by `M-*` id live in `Measures.md`. Line numbers are
 `src/main.cpp` as of writing; re-confirm before editing, they drift.
@@ -187,7 +187,7 @@ answered a "when did it get slow" question.
 ### 3.4 Interval selection
 
 Follow the established `-mrclogevery` pattern (default 16384, S4.2 of
-`docs/HOWTO.md`) rather than inventing a new convention: `-benchsummaryevery=N`
+`HOWTO.md`) rather than inventing a new convention: `-benchsummaryevery=N`
 blocks, `0` to disable.
 
 **Default: on.** The point of the feature is evidence from field nodes that
@@ -217,7 +217,7 @@ variable-sample-size problem above.
 | A new RPC surfacing the counters | `getblockchaininfo`-style polling is a different feature with a different consumer; log lines are what field reports already carry |
 | Replacing the `-debug=bench` lines | They stay; this is a summary layer over the same counters |
 | Timing inside the script-check thread pool | `CCheckQueueControl` is concurrent; a wall-clock span there is not attributable to a phase without per-thread accounting |
-| Sub-phase proof breakdown | That is Time Profiler work (`docs/HOWTO.md` Part 2), not log instrumentation |
+| Sub-phase proof breakdown | That is Time Profiler work (`HOWTO.md` Part 2), not log instrumentation |
 
 ---
 
@@ -238,7 +238,7 @@ eleven.
 
 **Aggregate on ingest.** `-debug=bench` is per block, so a full reindex is
 millions of lines. Emit per height band, as existing throughput rows already
-are -- not a row per block. Carry `n` per band; `docs/HOWTO.md` S4.5 rule 3
+are -- not a row per block. Carry `n` per band; `HOWTO.md` S4.5 rule 3
 requires trial count with every figure.
 
 **Carry the S2.2 hazard into the parser.** If both `connect` and `verify` are
@@ -262,7 +262,7 @@ reader who knew the caveat.
 **Post-Sapling validation is mandatory for S2.1.** A pre-Sapling-only check
 would show small proof counters and could pass a misplaced timer. Use the
 12-file trimmed archive (`chainblocks-postsap12.tgz`, reaches h583699+,
-`docs/HOWTO.md` S1.2), where proof cost is 88-91% and a misplacement is
+`HOWTO.md` S1.2), where proof cost is 88-91% and a misplacement is
 obvious.
 
 ---
@@ -277,7 +277,7 @@ obvious.
 4. **Parse `BenchSummary`** (S4 item 2).
 
 Steps 2 and 3 touch `src/main.cpp`, which is **Zero400-owned**
-(`docs/POLICY.md` S1). They are specified here and reviewed there. Step 1 is
+(`POLICY.md` S1). They are specified here and reviewed there. Step 1 is
 `contrib/perf/` and can proceed independently.
 
 **Not gated on the batching decision.** Measuring proof cost is not the same as changing

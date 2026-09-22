@@ -63,7 +63,7 @@ the owning source:
 
 | Citing document | Cites |
 |---|---|
-| `Perf.md:1056` | `uniblake/docs/PATTERNS.md` -- the pattern taxonomy behind the 2.03x result |
+| `../docs/Perf.md:1056` | `uniblake/docs/PATTERNS.md` -- the pattern taxonomy behind the 2.03x result |
 | `equ/VENDORED.md:467` | `uniblake/docs/NEON.md` -- the vector-kernel figures |
 | `docs/TASKS.md:977` | `uniblake/docs/NEON.md` -- named as subject owner for kernel results |
 

@@ -1,7 +1,7 @@
 # Concurrency and thread sizing: what is in place now
 
 Inventory taken 2026-09-11 against `src/` at `a2a691fb3` + working changes.
-Locations and logic only; performance findings belong to `../Perf.md`.
+Locations and logic only; performance findings belong to `Perf.md`.
 
 ## 1. Thread pools and their sizing
 
@@ -30,7 +30,7 @@ interesting ones:
 
 | Path | Why |
 |------|-----|
-| Shielded proof verification | Runs on the import thread; `scriptcheck` workers never see it. This is why post-Sapling sync is single-core bound (`../Perf.md` S2) |
+| Shielded proof verification | Runs on the import thread; `scriptcheck` workers never see it. This is why post-Sapling sync is single-core bound (`Perf.md` S2) |
 | Block connection / state write | Serial by design |
 | Wallet note selection | No reservation mechanism on the `sendmany` path; safety currently comes from the single async worker (P9) |
 
@@ -144,7 +144,7 @@ Written 2026-09-12. **Nothing here has been run** except where marked.
 all-cores-up-to-16.
 
 **The argument for it**, on the evidence this tree has: post-Sapling sync is
-proof-verification-bound on `ThreadImport` (`../Perf.md` S2), and script checking is not
+proof-verification-bound on `ThreadImport` (`Perf.md` S2), and script checking is not
 the bottleneck. Threads that cannot help still contend for memory bandwidth
 and, on this host, for 4 efficiency cores that are slower than the 10
 performance cores -- a pool sized to 14 schedules work onto cores that finish
@@ -250,7 +250,7 @@ a path the OS had already made cheap.
 **Where it would matter, and does not here:** random access -- explorer
 `getblock` over scattered heights -- hits a different file per request and
 pays the full `fopen`/`fclose` each time with no locality. That is the
-unmeasured case recorded in `../Perf.md` S3, and the reason the flag is
+unmeasured case recorded in `Perf.md` S3, and the reason the flag is
 retained rather than deleted.
 
 ## 7. `FlushStateToDisk` relocking: examined, not trivially removable

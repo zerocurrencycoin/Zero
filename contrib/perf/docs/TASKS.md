@@ -159,7 +159,7 @@ job independent of FDCACHE's disposition.
 
 ### B2. First non-macOS measurement
 
-Survey: **`../PerfPlatforms.md`**.
+Survey: **`PerfPlatforms.md`**.
 
 | Step | What |
 |------|------|
@@ -265,7 +265,7 @@ Gaps and their effect: `FINDINGS.md` S4.
 
 | Item | Note |
 |------|------|
-| Autotools re-run inherits no `CONFIG_SITE` | Options: `../BUILD_RECONFIG.md`. Touches Zero400-owned `configure.ac` |
+| Autotools re-run inherits no `CONFIG_SITE` | Options: `BUILD_RECONFIG.md`. Touches Zero400-owned `configure.ac` |
 | `CDB::Rewrite` spins with no log or timeout | Upstream, all Zcash-family forks |
 
 **Kanban: ToDo. Effort M.**
@@ -644,7 +644,7 @@ of P4. P1, P2 and P5 are independent of each other.
 | P5 `boost::optional` -> `std::optional` | ToDo | Open | M | this file, P5 |
 | P6 Anchor depth for shielded spends | ToDo | Open | L | this file, P6 |
 | P7 Coin-selection call clarity | ToDo | Open | S-M | this file, P7 |
-| P8 FDCACHE disposition | -- | **Postponed** | S-M | `../Perf.md` S3 |
+| P8 FDCACHE disposition | -- | **Postponed** | S-M | `Perf.md` S3 |
 | P9 Note locking / single-worker | ToDo | Open | S | this file, P9 -- **needs a decision** |
 | P10 Explicit parameters at defaulted calls | ToDo | Open | S | this file, P10 |
 | P11 tromp driver duplicated | **Finished** | -- | S | `EhTrompSolveRounds`; `test-logs/p11-refactor-20260911/` |
@@ -655,8 +655,8 @@ of P4. P1, P2 and P5 are independent of each other.
 | P16 Log volume and classification | ToDo | Open | S-M | this file, P16 |
 | P17 Out-of-order child on reindex | ToDo | Open | S | this file, P17 |
 | P18 `ShrinkDebugFile` keeps the tail | ToDo | Open | S | this file, P18 |
-| P19 Delete unbuilt `src/snark/` | ToDo | Open | XS | `docs/LIBSNARK.md` |
-| P20 `-par=0` allocates 13 idle workers | ToDo | Open | S | `docs/THREADS.md` S3e |
+| P19 Delete unbuilt `src/snark/` | ToDo | Open | XS | `LIBSNARK.md` |
+| P20 `-par=0` allocates 13 idle workers | ToDo | Open | S | `THREADS.md` S3e |
 | P23 `CBlockIndexWorkComparator` double CompareTo | **Finished** | -- | XS | 14.7% off index load; `test-logs/comparetofix-20260917/` |
 | P24 `getchaintips` is O(chain length) | ToDo | Open | S | `test-logs/rpc-test-20260917/` |
 | P22 Multi-threaded Equihash solve: unmeasured | ToDo | Open | M | this file, P22 |
@@ -706,7 +706,7 @@ as a subtree in 2017 (`f4d8cd127`), last touched 2017-10-11. Zcash removed
 libsnark in `9ce0caf20` (2019-06-25, v2.1.0); Pirate, Hush3 and Firo have
 removed it; **Zero and Zclassic are the only two still carrying it**, and Zero
 does not compile it. Full provenance and the ecosystem comparison:
-**`docs/LIBSNARK.md`**.
+**`LIBSNARK.md`**.
 
 **Side effect already felt:** the 2016 commit disabling multi-worker async RPC
 cited "libsnark which by default uses multiple threads". That half of the
@@ -715,7 +715,7 @@ note-locking half (P9) still applies.
 
 ### P20. `-par=0` starts 13 script-check threads on an idle node
 
-**Measured** (`docs/THREADS.md` S3e): a regtest node with default flags runs
+**Measured** (`THREADS.md` S3e): a regtest node with default flags runs
 **29 threads, 13 of them `zcash-scriptch`** -- 45% of all threads, created at
 startup regardless of whether any script will be checked.
 
@@ -805,7 +805,7 @@ The formula already produces the right answer at these sizes, and
 truncates the 8-, 14- and 16+-core cases. So the cap is not a small-host
 question at all; it is purely about whether 15 workers on a large host earn
 their keep, which the occupancy measurement says they do not
-(`docs/SCRIPTQUEUE.md`).
+(`SCRIPTQUEUE.md`).
 
 **Note the calling thread participates** (`CCheckQueueControl` runs
 `Loop(fMaster=true)`), which is why `nScriptCheckThreads - 1` workers are
@@ -1192,7 +1192,7 @@ Fixed. `EhTrompSolveRounds`; `test-logs/p11-refactor-20260911/`.
 **Postponed.** Everything about the `-perffdcache` / `-perfbufsize` experiment
 that is node code, collected here so it is one item rather than five scattered
 across A5. The subject itself -- mechanism, measured result, concurrency bound
--- is `../Perf.md` S3.
+-- is `Perf.md` S3.
 
 **Why postponed rather than open:** the flag is compiled out of release builds,
 defaults off even under `--enable-perf`, and measured no throughput win at
@@ -1214,7 +1214,7 @@ from the experiment. (c) is lab hygiene.
 
 **What would reopen it:** a B2 result on Linux or Windows showing a non-null
 effect, or a workload that is not CPU-bound -- random `getblock` serving, cold
-cache, slow storage (`../Perf.md` S3 names both and how to measure them).
+cache, slow storage (`Perf.md` S3 names both and how to measure them).
 
 **What would close it:** a B2 null on both platforms. Then delete the flag, the
 latch and `bench_matrix.sh`'s FDCACHE conditions rather than carrying a
@@ -1398,12 +1398,12 @@ abandoned.
 ## Vectorisation
 
 Items and state only. Solver ISA work is owned by `../equ/`; blake2b kernel
-results are **not this tree's** and are cited from `docs/HASHLIBS.md`, which
+results are **not this tree's** and are cited from `HASHLIBS.md`, which
 owns the library division.
 
 | Item | State | Note |
 |---|---|---|
-| blake2b vector kernel A/B | **Closed** | Negative result adopted from the kernel library; figures and their provenance are `docs/HASHLIBS.md`. Not restated here |
+| blake2b vector kernel A/B | **Closed** | Negative result adopted from the kernel library; figures and their provenance are `HASHLIBS.md`. Not restated here |
 | Solver ISA work (AVX2 / Arm SIMD) | **Open** | Owner: `equ/PLAN.md` S2 |
 | `INV-ARM-MIX` -- deployment fleet mix | **Open** | Gates whether any ARM vector work is worth scheduling |
 | `mine_bench.sh` probe mode | **Kept** | Test mode; not used in production in the current version |
@@ -1432,7 +1432,7 @@ failure modes live there.
 | T1g | `set -e` exit-on-success bug | `mine_bench.sh` |
 | T1h | libsodium pinned 1.0.22 for the lab | `depends/packages/libsodium.mk` |
 
-Rationale and evidence: `docs/SODIUM_SURVEY.md`, `recbench/RecBench.md`.
+Rationale and evidence: `SODIUM_SURVEY.md`, `recbench/RecBench.md`.
 
 ### T2. Tooling added
 
@@ -1454,15 +1454,15 @@ Detail in each suite's source.
 | # | Item | Note |
 |---|---|---|
 | R0 | **Note locking -- assessed 2026-09-09; see P9.** The premise was wrong in one direction and right in another: Zero **does** have shielded-note locking, and the async RPC queue runs **one worker**, so the double-hand scenario is not reachable today. `z_sendmany` never locks the notes it selects, so the protection depends entirely on that single-worker serialisation. Moved to **P9** |
-| R1 | Profile the non-blake2b libsodium surface (Ed25519 48 calls, AEAD 8, scalarmult 3) | Nothing there is profiled; `docs/HASHLIBS.md` S1.5A. Answer "is it hot" before designing. **Plan below** |
-| R2 | Measure `init_salt_personal` share of a one-shot digest | Decides whether `docs/HASHLIBS.md` S1.5D is worth building. **Plan below** |
+| R1 | Profile the non-blake2b libsodium surface (Ed25519 48 calls, AEAD 8, scalarmult 3) | Nothing there is profiled; `HASHLIBS.md` S1.5A. Answer "is it hot" before designing. **Plan below** |
+| R2 | Measure `init_salt_personal` share of a one-shot digest | Decides whether `HASHLIBS.md` S1.5D is worth building. **Plan below** |
 | R3 | Evaluate `CBLAKE2bWriter` on uniblake | Expected null (bulk case is 1.01x); the case is uniformity, not speed. **Plan below** |
 
 #### R1-R3: where each runs, and why
 
 Not one topic: **R1 is a node profiling question; R2 and R3 are kernel
 questions** and belong in the sibling library's tree with its own bench harness
-and measurement format (`docs/HASHLIBS.md` owns the division).
+and measurement format (`HASHLIBS.md` owns the division).
 
 | | Question | Tree | Records to |
 |---|---|---|---|
@@ -1482,7 +1482,7 @@ would duplicate both and produce figures that cannot sit beside the 2.03x
 Equihash-pattern result they need to be compared with.
 
 **R3's node half is gated on its kernel half.** `CBLAKE2bWriter` is the only
-high-volume consensus site (`docs/HASHLIBS.md` S1.5C). A null on the streaming
+high-volume consensus site (`HASHLIBS.md` S1.5C). A null on the streaming
 pattern -- expected, bulk is 1.01x -- closes R3 as a negative result with
 nothing to port. Only a non-null justifies a node A/B, and that is consensus
 hashing, so it needs the bit-identical gate the Equihash swap used.

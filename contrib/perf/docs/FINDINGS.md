@@ -4,11 +4,11 @@ What is known, **most recent first**. The newest work is at the top because it
 is what current decisions rest on; older results are still true and still
 cited, but they are settled and need less of a reader's attention.
 
-Figures cite an `M-*` id in `../Measures.md`, which owns them; provenance for
+Figures cite an `M-*` id in `Measures.md`, which owns them; provenance for
 recent work is `test-logs/DATA_INDEX.md`.
 
 **Groth16 is not covered here.** It is the single largest topic and has its own
-focused document: **`../PerfGroth.md`**. This file cites its conclusions and
+focused document: **`PerfGroth.md`**. This file cites its conclusions and
 does not restate its evidence.
 
 **Platform caveat, applies to everything below.** Every measurement in this
@@ -23,13 +23,13 @@ and anything touching disk should not be assumed to.
 ### 1.1 Instrumentation is measuring the wrong thing
 
 Reading the block-processing timers end to end found three defects, in
-descending order of consequence. Full analysis: `../PerfTimers.md`.
+descending order of consequence. Full analysis: `PerfTimers.md`.
 
 **Proof verification is inside no timer at all.** Sprout JoinSplit verification
 runs in `CheckBlock` (`main.cpp:2982`), 67 lines *before* the first timer
 `nTimeStart` (`3049`). Sapling spend/output verification runs in
 `ContextualCheckBlock` during block *acceptance*, outside `ConnectTip`
-entirely. So Groth16 verification -- the largest post-Sapling cost -- is
+entirely. So shielded proof verification -- the largest post-Sapling cost -- is
 invisible to `-debug=bench`.
 
 **Consequence for upcoming work:** a phase summary built from today's counters
@@ -63,7 +63,7 @@ condition: `TASKS.md` A2.
 ### 1.3 Two rules were unenforced, and both had drifted
 
 The ASCII-only rule (693 violations, 498 in `Perf.md`) and the "numbers live in
-`Measures.md` under an `M-*` id" rule (the Groth16 share restated in five
+`Measures.md` under an `M-*` id" rule (the proof-verification share restated in five
 documents). Both are written down; neither is checked. Pattern and fix:
 `POLICY.md` S2.1, `TASKS.md` A1.
 
@@ -103,7 +103,7 @@ figures produced *before* the guards existed.
 
 Owned by `../equ/`: solve versus verify scope, the reference `zcbenchmark`
 figures, and why blake2b is bucketed separately from `equihash`. Sync-side
-verification cost is a ConnectBlock finding and stays in `../Perf.md` S5.
+verification cost is a ConnectBlock finding and stays in `Perf.md` S5.
 
 ## 3. Settled: the sync investigation
 
@@ -152,7 +152,7 @@ which is the noise floor any claimed improvement must clear.
 
 **The FDCACHE lesson.** An I/O A/B measured a spread smaller than its own noise
 floor, and profiling afterwards showed why the knob had nothing to act on
-(`../Perf.md` S3, which owns FDCACHE). **Profile first when the bottleneck is
+(`Perf.md` S3, which owns FDCACHE). **Profile first when the bottleneck is
 unknown; benchmark when it is known and a delta needs proving.**
 
 #### What "disk_syscall 4.91%" bounds, and why buffer size cannot move it
@@ -216,7 +216,7 @@ answer. Four published figures were wrong because of it:
 
 | Wrong figure | Cause | Corrected to |
 |--------------|-------|--------------|
-| "Tree 57-58%" | `jubjub Point::add` is in both tree and proof paths; tree matched first | Groth16 understated by ~50 points |
+| "Tree 57-58%" | `jubjub Point::add` is in both tree and proof paths; tree matched first | Proof verification understated by ~50 points |
 | Witness cost missing | a bare `CWallet::` needle matched first | `VerifyAndSetInitialWitness` attributed correctly |
 | `disk_io` 14.66% | one bucket over-matched | 4.91% real syscall leaves, split into `disk_syscall` / `disk_decode` |
 | No blake2b figure at all | hidden inside `equihash` | own bucket, ordered first |
@@ -235,7 +235,7 @@ same heights. They differ in how blocks are *sourced*, not in what validation
 costs -- which is why filling the "no post-Sapling bootstrap capture" gap is
 `Aside` rather than open.
 
-Height region, by contrast, changes everything: the Groth16 share moves from
+Height region, by contrast, changes everything: the proof-verification share moves from
 ~43% pre-Sapling to 88-91% post-Sapling. **A measurement without a height
 window is not comparable to anything.**
 
@@ -321,7 +321,7 @@ Bounds on everything above.
 | Blind spot | Effect |
 |-----------|--------|
 | One platform, one architecture | All numbers macOS/arm64. `TASKS.md` B2 |
-| Groth16 verification untimed | The largest post-Sapling cost is invisible to `-debug=bench`. S1.1 |
+| Proof verification untimed | The largest post-Sapling cost is invisible to `-debug=bench` |
 | Thermal never observed non-Nominal | Every capture is 60 s; no multi-hour run has been checked for throttling |
 | Microbenchmark suite unrecorded | 19 benchmarks runnable, `M-ZCB-SUITE` has no numeric archive |
 | No p1 rescan capture | Two-order-of-magnitude hole in the wallet-size curve. S3.1 |

@@ -37,6 +37,21 @@ Whether an item is live at all, and why not if it is not. Ordered:
 The terminal state is **Finished**. `Done` is not used: it reads as "I stopped
 working on it" rather than "this is complete".
 
+The two axes must not share a word. Kanban's terminal state is **Finished**
+(the card left the board); disposition's is **Fixed** (the issue was repaired)
+or **Postponed** (it was not). An item carries one value from each.
+
+### 1.4 Referring to other material
+
+**Cite a document and a heading title, never a section number.** Numbers move
+whenever a document is reorganised, and every stale citation then has to be
+chased or silently rots. `POLICY.md` "Where material belongs" survives a
+renumber; `POLICY.md` S2.0a does not.
+
+Cite at all only when the reader must go there to act. A reference that merely
+notes another document also discusses the subject is noise, and each one is a
+link to maintain.
+
 ---
 
 ## 2. Documentation rules
@@ -515,7 +530,7 @@ than where it was discovered.
 
 | Identifier | Goes in | Tree |
 |------------|---------|------|
-| `M-*` -- measure ids, campaign numbers | `../Measures.md` | ZeroPerf |
+| `M-*` -- measure ids, campaign numbers | `Measures.md` | ZeroPerf |
 | `PERF-*` -- ConnectBlock optimization narrative | `FINDINGS.md`; numbers cited from `Measures.md` | ZeroPerf |
 | `OPS-*` / `WAL-*` / `FR-*` / `EXT-*` -- status and task text | `TODO.md` | Zero400 |
 | `OPS-*` / `WAL-*` / `FR-*` -- architecture | `ZeroStruct.md` | Zero400 |

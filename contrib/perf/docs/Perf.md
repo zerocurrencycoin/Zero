@@ -1,17 +1,17 @@
 # `zerod` sync performance: current understanding, and next steps
 
-**Groth16** now lives in **[PerfGroth.md](PerfGroth.md)**; **task state** in **`docs/TASKS.md`**. This file keeps findings and method.
+Shielded proof verification: **[PerfGroth.md](PerfGroth.md)**. Work items: **PLAN.md**. This file keeps ConnectBlock findings and method.
 
 This document holds the **performance findings for block connection**: where
 sync time goes, which of those costs were investigated, and what changing them
 did or would do. A subject appears here only where its cost during sync is the
 point -- Equihash verification is here because it is 6-28% of ConnectBlock CPU,
 while how the solver works belongs to `equ/`. It carries no task state; that is
-`docs/TASKS.md`, and placement generally is `docs/POLICY.md` S2.0a.
+`TASKS.md`, and placement generally is `POLICY.md` S2.0a.
 
-**New to benchmarking this node?** Read **`docs/HOWTO.md`** first -- this file is the investigation narrative and assumes the workflow is already familiar. Data provenance for every recent number: `test-logs/DATA_INDEX.md`.
+**New to benchmarking this node?** Read **`HOWTO.md`** first -- this file is the investigation narrative and assumes the workflow is already familiar. Data provenance for every recent number: `test-logs/DATA_INDEX.md`.
 
-**Quantitative inventory** (`M-*` campaigns, vocabulary, comparability, extraction, ledger `CAMPAIGN=` map): **[Measures.md](Measures.md)** -- cite IDs only here; means/stdevs live there. This file keeps optimization narrative, **BENCH-/FIX-/IMP-***, baseline tracks **L0-L7**, Stages 0-6, priorities **G**/**P1-P4**, Groth decision, and **lab materials** (§1). Doc-map, lab discipline, and harness inventory: **`docs/POLICY.md`**.
+**Quantitative inventory** (`M-*` campaigns, vocabulary, comparability, extraction, ledger `CAMPAIGN=` map): **[Measures.md](Measures.md)** -- cite IDs only here; means/stdevs live there. This file keeps optimization narrative, **BENCH-/FIX-/IMP-***, baseline tracks **L0-L7**, Stages 0-6, priorities **G**/**P1-P4**, Groth decision, and **lab materials** (§1). Doc-map, lab discipline, and harness inventory: **`POLICY.md`**.
 
 **Program: recreate the ConnectBlock / import performance baseline** so pending decisions sit on current measured numbers. Already-shipped product work with tests stays in the tree (§3 fd-cache, §4 root latch + anchor index, reindex resume, ExtTests **B1** `reindex_shielded`, founders integer subsidy, FIX-LBI/IMPORT). **Baseline tracks** (§0.13 F **L0-L7**): tiny/short, pre-Sap reindex+bootstrap, post-Sap reindex+bootstrap, era segments, util; then Groth decision inputs. FDCACHE 4x2 postponed. Accounts/W5 pending review.
 
@@ -19,7 +19,7 @@ while how the solver works belongs to `equ/`. It carries no task state; that is
 
 ## 0. Wallet-on reindex: the witness bottleneck
 
-Task state for everything below is `docs/TASKS.md`.
+Task state for everything below is `TASKS.md`.
 
 **Settled:** With a large `mapWallet`, IBD/reindex wall is dominated by per-block `BuildWitnessCache(..., witnessOnly=true)` -> `VerifyAndSetInitialWitness` -- **not** by `OrderedTxItems` (WAL-WTXORDERED already incremental). Evidence: M-WAL-SYNC-FAT / M-CPU-WAL-FAT; archive `test-logs/archives/walletsync-fat-g0-20260812.tar.gz`. Genesis `-rescan` on the same Id 3 fat wallet (M-WAL-RESCAN-FAT) is the same Verify path, not ConnectBlock: **finished** 2,518,691 blocks in ~**11.9 h**; cliff at height **1600000** (Halving 2 / founders payee) to ~**19 blk/s** with Select **~98%**; end height-walk **2.0 s**. Next product: **FIX-WAL-WITNESS-NOTEIDX-STALE**.
 
@@ -684,7 +684,7 @@ ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
 
 **Profiling method:** a real mainnet datadir (not synthetic/regtest -- script/tx mix affects where time goes) profiled with Instruments Time Profiler (`xcrun xctrace`, headless CLI) attached to the single worker thread that does the actual reindex/import work (`zcash-loadblk`, running `ThreadImport`). Every other thread (idle script-check-queue workers, RPC/net/**wallet** threads) is filtered out -- unfiltered, all-threads profiles are dominated by idle-thread noise (85%+ of raw samples blocked on a condvar) and say nothing about where real work goes.
 
-**Scope note -- ConnectBlock vs wallet-on:** `capture_sequence.sh` / `bench_matrix.sh` default filter is **ConnectBlock / import** on `zcash-loadblk` (Groth16, Equihash, disk, trees). Fat-wallet reindex is a **separate** track: M-WAL-SYNC-FAT / M-CPU-WAL-FAT / §0.14 -- bottleneck is `VerifyAndSetInitialWitness`, not `OrderedTxItems` (WAL-WTXORDERED done). ZeroStruct §13.4.3 for order-insert history.
+**Scope note -- ConnectBlock vs wallet-on:** `capture_sequence.sh` / `bench_matrix.sh` default filter is **ConnectBlock / import** on `zcash-loadblk` (proof verification, Equihash, disk, trees). Fat-wallet reindex is a **separate** track: M-WAL-SYNC-FAT / M-CPU-WAL-FAT / §0.14 -- bottleneck is `VerifyAndSetInitialWitness`, not `OrderedTxItems` (WAL-WTXORDERED done). ZeroStruct §13.4.3 for order-insert history.
 
 **Retarget for wallet-on sync CPU:** attach Time Profiler to live `-reindex` with fat wallet; bucket **ALL** threads (or loadblk -- witness runs on loadblk); use `witness_cache` needles (§0.14 hygiene) plus AddToWallet/OrderedTxItems; record height window. Do not interpret empty-wallet profiles as fat-wallet cost.
 
@@ -767,22 +767,22 @@ Bootstrap-mode datadir reset must exclude `blocks/` (M-INIT-03 / §3). Current s
 
 **The idle script-check-queue threads (`zcash-scriptch`, `-par`) cannot help any of this bucket breakdown.** They're wired only to per-transaction signature verification, never to anchor/tree updates, in every codebase checked (Bitcoin Core, zcashd, Zero, Zebra). This is a per-call cost problem in code that has never been parallelized, not a parallelism gap in otherwise-idle threads.
 
-**Correction -- the table above conflates two distinct costs.** Sapling's Groth16 zk-SNARK proof verification (`librustzcash_sapling_check_spend`/`_check_output`, called from `ContextualCheckTransaction`) *also* does elliptic-curve arithmetic over the same `jubjub`/BLS12-381 types used by tree-anchor recomputation, deep inside `bellman::groth16::verifier::verify_proof` -- the original bucket definitions couldn't tell these apart. Re-bucketing with a set that checks for `bellman::groth16::verifier::verify_proof`/`miller_loop`/`final_exponentiation` specifically splits it correctly:
+**Correction -- the table above conflates two distinct costs.** Shielded proof verification also does elliptic-curve arithmetic over the same `jubjub`/BLS12-381 code, so a bucket matched on curve symbols alone captured both. Re-bucketing on the verifier entry points separates them. Cost, mechanism and options for that bucket are **[PerfGroth.md](PerfGroth.md)**; what follows is only its share of ConnectBlock CPU.
 
 | Bucket | % of CPU (height 610,758-626,806) | Call path |
 |---|---|---|
-| **Sapling Groth16 proof verification** | **60.9%** | `Fq::mul_assign`/`Fq12::square` (BLS12-381 pairing arith) <- `miller_loop` <- `bellman::groth16::verifier::verify_proof` <- `librustzcash_sapling_check_spend`/`_check_output` <- `ContextualCheckTransaction` |
+| **Shielded proof verification** | **60.9%** | `Fq::mul_assign`/`Fq12::square` (BLS12-381 pairing arith) <- `miller_loop` <- verifier <- `ContextualCheckTransaction` |
 | Disk I/O | 26.2% | Same syscalls as above |
 | Equihash PoW verification | 6.9% | Same call path as above |
 | Sapling/Sprout tree/anchor update | 6.1% | Same call path as above -- **this is what the original "57-58%" figure actually measured almost none of** |
 
-Cross-checking against an earlier-build trace spanning the full 0-2.47M height range and re-bucketed with the corrected script gives **0 Groth16 samples**, reproducing the original 58/26/16 split almost exactly -- confirming the corrected script isn't the source of the discrepancy, and that the original figure was measured on a height range with negligible Sapling shielded-tx volume (Sprout-dominated or pre/early-Sapling), so it wasn't wrong about *that window*, only wrong as a general claim about "the" bucket breakdown.
+Cross-checking against an earlier-build trace spanning the full 0-2.47M height range and re-bucketed with the corrected script gives **no proof-verification samples**, reproducing the original 58/26/16 split almost exactly -- confirming the corrected script isn't the source of the difference, the height range is.
 
 **The bucket breakdown is height-dependent, not a fixed constant** -- any profiling result needs its block-height range reported alongside it to be interpretable. Throughput for the 610,758-626,806 window: 267.5 blocks/sec (exact, from `UpdateTip` timestamps), ~330 KB/sec (estimated from 41 evenly-strided `getblock` samples, individual blocks ranging 685-160,858 bytes) -- consistent with the whole-chain ~282 blocks/sec average.
 
 **Whole-chain confirmation, six 5-minute windows spanning the reindexed range** (`contrib/perf/capture_sequence.sh` drove the repeating capture; `contrib/perf/decode_captures.py` exported/bucketed each one and derived its exact height range from the trace's own timestamp cross-referenced against a `debug.log` snapshot -- see `contrib/perf/README.md`):
 
-| Capture | Height range | blocks/sec | Groth16 | Disk I/O | Tree/anchor | Equihash |
+| Capture | Height range | blocks/sec | Proof verify | Disk I/O | Tree/anchor | Equihash |
 |---|---|---|---|---|---|---|
 | 1 | 5,373 -> 336,144 | 1,102.6 | 0% (pre-Sapling) | 16.54% | 54.99%* | 28.46% |
 | 2 | 626,078 -> 702,200 | 253.7 | 54.74% | 25.03% | 13.83% | 6.40% |
@@ -791,13 +791,13 @@ Cross-checking against an earlier-build trace spanning the full 0-2.47M height r
 | 5 | 1,693,202 -> 1,777,052 | 279.5 | 53.84% | 25.03% | 14.01% | 7.12% |
 | 6 | 2,032,619 -> 2,173,838 | 470.7 | 48.09% | 26.02% | 13.78% | 12.11% |
 
-*Capture 1 is pre-Sapling-activation: its "tree/anchor" share is inflated only because Groth16 doesn't exist yet at these heights.
+*Capture 1 is pre-Sapling-activation: its "tree/anchor" share is inflated only because shielded proofs do not exist at these heights.
 
-Post-Sapling (captures 2-6), Groth16 is consistently dominant (48-55%) across five independently-sampled ranges spanning nearly the whole post-activation chain -- the single-window 60.9% figure was directionally correct, though the exact percentage tracks per-window shielded-tx volume rather than being a fixed per-block overhead. Disk I/O (~25-26%) and tree/anchor (~14%) are comparably stable. Equihash's *share* climbs from ~6% to ~12% (captures 4->6) -- a percentage effect, not a cost effect (see per-block table below): capture 6 processed more blocks/sec, spreading a constant per-header cost over less wall-clock time per block.
+Post-Sapling (captures 2-6), proof verification is consistently dominant (48-55%) across five independently-sampled ranges spanning nearly the whole post-activation chain.
 
 **Per-block absolute cost, the more informative view:**
 
-| Capture | Groth16 ms/block | Disk I/O ms/block | Tree/anchor ms/block | **Equihash ms/block** |
+| Capture | Proof verify ms/block | Disk I/O ms/block | Tree/anchor ms/block | **Equihash ms/block** |
 |---|---|---|---|---|
 | 1 (pre-Sapling) | -- | 0.149 | 0.494 | **0.2557** |
 | 2 | 2.149 | 0.983 | 0.543 | **0.2513** |
@@ -807,9 +807,9 @@ Post-Sapling (captures 2-6), Groth16 is consistently dominant (48-55%) across fi
 | 6 | 1.005 | 0.543 | 0.288 | **0.2530** |
 | **mean / CV** | 1.84ms / **27.7%** | 0.75ms / **45.7%** | 0.48ms / **21.5%** | **0.252ms / 1.2%** |
 
-Groth16, disk I/O, and tree/anchor per-block cost all vary substantially (21-46% CV) -- expected, each scales with shielded-tx volume or block/undo-file size. **Equihash's per-block cost is essentially constant (0.252ms +/- 1.2% CV)** across pre- and post-Sapling heights and blocks/sec ranging 237-1,103 -- the signature of a fixed per-call cost independent of block content (root cause: §5).
+Proof verification, disk I/O, and tree/anchor per-block cost all vary substantially (21-46% CV) -- expected, each scales with shielded-tx volume or block/undo-file size. **Equihash's per-block cost is essentially constant (0.252ms +/- 1.2% CV)** across pre- and post-Sapling heights and blocks/sec ranging 237-1,103 -- the signature of a fixed per-call cost independent of block content (root cause: §5).
 
-**Not yet investigated:** the latch (S4) and the proposed root-existence index both target the tree/anchor bucket only, ~6-14% of CPU. The dominant proof-verification bucket has had nothing aimed at it; that work and its decision are `PerfGroth.md`.
+**Not yet investigated:** the Merkle-root latch and the proposed root-existence index both target the tree/anchor bucket only, ~6-14% of CPU (M-CPU-SEQ). The dominant proof-verification bucket has had nothing aimed at it; that work and its decision are `PerfGroth.md`.
 
 **Memory profiling:** Instruments' Allocations/Leaks templates attach successfully (`task_for_pid`, entitlement + Developer Mode satisfied) but their recorded data is a GUI-only proprietary blob with no `xctrace export` schema in this Instruments version -- headless readout is a dead end via that template. `vmmap`/`heap`/`malloc_history` are CLI-native with no export-format dependency and haven't been tried yet (§0 item 5).
 
@@ -819,7 +819,7 @@ Groth16, disk I/O, and tree/anchor per-block cost all vary substantially (21-46%
 
 **Parked.** Compiled out of release builds (`ZERO_FDCACHE` `#undef`), off by
 default under `--enable-perf`, and no throughput win at either era
-(M-CPU-FD-THR). Retained pending Linux/Windows validation; disposition is `docs/TASKS.md` **P8**.
+(M-CPU-FD-THR). Retained pending Linux/Windows validation; disposition is `TASKS.md` **P8**.
 
 **Mechanism.** `OpenBlockFile`/`OpenUndoFile` both call `OpenDiskFile`, which does a **fresh, unconditional `fopen()` on every call** -- no persistent or cached `FILE*` anywhere in this path. Every call site wraps the fresh `FILE*` in a stack-local `CAutoFile`, whose destructor calls `fclose()` unconditionally the moment the function returns. `ConnectBlock`/`LoadExternalBlockFile` call these once or twice per block (a read, usually an undo-data write) -- a full ~2.5M-block reindex therefore performs on the order of **2.5-5 million `fopen`/`fclose` pairs**, even though the underlying `blkNNNNN.dat`/`revNNNNN.dat` files are ~128MB each holding thousands of consecutive blocks: the overwhelming majority of those pairs reopen a file that was just closed moments earlier for the previous block. Each pair is a full kernel `open`/`close` round-trip, and `fopen` additionally re-initializes stdio's internal buffer from scratch every time -- cost paid once per block instead of once per file, a 100-1000x amplification.
 
@@ -858,7 +858,7 @@ Difference: -1.66%, t ~ -1.07 -- not distinguishable from noise at this sample s
 - **Buffer size, fd-cache held on** (default-buffer -> 1MB-buffer): -0.41%, t ~ -9.80 -- a real, statistically clear *difference*, but in the wrong direction (1MB buffer is *slower*) and tiny in absolute terms (1.3 blk/s); most plausibly page-cache/allocation overhead from a 1MB `setvbuf` buffer per open handle outweighing any I/O-batching benefit at these small (~1.3-2KB) block sizes, not a real optimization opportunity.
 - **Combined** (no-fdcache -> 1MB-buffer): +0.67%, t ~ 0.73 -- not distinguishable from noise.
 
-This closes §0 item 1's open question: post-Sapling heights behave the same as pre-Sapling did -- the fd-cache mechanism works exactly as designed (99.9% hit rate, confirmed genuinely inactive in the off condition) but produces no measurable reindex throughput improvement, isolated from buffer size, at either pre- or post-Sapling heights. Disk I/O's remaining headroom (§2: ~25-26% of CPU post-Sapling) is dominated by genuine read/write/transfer time, not open/close overhead -- consistent with §3's earlier `fs_usage` finding that open/close/stat together were only 6-34% of the disk-I/O bucket.
+This closes the fd-cache open question (M-CPU-FD-THR): post-Sapling heights behave the same as pre-Sapling did -- the fd-cache mechanism works exactly as designed (99.9% hit rate, confirmed genuinely inactive in the off condition) but produces no measurable reindex throughput improvement, isolated from buffer size, at either pre- or post-Sapling heights. Disk I/O's remaining headroom (§2: ~25-26% of CPU post-Sapling) is dominated by genuine read/write/transfer time, not open/close overhead -- consistent with §3's earlier `fs_usage` finding that open/close/stat together were only 6-34% of the disk-I/O bucket.
 
 **A datadir-reset bug found and fixed while building the bootstrap-import benchmark leg.** `bench_matrix.sh`'s scratch-datadir reset originally used one procedure for both `-reindex` and `-loadblock` trials -- rsync excluding only `chainstate`. Correct for `-reindex` (which rescans existing `blk*.dat`/`rev*.dat` by design), wrong for `-loadblock`: reusing a fully-synced source's `blocks/` directory made `-loadblock` reconcile its import against an already-populated, multi-million-block index instead of starting from an empty chain. Fixed: bootstrap-mode resets now also exclude `blocks/`. Before the fix, `LoadBlockIndexDB` reported an existing index spanning `heights=2440414...2484412` and RPC stayed in `"Loading block index..."` (`getblockcount` returning error -28) for over 50 minutes before any import progress was measurable; after the fix, RPC comes up and warmup height is reached within seconds.
 
@@ -868,14 +868,14 @@ This closes §0 item 1's open question: post-Sapling heights behave the same as 
 
 **G6 (accepted queue):** when FDCACHE resumes, add **8192** and **16384** bufsize conditions vs libc default and 1048576 -- 1MB already looked slightly worse; mid-size buffers test the "syscall vs cache pressure" hypothesis without assuming 1MB is optimal.
 
-**Why it is retained, and the two cases that could still pay.** The null above is established for **sequential reindex on macOS/arm64 with a warm page cache** -- one platform, one access pattern. macOS stdio does not predict Linux or Windows, which is the same reasoning that keeps `docs/TASKS.md` B2 open. Two workloads have the opposite access pattern and are unmeasured:
+**Why it is retained, and the two cases that could still pay.** The null above is established for **sequential reindex on macOS/arm64 with a warm page cache** -- one platform, one access pattern. macOS stdio does not predict Linux or Windows, which is the same reasoning that keeps `TASKS.md` B2 open. Two workloads have the opposite access pattern and are unmeasured:
 
 - **Random `getblock` / REST / explorer serving.** Consecutive requests hit *different* `blk*.dat` files, so each read pays the `fopen`+`fclose` the latch would elide. Sequential reindex hits the same file repeatedly, which is why the cache had nothing to save there. Measure by driving `getblock` over a random height sample against a synced node, with and without `-perffdcache`, comparing **RPC latency percentiles**, not throughput.
 - **Cold cache / slow storage.** The 4.91% syscall share assumes the page cache already holds the data. On first touch, or on network/spinning storage, the read itself dominates and buffer size becomes relevant. Same reindex window with the page cache dropped between trials -- Linux only (`/proc/sys/vm/drop_caches`), so a B2 item.
 
 **Both are latency questions, not throughput questions**, which is why the existing throughput harness measured nothing: it was the wrong instrument for the case where the mechanism helps. The reindex null stands and neither contradicts it.
 
-**The RPC case is gated on the concurrency fix.** Multiple simultaneous readers are exactly the unsafe condition above, so the lock lifetime must be fixed **before** any multi-client `getblock` measurement -- otherwise the experiment measures an unsafe path. Task state: `docs/TASKS.md` **P8** (postponed).
+**The RPC case is gated on the concurrency fix.** Multiple simultaneous readers are exactly the unsafe condition above, so the lock lifetime must be fixed **before** any multi-client `getblock` measurement -- otherwise the experiment measures an unsafe path. Task state: `TASKS.md` **P8** (postponed).
 
 ---
 
@@ -908,27 +908,27 @@ Idle and Sapling-output-only blocks match perfectly but were already cheap (empt
 
 ## 5. Equihash's CPU share: a libsodium/ARM gap, not an algorithm issue
 
-**The question.** §2 showed Equihash verification taking 6-28% of CPU depending on height, with `blake2b_compress_ref` recurring in every sample. Given Equihash verification is supposed to be cheap by design (asymmetric proof-of-work), is this a real inefficiency? **Answer: the algorithm is correct and minimal; the cost is a missing SIMD backend, specific to this build's architecture.**
+**The question.** The CPU cost breakdown (M-CPU-SEQ) showed Equihash verification taking 6-28% of CPU depending on height, with `blake2b_compress_ref` recurring in every sample. Given Equihash verification is supposed to be cheap by design (asymmetric proof-of-work), is this a real inefficiency? **Answer: the algorithm is correct and minimal; the cost is a missing SIMD backend, specific to this build's architecture.**
 
 **The algorithm itself is correct and lightweight.** `Equihash<N,K>::IsValidSolution` does exactly what the spec requires for mainnet's `Equihash<192,7>`: `2^K = 128` calls to `GenerateHash` (one blake2b invocation each), followed by a 7-round collision/ordering/distinctness check using only `memcmp`/XOR-style comparisons -- no re-solving, no search, no redundant hashing. There is no algorithmic bug here.
 
 **The cost is entirely inside blake2b's compression function, running unaccelerated on this hardware.** Every one of the 128 per-block hash calls goes through libsodium (not the Rust `blake2-rfc` crate also vendored in this tree -- that's for something else). libsodium 1.0.21 dispatches its blake2b compression function at runtime via `blake2b_pick_best_implementation()`, choosing between `avx2`/`sse41`/`ssse3`/`ref` backends -- but **all three accelerated backends are gated behind x86-only intrinsics headers**. On `aarch64-apple-darwin` (Apple Silicon), none of those headers exist, so the dispatcher unconditionally falls through to `blake2b_compress_ref`, the plain scalar C implementation, for every call.
 
-**Checked and ruled out: no fix via upgrading dependencies or Apple's native crypto.** Across every hash-library release checked, ARM/aarch64 wins landed for AES-GCM, AEGIS, and Argon2/SHA3 -- blake2b has never once been included, so a version bump is confirmed not to fix this (`docs/SODIUM_SURVEY.md`). Apple's CryptoKit has no BLAKE2b support at all (SHA-2/AES/legacy only).
+**Checked and ruled out: no fix via upgrading dependencies or Apple's native crypto.** Across every hash-library release checked, ARM/aarch64 wins landed for AES-GCM, AEGIS, and Argon2/SHA3 -- blake2b has never once been included, so a version bump is confirmed not to fix this (`SODIUM_SURVEY.md`). Apple's CryptoKit has no BLAKE2b support at all (SHA-2/AES/legacy only).
 
 
-**Resolved 2026-09-02: the recommendation above was implemented, via uniblake.** Option (b) was taken -- `equihash.cpp` no longer calls libsodium's generichash API at all; it calls uniblake (`ub_init_personal` / `ub_update` / `ub_hash_tail`) through `crypto/eh_hashstate.h`. libsodium is retained unchanged for Ed25519, `randombytes_buf` and the seven files that still use `crypto_generichash_blake2b_*` (see **`docs/HASHLIBS.md`** for the full division). Measured 2.03x on the Equihash access pattern, against libsodium 1.0.22 built -O3, harness at -O2.
+**Resolved 2026-09-02: the recommendation above was implemented, via uniblake.** Option (b) was taken -- `equihash.cpp` no longer calls libsodium's generichash API at all; it calls uniblake (`ub_init_personal` / `ub_update` / `ub_hash_tail`) through `crypto/eh_hashstate.h`. libsodium is retained unchanged for Ed25519, `randombytes_buf` and the seven files that still use `crypto_generichash_blake2b_*` (see **`HASHLIBS.md`** for the full division). Measured 2.03x on the Equihash access pattern, against libsodium 1.0.22 built -O3, harness at -O2.
 
-**One prediction in this section did not hold.** The gain was expected from a vectorised compression function. It came instead from the call structure -- the same prefix is hashed once rather than per call -- which is why the two libraries are within 1-2% on bulk data. Mechanism and measurements: `docs/HASHLIBS.md` S2.
+**One prediction in this section did not hold.** The gain was expected from a vectorised compression function. It came instead from the call structure -- the same prefix is hashed once rather than per call -- which is why the two libraries are within 1-2% on bulk data. Mechanism and measurements: `HASHLIBS.md` S2.
 
 **The vectorisation track for blake2b is closed, on measurement.** The kernel
 question belongs to uniblake, which owns the implementation and the benchmark;
-ZeroPerf adopts its result rather than restating it. See `docs/HASHLIBS.md` for
+ZeroPerf adopts its result rather than restating it. See `HASHLIBS.md` for
 the division of labour and the Zero-level effect.
 
 References to a blake2b SIMD backend elsewhere in this document are historical and are not open work.
 
-The version-bump conclusion above is independently confirmed and stronger than stated: blake2b is **byte-identical** between 1.0.21 and 1.0.22 -- the only source difference is `LCOV_EXCL_LINE` comments, and the compress kernel compiles to identical assembly (`docs/SODIUM_SURVEY.md` S5).
+The version-bump conclusion above is independently confirmed and stronger than stated: blake2b is **byte-identical** between 1.0.21 and 1.0.22 -- the only source difference is `LCOV_EXCL_LINE` comments, and the compress kernel compiles to identical assembly (`SODIUM_SURVEY.md` S5).
 
 **Independent confirmation this is a fixed, hardware-level cost, not something content-dependent:** Equihash's per-block cost held constant at 0.252ms +/- 1.2% CV across six capture windows spanning pre- and post-Sapling heights and blocks/sec ranging 237-1,103 (§2's per-block table) -- versus 21-46% CV for every other bucket, all of which scale with shielded-tx volume or block size. A cost that doesn't move with any chain-content variable is exactly what "fixed per-header hashing cost, paid by an unaccelerated compression function" predicts.
 
@@ -955,7 +955,7 @@ The version-bump conclusion above is independently confirmed and stronger than s
 
 ---
 
-## 7. Memory profiling: `AddToBlockIndex` dominates, Groth16 verification allocates nothing
+## 7. Memory profiling: `AddToBlockIndex` dominates, proof verification allocates nothing
 
 **The question (§0's memory-profiling item).** Instruments' Allocations/Leaks templates attach successfully but produce a GUI-only proprietary blob with no `xctrace export` schema in this Instruments version (§2) -- a documented dead end for headless use. `vmmap`/`heap`/`malloc_history` are CLI-native with no export-format dependency; this section is their first real use against a live `-reindex`.
 
@@ -987,7 +987,7 @@ The version-bump conclusion above is independently confirmed and stronger than s
 
 **`AddToBlockIndex` is the single largest identifiable allocation site -- expected, not a bug.** It permanently retains one `CBlockIndex` object (plus a `vector<unsigned char>` for header-adjacent data and a hash-map entry) per block header for the lifetime of the process -- by construction, chain-length-proportional, never freed, never meant to be. At ~589MB for roughly 480,000 headers in this window, that's on the order of ~1.2KB/header of permanent retained memory -- consistent with `CBlockIndex`'s field set (hashes, work, heights, pointers) plus map/allocator overhead. Confirms this is the primary driver of the footprint-vs-height growth measured above, not a separate or surprising cost.
 
-**Confirmed: Sapling Groth16 proof verification allocates essentially nothing on the heap.** Despite dominating CPU (48-55% of chain-wide CPU per §2) and this stack-logging window spanning well past Sapling activation, `librustzcash_sapling_check_spend`/`_check_output`/`verify_proof`/`miller_loop`/`final_exponentiation` appear **zero times** anywhere in the call tree. The only Groth16-adjacent allocation found at all is `librustzcash_init_zksnark_params` (~58MB, ~4.9MB, and a handful of smaller frames) -- one-time proving/verifying-key loading at process startup, not a per-verification or per-block cost. This cleanly decouples §2's CPU-dominant bucket from the memory profile: BLS12-381 field/pairing arithmetic operates on fixed-size stack types, so verifying more proofs costs CPU time but not heap growth -- a useful confirmation that Groth16 verification (and by extension, any future batch-verification work per §6) is not a memory-scaling concern, only a CPU one.
+**Confirmed: shielded proof verification allocates essentially nothing on the heap.** Despite dominating CPU (48-55% of chain-wide CPU, "CPU cost breakdown" above) and this stack-logging window spanning well past Sapling activation, `librustzcash_sapling_check_spend`/`_check_output`/`verify_proof`/`miller_loop`/`final_exponentiation` appear **zero times** anywhere in the call tree. The only Groth16-adjacent allocation found at all is `librustzcash_init_zksnark_params` (~58MB, ~4.9MB, and a handful of smaller frames) -- one-time proving/verifying-key loading at process startup, not a per-verification or per-block cost. This cleanly decouples §2's CPU-dominant bucket from the memory profile: BLS12-381 field/pairing arithmetic operates on fixed-size stack types, so verifying more proofs costs CPU time but not heap growth -- a useful confirmation that Groth16 verification (and by extension, any future batch-verification work per §6) is not a memory-scaling concern, only a CPU one.
 
 **Full-chain footprint timeline: complete.** The height-checkpoint sweep ran to chain tip (2,470,587); see the table above. Not done: re-running `malloc_history`/`MallocStackLogging` at a window sampled entirely post-Sapling-activation specifically -- the stack-logged window above happens to straddle the Sapling activation boundary but is dominated by pre-activation volume by block count, so its allocation-site percentages likely understate Sapling-Groth16-adjacent bookkeeping (anchor cache writes, nullifier-set growth) relative to a window sampled entirely post-activation. Given §7's headline finding -- Groth16 verification itself allocates nothing, and `AddToBlockIndex` (a cost with no Sapling-specific component at all) dominates -- a second stack-logged window is unlikely to change the qualitative conclusion, so this is left as a documented gap rather than pursued further.
 
@@ -1024,7 +1024,7 @@ Other per-block-scaling (but not literally-every-block; these fire per shielded-
 
 **Not investigated further (out of scope here): whether shrinking `CBlockIndex`'s in-memory footprint -- e.g. gating the Shieldex fields out of the struct entirely behind a compile-time or even runtime flag, rather than just gating their population/serialization -- is worth pursuing.** Given `AddToBlockIndex` is §7's largest single allocation site and these fields are ~50% of the non-Equihash-solution portion of the object (176 of ~344 bytes), this is a plausible follow-up memory-focused optimization target, but sizing the actual win and the runtime-flag-vs-recompile tradeoff hasn't been done.
 
-### 8.3 `alloc::raw_vec::finish_grow`: resolved -- startup-only Groth16 parameter loading, not a per-block cost
+### 8.3 `alloc::raw_vec::finish_grow`: resolved -- startup-only proving-parameter loading, not a per-block cost
 
 **The question.** A prior pass over the raw `malloc_history` trace flagged `alloc::raw_vec::finish_grow` (Rust's generic `Vec` growth-reallocation routine) as the largest average-allocation-size symbol in the whole trace (reported as "1,062 count, 62.9KB avg, 66.8M total"), with "unidentified specific caller" -- `finish_grow` is a single generic-monomorphized-but-symbol-collapsed function, so a flat grep across the trace merges every distinct call site that ever reallocates a growing `Vec` into one apparent hot spot.
 
@@ -1032,7 +1032,7 @@ Other per-block-scaling (but not literally-every-block; these fire per shielded-
 
 | Caller | Count | Total bytes | What it is |
 |---|---|---|---|
-| `bellman::groth16::Parameters<E>::read` | 12 | 62.91M | Deserializing the Sapling proving/verifying-key file |
+| Proving-parameter deserialization | 12 | 62.91M | Reads the Sapling proving/verifying-key file at startup |
 | `sapling_crypto::jubjub::JubjubBls12::new` | 1,678 | 0.88M | Jubjub curve parameter-table construction |
 | `pairing::bls12_381::ec::g2::G2Affine::prepare` | 6 | 0.28M | Precomputing a G2 point for pairing |
 | (two single-allocation call sites, <1K each) | 2 | ~0.001M | -- |
@@ -1056,10 +1056,10 @@ Net: the allocation pattern isn't over-built for a hypothetical scenario -- most
 
 Replaced at the call site by uniblake (`c9bbe6ad9`, 2026-09-02); measured 2.03x
 on the Equihash access pattern. The mechanism is prefix-state reuse, not
-vectorisation -- see `docs/HASHLIBS.md` for the division of labour between the
+vectorisation -- see `HASHLIBS.md` for the division of labour between the
 two libraries and `uniblake/docs/PATTERNS.md` for the pattern taxonomy.
 
 The vectorisation track this section previously planned is closed on
 measurement; the superseded plan is archived under `ZK/OLD/SAVE/`. Kernel-level
-results belong to uniblake, not to this tree (`docs/HASHLIBS.md`).
+results belong to uniblake, not to this tree (`HASHLIBS.md`).
 

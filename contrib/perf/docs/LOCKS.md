@@ -96,4 +96,4 @@ grep -A26 'LockStats: recursive' /tmp/lab/debug.log
 by count, keyed `<mutex> <acquiring file:line> under <holding file:line>`.
 **Leaving the configuration requires `make -C src clean`** -- `LOCK()` expands
 in every locking TU, so a partial rebuild link-errors
-(`docs/BUILDCONFIG.md`).
+(`BUILDCONFIG.md`).

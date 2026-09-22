@@ -4,14 +4,14 @@ Everything needed to decide and implement Sapling Groth16 batch verification.
 Current state and forward path only; superseded attempts are not recorded here.
 
 Numbers are cited by `M-*` id and live in `Measures.md`. Task status lives in
-`docs/TASKS.md`.
+`TASKS.md`.
 
 **This is the focused Groth16 document.** It is the single home for Groth16
 evidence, options and implementation path. Other documents cite its conclusions
 and carry a headline figure at most -- they deliberately do not restate the
 evidence here. When adding Groth16 material anywhere in `contrib/perf/`, add it
-to this file instead. Task state: `docs/TASKS.md`. Everything else:
-`docs/FINDINGS.md`, which explicitly excludes this topic.
+to this file instead. Task state: `TASKS.md`. Everything else:
+`FINDINGS.md`, which explicitly excludes this topic.
 
 > **Postponed pending developer review (2026-08-20).** This document is
 > complete and reviewable as it stands; it is waiting on a maintainer to pick
@@ -157,7 +157,7 @@ Ordered; each step is a gate.
 - Per-transaction-attributed fallback as originally sketched is **not** what
   current `zcashd` does; it rejects the batch and re-verifies.
 - Halo/Orchard is **out of scope** -- not Zero consensus.
-- blake2b hashing is a separate item (closed, `docs/HASHLIBS.md`); it is 18-21% pre-Sapling but only
+- blake2b hashing is a separate item (closed, `HASHLIBS.md`); it is 18-21% pre-Sapling but only
   3-4% post-Sapling, so it does not compete with this.
 
 ## 7. Prototype
@@ -862,8 +862,8 @@ precondition, not a preference:
 
 | Before | Why |
 |---|---|
-| **Close the `contrib/perf` documentation work** (`docs/TASKS.md` C1, 30 steps open; the gating one is folding `Perf.md`'s status sections) | A dependency change lands findings in a tree whose subjects are still 40-66% outside their owners. The result would be filed wherever it was written |
-| **Finish the pending test work** (`docs/TASKS.md` Tests) | An algorithm change is judged by whether the suites still pass. Suites with known-held failures and no recorded baseline cannot make that judgement |
+| **Close the `contrib/perf` documentation work** (`TASKS.md` C1, 30 steps open; the gating one is folding `Perf.md`'s status sections) | A dependency change lands findings in a tree whose subjects are still 40-66% outside their owners. The result would be filed wherever it was written |
+| **Finish the pending test work** (`TASKS.md` Tests) | An algorithm change is judged by whether the suites still pass. Suites with known-held failures and no recorded baseline cannot make that judgement |
 | **Cut a reference benchmark** on the current build -- 5-10 trials preferred, all measurements kept -- recorded, with `cpu_busy` and millisecond timing | Without it, "did this help" is unanswerable. The lab only became able to resolve sub-1% differences on 2026-09-07 (M-LAB-WALL-MS, M-LAB-REPRO), and no multi-trial baseline has been taken since |
 
 **The order is not arbitrary.** A Groth16 or librustzcash experiment produces a
@@ -897,7 +897,7 @@ integration has been built for Zero, so:
   **not measured**. `zcash_proofs` at 3 commits since 2022 argues for
   "identical", but that is an inference from commit counts, not a measurement.
 - Whether extending uniblake to the remaining blake2b sites
-  (`docs/HASHLIBS.md` S1.5) helps is likewise unmeasured, and the bulk case
+  (`HASHLIBS.md` S1.5) helps is likewise unmeasured, and the bulk case
   there measured 1.01x -- so the expected value is near zero and could be
   negative.
 
