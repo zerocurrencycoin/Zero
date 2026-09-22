@@ -1,98 +1,140 @@
-# Locks: every finding, in one place
+# Locks
 
-**This file is the single location for lock findings.** Measurements,
-call-rate analysis, upstream precedent and disposition. Task state lives in
-`TASKS.md` under the item ids named here; nothing about locks is recorded
-anywhere else.
+Everything known about locking in this node: what the instrument measures,
+what it found, how to reproduce it, and what remains open. Work items are
+`PLAN.md` group B.
 
-Work items for everything here are `PLAN.md` group B.
+## The instrument, and a defect it had
 
-## 1. What was measured
+`DEBUG_LOCKORDER` builds compile `push_lock` and `pop_lock` in `sync.cpp`.
+These maintain a per-thread stack of held locks and report, at shutdown:
+recursive acquisitions, `LeaveCritical` underflows, per-site attribution, and
+lock-order inversions.
 
-Instrumented `sync.cpp` under `DEBUG_LOCKORDER`, full tiny reindex
-(187,418 blocks). `test-logs/lockattr-20260913/`, `test-logs/lockstats-20260912/`.
+**The recursion counter was wrong until 2026-09-22 and its published figures
+should not be cited.** `push_lock` pushed the new entry onto the stack and
+then scanned the stack *including that entry*, so the first comparison matched
+the lock against itself. Consequences, reproduced in a standalone harness of
+the same loop:
 
-| Metric | Value |
-|--------|------:|
-| Recursive acquisitions | **2,901,309** (~15.5/block) |
-| `LeaveCritical` underflows | **0** |
-| `POTENTIAL DEADLOCK` detections | **0** |
-| Distinct recursive sites | **9** |
-| Cost of a recursive re-acquire | **4.55 ns** (not a syscall) |
-| Total cost of all recursion | **0.013 s = 0.007% of wall** |
+| Event | Counter said | Truth |
+|-------|-------------|-------|
+| Plain lock of A on an empty stack | recursive | not recursive |
+| Lock B while holding A | recursive, site "B under A" | not recursive |
+| Re-lock A while holding A | recursive | recursive |
 
-## 2. The nine sites
+So the counter incremented on **every non-try acquisition**, and attribution
+recorded a nested lock of a *different* mutex as a recursion of that mutex.
+Any figure derived from it before the fix is an acquisition count.
 
-| Per block | Acquiring | Under | Same site? |
-|----------:|-----------|-------|:----------:|
-| **4.00** | `IsInitialBlockDownload` `:2249` | `:3906` / `:4791` | no |
-| 2.00 | `FlushStateToDisk` `:3435` | itself | **YES** |
-| 1.00 | `cs_nBlockSequenceId` `:4285` | itself | **YES** |
-| 1.00 | `cs_LastBlockFile` `:4314` | itself | **YES** |
-| 1.00 | `cs_LastBlockFile` `:4373` | itself | **YES** |
-| 1.00 | `cs_main` `:3435` | `:3906` | no |
-| 0.48 | `GetSpendHeight` `:2471` | `:3906` | no |
+The fix scans strictly below the pushed entry. The test that it is right is
+arithmetic: the per-site rows now sum to the reported total exactly, where
+before they left a large unexplained remainder.
 
-**Four sites re-lock at their own source line** with integer-exact per-block
-counts -- the signature of defensive `LOCK` statements in functions already
-called under the lock, not of a design needing recursion.
+## What recursion actually exists
 
-## 3. Call-rate decomposition
+Full tiny reindex, 187,418 blocks, corrected instrument.
+`test-logs/lockattr-corrected-20260922/`.
 
-| Source | per block | share |
-|--------|----------:|------:|
-| **`IsInitialBlockDownload`** | **5.00** | **44%** |
-| `FlushStateToDisk` self-recursion | 2.00 | 17% |
-| `cs_LastBlockFile` self-recursion (x2) | 2.00 | 17% |
-| `cs_nBlockSequenceId` self-recursion | 1.00 | 9% |
-| `cs_main` `:3435` under `:3906` | 1.00 | 9% |
-| `GetSpendHeight` | 0.48 | 4% |
+**Six sites, 1,109,483 acquisitions, 5.92 per block, sum reconciled.**
 
-## 4. Upstream precedent
+| Per block | Count | Mutex | Acquiring | Under |
+|----------:|------:|-------|-----------|-------|
+| 1.48 | 277,354 | `cs` | `txmempool.cpp:713` | `txmempool.cpp:434` |
+| 1.48 | 277,354 | `cs` | `txmempool.cpp:375` | `txmempool.cpp:434` |
+| 1.48 | 277,354 | `cs` | `txmempool.cpp:241` | `txmempool.cpp:434` |
+| 1.00 | 187,418 | `cs_main` | `main.cpp:3495` | `main.cpp:3966` |
+| 0.48 | 89,936 | `cs_main` | `main.cpp:2499` | `main.cpp:3966` |
+| 0.00 | 67 | `cs_LastBlockFile` | `main.cpp:2942` | `main.cpp:4374` |
 
-| Commit | Date | Project | What |
-|--------|------|---------|------|
-| `83f1ec33ce` | 2017-07-24 | Bitcoin | stop holding `cs_LastBlockFile` across a callback |
-| `0bd882b740` | 2021-08-28 | Bitcoin | **remove `RecursiveMutex cs_nBlockSequenceId`** -- "At this point, the cs_main lock is set, hence we can use a plain int" |
-| `fade2a44f4` | 2022-01-02 | Bitcoin | `BlockManager` refactor; the `LOCK2` in `FlushStateToDisk` disappears |
-| `14ec1016b` | 2019-12-27 | Zcash | **`LOCK(cs_main)` in `getspentinfo` and `getblockdeltas`** (v2.1.1) |
+Every one is a caller holding a lock that a callee takes again:
 
-Neither Bitcoin fix was ported to Zcash; Zero inherits both from the 2013-2014
-lineage. The Zcash fix **was** available and Zero lacked it -- now applied.
+- `CTxMemPool::removeForBlock` holds `cs`, then calls `remove`,
+  `removeConflicts` and `ClearPrioritisation`, each of which takes `cs`. Once
+  per transaction removed, which is why the rate is fractional per block.
+- `ConnectTip` holds `cs_main`; `FlushStateToDisk` and `GetSpendHeight` take
+  it again.
+- `FindBlockPos` holds `cs_LastBlockFile` and calls `FlushBlockFile`, which
+  takes it again.
 
-## 5. Disposition
+This is lock-per-function composition -- each function acquires what it needs
+without assuming its caller did -- which is the reason these mutexes are
+recursive. It is not defensive duplication, and it is not one function
+locking itself: the acquiring and holding sites are always different
+functions.
 
-| Item | State | Note |
-|------|-------|------|
-| **P12** `getspentinfo` missing `LOCK(cs_main)` | **Finished** | `rpc/misc.cpp:1110`, upstream verbatim |
-| **P15** `getblockdeltas` missing `LOCK(cs_main)` | **Finished** | `rpc/blockchain.cpp:482`, same commit |
-| **P21** `IsInitialBlockDownload` 4x/block | **Finished** | `fImporting \|\| fReindex` hoisted above the lock; removes 44% of recursion during reindex |
-| **P14** defensive recursive `LOCK`s | **Postponed** | 0.007% of wall; upstream fixes are structural refactors. Reopens if `main.cpp` is restructured, or if an inversion traces here |
-| **B4** `z_sendmany` note reservation | **Needs a decision** | Shared lists need locking whatever the call rate; decision in `PLAN.md` |
+**Inherited, not local.** Zcash, Pirate, Ycash and Hush3 carry the same three
+`LOCK(cs_LastBlockFile)` sites and the same `removeForBlock` structure.
 
-## 6. What is NOT a lock finding
+## Nested locks of different mutexes are the deadlock question
 
-Recorded here so it is not re-discovered as one:
+Recursion -- one thread re-taking a lock it holds -- cannot deadlock against
+itself. **Ordered nesting of different mutexes can**, if two threads take the
+same pair in opposite orders.
 
-- **`LOCK()` is not a system call.** 7.07 ns uncontended, **4.55 ns**
-  recursive. Removing recursion buys correctness clarity, not speed.
-- **`underflows = 0`** establishes a clean baseline. The original
-  `pop_lock()` called `pop_back()` on a possibly-empty vector -- undefined
-  behaviour in the diagnostic path, now counted and refused.
-- **Zero lock-order inversions** across the whole Boost suite. The one
-  `DEBUG_LOCKORDER` finding was an `AssertLockHeld` violation (P12), not an
-  inversion.
+That is what `lockorders` exists for. Every (held, acquiring) pair is recorded
+with the stack that produced it; if the reverse pair is ever seen,
+`potential_deadlock_detected` prints both stacks and asserts. It is a global
+map, so a pair established by one thread is checked against every other.
 
-## 7. How to reproduce
+**Measured: zero `POTENTIAL DEADLOCK` detections and zero underflows** across
+every instrumented reindex run to date.
 
-```bash
-./configure --enable-debug && make          # DEBUG_LOCKORDER
-LAB=/tmp/lab bash contrib/perf/tiny_baseline.sh
-grep -A26 'LockStats: recursive' /tmp/lab/debug.log
+Two limits worth stating:
+
+- **Single-threaded coverage.** A reindex exercises one dominant worker, so
+  pairs only that path establishes are the only ones checked. An inversion
+  reachable only under concurrent RPC and validation would not appear. This
+  is the gap the worker experiments (`PLAN.md` group B) are meant to close.
+- **`TRY_LOCK` is excluded.** `push_lock` skips the whole scan when `fTry` is
+  set, because a try-lock that fails bails rather than blocks. Genuine
+  inversions involving a try-lock are therefore not detected, only the
+  non-try ones.
+
+## Cost
+
+An earlier measurement put a recursive re-acquire at 4.55 ns -- an uncontended
+recursive mutex increments a count, it does not enter the kernel -- and all
+recursion at roughly 0.007% of wall. **That figure predates the counter fix**
+and was computed against an inflated count, so the true total is lower still.
+Either way the conclusion holds: recursion is not a throughput problem, and no
+change here is justified on performance grounds.
+
+## Reproducing
+
+```
+./configure --enable-debug --with-gui=no CONFIG_SITE=<depends>/share/config.site
+make clean && make -j4
 ```
 
-`LogLockStats()` (`sync.cpp`) reports totals plus the top 25 recursive sites
-by count, keyed `<mutex> <acquiring file:line> under <holding file:line>`.
-**Leaving the configuration requires `make -C src clean`** -- `LOCK()` expands
-in every locking TU, so a partial rebuild link-errors
-(`BUILDCONFIG.md`).
+`--enable-debug` sets `-DDEBUG_LOCKORDER`. **Rebuild from clean**: configure
+regenerates makefiles without invalidating objects, so an incremental build
+produces a binary where only recompiled translation units carry the
+instrumentation. Check with `nm src/zerod | grep LogLockStats` and compare the
+binary timestamp.
+
+Then a full tiny reindex, stopped cleanly so `LogLockStats()` runs at
+shutdown:
+
+```
+tar -xzf chainblocks-tiny.tgz -C $LAB
+./src/zerod -datadir=$LAB -reindex -disablewallet -daemon
+# wait for height 187417
+./src/zero-cli -datadir=$LAB stop
+grep LockStats $LAB/debug.log
+```
+
+`validate.sh` will fail `buildconfig` while a debug binary is in the tree.
+That is the guard working; rebuild release afterwards.
+
+**Do not compare timings between debug and release runs.** `--enable-debug`
+builds at `-O0`; the same reindex took 131 s release and 363 s debug.
+Acquisition counts are deterministic per block and do compare.
+
+## Open
+
+- Concurrency coverage: every result here comes from a single-worker reindex.
+- `TRY_LOCK` paths are uninstrumented.
+- Shielded note selection does not lock the notes it selects
+  (`PLAN.md` B4); the single async RPC worker is what currently prevents the
+  race, which makes it a standing constraint rather than a settled design.

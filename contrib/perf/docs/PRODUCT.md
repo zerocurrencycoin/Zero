@@ -355,7 +355,37 @@ where a client *polls* an expensive full-wallet walk. `zs_gettransaction` is a
 point lookup, so gating it would return `-34` for a cheap call and break a
 legitimate access pattern. Gating by cost, not by file membership.
 
-**Design.**
+**Design: per-method slots, not one shared slot.**
+
+The mechanism already exists -- `CGetAllDataInFlightGuard` in
+`rpczerowallet.cpp` is an RAII guard over `cs_getalldata_gate` with an
+in-flight flag and a time-coalesce window (`-rpcdatacontinue`, default 20 s).
+Generalising means keying its state by RPC name, not writing a guard.
+
+| | One shared slot | Per-method slots |
+|---|---|---|
+| Bounds | Total concurrent wallet-walk load | Per method only |
+| Failure mode | A cheap gated call is refused because an expensive one is running | No cross-method starvation |
+| State | One flag and timestamp | Small map keyed by name |
+
+Per-method wins on three grounds. The time-coalesce window rejects for 20 s
+**after a success**, not only during flight, so a shared slot would lock out
+an unrelated method for twenty seconds -- an outage, not backpressure. The
+gated methods have different callers, a wallet UI and an explorer, and
+coupling their availability creates a failure no operator would predict from
+the flag names. And the bound a shared slot adds is weak regardless: the
+expensive work is `mapWallet` iteration under `cs_wallet`, which already
+serialises, so the slot prevents queueing rather than concurrent CPU use.
+
+Per-method does allow N simultaneous walks. They serialise on `cs_wallet`
+anyway, so the real cost is N result sets in memory; cap that with a count if
+it matters, rather than by coupling unrelated methods.
+
+This is separate from the `fBuildingWitnessCache` allowlist in
+`rpc/server.cpp`, which blocks nearly everything during a rebuild. Two
+mechanisms, two questions.
+
+**Original two-design note.**
 
 ### Option A -- one guard per RPC, independent state
 
