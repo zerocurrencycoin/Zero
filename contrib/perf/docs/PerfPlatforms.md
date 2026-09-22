@@ -4,6 +4,10 @@ What the perf harness depends on today, what the equivalent capability is on
 Ubuntu Linux and Windows 11 (native and WSL2), and which existing open-source
 tools would do the processing rather than being written here.
 
+**Source material for the cross-platform runbook** (`PLAN.md` F1). The
+platform comparability rule now lives in `Measures.md`; this file keeps the
+tool survey until the runbook absorbs it, then retires.
+
 Written as a **survey and recommendation**, not a plan of record. Nothing here
 is scheduled; items judged worth doing are tracked in `TASKS.md`, with the
 reasoning in `FINDINGS.md`.

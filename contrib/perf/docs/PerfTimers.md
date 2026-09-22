@@ -1,5 +1,9 @@
 # Spec: block-processing phase timers
 
+**Implementation specification for product item P1** (`PLAN.md`), not a
+findings document: what the existing timers measure, the defects in them, and
+the shape a replacement must take.
+
 Design and specification for `IMP-BENCH-ALWAYS` and its dependent parser work
 (`AUT-BENCH-INGEST`). Covers what the existing timers measure, three defects
 found by reading the call sites, the proposed shape, and what each change must

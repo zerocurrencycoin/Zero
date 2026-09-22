@@ -328,13 +328,33 @@ Use case: CI / contributor expectation only. **Do not** compare to IBD/reindex.
 |-------|----------|------------|
 | Tip reindex hours | Estimate **8-10 h** / sync **6-10 h** vs longhaul **~2.6 h** | Different ops (IBD vs local reindex; wallet on/off; insight). Record those fields; do not collapse to one tip time |
 | blk/s by era | ~**1100** pre-Sapling vs ~**250-310** post-Sapling vs ~**282** whole-chain vs short-snap ~**900** h/s | Same metric, different height/content. Compare **same window** only |
-| CPU buckets | Legacy **58% "tree"** vs Groth16 **48-61%** | Prefer post-correction; mark legacy superseded |
+| CPU buckets | Legacy **58% "tree"** vs proof verification **48-61%** | Prefer post-correction; mark legacy superseded |
 | Memory growth | Physical footprint "slows"; Writable regions linear | Prefer Writable (M-MEM-VMMAP / M-MEM-GROWTH); Physical confounded by compressor |
 | `--all` wall | **1275 s** (stale) vs **1063 s** | Prefer dated M-H-ALL row |
 | walletbackup | Guess **15-25 min** vs measured **~80 s** | Prefer measured M-H-WB |
 | Insight vs wallet host | Insight dbcache/tip times vs validator+wallet | Tag `env=insight` on insight rows; never size a non-insight wallet host from them |
 
 Correctness vs throughput are separate questions -- M-CPU-FD and M-CPU-FD-THR measure different things and stay distinct `metric` rows.
+
+### 6.1 Platform: rows from different hosts do not pool
+
+**Every recorded number was produced on macOS/arm64.** A row from another
+platform is a separate population, not another sample of the same one, and
+averaging the two hides the difference that makes the second row worth having.
+Tag the platform and compare within it.
+
+Two reasons attribution in particular may not transfer:
+
+- **Architecture, not just OS.** All captures are arm64. x86-64 has a
+  different vector width and a different bls12_381 code path -- the pinned
+  crates ship assembly for both -- so a CPU share could differ by more than
+  the 4% same-host repeat spread.
+- **blake2b backend.** Stock arm64 links the portable C fallback
+  (`blake2b_compress_ref`). On x86-64 an SSE/AVX path may be selected instead,
+  moving the blake2b bucket -- 18-21% pre-Sapling -- with no source change.
+
+Relative CPU shares should transfer, being dominated by userspace arithmetic;
+absolute throughput and anything touching disk should not be assumed to.
 
 ---
 

@@ -1,48 +1,19 @@
 # Zero data structures and local stores
 
-Updated: 2026-07-08
+The lifecycle and preservation map for Zero's local stores: what is unique,
+what is regenerable, what should be backed up, and which document owns deeper
+detail.
 
-## Purpose
+**Shutdown and stores.** Orderly exit runs `Shutdown()` -- wallet `Flush`,
+`FlushStateToDisk` for chainstate and block index, LevelDB/BDB close, optional
+zeronode and budget dumps. That work is why stop or Ctrl+C can take seconds to
+minutes on a large tip or a fat wallet. On Windows Ctrl+C does not exit
+immediately; treat the delay as store teardown unless `debug.log` shows an
+abrupt kill with no `Shutdown: In progress...`. SIGHUP `debug.log` reopen is
+POSIX-only; on Windows, rotate by stopping the node or copying while stopped.
 
-This page is the lifecycle and preservation map for Zero local stores. It answers: what is unique, what is regenerable, what should be backed up, and which document owns deeper implementation or operational detail.
-
-Reviewed local documents:
-
-- `keep/Peer.md`
-- `Runtime.md`
-- `../Zero400/ZeroStruct.md`
-- `Perf.md`
-- `doc/files.md`
-- `../Zero400/doc/files.md`
-- `../Zeros/ZEROV.md`
-
-Reviewed online references:
-
-- Zcash data directory file list: https://zcash.readthedocs.io/en/latest/rtd_pages/files.html
-- ZIP 400 wallet data format: https://zips.z.cash/zip-0400
-- Zcash zcashd deprecation: https://z.cash/support/zcashd-deprecation/
-- Zallet wallet: https://zcash.github.io/wallet/
-- Bitcoin Core addrman overview: https://bitcoincore.academy/addrman.html
-- Bitcoin Core wallet database overview: https://bitcoincore.academy/wallet-database.html
-- Bitcoin Core 26.0 wallet migration note: https://bitcoincore.org/en/releases/26.0/
-- Zcash issue on BDB 6.2.23 to 6.2.32: https://github.com/zcash/zcash/issues/2413
-- Zcash forum SQLite/BDB wallet discussion: https://forum.zcashcommunity.com/t/evaluate-sqlite-as-a-replacement-for-bdb/38321
-
-## Current Accuracy Summary
-
-`doc/files.md` and `../Zero400/doc/files.md` are the most accurate compact inventories for Zero's data directory. They correctly use `wallet.zero`, not `wallet.dat`.
-
-`Runtime.md` is the active structure document for node architecture, cache split, LevelDB key families, Insight index behavior, RPC inventory, and client requirements. It also carries the detailed `getaddrmaninfo` / `getrawaddrman` port candidate because that is an RPC/API concern.
-
-`../Zero400/ZeroStruct.md` is a branch-local copy and should not be treated as the current source of truth unless work is explicitly happening on that branch. It was intentionally left at its branch state after the 2026-07-08 review.
-
-`keep/Peer.md` is the canonical local note for `peers.dat`, addrman behavior, peer discovery, and practical peer monitoring. `Runtime.md` should not duplicate the whole peer treatment, but it should summarize the lifecycle and link back to `keep/Peer.md`.
-
-`Perf.md` is the current authority on sync-performance experiments (plans/specs in §0.13). It is performance-oriented, not a data-directory map, but it matters for classifying `blocks/index/`, `chainstate/`, and the optional Insight indexes by lifecycle and rebuild cost.
-
-**Shutdown and stores:** orderly exit runs `Shutdown()` -- wallet `Flush`, `FlushStateToDisk` (chainstate / block index), LevelDB/BDB close, optional zeronode/budget dumps. That work is why stop/Ctrl+C can take seconds to minutes on a large tip or fat wallet. **Windows (operator observation):** Ctrl+C does **not** exit immediately; treat the delay as store update / teardown unless `debug.log` shows an abrupt kill without `Shutdown: In progress...`. SIGHUP `debug.log` reopen is POSIX-only; Windows log rotate = stop/start or copy while stopped (`Perf.md` §0.8).
-
-`../Zeros/ZEROV.md` has been reframed as a superseded transition note. Its old recommendation to target BDB 18.1.40 should not drive current wallet work. The safer current framing is compatibility first, explicit migration second, and no hard dependency upgrade tied to node/index/performance work.
+**Wallet store stance.** Compatibility first, explicit migration second, and no
+hard dependency upgrade tied to node, index or performance work.
 
 ## Document Partition
 
@@ -52,7 +23,7 @@ Reviewed online references:
 | How does `zerod` use stores at runtime? | `Runtime.md` | Flags, cache split, RPCs, client requirements, block-connect/index maintenance |
 | How does peer discovery and `peers.dat` really work? | `keep/Peer.md` | Addrman internals, logs, DNS seeds, recovery procedure, external peer-analysis tools |
 | What should be ported or implemented? | `UpdateZero.md` | Work plans, acceptance criteria, task IDs |
-| Why not simply upgrade BDB? | `../Zeros/ZEROV.md` plus this file | `ZEROV.md` is the superseded note; `Stores.md` has current wallet-store stance |
+| Why not simply upgrade BDB? | This file | Compatibility first, migration explicit |
 
 ## Stores By Lifecycle And Purpose
 

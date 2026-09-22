@@ -89,9 +89,6 @@ Option B honestly. (5) is time-sensitive and independent.
 
 ## Predecessor
 
-libsnark implemented the Sprout proving system (BCTV14/PGHR13 over alt_bn128)
-in C++. Sapling moved proving and verification to Rust `bellman`, after which
-the C++ system was on no live path -- Sprout proof verification also routes
-through librustzcash. Zcash removed libsnark in v2.1.0; Zebra never carried
-it; Pirate, Ycash and Hush removed it. Zero still ships `src/snark/` unbuilt,
-which is a deletion item in `PLAN.md`, not an open question.
+libsnark proved Sprout in C++. Sapling moved proving and verification to Rust
+`bellman`, and Sprout verification followed, leaving libsnark on no live path.
+Zero still ships `src/snark/` unbuilt -- a deletion item in `PLAN.md`.

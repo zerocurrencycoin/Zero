@@ -86,10 +86,9 @@ gated, 798 always-on, 31 categories.
 
 C1's output is a reviewable list in the owning document, not in this file.
 
-C6 is a node-side note in `CONCURRENCY.md`: threads set how many requests are
-served at once, the queue how many may wait, and conflating them shrank the
-buffer that absorbs bursts. Deployment tuning for the explorer is the Insight
-repository's, not this tree's.
+C6 is one note in `CONCURRENCY.md`: `-rpcthreads` sets how many requests are
+served at once, `-rpcworkqueue` how many may wait. Deployment values are the
+Insight repository's.
 
 ---
 
@@ -112,9 +111,14 @@ Owner: `POLICY.md` "The accretion rule". Target: six owned files.
 | D2 | Unify `Perf.md` headings, then retire it | ToDo | Blocked on A2, D1 |
 | D3 | Prune cross-references to those still valid; extend `check_citations.py` to catch the rest | ToDo | Blocked on D1 |
 | D4 | Migrate remaining `TASKS.md` ids; retire the A-F and T/R letters | InProgress | Open |
+| D5 | Fold the platform tool survey into the F1 runbook, then retire `PerfPlatforms.md` | ToDo | Blocked on F1 |
 
-`TESTING.md` is written. Subject documents hold only their subject: the
-hash-library survey should not carry wallet-test results.
+`TESTING.md` is written. Subject documents hold only their subject.
+
+Three documents were placed rather than left unassigned: `PerfTimers.md` is
+P1's implementation spec and belongs with product handoff; `PerfPlatforms.md`
+gave its comparability rule to `Measures.md` and keeps the tool survey until
+F1 absorbs it; `Stores.md` stays, with its review narration removed.
 
 ---
 
