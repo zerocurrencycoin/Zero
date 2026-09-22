@@ -60,14 +60,29 @@ Owner: `LOCKS.md`.
 | Id | Item | Kanban | Disp |
 |----|------|--------|------|
 | B1 | Validation method: order, balance, races, contention, throughput | ToDo | Open |
-| B2 | `IsInitialBlockDownload` `cs_main` acquisitions (was P21) | InTest | Open |
+| B2 | `IsInitialBlockDownload` `cs_main` acquisitions (was P21) | Finished | Fixed |
 | B3 | Nine recursive `LOCK` sites (was P14) | ToDo | Open |
 | B4 | Shielded note selection has no locking (was P9) | ToDo | Open |
 | B5 | Retract `LOCKS.md`'s claim on the unallocated id P25 | ToDo | Open |
 
-B2 is fixed by hoisting the flag test above the lock; it needs the post-fix
-measurement before it closes. B4 is a correctness gap, not a frequency
-question: shared lists and indexes need locking whatever their call rate.
+B2 is measured (`test-logs/lockattr-20260922/`): the site is absent from the
+recursive list and `cs_main` recursion fell 1,214,442 -> 277,354, a 77%
+reduction, with underflows and deadlock detections still zero.
+
+That run also made B3 concrete. Four sites re-lock at their own source line at
+exactly one per block, and each was checked: `main.cpp:3495` takes
+`LOCK2(cs_main, cs_LastBlockFile)` inside a function reached under both;
+`:4345`, `:4374` and `:4433` take `cs_nBlockSequenceId` or `cs_LastBlockFile`
+in helpers their callers already hold. These are defensive `LOCK`s, not a
+design needing recursion. The gain is not throughput -- all recursion costs
+0.007% of wall -- it is that a lock contract stated in one place cannot be
+read two ways.
+
+B4 is inherited, not a Zero defect: `z_mergetoaddress` locks its notes and
+`z_sendmany` does not, from the 2018-era base. Upstream closed it in 2022 in
+`wallet_tx_builder`, a file this tree does not have, so the scope is large.
+The single-worker policy is the standing mitigation and its rationale is in
+the upstream commit that disabled multiple workers.
 
 ---
 
@@ -80,12 +95,21 @@ gated, 798 always-on, 31 categories.
 |----|------|--------|------|
 | C1 | Catalogue outcomes and propose a disposition per class | ToDo | Open |
 | C2 | Review level and area assignment (was P16) | ToDo | Blocked on C1 |
-| C3 | Work-queue rejection returns no client-visible error | ToDo | Open |
+| C3 | Confirm whether a queue-full rejection reaches the client | ToDo | Open |
 | C4 | Alerting criteria: what an operator must see, and how | ToDo | Blocked on C2 |
 | C5 | Gated RPC entry points: one shared guard keyed by RPC name | ToDo | Open |
 | C6 | Record the `-rpcthreads` / `-rpcworkqueue` distinction and its measured effect | ToDo | Open |
 
 C1's output is a reviewable list in the owning document, not in this file.
+
+C3 needs the check before the fix. `httpserver.cpp` replies HTTP 503 with a
+plain-text body, and `bitcoin-cli.cpp` throws on any status >= 400 outside a
+short allowlist that does not include 503 -- so the client should already
+fail. The recorded observation was that seven rejections produced no
+client-visible error; the log line fires once per episode, not once per
+rejection, so seven lines are seven episodes and the load script may not have
+checked per-request status. Reproduce with `-rpcworkqueue=1` and inspect exit
+codes directly before changing any code.
 
 C6 is one note in `CONCURRENCY.md`: `-rpcthreads` sets how many requests are
 served at once, `-rpcworkqueue` how many may wait. Deployment values are the
