@@ -382,6 +382,13 @@ bool Equihash<N,K>::BasicSolve(const EhHashState& base_state,
         int i = 0;
         int posFree = 0;
         std::vector<FullStepRow<FullWidth>> Xc;
+        // Xc is rebuilt every round, so it grew from zero each time: measured
+        // 5-7 reallocations per round on (96,5), against a high-water mark of
+        // 14-40 rows. It holds the tuples from one collision group before they
+        // drain back into X, so it is bounded by the largest group, not by the
+        // table -- a small fixed reserve removes the reallocations without the
+        // init_size-sized allocation that reserving like X would cost.
+        Xc.reserve(64);
         while (i < X.size() - 1) {
             // 2b) Find next set of unordered pairs with collisions on the next n/(k+1) bits
             int j = 1;
@@ -472,6 +479,9 @@ void CollideBranches(std::vector<FullStepRow<WIDTH>>& X, const size_t hlen, cons
     int i = 0;
     int posFree = 0;
     std::vector<FullStepRow<WIDTH>> Xc;
+    // Same shape as the round loop in OptimisedSolve: one collision group at a
+    // time, drained back into X.
+    Xc.reserve(64);
     while (i < X.size() - 1) {
         // 2b) Find next set of unordered pairs with collisions on the next n/(k+1) bits
         int j = 1;
