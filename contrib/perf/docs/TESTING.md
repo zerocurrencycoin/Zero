@@ -12,10 +12,16 @@ here.
 
 | Suite | Invocation | Expected |
 |-------|-----------|----------|
+| Everything | `contrib/run-tests.sh --all` | the gate before a push |
 | Boost | `./src/test/test_bitcoin` | no errors |
 | GTest | `qa/zcash/test_filters.sh` | all pass |
 | RPC | `qa/pull-tester/rpc-tests.sh` | per tier, below |
 | Lab gates | `contrib/perf/validate.sh` | lint and selftest PASS |
+
+**`contrib/run-tests.sh --all` is the gate**, not the individual suites. Boost
+and GTest compile-and-run the node's units; only the RPC tier exercises a
+running node over its interface, which is where a lock or an RPC-surface
+change actually shows. Running the unit suites alone leaves that untested.
 
 **Run GTest through `qa/zcash/test_filters.sh`, never bare.** A bare
 `./src/zero-gtest` aborts in `WalletTests.CachedWitnessesCleanIndex` before
