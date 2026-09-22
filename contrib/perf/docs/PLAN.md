@@ -245,14 +245,16 @@ against 133,524 reparented, a ratio of 0.9968, so each is reparented once and
 the stash is not walked repeatedly. `mapBlocksUnknownParent` erases every entry
 it visits, which is why. No change warranted.
 
-P18 has three faults and the observed 500 MB implicates the first: it runs
-**only at startup**, so a node that does not restart never trims at all;
-it keeps the last 200 KB, which is shutdown chatter rather than the startup
-banner, configuration echo and first errors that carry cause; and 200 KB of
-10 MB discards 98%. Rotation on a periodic size check, not head-plus-tail,
-is the fix that matches the failure -- head-plus-tail would still only fire
-at startup. `debuglog.py --rotated` already reads `debug.log.N`. Pairs with
-the messaging review: 798 always-on sites is why the file grows.
+P18, verified before proposing a fix
+(`test-logs/p18-shrink-20260922/`): the call is `GetBoolArg("-shrinkdebugfile",
+!fDebug)`, so **enabling any `-debug` category disables trimming**. A trim
+needs the node to restart *and* to have started without `-debug` -- so
+investigating something switches off the bound on the log it is writing. That,
+not the tail-versus-head choice, explains an observed 500 MB file. Zcash and
+Ycash have commented the call out entirely and keep the function as dead code;
+Pirate and Hush3 gate it as Zero does. Fix is rotation on a periodic size
+check; `debuglog.py --rotated` already reads the rotated names. Pairs with the
+messaging review, since 798 always-on sites is why the file grows.
 
 P24: measure insert and erase separately before choosing a fix. The ordered set
 is maintained continuously by its comparator and only 214 survivors need
