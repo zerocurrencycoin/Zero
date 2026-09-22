@@ -128,15 +128,18 @@ F1 absorbs it; `Stores.md` stays, with its review narration removed.
 | Id | Item | Kanban | Disp |
 |----|------|--------|------|
 | E1 | `Xc.reserve()` (was D2) | Finished | Fixed |
-| E2 | Re-bucket archived captures for the non-blake2b surface -- no new run (was R1) | ToDo | Open |
+| E2 | Non-blake2b hash-library surface, re-bucketed (was R1) | Finished | Fixed |
 | E3 | Microbenchmark baseline, 4 of 17 run (was A3) | InTest | Open |
 | E4 | Threaded solver: measure, document procedure, add to corpus (was P22) | ToDo | Open |
 
 E1 is applied: 5-7 reallocations per round removed, high-water 14-40 rows
 measured (`test-logs/xcreserve-20260922/`). It is on the `default` solver,
 which `-equihashsolver` no longer selects, so it is allocator hygiene on an
-opt-in path rather than a sync gain. E2 is the least costly result still
-outstanding.
+opt-in path rather than a sync gain.
+
+E2 is measured (`test-logs/sodiumbuckets-20260922/`): the non-blake2b surface
+is **under 1%** of loadblk CPU, ed25519 being the only primitive that
+registers at all. The expected null is now a number.
 
 ---
 

@@ -64,6 +64,13 @@ BUCKETS = collections.OrderedDict([
         "AbstractPushAnchor", "IncrementalMerkleTree", "librustzcash_merkle_hash",
         "PushAnchor", "merkle_hash", "sapling_crypto::jubjub::edwards::Point",
     ]),
+    # The non-blake2b libsodium surface, split by primitive so "libsodium cost"
+    # is not one opaque number. Ahead of blake2b deliberately: ed25519 and the
+    # AEAD both hash internally, so a stack in crypto_sign_verify_detached also
+    # carries blake2b frames and would otherwise be charged to hashing.
+    ("ed25519", ["crypto_sign_", "ge25519", "sc25519", "ed25519_ref10"]),
+    ("aead_chacha", ["crypto_aead_", "chacha20", "poly1305"]),
+    ("scalarmult", ["crypto_scalarmult", "curve25519"]),
     # blake2b: its own bucket, ahead of equihash, so the hashing question has a number.
     ("blake2b", ["blake2b", "Blake2b", "blake2b_compress"]),
     ("equihash", ["CheckEquihashSolution", "IsValidSolution", "CheckBlockHeader", "Equihash<"]),
@@ -246,6 +253,20 @@ def self_test():
     check(classify(["sapling_crypto::jubjub::edwards::Point::add",
                     "bellman::groth16::verifier::verify_proof"]) == "groth16_proof",
           "a stack containing verify_proof must bucket as groth16, not tree")
+
+    # 1b. ed25519 and the AEAD BEFORE blake2b. Both hash internally, so their
+    #     stacks carry blake2b frames; ordering blake2b first charged signature
+    #     and note-encryption cost to hashing.
+    check(before("ed25519", "blake2b"),
+          "ed25519 must be ordered before blake2b")
+    check(before("aead_chacha", "blake2b"),
+          "aead_chacha must be ordered before blake2b")
+    check(classify(["blake2b_compress_ref", "crypto_sign_verify_detached"]) == "ed25519",
+          "a stack containing crypto_sign must bucket as ed25519, not blake2b")
+    check(classify(["blake2b_long", "crypto_aead_chacha20poly1305_ietf_decrypt"]) == "aead_chacha",
+          "a stack containing crypto_aead must bucket as aead_chacha, not blake2b")
+    check(classify(["blake2b_compress_ref"]) == "blake2b",
+          "a bare blake2b stack must still bucket as blake2b")
 
     # 2. witness_cache BEFORE wallet_other. A bare CWallet:: needle otherwise
     #    swallows VerifyAndSetInitialWitness.
