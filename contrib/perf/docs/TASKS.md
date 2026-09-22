@@ -1,15 +1,9 @@
 # Tasks
 
-**Frozen 2026-09-21. Superseded by `PLAN.md`; do not add items here.**
-Retained until migration (PLAN X1) completes, so existing citations to its ids
-keep resolving. Ids are preserved in `PLAN.md`, regrouped by subject and code
-area.
+**Superseded by `PLAN.md`. Do not add items here.** Retained while its ids are
+still cited; each is preserved in `PLAN.md`, grouped by subject and code area.
 
-Work items and their state. The only place a task id lives, so two records
-cannot disagree. Items are listed, not explained: each names its subject and
-links to the document that owns it (`POLICY.md` S2.0a).
-
-Status (`POLICY.md` S1): Kanban ToDo -> InProgress -> InTest -> Finished;
+Status (`POLICY.md`, "Status vocabulary"): Kanban ToDo -> InProgress -> InTest -> Finished;
 disposition Open | Blocked | Finished | Postponed | Aside. Aside means
 postponed pending review, not refused.
 
@@ -21,10 +15,6 @@ postponed pending review, not refused.
 | A4 Workload taxonomy A-E | ToDo | Open | S-M | this file, A4 |
 | A5 CodexPerf review triage | Finished | -- | M | `../../CodexPerf.md` |
 | B2 First non-macOS measurement | ToDo | **Postponed** | M | needs a Linux host; see Linux/Windows group |
-**Suite-run gotchas to carry into any platform run**
-
-Migrated to `TESTING.md`.
-
 **Kanban: InTest 2026-09-10.** Four of seventeen benchmarks recorded --
 `verifysaplingspend` / `verifysaplingoutput` (n=1000 each) and their `create`
 counterparts, bound to **M-ZCB-SAP-VERIFY** and **M-ZCB-SAP-CREATE**. The two
@@ -199,18 +189,6 @@ be validated against a `ps` path that does not exist on macOS. (a) is doable
 anywhere and is folded into C5.
 
 **Kanban: InProgress. Effort M.**
-
-**Suite-run gotchas to carry into any platform run**
-
-Four results that look like platform defects and are not. Each cost time once.
-
-| Item | What |
-|------|------|
-| a | **`Tests completed:`, not just exit code.** A runner can exit 0 having run nothing: a guard that declines to start the payload, or a killed waiter, is indistinguishable from a clean pass. Confirm the marker, then cross-check the totals against the per-script lines (`require_marker`, `require_counts_agree`) |
-| b | **uniblake sibling.** Resolves to the checkout beside this tree with no configuration; its short HEAD is the package version, so a uniblake commit rebuilds it on its own |
-| c | **Deliberately held.** `WalletTests.CachedWitnessesCleanIndex` is excluded in `qa/zcash/test_filters.sh` and fails unfiltered on every platform -- its reindex scenario needs the `pcoinsTip` + `ReadBlockFromDisk` path the gtest harness cannot provide |
-| d | **`Permission denied` is a file mode**, not a port problem. `core.fileMode=true` strips a local `+x` on checkout, so a test committed `100644` fails before it runs. Check `git ls-files -s` first |
-| e | **A skip is not a pass.** Three more instances found by sweeping for the shape: `check-security` failures were discarded by `\|\| true`; `rpc-tests.sh` fell off the end with status 0 when wallet/utils/bitcoind were not all enabled; and a tier selecting nothing printed "Tests completed: 0" and exited 0. All now fail |
 
 **Kanban: ToDo. Effort S.** Documentation only; (a) is already wired into
 `contrib/run-tests.sh`.
@@ -1413,11 +1391,6 @@ owns the library division.
 Work items for the test and validation system: the harness, self-tests, gates
 and lab discipline. Findings and rationale belong to the documents that own
 them; this section tracks state.
-
-### T0. Test suite: constants, tiers, failure modes
-
-Migrated to `TESTING.md`. Suite plan, maturity constant, tier inventory and
-failure modes live there.
 
 ### T1. Landed 2026-09-05/06
 

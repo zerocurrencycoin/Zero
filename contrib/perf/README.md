@@ -641,9 +641,11 @@ open a second file to cover the same subject from another angle, and do not
 leave a summary behind in the first. A developer should be able to read one
 file and be done, not assemble the picture from five.
 
-**Adding a file requires retiring one.** A new document must name the document
-it replaces or the material it removes from elsewhere. Without that, a set like
-this one grows a file per idea and covers every subject four times.
+**A file per subject, not a file per angle.** A document is warranted by a
+major subject or subsystem -- locking, testing, measurement, a dependency. It
+is not warranted by a new perspective on a subject that already has an owner,
+by a phase of work, or by an approach that was tried. Those are sections in
+the owning document.
 
 **Cross-reference only when the reader must go there to act.** Name the
 document and, if needed, a heading title -- never a section number, and never a

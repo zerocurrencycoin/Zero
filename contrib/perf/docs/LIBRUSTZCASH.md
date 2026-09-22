@@ -1,16 +1,7 @@
 # librustzcash
 
-The Rust proof dependency: what it replaced, what is already validated, and
-what validation remains. Recommendation, not a decision.
-
-**Background: it replaced libsnark, and that is settled.** libsnark
-implemented the Sprout proving system (BCTV14/PGHR13 over alt_bn128) in C++.
-Sapling moved proving and verification to Rust `bellman`, after which the C++
-system was on no live path -- Sprout proof verification also routes through
-librustzcash. Zcash removed libsnark in v2.1.0; Zebra never had it; Pirate,
-Ycash and Hush all removed it. Zero still carries `src/snark/` unbuilt, which
-is a deletion item, not an open question.
-
+The Rust proof dependency: what is already validated, what the siblings did,
+and what validation remains. Recommendation, not a decision.
 ## 1. What is already validated (do not re-run)
 
 | Question | Answer | Where |
@@ -95,3 +86,12 @@ Option B honestly. (5) is time-sensitive and independent.
 - **Do not** adopt Pirate's or Ycash's tree wholesale. They carry their own
   consensus parameters; the useful thing is their *layout*, already copied in
   Step 1.
+
+## Predecessor
+
+libsnark implemented the Sprout proving system (BCTV14/PGHR13 over alt_bn128)
+in C++. Sapling moved proving and verification to Rust `bellman`, after which
+the C++ system was on no live path -- Sprout proof verification also routes
+through librustzcash. Zcash removed libsnark in v2.1.0; Zebra never carried
+it; Pirate, Ycash and Hush removed it. Zero still ships `src/snark/` unbuilt,
+which is a deletion item in `PLAN.md`, not an open question.

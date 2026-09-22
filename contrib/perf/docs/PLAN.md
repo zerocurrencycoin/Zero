@@ -82,14 +82,20 @@ gated, 798 always-on, 31 categories.
 | C3 | Work-queue rejection returns no client-visible error | ToDo | Open |
 | C4 | Alerting criteria: what an operator must see, and how | ToDo | Blocked on C2 |
 | C5 | Gated RPC entry points: one shared guard keyed by RPC name | ToDo | Open |
+| C6 | Record the `-rpcthreads` / `-rpcworkqueue` distinction and its measured effect | ToDo | Open |
 
 C1's output is a reviewable list in the owning document, not in this file.
+
+C6 is a node-side note in `CONCURRENCY.md`: threads set how many requests are
+served at once, the queue how many may wait, and conflating them shrank the
+buffer that absorbs bursts. Deployment tuning for the explorer is the Insight
+repository's, not this tree's.
 
 ---
 
 ## D. Documentation
 
-Owner: `POLICY.md` "The accretion rule". Target: seven owned files.
+Owner: `POLICY.md` "The accretion rule". Target: six owned files.
 
 | Target | Absorbs |
 |--------|---------|
@@ -99,7 +105,6 @@ Owner: `POLICY.md` "The accretion rule". Target: seven owned files.
 | `LOCKS.md` | -- |
 | `METHOD.md` | `CPU_MEASUREMENT.md`, `HOWTO.md`, `TOOLING_FAILURES.md`, `SCHEMA.md`, `RECORDS_READINESS.md` |
 | `TESTING.md` | test material from `TASKS.md`, `SODIUM_SURVEY.md`, `HOWTO.md`, `POLICY.md` |
-| `OPERATIONS.md` | queue, RPC and REST sizing |
 
 | Id | Item | Kanban | Disp |
 |----|------|--------|------|

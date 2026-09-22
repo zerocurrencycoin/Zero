@@ -241,12 +241,9 @@ takes hours.
 
 ---
 
-## Moved from Perf.md, 2026-09-07
+## Verification cost in context
 
-Groth16 material that stayed in `Perf.md` after this document was created.
-`Perf.md` owns ConnectBlock findings; Groth16 is this file's subject.
-
-### 0.0 Groth16 item -- lead-in and step-by-step
+### Lead-in and step-by-step
 
 Reviewer entry point for people who have not lived in §§2/6/9.4. Evidence stays in those sections; this is the decision story and ordered steps.
 
