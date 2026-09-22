@@ -61,22 +61,28 @@ Owner: `LOCKS.md`.
 |----|------|--------|------|
 | B1 | Validation method: order, balance, races, contention, throughput | ToDo | Open |
 | B2 | `IsInitialBlockDownload` `cs_main` acquisitions (was P21) | Finished | Fixed |
-| B3 | Nine recursive `LOCK` sites (was P14) | ToDo | Open |
+| B3 | Recursive `LOCK` sites (was P14) | Finished | Fixed |
 | B4 | Shielded note selection has no locking (was P9) | ToDo | Open |
 | B5 | Retract `LOCKS.md`'s claim on the unallocated id P25 | ToDo | Open |
 
-B2 is measured (`test-logs/lockattr-20260922/`): the site is absent from the
-recursive list and `cs_main` recursion fell 1,214,442 -> 277,354, a 77%
-reduction, with underflows and deadlock detections still zero.
+B2 is measured: `IsInitialBlockDownload` is absent from the recursive list
+after the hoist, and it was a genuine `cs_main`-under-`cs_main` pair, so the
+reduction is real.
 
-That run also made B3 concrete. Four sites re-lock at their own source line at
-exactly one per block, and each was checked: `main.cpp:3495` takes
-`LOCK2(cs_main, cs_LastBlockFile)` inside a function reached under both;
-`:4345`, `:4374` and `:4433` take `cs_nBlockSequenceId` or `cs_LastBlockFile`
-in helpers their callers already hold. These are defensive `LOCK`s, not a
-design needing recursion. The gain is not throughput -- all recursion costs
-0.007% of wall -- it is that a lock contract stated in one place cannot be
-read two ways.
+The lock instrument itself was wrong and is fixed
+(`test-logs/lockattr-corrected-20260922/`). `push_lock` scanned the stack
+including the entry it had just pushed, so it counted every plain acquisition
+as recursive and recorded a nested lock of a different mutex as a recursion.
+The 2.9M and 4.46M totals were acquisition counts. Corrected: **six sites,
+1,109,483 acquisitions, 5.92 per block, and the rows sum to the total with
+nothing unattributed**.
+
+B3 closes with no change warranted. Every self-under-self row was an
+instrument artefact. The six real sites are inherited Bitcoin composition --
+Zcash, Pirate, Ycash and Hush3 carry the same three `cs_LastBlockFile` sites
+and the same `removeForBlock` structure -- and each is a distinct function
+taking the lock it needs while a caller already holds it. That is
+lock-per-function composition, which is what these mutexes are recursive for.
 
 B4 is inherited, not a Zero defect: `z_mergetoaddress` locks its notes and
 `z_sendmany` does not, from the 2018-era base. Upstream closed it in 2022 in
@@ -225,14 +231,28 @@ Dependency: P5 before P6; P6 subsumes what remains of P4.
 | P8 | FDCACHE disposition | ToDo | Postponed |
 | P10 | Explicit parameters at defaulted calls | ToDo | Open |
 | P13 | `CheckBlock` runs 3x per block | ToDo | Open |
-| P17 | Out-of-order child on reindex | ToDo | Open |
-| P18 | `ShrinkDebugFile` keeps the tail | ToDo | Open |
+| P17 | Out-of-order child on reindex | Finished | Fixed |
+| P18 | `debug.log` is not trimmed in practice; observed at 500 MB | ToDo | Open |
 | P19 | Delete unbuilt `src/snark/` | ToDo | Open |
 | P20 | `-par=0` allocates idle workers | ToDo | Open |
 | P24 | `getchaintips` is O(chain length) | ToDo | Open |
 
 P1 gates any phase summary: proof verification sits in no timer, so a summary
 built today omits most post-Sapling cost while appearing complete.
+
+P17 is answered (`test-logs/p17-outoforder-20260922/`): 133,955 blocks stashed
+against 133,524 reparented, a ratio of 0.9968, so each is reparented once and
+the stash is not walked repeatedly. `mapBlocksUnknownParent` erases every entry
+it visits, which is why. No change warranted.
+
+P18 has three faults and the observed 500 MB implicates the first: it runs
+**only at startup**, so a node that does not restart never trims at all;
+it keeps the last 200 KB, which is shutdown chatter rather than the startup
+banner, configuration echo and first errors that carry cause; and 200 KB of
+10 MB discards 98%. Rotation on a periodic size check, not head-plus-tail,
+is the fix that matches the failure -- head-plus-tail would still only fire
+at startup. `debuglog.py --rotated` already reads `debug.log.N`. Pairs with
+the messaging review: 798 always-on sites is why the file grows.
 
 P24: measure insert and erase separately before choosing a fix. The ordered set
 is maintained continuously by its comparator and only 214 survivors need

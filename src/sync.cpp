@@ -146,23 +146,28 @@ static void push_lock(void* c, const CLockLocation& locklocation, bool fTry)
     (*lockstack).push_back(std::make_pair(c, locklocation));
 
     if (!fTry) {
-        BOOST_FOREACH (const PAIRTYPE(void*, CLockLocation) & i, (*lockstack)) {
+        // Scan everything *below* the entry just pushed. Including it makes the
+        // very first comparison match c against itself, which counted every
+        // plain acquisition as recursive and attributed a nested lock of a
+        // different mutex ("B under A") as a recursion of B. Both were wrong:
+        // the earlier 2.9M and 4.4M totals are acquisition counts, not
+        // recursion counts, and must not be compared against these.
+        for (size_t idx = 0; idx + 1 < (*lockstack).size(); idx++) {
+            const PAIRTYPE(void*, CLockLocation)& i = (*lockstack)[idx];
             if (i.first == c) {
                 // Record acquiring site and holding site. lockstack.back() is
                 // the entry just pushed for this acquisition.
-                if ((*lockstack).size() >= 2) {
+                {
                     const CLockLocation& acquiring = (*lockstack).back().second;
                     recursiveSites[i.second.MutexName() + " " +
                                    acquiring.ToString() + " under " +
                                    i.second.ToString()]++;
                 }
-                // This thread already holds c: a recursive acquisition. Legal
-                // for the recursive mutexes Zero uses, and the loop must stop
-                // here or it would compare c against itself. Counted because
-                // without concurrency the prevalence should be low and a
-                // *rising* count is a signal: it means a call path acquires
-                // the same lock at two depths, which is where an
-                // AssertLockHeld contract is easiest to get wrong (P12).
+                // This thread already holds c at a lower stack depth: a
+                // genuine recursive acquisition. Legal for the recursive
+                // mutexes Zero uses, but the prevalence is diagnostic -- a
+                // call path that takes the same lock at two depths is where an
+                // AssertLockHeld contract is easiest to get wrong.
                 nLockRecursive++;
                 break;
             }
