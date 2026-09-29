@@ -99,7 +99,27 @@ So the rules are now subtractive, and they are budgets rather than intentions:
    counts they reported got worse. Either gate it or delete it.
 5. **Status is not a finding.** A findings document that carries a status
    section will restate every item's state in each of its tables. Delete the
-   section; the state is in `TASKS.md`.
+   section; the state is in the work register.
+6. **A continuation point is a section, not a file.** Asked for "a
+   continuation point", a `NEXT.md` was created that restated `PLAN.md`'s
+   status table, decisions and item list -- a second answer to the question
+   `PLAN.md` opens by claiming. Caught and folded back the same session, but it
+   had passed `docmap` and `validate.sh`, because both check that a file is
+   registered, not that its subject is unowned. No gate covers this class; the
+   rule is the control. **A request for an artifact is not a request for a
+   file:** resolve which document owns the subject before creating anything.
+   Session-handoff material is the likeliest instance, because the request
+   recurs while the subject stays owned.
+
+   **On describing such a failure.** It was recorded first as having
+   "misheard" the request. That is wrong and the wrong word matters: the
+   request, this rule, and `PLAN.md`'s opening claim were all in context
+   simultaneously, in text, re-readable. Nothing was lost in transmission and
+   nothing was perceived. The failure was interpretation -- reasoning to the
+   wrong conclusion from complete inputs. Perceptual language ("heard",
+   "missed", "didn't see") imports an excuse that does not apply to a model
+   with the full exchange available, and it obscures where the defect actually
+   was. Name the step that went wrong.
 
 ### 2.0a Where material belongs
 

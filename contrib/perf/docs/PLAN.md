@@ -19,6 +19,44 @@ card is not Finished until its result is recorded where the subject lives.
 
 ---
 
+## Pick up here
+
+Release build, gates green: `zero-gtest` 221 (via `qa/zcash/test_filters.sh`),
+Boost clean, `validate.sh` PASS.
+
+Next, any order: **P1** phase timers that also cover proof verification
+(`PerfTimers.md` is the spec) -- **C3** retest with `-rpcworkqueue=1`, checking
+per-request exit codes -- **LIBRUSTZCASH** build on rustc 1.98.1 -- **B4**
+notes locking with corner-case instrumentation and a deadlock timeout --
+**worker experiments**, single then multiple, idle and loaded -- **C5**
+implementation, design already settled.
+
+**Do not re-derive these.** The lock instrument counted acquisitions, not
+recursions, until it was fixed: its 2.9M and 4.46M totals are superseded, and
+the real figure is six sites at 5.92/block. The recursive sites are inherited
+lock-per-function composition present in all four sibling forks, not defensive
+duplication -- B3 closed on that. C3's premise was wrong: `httpserver.cpp`
+replies HTTP 503 and `bitcoin-cli.cpp` throws on it, so a rejection should
+already reach the client.
+
+**Needs a scheduled slot, not a next task.** These will not happen by being
+listed: **A4** an overnight `-rescan` remeasure, which is the result A1 is
+waiting on -- **F2** a first non-macOS capture, which needs a Linux host and
+moves four InTest items at once -- **F3** a disposable tip above height 492850
+with notes in range, which gates the witness benchmarks (A3) -- **P19** the
+`src/snark/` delete, which is the maintainer's to run. **R3** and **GROTH** are
+deliberately postponed and are not in this list.
+
+**Harness rules learned the hard way.** Rebuild clean after `./configure` --
+it regenerates makefiles without invalidating objects, so an incremental build
+carries new flags in only the units it recompiled; check with `nm src/zerod`
+and the binary timestamp. Never compare debug and release timings: the same
+tiny reindex ran 131 s release and 363 s debug. Run the two suites
+sequentially, not in parallel. `validate.sh` fails `buildconfig` while a debug
+binary is in the tree, which is the guard working.
+
+---
+
 ## Decisions outstanding
 
 These block or redirect work below. Nothing else here needs an answer.
@@ -45,11 +83,12 @@ Owner: `Perf.md` "Wallet-on reindex", moving to `FINDINGS.md`. Sequence is stric
 | A1 | Narrow `fNoteTxIndexStale` invalidation (was P2) | InTest | Open |
 | A2 | Review the note-index specification for redundancy and stale content, with A1 | ToDo | Open |
 | A3 | Benchmark both bottlenecks | ToDo | Blocked on A1, F3 |
-| A4 | Remeasure `-rescan`; overnight, scripted, outside the harness | ToDo | Blocked on A1 |
+| A4 | Remeasure `-rescan` after A1; overnight, scripted, outside the harness | **ToDo** | **Open** -- needs a slot |
 
-A1 is implemented and unit-tested; it needs the fat-wallet measurement before
-it finishes. A4 before A1 would have reproduced the existing figure and
-established nothing.
+A1 is implemented and unit-tested. **A4 is what finishes it** and is now
+unblocked: the 11.9 h rescan figure predates the invalidation fix, so the
+remeasure is the result A1 is waiting on. Needs a developer to launch it
+overnight, outside the harness, results written to `test-logs/`.
 
 ---
 
@@ -233,7 +272,7 @@ Dependency: P5 before P6; P6 subsumes what remains of P4.
 | P13 | `CheckBlock` runs 3x per block | ToDo | Open |
 | P17 | Out-of-order child on reindex | Finished | Fixed |
 | P18 | `debug.log` is not trimmed in practice; observed at 500 MB | ToDo | Open |
-| P19 | Delete unbuilt `src/snark/` | ToDo | Open |
+| P19 | Delete unbuilt `src/snark/` | ToDo | Open -- **maintainer runs the delete** |
 | P20 | `-par=0` allocates idle workers | ToDo | Open |
 | P24 | `getchaintips` is O(chain length) | ToDo | Open |
 
