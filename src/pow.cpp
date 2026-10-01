@@ -16,6 +16,10 @@
 
 #include "sodium.h"
 
+#ifdef ZERO_PERF
+#include <atomic>
+#endif
+
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock, const Consensus::Params& params)
 {
     unsigned int nProofOfWorkLimit = UintToArith256(params.powLimit).GetCompact();
@@ -101,7 +105,43 @@ unsigned int CalculateNextWorkRequired(arith_uint256 bnAvg,
     return bnNew.GetCompact();
 }
 
+#ifdef ZERO_PERF
+static thread_local PerfEqSite perfEqSite = PERF_EQ_OTHER;
+static std::atomic<uint64_t> perfEqCalls[PERF_EQ_NSITES];
+static std::atomic<uint64_t> perfEqMicros[PERF_EQ_NSITES];
+
+PerfEqSiteScope::PerfEqSiteScope(PerfEqSite site) : prev(perfEqSite) { perfEqSite = site; }
+PerfEqSiteScope::~PerfEqSiteScope() { perfEqSite = prev; }
+
+void LogPerfEquihash(int nHeight)
+{
+    static const char* const names[PERF_EQ_NSITES] = {
+        "other", "process_new_block", "accept_header", "accept_block",
+        "read_disk", "connect", "test_validity"};
+    std::string line;
+    for (int i = 0; i < PERF_EQ_NSITES; i++) {
+        line += strprintf(" %s=%llu/%lluus", names[i],
+                          (unsigned long long)perfEqCalls[i].load(std::memory_order_relaxed),
+                          (unsigned long long)perfEqMicros[i].load(std::memory_order_relaxed));
+    }
+    LogPrintf("PerfEquihash: height=%d%s\n", nHeight, line);
+}
+
+static bool CheckEquihashSolutionImpl(const CBlockHeader *pblock, const Consensus::Params& params);
+
 bool CheckEquihashSolution(const CBlockHeader *pblock, const Consensus::Params& params)
+{
+    int64_t nStart = GetTimeMicros();
+    bool fValid = CheckEquihashSolutionImpl(pblock, params);
+    perfEqCalls[perfEqSite].fetch_add(1, std::memory_order_relaxed);
+    perfEqMicros[perfEqSite].fetch_add(GetTimeMicros() - nStart, std::memory_order_relaxed);
+    return fValid;
+}
+
+static bool CheckEquihashSolutionImpl(const CBlockHeader *pblock, const Consensus::Params& params)
+#else
+bool CheckEquihashSolution(const CBlockHeader *pblock, const Consensus::Params& params)
+#endif
 {
     unsigned int n = params.nEquihashN;
     unsigned int k = params.nEquihashK;

@@ -952,7 +952,10 @@ bool AsyncRPCOperation_sendmany::find_unspent_notes() {
     std::vector<SaplingNoteEntry> saplingEntries;
     {
         LOCK2(cs_main, pwalletMain->cs_wallet);
-        pwalletMain->GetFilteredNotes(sproutEntries, saplingEntries, fromaddress_, mindepth_);
+        // This overload also takes maxDepth=INT_MAX and ignoreLocked=true, so
+        // notes locked by an in-flight z_mergetoaddress are skipped.
+        pwalletMain->GetFilteredNotes(sproutEntries, saplingEntries, fromaddress_, mindepth_,
+                                      /*ignoreSpent=*/true, /*requireSpendingKey=*/true);
     }
 
     // If using the TransactionBuilder, we only want Sapling notes.

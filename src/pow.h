@@ -6,6 +6,10 @@
 #ifndef BITCOIN_POW_H
 #define BITCOIN_POW_H
 
+#if defined(HAVE_CONFIG_H)
+#include "config/bitcoin-config.h"
+#endif
+
 #include "consensus/params.h"
 
 #include <stdint.h>
@@ -24,6 +28,33 @@ unsigned int CalculateNextWorkRequired(arith_uint256 bnAvg,
 
 /** Check whether the Equihash solution in a block header is valid */
 bool CheckEquihashSolution(const CBlockHeader *pblock, const Consensus::Params&);
+
+#ifdef ZERO_PERF
+// P13: Equihash verification calls and time, split by the caller that asked.
+// A caller tags the current thread with PerfEqSiteScope; CheckEquihashSolution
+// records under whatever tag is active. Untagged calls count as OTHER.
+enum PerfEqSite {
+    PERF_EQ_OTHER,
+    PERF_EQ_PROCESS_NEW_BLOCK,
+    PERF_EQ_ACCEPT_HEADER,
+    PERF_EQ_ACCEPT_BLOCK,
+    PERF_EQ_READ_DISK,
+    PERF_EQ_CONNECT,
+    PERF_EQ_TEST_VALIDITY,
+    PERF_EQ_NSITES
+};
+
+class PerfEqSiteScope {
+public:
+    explicit PerfEqSiteScope(PerfEqSite site);
+    ~PerfEqSiteScope();
+private:
+    PerfEqSite prev;
+};
+
+/** Log cumulative per-site counts: "PerfEquihash: height=N site=calls/us ..." */
+void LogPerfEquihash(int nHeight);
+#endif
 
 /** Check whether a block hash satisfies the proof-of-work requirement specified by nBits */
 bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params&);

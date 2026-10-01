@@ -4781,7 +4781,9 @@ UniValue z_mergetoaddress(const UniValue& params, bool fHelp)
         // Get available notes
         std::vector<SproutNoteEntry> sproutEntries;
         std::vector<SaplingNoteEntry> saplingEntries;
-        pwalletMain->GetFilteredNotes(sproutEntries, saplingEntries, zaddrs);
+        pwalletMain->GetFilteredNotes(sproutEntries, saplingEntries, zaddrs,
+                                      /*minDepth=*/1, /*maxDepth=*/INT_MAX, /*ignoreSpent=*/true,
+                                      /*requireSpendingKey=*/true, /*ignoreLocked=*/true);
 
         // If Sapling is not active, do not allow sending from a sapling addresses.
         if (!saplingActive && saplingEntries.size() > 0) {

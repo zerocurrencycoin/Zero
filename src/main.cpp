@@ -2170,6 +2170,9 @@ bool WriteBlockToDisk(const CBlock& block, CDiskBlockPos& pos, const CMessageHea
 
 bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos, const Consensus::Params& consensusParams)
 {
+#ifdef ZERO_PERF
+    PerfEqSiteScope perfEqSite(PERF_EQ_READ_DISK);
+#endif
     block.SetNull();
 
     bool fCached = false;
@@ -3087,6 +3090,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     // Deliberately NOT extended to fCheckMerkleRoot: that is the CVE-2012-2459
     // malleability guard and its input is the transaction list, not the header.
     const bool fHeaderAlreadyChecked = pindex->IsValid(BLOCK_VALID_TREE);
+#ifdef ZERO_PERF
+    PerfEqSiteScope perfEqSite(PERF_EQ_CONNECT);
+#endif
     if (!CheckBlock(block, state, chainparams, fExpensiveChecks ? verifier : disabledVerifier,
                     !fJustCheck && !fHeaderAlreadyChecked, !fJustCheck))
         return false;
@@ -3376,6 +3382,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                   pindex->nHeight, nScriptCheckThreads,
                   (unsigned long long)batches, (unsigned long long)wakeups,
                   maxcc);
+        LogPerfEquihash(pindex->nHeight);
     }
 #endif
 #if defined(ZERO_PERF) || defined(ZERO_FDCACHE)
@@ -4716,6 +4723,9 @@ bool ContextualCheckBlock(
 static bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state, const CChainParams& chainparams, CBlockIndex** ppindex=NULL)
 {
     AssertLockHeld(cs_main);
+#ifdef ZERO_PERF
+    PerfEqSiteScope perfEqSite(PERF_EQ_ACCEPT_HEADER);
+#endif
     // Check for duplicate
     uint256 hash = block.GetHash();
     BlockMap::iterator miSelf = mapBlockIndex.find(hash);
@@ -4800,6 +4810,9 @@ static bool AcceptBlock(const CBlock& block, CValidationState& state, const CCha
     // the Equihash verification here recomputes a pure function of the same
     // header bytes. See the note in ConnectBlock.
     const bool fHeaderAlreadyChecked = pindex->IsValid(BLOCK_VALID_TREE);
+#ifdef ZERO_PERF
+    PerfEqSiteScope perfEqSite(PERF_EQ_ACCEPT_BLOCK);
+#endif
     if ((!CheckBlock(block, state, chainparams, verifier, !fHeaderAlreadyChecked, true))
         || !ContextualCheckBlock(block, state, chainparams, pindex->pprev)) {
         if (state.IsInvalid() && !state.CorruptionPossible()) {
@@ -4851,7 +4864,15 @@ bool ProcessNewBlock(CValidationState& state, const CChainParams& chainparams, c
 {
     // Preliminary checks
     auto verifier = libzcash::ProofVerifier::Disabled();
-    bool checked = CheckBlock(*pblock, state, chainparams, verifier);
+    bool checked;
+    {
+#ifdef ZERO_PERF
+        // Scoped to the preliminary check; AcceptBlock and ActivateBestChain
+        // below tag their own calls.
+        PerfEqSiteScope perfEqSite(PERF_EQ_PROCESS_NEW_BLOCK);
+#endif
+        checked = CheckBlock(*pblock, state, chainparams, verifier);
+    }
 
     {
         LOCK(cs_main);
@@ -4899,6 +4920,9 @@ bool TestBlockValidity(CValidationState& state, const CChainParams& chainparams,
     // NOTE: CheckBlockHeader is called by CheckBlock
     if (!ContextualCheckBlockHeader(block, state, chainparams, pindexPrev))
         return false;
+#ifdef ZERO_PERF
+    PerfEqSiteScope perfEqSite(PERF_EQ_TEST_VALIDITY);
+#endif
     if (!CheckBlock(block, state, chainparams, verifier, fCheckPOW, fCheckMerkleRoot))
         return false;
     if (!ContextualCheckBlock(block, state, chainparams, pindexPrev))
