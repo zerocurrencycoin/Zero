@@ -1,19 +1,12 @@
 #!/usr/bin/env bash
-# Product/tree identity receipt. Not a compile, not --strict tests, not host setup.
-# Host/setup: zcutil/check-setup.sh
-# Default stdout: READY / NOT READY plus one line per step. Full dump: -v
-# Dirty tracked files and non-allowlisted untracked fail READY (not a release tree).
-#   zcutil/check-release.sh
-#   zcutil/check-release.sh --exact
-#   zcutil/check-release.sh --allow-dirty   # identity only; not a release claim
-#   zcutil/check-release.sh -v
+# Release-tree identity receipt (tree, pin, build); not host setup. --help for options.
 set -euo pipefail
 ME="check-release"
 # shellcheck disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/fzero.sh"
 cd "$REPO_ROOT"
 
-RELEASE="v4.0.1"
+RELEASE="v4.1.0-rc1"
 EXPECT_REF=""
 PIN_MODE="at-least"
 ALLOW_DIRTY=0
@@ -37,7 +30,7 @@ A dirty working tree is NOT READY. Allowlisted untracked only:
   contrib/linearize/*.(tgz|cfg*)  .build/
 Use --allow-dirty for an identity receipt on a WIP tree (not a release claim).
 
-  --release REF      product version on the receipt (default: v4.0.1)
+  --release REF      product version on the receipt (default: v4.1.0-rc1)
   --expect REF       git object vs HEAD (default: --release tag)
   --at-least         HEAD may be the pin or a descendant (default)
   --exact            HEAD must equal the pin (tag day)
@@ -152,33 +145,6 @@ if has_level tree; then
       STEP_TREE="PASS  clean  $(git rev-parse --abbrev-ref HEAD) $HEAD_SHORT"
     fi
   fi
-  if [[ -n "${ZEROPERF:-}" ]]; then
-    if [[ -d "$ZEROPERF/.git" ]] || [[ -f "$ZEROPERF/.git" ]]; then
-      PERF_HEAD="$(git -C "$ZEROPERF" rev-parse HEAD)"
-      receipt_log "zeroperf_head $PERF_HEAD $(git -C "$ZEROPERF" log -1 --format='%h %s')"
-      if git cat-file -t "$PERF_HEAD" >/dev/null 2>&1; then
-        MB="$(git merge-base HEAD "$PERF_HEAD")"
-        receipt_log "merge-base $MB $(git log -1 --format='%h %s' "$MB")"
-        receipt_log "--- unique vs merge-base ---"
-        git log --oneline "$MB"..HEAD | receipt_cap
-        if [[ -n "${EXPECT_MERGE_BASE:-}" ]]; then
-          EXP_MB="$(git rev-parse --verify "${EXPECT_MERGE_BASE}^{commit}")"
-          if [[ "$MB" == "$EXP_MB" ]]; then
-            receipt_pass "merge-base matches EXPECT_MERGE_BASE"
-          else
-            receipt_fail "merge-base $MB != EXPECT_MERGE_BASE $EXP_MB"
-          fi
-        fi
-      else
-        receipt_warn "ZeroPerf HEAD $PERF_HEAD not in this object DB; fetch before merge-base"
-      fi
-    else
-      receipt_fail "ZEROPERF set but not a git checkout: $ZEROPERF"
-    fi
-  else
-    receipt_log "merge-base skipped (set ZEROPERF to a sibling checkout)"
-  fi
-
   if ! WANT="$(git rev-parse --verify "${PIN_REF}^{commit}" 2>/dev/null)"; then
     receipt_fail "pin $PIN_REF is not a git object in this repo"
     PIN_NOTE="pin missing"

@@ -1,53 +1,5 @@
 #!/usr/bin/env bash
-# Runtime ops validation: one catalog id per invocation.
-#
-# Interesting (operator-equivalent data, this binary):
-#   contrib/ops-validate.sh live     # RPC to SRC (operator datadir); does not start or stop
-#   contrib/ops-validate.sh attach   # RPC to LAB; does not start or stop
-#   contrib/ops-validate.sh copy     # rsync blocks/chainstate into LAB, isolated start, wait stable tip
-#
-# Binary-up only (not a wallet/sync test):
-#   contrib/ops-validate.sh cold
-#   contrib/ops-validate.sh restart  # after cold; tip unchanged
-#
-# Equihash / mining (separate invocations; not a load soak):
-#   contrib/ops-validate.sh equihash     # Boost KATs (test_bitcoin)
-#   contrib/ops-validate.sh verifyeq [N] # zcbenchmark verifyequihash (default 20; MAIN 192,7)
-#   contrib/ops-validate.sh solveeq [N]  # OptimisedSolve N times (default 1; long; ENABLE_MINING)
-#   contrib/ops-validate.sh mine [N]     # isolated regtest generate N (48,5); default 8
-#
-# Bundles:
-#   contrib/ops-validate.sh smoke    # cold + restart
-#   contrib/ops-validate.sh short    # equihash + verifyeq + smoke (RC short)
-#   --force / ZERO_OPS_FORCE=1       # override datadir/zerod/port gates (WARNING)
-#
-#   contrib/ops-validate.sh reindex            # -reindex tiny snap to 100000
-#   contrib/ops-validate.sh reindex all        # -reindex to snap tip (tiny 187417)
-#   contrib/ops-validate.sh reindex all p0     # same, inject wallet id 0
-#   contrib/ops-validate.sh rescan p0          # keep indexes, -rescan, wait Done loading
-#   contrib/ops-validate.sh bootstrap          # -loadblock to 100000
-#   contrib/ops-validate.sh bootstrap all      # -loadblock to end of file
-#   contrib/ops-validate.sh wallets            # list p0/p1/fat paths
-# Add keep / --keep / ZERO_OPS_KEEP=1 to leave LAB zerod up, then attach (not live).
-# Wallet: p0|p1|fat|none or --wallet=PATH (default none = -disablewallet).
-#
-# Env:
-#   ZERO_OPS_LAB       scratch for copy/cold/reindex (default /tmp/zero-ops-validate)
-#   ZERO_OPS_EQ_LAB    verifyeq/solveeq/mine scratch (default /tmp/zero-ops-eq)
-#   ZERO_OPS_SRC       read-only source (default ~/Library/Application Support/zero)
-#   ZERO_OPS_WALLET    wallet path (overrides p0/p1/fat). default empty = -disablewallet
-#   ZERO_OPS_WALLET_P0 / P1 / FAT   catalog paths (default SRC/wallet.zero0, personalbak, wallet.zero)
-#   ZERO_OPS_SNAP      tiny|short|full  (reindex/rescan chain; default tiny). also snap=tiny
-#   ZERO_OPS_TARGET    stop height (default 100000). all = to end / snap tip
-#   ZERO_OPS_BOOTSTRAP / LOADBLOCK   bootstrap.dat copy (not the lab original)
-#   ZERO_OPS_KEEP      1 = do not stop LAB zerod (then attach / stop)
-#   ZERO_RPCPORT       LAB rpcport (default 23941, outside deployment 23801-23820).
-#                      live uses SRC conf rpcport (mainnet default 23811).
-#   ZERO_OPS_WAIT      seconds to wait (default 1800)
-#   ZERO_OPS_LEDGER    append-only JSONL
-#   ZERO400            extra refuse path for LAB
-#   LINEARIZE_DIR      out-of-tree linearize dir holding the original bootstrap.dat
-#                      (default ~/Work/ZK/linearize)
+# Runtime ops validation in an isolated lab datadir, one catalog id per invocation. --help for options.
 set -euo pipefail
 ME="ops-validate"
 # shellcheck disable=SC1091
@@ -59,11 +11,16 @@ ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
 LAB="${ZERO_OPS_LAB:-/tmp/zero-ops-validate}"
 RPCPORT="${ZERO_RPCPORT:-23941}"
 WAIT_S="${ZERO_OPS_WAIT:-1800}"
-ZERO400="${ZERO400:-$HOME/Work/ZK/Zero400}"
-LINEARIZE_DIR="${LINEARIZE_DIR:-$HOME/Work/ZK/linearize}"
-SRC="${ZERO_OPS_SRC:-$HOME/Library/Application Support/zero}"
+SRCTREE="${ZERO_OPS_SRCTREE:-$REPO_ROOT}"
+LINEARIZE_DIR="${LINEARIZE_DIR:-}"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  SRC_DEFAULT="$HOME/Library/Application Support/zero"
+else
+  SRC_DEFAULT="$HOME/.zero"
+fi
+SRC="${ZERO_OPS_SRC:-$SRC_DEFAULT}"
 SNAP="${ZERO_OPS_SNAP:-tiny}"
-WALLET_FILE="${ZERO_OPS_WALLET:-${ZERO_PERF_WALLET_FILE:-}}"
+WALLET_FILE="${ZERO_OPS_WALLET:-}"
 WALLET_SEL=""
 BOOTSTRAP="${ZERO_OPS_BOOTSTRAP:-${LOADBLOCK:-}}"
 TARGET="${ZERO_OPS_TARGET:-}"
@@ -161,9 +118,10 @@ Env
   ZERO_OPS_LAB              scratch (default /tmp/zero-ops-validate)
   ZERO_OPS_EQ_LAB           isolated scratch for verifyeq/solveeq/mine (default /tmp/zero-ops-eq)
   ZERO_OPS_EQ_RPCPORT       isolated rpcport (default 23951)
-  ZERO_OPS_SRC              read-only source (default ~/Library/Application Support/zero)
+  ZERO_OPS_SRC              read-only source datadir (default: the node default, ~/.zero or
+                            ~/Library/Application Support/zero); also holds snapshot archives
   ZERO_OPS_WALLET           wallet path (overrides p0/p1/fat); empty = -disablewallet
-  ZERO_OPS_WALLET_P0/P1/FAT catalog paths
+  ZERO_OPS_WALLET_P0/P1/FAT catalog paths (default SRC/wallet.zero0, wallet.zero1, wallet.zero)
   ZERO_OPS_SNAP             tiny|short|full
   ZERO_OPS_TARGET           stop height (default 100000)
   ZERO_OPS_BOOTSTRAP        bootstrap.dat copy (or LOADBLOCK)
@@ -175,16 +133,15 @@ Env
   ZERO_OPS_LEDGER           append-only JSONL
   ZEROD / ZERO_CLI          binaries (default src/zerod, src/zero-cli)
   TEST_BITCOIN              Boost runner (default src/test/test_bitcoin)
-  ZERO400                   extra refuse path for LAB
-  LINEARIZE_DIR             original bootstrap.dat (must pass a copy, not this file)
+  ZERO_OPS_SRCTREE          source tree LAB must not be under (default: this repo)
+  LINEARIZE_DIR             directory of the original bootstrap.dat; refuses it as input (unset: no check)
 EOF
 }
 
 resolve() { (cd "$1" 2>/dev/null && pwd -P) || echo "$1"; }
 
-# resolve() canonicalizes directories only (it cd's), so on a file path it falls
-# through to echoing the input unchanged -- a symlink, a relative path, and the
-# literal path to one file all compare unequal. Use this for file comparisons.
+# resolve() only canonicalizes directories. Use this for file paths: it makes symlinks and
+# relative paths compare equal.
 resolve_file() {
   local d b t
   t="$(readlink -f "$1" 2>/dev/null)" && [[ -n "$t" ]] && { echo "$t"; return; }
@@ -227,15 +184,15 @@ refuse_lab() {
       exit 1
     fi
   fi
-  if [[ -d "$ZERO400" ]]; then
-    local z4
-    z4="$(resolve "$ZERO400")"
+  if [[ -d "$SRCTREE" ]]; then
+    local st
+    st="$(resolve "$SRCTREE")"
     case "$d" in
-      "$z4"|"$z4"/*)
+      "$st"|"$st"/*)
         if [[ "$FORCE" == "1" ]]; then
-          echo "WARNING: LAB is under Zero400: $d (--force)" >&2
+          echo "WARNING: LAB is under source tree: $d (--force)" >&2
         else
-          echo "ERROR: LAB must not be under Zero400: $d (pass --force)" >&2
+          echo "ERROR: LAB must not be under source tree: $d (pass --force)" >&2
           exit 1
         fi
         ;;
@@ -536,9 +493,9 @@ wallet_catalog_path() {
   local id="$1"
   case "$id" in
     none|nowallet|"") echo "" ;;
-    p0|0) echo "${ZERO_OPS_WALLET_P0:-${ZERO_PERF_WALLET_P0:-$SRC/wallet.zero0}}" ;;
-    p1|1) echo "${ZERO_OPS_WALLET_P1:-${ZERO_PERF_WALLET_P1:-$SRC/wallet.zero.personalbak-20260720}}" ;;
-    fat|3) echo "${ZERO_OPS_WALLET_FAT:-${ZERO_PERF_WALLET_FAT:-$SRC/wallet.zero}}" ;;
+    p0|0) echo "${ZERO_OPS_WALLET_P0:-$SRC/wallet.zero0}" ;;
+    p1|1) echo "${ZERO_OPS_WALLET_P1:-$SRC/wallet.zero1}" ;;
+    fat|3) echo "${ZERO_OPS_WALLET_FAT:-$SRC/wallet.zero}" ;;
     *) echo "$id" ;;
   esac
 }
@@ -951,7 +908,7 @@ case "$CMD" in
       echo "ERROR: set ZERO_OPS_BOOTSTRAP or LOADBLOCK to a bootstrap.dat copy" >&2
       exit 1
     }
-    if [[ "$(resolve_file "$BOOTSTRAP")" == "$(resolve_file "$LINEARIZE_DIR/bootstrap.dat")" ]]; then
+    if [[ -n "$LINEARIZE_DIR" && "$(resolve_file "$BOOTSTRAP")" == "$(resolve_file "$LINEARIZE_DIR/bootstrap.dat")" ]]; then
       echo "ERROR: pass a copy of bootstrap.dat, not the lab original" >&2
       exit 1
     fi

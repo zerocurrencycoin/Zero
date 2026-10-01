@@ -116,12 +116,9 @@ if [ "x$ENABLE_PROTON" = "x1" ]; then
   testScripts+=('proton_test.py')
 fi
 
-# Tier A: contributor gate (serial default via contrib/run-tests.sh -> rpc-tests.sh -A).
-# Slow wallet / rescan / doublespend / heavy-mining scripts live in testScripts (Tier B) only.
-# keypool.py: Tier A gate; in testScripts (removed from testScriptsExt).
-# prioritisetransaction.py, wallet_treestate.py: Bfail Retired (legacy Sprout / 1121-block priority).
-# Keep PYTHON_PASSING in contrib/run-tests.sh in sync (used for --jobs=N parallel runs only).
-# Tier inventory CSV: rpc-tests.sh -list-csv [path]  (grouped script names; arrays below are authoritative).
+# Tier A: contributor gate; fast scripts only. Slow wallet, rescan, doublespend, and
+# heavy-mining scripts belong in Tier B. Keep PYTHON_PASSING in contrib/run-tests.sh in sync.
+# These arrays are authoritative; export with -list-csv.
 testScriptsTierA=(
     'blockchain.py'
     'disablewallet.py'
@@ -135,19 +132,7 @@ testScriptsTierA=(
     'p2p_nu_peer_management.py'
 )
 
-# Tier counts (pass tiers): A=10, B pass=27 (26 unique; txn_doublespend x2), E pass=8; -all runs 45.
-# Bfail: Debug=25, Retired=6; -rpcfail runs Bfail+Efail diagnostic tiers.
-# Tier B pass: in testScripts but not Tier A.
-# 2026-07-22: promoted insight suite (addressindex/spentindex/timestampindex/rest/getrawtransaction_insight) from Bfail Debug after PASS.
-# 2026-07-22: promoted walletbackup.py from Bfail Debug after re-PASS (~80s; TST-07 wallet half).
-# 2026-07-22: txindex.py added to inventory + Bfail Debug (orphan; fails Py3 Decimal + BTC 50-subsidy asserts).
-# 2026-07-24: promoted receivedby, rpcbind_test from Efail after PASS under -E.
-# 2026-07-24: promoted mempool_limit from Bfail Debug after PASS.
-# 2026-07-24: getblocktemplate_longpoll fixed (pin funded node) + promoted Ext pass.
-# 2026-07-24: rpc_workqueue_full (S8 503) added Ext pass.
-# 2026-07-24: founders_window.py (REGTEST_FOUNDERS_START/STOP).
-# 2026-07-24: wallet.py promoted (Sapling path; fee-aware miner balances).
-# 2026-07-25: heavy proving / multi-GB RSS moved to Bfail Debug (see below).
+# Tier B pass: slow wallet, mempool, index, and zeronode scripts.
 testScriptsTierBPass=(
     'wallet.py'
     'wallet_anchorfork.py'
@@ -178,13 +163,12 @@ testScriptsTierBPass=(
     'spentindex.py'
     'timestampindex.py'
     'walletbackup.py'
-    'reindex_shielded.py'  # Sapling spend after -reindex
-    'wallet_witness_defer.py'  # opt-in ibd-defer + NOTEIDX
+    'reindex_shielded.py'
+    'wallet_witness_defer.py'
 )
 
-# Tier B fail: known broken; diagnostic only (-Bfail). Subgroups for triage (still one -Bfail run).
-#   BfailDebug: porting / maturity / comptool / Py3 -- needs engineering
-#   BfailRetired: Sprout-era, manual testnet, merge-to-address sprout -- low priority
+# Tier B fail: diagnostic only (-Bfail). Debug: needs porting work (maturity, comptool,
+# Python 3). Retired: Sprout-era, manual testnet, 1121-block priority; low priority.
 testScriptsTierBFailDebug=(
     'shorter_block_times.py'
     'wallet_changeaddresses.py'
@@ -210,7 +194,7 @@ testScriptsTierBFailDebug=(
     'regtest_signrawtransaction.py'
     'finalsaplingroot.py'
     'txindex.py'
-    # Heavy shielded proving (multi-GB RSS on -all); run via -Bfail / basename.
+    # Multi-GB RSS shielded proving.
     'wallet_shieldcoinbase_sapling.py'
     'wallet_protectcoinbase.py'
     'wallet_nullifiers.py'
@@ -230,10 +214,6 @@ testScriptsTierBFail=()
 testScriptsTierBFail+=("${testScriptsTierBFailDebug[@]}")
 testScriptsTierBFail+=("${testScriptsTierBFailRetired[@]}")
 
-# Ext pass / fail (testScriptsExt subsets).
-# 2026-07-24: promoted receivedby, rpcbind_test from Efail after PASS under -E.
-# 2026-07-24: getblocktemplate_longpoll -- root cause random from_node on unfunded cache node1;
-#             pinned funded node; 3x alone + after Ext-pass prefix PASS -> Ext pass.
 testScriptsExtPass=(
     'invalidateblock.py'
     'maxblocksinflight.py'
@@ -253,16 +233,14 @@ testScriptsExtFail=(
     'p2p-acceptblock.py'
 )
 
-# Invocation tiers (inventory: -list-csv):
-#   Pass: A=10, B=31 (30 unique; txn_doublespend x2), E=8 (-all = 49). Bfail Debug includes heavy proving. Efail=5.
+# Invocation tiers:
 #   -A | --tier-a       Tier A gate
 #   -B | --tier-b       Tier B pass only
 #   -Bfail              Tier B fail only (Debug then Retired; diagnostic)
 #   -list-csv [path]    Tier/group/script CSV to stdout or path; no tests run
 #   -E | --tier-e       Ext pass only
 #   -Efail              Ext fail only (diagnostic)
-#   -all                -A then -B then -E (pass tiers). Same meaning as contrib/run-tests.sh --all|-all
-#                       (contrib accepts both spellings; this script only accepts -all).
+#   -all                -A then -B then -E (pass tiers); contrib/run-tests.sh also accepts --all
 #   -rpcfail            -Bfail then -Efail (diagnostic)
 #   (no args)           same as -all (qa/zcash/full_test_suite.py rpc stage)
 #   <name>              one script by basename

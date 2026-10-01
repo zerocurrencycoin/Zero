@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Copyright 2026 Zero Developers
-# Package Zero node binaries (from src/) into artifacts: .tgz and .deb.
+# Package Zero node binaries (from src/) into artifacts: .tgz and .deb, then update artifacts/SHA256SUMS.
 # Staging in bin/; bin subdirectories cleaned, artifacts left persistent.
 # Assumes build already done (./zcutil/build.sh or build-native.sh).
-# Usage: ./zcutil/release-linux.sh [ -L | --log PATH ] [ -v X.Y.Z ] [ -s ]
+# Usage: ./zcutil/release-linux.sh [ -L | --log PATH ] [ -v X.Y.Z[-rcN] ] [ -s ]
 set -e -u -o pipefail
 # shellcheck disable=SC2034
 ME="release-linux"
@@ -14,13 +14,14 @@ cd "$REPO_ROOT"
 show_help() {
   local log="${1:-.build/release-linux.log}"
   cat <<EOF
-Usage: $ME [ -L | --log PATH ] [ -v X.Y.Z ] [ -s ]
-  Package zerod, zero-cli, zero-tx and README into artifacts/linux-zero-vX.Y.Z.tgz and .deb.
+Usage: $ME [ -L | --log PATH ] [ -v X.Y.Z[-rcN] ] [ -s ]
+  Package zerod, zero-cli, zero-tx and README into artifacts/linux-zero-vX.Y.Z.tgz and .deb,
+  then rewrite artifacts/SHA256SUMS (zcutil/checksums.sh).
 
   -h, --help   show this help and exit
   -L, --log    capture log (default: $log)
   -s           skip stripping binaries (default: strip copies in bin)
-  -v X.Y.Z     version for artifact names (default: from src/zerod --version, semver only)
+  -v X.Y.Z     version for artifact names (default: from src/zerod --version, keeping -rcN)
 EOF
 }
 
@@ -41,9 +42,10 @@ parse_args() {
   done
 }
 
-# Semver only from zerod --version (e.g. 4.0.0-4a68975fa -> 4.0.0).
 get_version_from_zerod() {
-  "$REPO_ROOT/src/zerod" --version 2>/dev/null | sed -n 's/.*version v\([^ ]*\).*/\1/p' | head -1 | sed 's/-.*$//'
+  # Keep X.Y.Z and a -betaN / -rcN suffix; drop the git commit and -dirty suffix.
+  "$REPO_ROOT/src/zerod" --version 2>/dev/null | sed -n 's/.*version v\([^ ]*\).*/\1/p' | head -1 \
+    | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)[0-9]+)?).*/\1/'
 }
 
 parse_args ".build/release-linux.log" "$@"
@@ -61,6 +63,8 @@ fi
 [ -f "src/zero-tx" ]  || err "src/zero-tx not found. Run ./zcutil/build.sh first."
 [ -f "README.md" ]    || err "README.md not found."
 
+# Debian orders "~" before the release: 4.1.0~rc1 < 4.1.0.
+DEB_VERSION="${VERSION/-/~}"
 section "Release package (linux-zero-v${VERSION})"
 
 # Clean only bin staging dirs; leave artifacts persistent
@@ -84,7 +88,7 @@ step_done "Create tarball"
 [ ! -f "artifacts/linux-zero-v${VERSION}.tgz" ] && err "Tarball not created"
 TAR_LIST="$(tar tzf "artifacts/linux-zero-v${VERSION}.tgz")"
 for f in zerod zero-cli zero-tx README.md; do
-  echo "$TAR_LIST" | grep -qxF "$f" || err "package missing $f"
+  grep -qxF "$f" <<<"$TAR_LIST" || err "package missing $f"
 done
 step_done "Package contents"
 
@@ -101,7 +105,7 @@ case "$(uname -m)" in
 esac
 cat > "$debdir/DEBIAN/control" <<EOF
 Package: zero
-Version: ${VERSION}
+Version: ${DEB_VERSION}
 Architecture: ${DEB_ARCH}
 Maintainer: Zero Developers
 Description: Zero node daemon and CLI
@@ -122,3 +126,4 @@ step_done "Building deb"
 
 notice "artifacts/linux-zero-v${VERSION}.tgz"
 notice "artifacts/linux-zero-v${VERSION}.deb"
+"$REPO_ROOT/zcutil/checksums.sh" artifacts

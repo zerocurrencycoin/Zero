@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Run each test_bitcoin (Boost) suite individually. Reports pass/fail per suite.
+# Run each test_bitcoin (Boost) suite separately and report pass/fail per suite.
 # Usage: ./contrib/run-boost-individual.sh [--exclude=SUITE,SUITE,...]
-# --exclude: comma-separated suite names to skip.
 
 set -e
 ME="run-boost-individual"
