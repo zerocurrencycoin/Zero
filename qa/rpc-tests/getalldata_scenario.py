@@ -4,10 +4,11 @@
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 
 """
-UI-shaped getalldata coverage: datatype / nCount / balances vs thin listtransactions.
+getalldata as the wallet UI calls it: datatype, nCount, and balances compared with
+listtransactions on a funded wallet. Uses transparent sends only.
 
-Uses transparent sends only (usual T addresses). Disables S6 time coalesce via
--rpcdatacontinue=0 so successive calls in one test succeed.
+Runs with -rpcdatacontinue=0, which disables the time coalesce; otherwise successive
+calls within one test would return a soft continue.
 
 Run: ./qa/pull-tester/rpc-tests.sh getalldata_scenario
 """

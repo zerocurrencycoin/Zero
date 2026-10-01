@@ -4,7 +4,7 @@
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
 #
-# P1: Test z_importkey with rescan=yes updates balance correctly
+# Test z_importkey with rescan=yes updates balance correctly
 #
 
 

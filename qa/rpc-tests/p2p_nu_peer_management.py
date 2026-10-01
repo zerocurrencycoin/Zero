@@ -6,11 +6,10 @@
 # Network upgrade peer checks on regtest with -nuparams (Overwinter 10, Sapling 15).
 #
 # Zero sets MIN_PEER_PROTO_VERSION=170007 and ties disconnects to the current epoch's
-# nProtocolVersion (see main.cpp ProcessMessage). Peers below 170007 never connect; peers
-# 170007/170008/170009 all satisfy Overwinter (170005) and Sapling (170007), so unlike
-# upstream Zcash this test does not observe epoch-based mass disconnects for those
-# versions. We still verify handshakes, mining past activations, new inbound peers, and
-# reject for sub-minimum protocol (170006).
+# nProtocolVersion (main.cpp ProcessMessage). Peers below 170007 never connect, and
+# 170007, 170008, and 170009 all satisfy Overwinter (170005) and Sapling (170007).
+# Unlike upstream Zcash, the test therefore sees no epoch-based mass disconnects. It
+# checks handshakes, mining past activations, new inbound peers, and rejection of 170006.
 
 
 from test_framework.mininode import (

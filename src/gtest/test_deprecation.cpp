@@ -153,7 +153,7 @@ TEST_F(DeprecationTest, AlertNotify) {
     EXPECT_EQ(r[0], strprintf("'%s' ", expectedMsg));
 #endif
 #else
-    // Default build: shell hooks are compile-time opt-in (PIR-01).
+    // Default build: shell hooks are compile-time opt-in (ENABLE_SYSTEM_COMMAND).
     EXPECT_EQ(r.size(), 0u);
 #endif
 
@@ -174,7 +174,7 @@ TEST_F(DeprecationTest, BlockNotifyDefaultSkipsShell) {
     std::vector<std::string> r = read_lines(temp);
     EXPECT_GE(r.size(), 1u);
 #else
-    // Default build (TST-09): marker must stay empty (no ::system).
+    // Default build: marker file stays empty (no ::system).
     MilliSleep(50);
     EXPECT_EQ(read_lines(temp).size(), 0u);
 #endif

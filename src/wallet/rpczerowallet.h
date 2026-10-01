@@ -187,7 +187,7 @@ void getRpcArcTxJSONReceives(RpcArcTransaction &arcTx, UniValue& ArcTxJSON, bool
 
 UniValue getsupply(const UniValue& params, bool fHelp);
 
-// W2 / W3 test hooks (getalldata)
+// getalldata test hooks
 uint64_t GetGetAllDataSortKeyCollisionCount();
 void ResetGetAllDataSortKeyCollisionCount();
 bool IsGetAllDataTxTooOld(int64_t blockTime, int64_t now, int dayDays);

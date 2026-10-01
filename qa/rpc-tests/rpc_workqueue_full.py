@@ -4,12 +4,12 @@
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 
 """
-S8: HTTP work queue full returns 503 with body "Work queue depth exceeded".
+A full HTTP work queue returns 503 with body "Work queue depth exceeded".
 
-WorkQueue maxDepth counts *pending* items (not the in-flight worker).
+WorkQueue maxDepth counts pending items, not the item a worker is running.
 With -rpcworkqueue=1 -rpcthreads=1:
-  1) longpoll occupies the worker (dequeued)
-  2) request A sits pending (queue size 1)
+  1) a longpoll occupies the worker (dequeued)
+  2) request A waits in the queue (size 1)
   3) request B must get HTTP 503
 
 Run: ./qa/pull-tester/rpc-tests.sh rpc_workqueue_full

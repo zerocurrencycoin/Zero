@@ -120,9 +120,9 @@ class ProxyTest(BitcoinTestFramework):
                 % sys.platform
             )
 
-        # Node legs: only those whose proxies bound successfully.
-        # Each leg: name, node_args, proxy_slots (serv for each ADDNODE_CASES index),
-        # auth expect, test_onion, networkinfo checker kwargs.
+        # One leg per proxy that bound successfully. Each leg: name, node_args,
+        # proxy_slots (server for each ADDNODE_CASES index), expected auth, test_onion,
+        # networkinfo checker kwargs.
         self.legs = []
         if self.serv1 is not None:
             self.legs.append({

@@ -99,6 +99,15 @@ BOOST_AUTO_TEST_CASE(rpc_startalias_param_validation)
     BOOST_CHECK_THROW(CallRPC("startalias a b"), runtime_error);
 }
 
+// A fresh node has not synced the zeronode list; startalias reports that instead of starting.
+BOOST_AUTO_TEST_CASE(rpc_startalias_reports_list_sync)
+{
+    UniValue r;
+    BOOST_CHECK_NO_THROW(r = CallRPC("startalias zn1"));
+    const std::string msg = find_value(r.get_obj(), "result").get_str();
+    BOOST_CHECK(boost::starts_with(msg, "Zeronode list syncing, please wait. Current status: "));
+}
+
 BOOST_AUTO_TEST_CASE(rpc_getzeronodestatus_throws_when_not_zeronode)
 {
     CheckRPCThrows("getzeronodestatus", "This is not a zeronode");

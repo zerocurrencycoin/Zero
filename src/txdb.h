@@ -147,12 +147,8 @@ public:
     bool LoadBlockIndexGuts(boost::function<CBlockIndex*(const uint256&)> insertBlockIndex);
 };
 
-/**
- * Next blk#####.dat file index when resuming an interrupted reindex.
- * nLastCompleted: DB_REINDEX_LASTFILE value, or negative if absent.
- * nBlkFileCount: count of existing blk*.dat files (indices 0 .. count-1).
- * On absent/out-of-range markers, returns 0 (replay from the first file).
- */
+/** Next blk file index when resuming reindex. nLastCompleted is DB_REINDEX_LASTFILE
+    (negative if absent); returns 0 if absent or not below nBlkFileCount. */
 int ReindexResumeStartFile(int nLastCompleted, int nBlkFileCount, std::string* pReason = nullptr);
 
 #endif // BITCOIN_TXDB_H

@@ -902,7 +902,7 @@ public:
     /** Full witness rebuild at chainActive.Tip() (used by -walletwitness=ibd-defer after import). */
     void RebuildWitnessCacheForChainTip();
 
-    /** Opt-in note-bearing tx index (NOTEIDX): Verify + height walk. */
+    /** Opt-in note-bearing tx index used by witness verification and the height walk. */
     void InvalidateNoteTxIndex();
     void EnsureNoteTxIndex(); // requires cs_wallet
     size_t NoteTxIndexSize() const { return vNoteTxHashes.size(); }
@@ -912,7 +912,7 @@ public:
 
     /** True when -walletwitness=ibd-defer (skip per-block BuildWitnessCache during IBD). */
     static bool IsIBDWitnessDeferred();
-    /** True when -walletwitnessnote=1 (NOTEIDX). */
+    /** True when -walletwitnessnote=1. */
     static bool IsWitnessNoteIndexEnabled();
 
 protected:
@@ -1269,10 +1269,10 @@ public:
     typedef std::pair<CWalletTx*, CAccountingEntry*> TxPair;
     typedef std::multimap<int64_t, TxPair > TxItems;
 
-    /** Incremental activity order (WAL-WTXORDERED). Tx side only; lacentries merged in OrderedTxItems. */
+    /** Incremental activity order, tx entries only; OrderedTxItems merges accounting entries. */
     TxItems wtxOrdered;
 
-    /** Note-bearing txids for NOTEIDX (-walletwitnessnote). */
+    /** Note-bearing txids (-walletwitnessnote). */
     std::vector<uint256> vNoteTxHashes;
     bool fNoteTxIndexStale = true;
 
@@ -1287,7 +1287,7 @@ public:
     void RebuildWtxOrdered();
     /** Remove one tx from wtxOrdered by pointer (before mapWallet.erase). */
     void RemoveFromWtxOrdered(const CWalletTx* pwtx);
-    /** Assure-4: wtxOrdered tx set matches mapWallet. Requires cs_wallet. */
+    /** True when the wtxOrdered tx set matches mapWallet. Requires cs_wallet. */
     bool WtxOrderedConsistent() const;
 
     void MarkDirty();
@@ -1726,7 +1726,7 @@ public:
     KeyAddResult operator()(const libzcash::InvalidEncoding& no) const;
 };
 
-/** Run -walletnotify hook (or log skip when ENABLE_SYSTEM_COMMAND is off). Exposed for TST-09. */
+/** Run the -walletnotify hook, or log a skip when built without ENABLE_SYSTEM_COMMAND. */
 void RunWalletNotifyCommand(const uint256& hash);
 
 #endif // BITCOIN_WALLET_WALLET_H

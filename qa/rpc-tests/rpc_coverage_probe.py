@@ -4,18 +4,15 @@
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 
 """
-Probe RPCs that are not already string-referenced by qa/rpc-tests or C++ RPC/gtest.
+Probe RPCs that no qa/rpc-tests script or C++ RPC test mentions by name.
 
-For each uncovered method (or --all-registered), classify:
-  recognize -- server knows the method (not -32601)
-  respond   -- JSON-RPC success or error returned
-  crash     -- node no longer answers getblockcount after the call
+For each uncovered method (every registered method with ZERO_RPC_PROBE_ALL=1):
+  recognize -- the server knows the method (not -32601)
+  respond   -- a JSON-RPC result or error comes back
+  crash     -- the node stops answering getblockcount after the call
 
-Destructive / state-changing methods are only checked via help <name>
-(recognize+respond without side effects).
-
-Does NOT prove argument coverage: it checks that each RPC is reachable,
-not that its parameters are exercised.
+State-changing methods are checked only through help <name>. The probe shows that each
+RPC is reachable; it does not exercise arguments.
 
 Run:
   ./qa/pull-tester/rpc-tests.sh rpc_coverage_probe

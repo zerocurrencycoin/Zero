@@ -62,9 +62,8 @@ CMutableTransaction GetValidSproutReceiveTransaction(ZCJoinSplit& params,
     if (version >= 4) {
         // Shielded Output
         OutputDescription od;
-        // Give the dummy output a unique note commitment; an all-zero cm makes
-        // every such transaction produce identical single-leaf Sapling trees,
-        // which defeats anchor-inequality checks in wallet witness tests.
+        // Unique note commitment per dummy output; an all-zero cm yields identical Sapling
+        // trees and defeats anchor-inequality checks.
         od.cm = GetRandHash();
         mtx.vShieldedOutput.push_back(od);
     }

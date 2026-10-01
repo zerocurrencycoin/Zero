@@ -400,12 +400,7 @@ TEST(wallet_zkeys_tests, write_cryptedzkey_direct_to_db) {
     ASSERT_EQ(paymentAddress2, keyOut.address());
 }
 
-/**
- * This test covers methods on CWalletDB to load/save crypted sapling z keys.
- * EXCLUDED: Hangs -- CDB::Rewrite spins on mapFileUseCount; EncryptWallet triggers Rewrite
- * while wallet holds DB.
- * WORKAROUND: WriteCryptedSaplingZkeyDirectToDbSeparateFile uses different file for wallet2.
- */
+/** CWalletDB load/save of crypted Sapling zkeys. */
 TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDb) {
     SelectParams(CBaseChainParams::TESTNET);
 
@@ -508,13 +503,8 @@ TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDb) {
 }
 
 
-/**
- * Option b): Same as WriteCryptedSaplingZkeyDirectToDb but uses separate DB file
- * (copy) for wallet2 to avoid mapFileUseCount conflict.
- * Note: the BDB environment is a process-wide singleton bound to the first
- * datadir it opened, so wallet filenames must be unique across this test
- * binary (the _b suffix avoids colliding with WriteCryptedSaplingZkeyDirectToDb).
- */
+/** WriteCryptedSaplingZkeyDirectToDb with wallet2 in a separate DB file. The BDB environment
+    is process-wide; wallet filenames must be unique across this binary (_b suffix). */
 TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDbSeparateFile) {
     SelectParams(CBaseChainParams::TESTNET);
 
@@ -559,9 +549,8 @@ TEST(wallet_zkeys_tests, WriteCryptedSaplingZkeyDirectToDbSeparateFile) {
         wallet.Flush();
     }
 
-    // Option b): Copy to separate file so wallet2 uses its own DB.
-    // Wallet files live in the BDB environment root (first datadir opened in
-    // this process), not necessarily in this test's pathTemp.
+    // Copy to a separate file so wallet2 has its own DB; wallet files live in the BDB
+    // environment root (first datadir opened in this process).
     bitdb.Flush(false);
     boost::filesystem::path envRoot(bitdb.GetPath());
     boost::filesystem::path pathSrc = envRoot / "wallet_crypted_sapling_b.dat";

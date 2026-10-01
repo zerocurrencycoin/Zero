@@ -93,6 +93,12 @@ class GetrawtransactionTest(BitcoinTestFramework):
         assert_equal(vout[0]['spentHeight'], mature_tip + 2)
         assert_equal(tx_a['height'], mature_tip + 1)
 
+        # size is the serialized length: half the hex length, in getrawtransaction and getblock verbosity 2.
+        assert_equal(tx_a['size'], len(self.nodes[2].getrawtransaction(txid_a, 0)) // 2)
+        block = self.nodes[2].getblock(self.nodes[2].getblockhash(mature_tip + 1), 2)
+        for btx in block['tx']:
+            assert_equal(btx['size'], len(self.nodes[2].getrawtransaction(btx['txid'], 0)) // 2)
+
         tx_b = self.nodes[2].getrawtransaction(txid_b, 1)
         assert_equal(tx_b['vin'][0]['address'], a)
         assert_equal(tx_b['vin'][0]['value'], 2)

@@ -113,10 +113,8 @@ std::vector<SaplingOutPoint> SetSaplingNoteData(CWalletTx& wtx) {
     return saplingNotes;
 }
 
-// Append all note commitments in a block to the test's cumulative merkle
-// trees and freeze the resulting roots on the index, as ConnectBlock would.
-// VerifyAndSetInitialWitness validates cached witness roots against
-// hashFinalSproutRoot / hashFinalSaplingRoot of the witness-height index.
+// Append the block's note commitments to the cumulative trees and freeze the roots on
+// the index, as ConnectBlock does; VerifyAndSetInitialWitness checks against them.
 void SetBlockCommitmentTrees(const CBlock& block,
                              CBlockIndex& index,
                              SproutMerkleTree& sproutTree,
@@ -157,9 +155,8 @@ std::pair<JSOutPoint, SaplingOutPoint> CreateValidBlock(TestWallet& wallet,
     auto blockHash = block.GetHash();
     auto it = mapBlockIndex.insert(std::make_pair(blockHash, &index));
     index.phashBlock = &(it.first->first);
-    // The caller may have constructed the index from the block header before
-    // vtx was populated; a stale merkle root makes GetDepthInMainChain()
-    // return 0 and BuildWitnessCache skips the transaction entirely.
+    // Refresh the merkle root: a stale one makes GetDepthInMainChain() return 0
+    // and BuildWitnessCache skips the tx.
     index.hashMerkleRoot = block.hashMerkleRoot;
     chainActive.SetTip(&index);
 
@@ -721,9 +718,8 @@ TEST(WalletTests, GetConflictedSaplingNotes) {
     wtx.SetMerkleBranch(block);
     wallet.AddToWallet(wtx, true, NULL);
 
-    // Build witness for note B manually. BuildWitnessCache cannot reconstruct
-    // the correct Sapling tree here because note A is synthetic (not from any
-    // block) and pprev is null, so the internal tree would start empty.
+    // Build note B's witness by hand: note A is synthetic and pprev is null, so
+    // BuildWitnessCache would start from an empty tree.
     uint256 hash = wtx.GetHash();
     for (uint32_t i = 0; i < wtx.vShieldedOutput.size(); i++) {
         saplingTree.append(wtx.vShieldedOutput[i].cm);
@@ -1223,16 +1219,13 @@ TEST(WalletTests, SpentSaplingNoteIsFromMe) {
     RegtestDeactivateSapling();
 }
 
-// CachedWitnesses* tests, ported to Zero's BuildWitnessCache semantics:
-// - CBlockIndex headers are kept in sync with block contents (merkle root,
-//   hashFinalSproutRoot / hashFinalSaplingRoot) so depth checks and witness
-//   root validation work without pcoinsTip.
-// - DecrementNoteWitnesses never pops the last cached witness (deque size 1),
-//   so "decrement at tip" keeps the witness; upstream EXPECT_DEATH and
-//   witness-gone expectations are replaced accordingly.
-// CachedWitnessesCleanIndex remains excluded: its reindex scenario requires the
-// incremental BuildWitnessCache path (pcoinsTip anchors + ReadBlockFromDisk),
-// which the gtest harness cannot provide.
+// CachedWitnesses* tests, adapted to Zero's BuildWitnessCache:
+// - Index headers track block contents (merkle root, hashFinalSproutRoot /
+//   hashFinalSaplingRoot); depth and witness-root checks then work without pcoinsTip.
+// - DecrementNoteWitnesses never pops the last cached witness; decrementing at the tip
+//   keeps it, replacing upstream's EXPECT_DEATH and witness-gone expectations.
+// CachedWitnessesCleanIndex stays excluded: it needs the incremental BuildWitnessCache path
+// (pcoinsTip anchors, ReadBlockFromDisk) that this fixture cannot provide.
 TEST(WalletTests, CachedWitnessesEmptyChain) {
     TestWallet wallet;
 
@@ -1295,9 +1288,8 @@ TEST(WalletTests, CachedWitnessesEmptyChain) {
     EXPECT_TRUE((bool) sproutWitnesses[1]);
     EXPECT_TRUE((bool) saplingWitnesses[0]);
 
-    // Zero semantics: DecrementNoteWitnesses keeps the last cached witness
-    // (it only pops when more than one witness is cached), so decrementing at
-    // the tip is a no-op rather than an assertion failure.
+    // DecrementNoteWitnesses keeps the last cached witness; decrementing at the tip
+    // is a no-op rather than an assertion failure.
     wallet.DecrementNoteWitnesses(&index);
     ::GetWitnessesAndAnchors(wallet, sproutNotes, saplingNotes, sproutWitnesses, saplingWitnesses);
     EXPECT_TRUE((bool) sproutWitnesses[0]);
@@ -2333,7 +2325,7 @@ TEST(WalletTests, SaplingNoteLocking) {
     EXPECT_FALSE(wallet.IsLockedNote(sop2));
 }
 
-// WAL-WTXORDERED Assure-4: after erase, wtxOrdered ≡ mapWallet
+// After erase, wtxOrdered matches mapWallet.
 TEST(WalletTests, WtxOrderedConsistentAfterErase) {
     TestWallet wallet;
     LOCK(wallet.cs_wallet);
@@ -2379,7 +2371,7 @@ TEST(WalletTests, WtxOrderedConsistentAfterErase) {
     EXPECT_TRUE(wallet.WtxOrderedConsistent());
 }
 
-// Prototype NOTEIDX: index lists only note-bearing txs; AddToWallet marks stale.
+// Note tx index lists only note-bearing txs; AddToWallet marks it stale.
 TEST(WalletTests, NoteTxIndexTracksNoteBearingTxs) {
     TestWallet wallet;
     LOCK2(cs_main, wallet.cs_wallet);

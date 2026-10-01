@@ -19,7 +19,7 @@ using namespace libzcash;
 
 bool EnsureWalletIsAvailable(bool avoidException);
 
-// W2: count of sort-key collisions during getalldata (archive vs wallet). Test hook.
+// getalldata sort-key collisions (archive vs wallet); read by tests.
 static std::atomic<uint64_t> nGetAllDataSortKeyCollisions{0};
 
 uint64_t GetGetAllDataSortKeyCollisionCount()
@@ -32,14 +32,14 @@ void ResetGetAllDataSortKeyCollisionCount()
     nGetAllDataSortKeyCollisions.store(0);
 }
 
-// W3 helper: block older than day window (testable).
+// True when the block is older than the day window.
 bool IsGetAllDataTxTooOld(int64_t blockTime, int64_t now, int dayDays)
 {
     return blockTime < (now - ((int64_t)dayDays * 60 * 60 * 24));
 }
 
-// S6 + time coalesce: drop duplicate/recent getalldata without rewalking.
-// -rpcdatacontinue=<n> seconds after last success (default 20; 0 = disable time gate).
+// Coalesce getalldata: return a soft continue while one is in flight or within
+// -rpcdatacontinue seconds of the last success (default 20; 0 disables the time gate).
 static const int64_t DEFAULT_RPC_DATA_CONTINUE = 20;
 static CCriticalSection cs_getalldata_gate;
 static bool fGetAllDataInFlight = false;
@@ -52,7 +52,7 @@ void ResetRpcDataContinueState()
     nGetAllDataLastSuccess = 0;
 }
 
-/** Test hook: leave in-flight set so a following getalldata hits S6 without a second thread. */
+/** Test hook: hold the in-flight flag; the next getalldata then hits the coalesce gate. */
 void SetGetAllDataInFlightForTest(bool inFlight)
 {
     LOCK(cs_getalldata_gate);
@@ -2159,8 +2159,8 @@ UniValue getalldata(const UniValue& params, bool fHelp)
     }
 
 
-    //Create Ordered List (S7: pointers, not CWalletTx copies)
-    // S7: const wallet-tx views for getalldata (keep even if peers use mutable copies).
+    // Ordered list of const wallet-tx pointers, not CWalletTx copies; keep const even where
+    // upstream forks use mutable copies.
     map<int64_t, const CWalletTx*> orderedTxs;
     for (map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); ++it) {
       const uint256& wtxid = it->first;
@@ -2423,7 +2423,7 @@ UniValue getalldata(const UniValue& params, bool fHelp)
         }
 
         uint256 ut;
-        // W3: day cutoff before insert (Pirate early filter). Was applied only on emit.
+        // Apply the day cutoff before inserting into the sort map.
         uint64_t t = GetTime();
         const int64_t dayCutoff = (int64_t)t - ((int64_t)day * 60 * 60 * 24);
 
@@ -2436,12 +2436,12 @@ UniValue getalldata(const UniValue& params, bool fHelp)
           std::pair<int,int> key;
 
           if (!arcTxPt.hashBlock.IsNull() && mapBlockIndex[arcTxPt.hashBlock] != nullptr) {
-            //Exclude Transactions older than max days old (W3 early filter)
+            //Exclude transactions older than the day window
             if (IsGetAllDataTxTooOld(mapBlockIndex[arcTxPt.hashBlock]->GetBlockTime(), (int64_t)t, day)) {
               continue;
             }
             key = make_pair(mapBlockIndex[arcTxPt.hashBlock]->nHeight, arcTxPt.nIndex);
-            // W2: detect archive vs later wallet overwrite of same sort key
+            // Count archive vs wallet collisions on the same sort key
             auto coll = sortedArchive.find(key);
             if (coll != sortedArchive.end() && coll->second != txid) {
               nGetAllDataSortKeyCollisions++;
@@ -2458,7 +2458,7 @@ UniValue getalldata(const UniValue& params, bool fHelp)
           const CWalletTx& wtx = *(*it).second;
           std::pair<int,int> key;
 
-          // W3: Pirate-style filters before insert (day + history membership)
+          // Filter before insert: finality, day window, History membership
           if (!CheckFinalTx(wtx))
               continue;
           if (wtx.mapSaplingNoteData.size() == 0 && wtx.mapSproutNoteData.size() == 0 && !wtx.IsTrusted())
@@ -2519,7 +2519,7 @@ UniValue getalldata(const UniValue& params, bool fHelp)
                 if (wtx.GetDepthInMainChain() < 0 )
                     continue;
 
-                //Exclude Transactions older that max days old (emit safety net; W3 already filtered)
+                //Exclude transactions older than the day window (backstop; already filtered on insert)
                 if (wtx.GetDepthInMainChain() > 0 && mapBlockIndex[wtx.hashBlock]->GetBlockTime() < dayCutoff) {
                     continue;
                 }

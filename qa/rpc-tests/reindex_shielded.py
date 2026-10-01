@@ -3,12 +3,10 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 """
-Shielded reindex coverage: Sapling note remains spendable after -reindex.
+A Sapling note stays spendable after -reindex.
 
-Exercises real BuildWitnessCache + pcoinsTip + ReadBlockFromDisk (not the
-quarantined CachedWitnessesCleanIndex gtest harness).
-
-Tier: B pass / Ext candidate (maturity mining ~720 blocks).
+Exercises the real BuildWitnessCache, pcoinsTip, and ReadBlockFromDisk path, which the
+CachedWitnessesCleanIndex gtest fixture cannot provide. Mines past maturity (~720 blocks).
 """
 
 import time

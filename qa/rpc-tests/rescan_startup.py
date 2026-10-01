@@ -4,7 +4,7 @@
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
 #
-# P2: Test -rescan on startup: node restarts with -rescan, chain and wallet intact
+# Test -rescan on startup: node restarts with -rescan, chain and wallet intact
 #
 
 

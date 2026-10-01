@@ -23,13 +23,10 @@
 #ifdef ENABLE_MINING
 
 // Live CreateNewBlock -> Equihash (48,5) -> ProcessNewBlock on regtest.
-//
-// A frozen blockinfo[] table (extranonce + nonce per height) is how Bitcoin Core
-// and early Zcash miner_tests extended a long chain without a solver in the
-// test binary. That table is PoW-parameter-specific. Authoring one for Zero
-// mainnet (192,7) would mean running OptimisedSolve once per height (on the
-// order of a minute each) and storing nSolution, not a compact nonce. Use
-// regtest (48,5) live solve instead.
+// Bitcoin Core and early Zcash extended a long chain from a frozen blockinfo[] table
+// (extranonce and nonce per height). Such a table is PoW-parameter-specific: for Zero
+// mainnet (192,7) it would need an OptimisedSolve per height (about a minute each) and
+// would store nSolution, not a compact nonce. Regtest (48,5) solves live instead.
 
 struct MinerRegtestSetup : public TestingSetup {
     MinerRegtestSetup() : TestingSetup(CBaseChainParams::REGTEST) {}
