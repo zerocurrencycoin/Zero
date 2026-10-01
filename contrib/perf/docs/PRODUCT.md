@@ -1,7 +1,7 @@
 # Product changes identified by perf work
 
 Node-code changes this investigation found. They cannot be made from ZeroPerf
-(`POLICY.md`, "Tree ownership"); each is specified here with its evidence and reviewed in
+(`POLICY.md` "Ownership"); each is specified here with its evidence and reviewed in
 Zero.
 
 Items and their state are in `PLAN.md` under Product handoff. This file holds
@@ -520,8 +520,8 @@ choice.
 check, and it annotates no call site. Its extra call sites are darksend
 denomination selection (`ONLY_DENOMINATED`,
 `ONLY_NONDENOMINATED_NOT10000IFMN`) -- a subsystem Zero does not have, not a
-better interface. TENT is worth reading for zeronode/masternode lineage
-(`TENTZero.md`); for this it is a peer, not a source.
+better interface. TENT is worth reading for zeronode/masternode lineage; for
+this it is a peer, not a source.
 
 **The improvement is Ycash's**, and it is two separable pieces
 (`ZKs/Comparison.md` S5.7):

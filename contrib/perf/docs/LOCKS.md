@@ -33,8 +33,7 @@ before they left a large unexplained remainder.
 
 ## What recursion actually exists
 
-Full tiny reindex, 187,418 blocks, corrected instrument.
-`test-logs/lockattr-corrected-20260922/`.
+Full tiny reindex, corrected instrument: M-LOCK-ATTR.
 
 **Six sites, 1,109,483 acquisitions, 5.92 per block, sum reconciled.**
 
@@ -65,6 +64,19 @@ functions.
 
 **Inherited, not local.** Zcash, Pirate, Ycash and Hush3 carry the same three
 `LOCK(cs_LastBlockFile)` sites and the same `removeForBlock` structure.
+
+**Upstream removed the block-file patterns; Zcash did not port the removals.**
+
+| Bitcoin commit | Change |
+|----------------|--------|
+| `83f1ec33ce` | Stops holding `cs_LastBlockFile` across the `setBestChain` callback |
+| `0bd882b740` | Removes `RecursiveMutex cs_nBlockSequenceId`; the counter becomes `int32_t ... GUARDED_BY(::cs_main)`, since `cs_main` is already held at its one use |
+| `fade2a44f4` | Moves `cs_LastBlockFile` into `BlockManager`; the `LOCK2(cs_main, cs_LastBlockFile)` in `FlushStateToDisk` goes |
+
+Zcash still has `LOCK2(cs_main, cs_LastBlockFile)` and
+`LOCK(cs_nBlockSequenceId)`; Zero inherits both. Porting is a structural
+refactor of block storage, justified by correctness or a restructuring of
+`main.cpp`, not by the cost below.
 
 ## Nested locks of different mutexes are the deadlock question
 

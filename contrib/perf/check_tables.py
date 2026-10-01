@@ -4,7 +4,7 @@
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 """Flag tables too small to earn the form, and files carrying too many.
 
-Two rules, both from docs/POLICY.md S2.0:
+Two rules, both from docs/POLICY.md "Documents":
 
   size    A table needs at least 2 data rows and rows x columns >= 9. One row
           is a sentence; two rows over two columns is a phrase. Two rows over

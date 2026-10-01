@@ -246,8 +246,7 @@ needs no privilege. It does not cover thermal or per-core frequency, so
 `turbostat`/`xctrace` stay for that.
 
 **`hyperfine` caveat.** It is built for short repeatable commands. A multi-hour
-reindex violates the "no unrestartable long batches" rule in `POLICY.md` S2 --
-so use it for microbenchmarks and short trials, **not** as a replacement for the
+reindex is not a short repeatable command, so use it for microbenchmarks and short trials, **not** as a replacement for the
 campaign ledger. Its statistical *approach* is worth borrowing even where the
 tool is not.
 

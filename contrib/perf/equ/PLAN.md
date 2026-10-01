@@ -433,7 +433,7 @@ it is used. A wrong SIMD kernel produces invalid solutions, which on a miner
 means silently wasted work.
 
 `ENABLE_MINING` and any new SIMD flag are **scenario flags** in the feature
-bundle sense (`../docs/POLICY.md` S3): they vary per test batch and must be in the
+bundle sense (`../docs/SCHEMA.md` "Bundles"): they vary per test batch and must be in the
 bundle key, or an AVX2 run and a scalar run will pool into one meaningless
 mean.
 
@@ -565,16 +565,16 @@ to be economically meaningful; solutions CPU-validated.
 
 | Concern | Linux | Windows | macOS |
 |---------|-------|---------|-------|
-| Build | Primary; `zcutil/build.sh` | MXE cross-compile, **never executed in this program** (`../docs/TASKS.md`) | Supported; the dev platform here |
+| Build | Primary; `zcutil/build.sh` | MXE cross-compile, **never executed in this program** | Supported; the dev platform here |
 | CPU profiling | `perf` + folded stacks (`../PerfPlatforms.md` S3) | ETW/WPA -- blocked on MinGW/PDB symbols | Instruments/`xctrace` -- the only path exercised so far |
 | Threading | pthreads | pthreads via MinGW | pthreads |
 | GPU | CUDA, OpenCL, Vulkan | CUDA, OpenCL, Vulkan | Metal only |
 | Status | **Recommended target** | Build path needs validation first | Dev and correctness only |
 
-**Every published number in this tree is macOS/arm64** (`../docs/FINDINGS.md`).
+**Every published number in this tree is macOS/arm64**.
 For a mining plan that is the wrong platform: mining happens on Linux and
 Windows, on x86-64 and GPUs. **An x86-64 Linux baseline is a prerequisite for
-this plan to mean anything**, and it is already tracked as `TASKS.md` B2.
+this plan to mean anything**; it is `../docs/PLAN.md` F2.
 
 Two known blockers, neither introduced here: Windows MXE builds have never been
 executed, and native Windows profiling is blocked on symbol format
@@ -606,7 +606,7 @@ measuring before optimizing, and it is why S0 exists.
 **The verifier is deliberately left alone at this stage.** Zero's verifier is
 the slower, portable, scalar implementation, and that is the correct choice
 while the solver is the target: verification is ~0.100 ms
-(`../docs/FINDINGS.md` S2.3) and is not on any hot path this plan touches. It
+(`../docs/SYNC.md` "Equihash verifications per block") and is not on any hot path this plan touches. It
 becomes worth revisiting only when the **demanding modes of operation** are
 re-optimized -- chain sync, reindex, bootstrap, and rescan -- where the same
 verification runs per block rather than per mined candidate. That is a
@@ -617,20 +617,17 @@ for that future work even though its solver is not.
 
 **Related but out of scope.** Sync-side Equihash cost is a *different*
 question, already answered: Equihash verification is ~0.100 ms
-(`../docs/FINDINGS.md` S2.3), and blake2b is 3-4% of post-Sapling sync, so none of
-this work speeds up node sync. Mining and sync are separate tracks
-(`../docs/FINDINGS.md` S2.1), and results must not be pooled -- `features.workload.op`
+(`../docs/SYNC.md` "Equihash verifications per block"), and blake2b is 3-4% of post-Sapling sync, so none of
+this work speeds up node sync. Mining and sync are separate tracks, and results must not be pooled -- `features.workload.op`
 distinguishes `solve` from `verify` from `sync` (`../docs/SCHEMA.md` S5).
 
 
 ---
 
-## Queued solver work, moved from docs/TASKS.md
+## Queued solver work
 
-Moved 2026-09-06. This is solver and hashing detail -- reserve sizing, call
-paths, per-variant measurement plans -- which belongs with the subject rather
-than in the task list. `docs/TASKS.md` retains the items and their state and
-links here for the substance.
+Solver and hashing detail -- reserve sizing, call paths, per-variant
+measurement plans.
 
 
 ### D1. Integrate the queued Equihash / blake2 work

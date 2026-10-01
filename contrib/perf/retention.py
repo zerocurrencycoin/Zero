@@ -3,8 +3,7 @@
 
 Policy and rationale: contrib/perf/docs/POLICY.md "Cleaning up".
 
-Lab runs leave large trees behind (test-logs is ~106M, reindex-profile ~17M),
-and the tempting cleanup -- "delete anything old" -- destroys the evidence
+Lab runs leave large trees behind, and the tempting cleanup -- "delete anything old" -- destroys the evidence
 behind published numbers. This tool answers the only question that matters
 before deleting anything: **is this artifact still the source of a result
 anyone can cite?**
@@ -80,8 +79,7 @@ def cited_names():
     docs = [os.path.join(TEST_LOGS, "DATA_INDEX.md")]
     # Recurse: subdirectories hold evidence citations too (equ/, mine/), and
     # listing only the top two silently marked eight cited artifacts
-    # reclaimable. retired/ is archived and cites nothing current, but scanning it
-    # costs nothing and a false PROTECTED is the cheap error.
+    # reclaimable.
     for dirpath, _dirs, files in os.walk(HERE):
         docs += [os.path.join(dirpath, f) for f in files if f.endswith(".md")]
     for doc in docs:

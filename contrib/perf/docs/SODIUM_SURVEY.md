@@ -214,7 +214,7 @@ version is not resolvable above this benchmark's run-to-run spread.
 ## 7. Open: Zero
 
 ZeroPerf is settled (S6). **Zero remains on 1.0.21**, deliberately: this
-tree does not change the product tree (`POLICY.md` S7), and a consensus-code
+tree does not change the product tree, and a consensus-code
 dependency bump is a decision for the tree that owns it.
 
 What the product tree would need, none of it blocking:

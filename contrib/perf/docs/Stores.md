@@ -20,8 +20,8 @@ hard dependency upgrade tied to node, index or performance work.
 | Question | Owner | Boundary |
 |---|---|---|
 | What stores exist, what is unique, what can be regenerated? | `Stores.md` | Lifecycle, preservation, cleanup, cross-store terminology |
-| How does `zerod` use stores at runtime? | `Runtime.md` | Flags, cache split, RPCs, client requirements, block-connect/index maintenance |
-| How does peer discovery and `peers.dat` really work? | `retired/Peer.md` | Addrman internals, logs, DNS seeds, recovery procedure, external peer-analysis tools |
+| How does `zerod` use stores at runtime? | `ZeroStruct.md` (Zero) | Flags, cache split, RPCs, client requirements, block-connect/index maintenance |
+| How does peer discovery and `peers.dat` really work? | This file, "Peers.dat Decoding And Recovery" | Addrman internals, logs, DNS seeds, recovery procedure, external peer-analysis tools |
 | What should be ported or implemented? | `UpdateZero.md` | Work plans, acceptance criteria, task IDs |
 | Why not simply upgrade BDB? | This file | Compatibility first, migration explicit |
 
@@ -44,7 +44,7 @@ hard dependency upgrade tied to node, index or performance work.
 
 ## Index Families And Write Lifecycle
 
-`blocks/index/` is the block-tree LevelDB. It holds the always-present block index, `txindex` when enabled, persisted index flags, and the optional Insight address/spent/timestamp/hash indexes. The exact key-prefix table belongs in `Runtime.md` section 3 because it is source-level node implementation detail.
+`blocks/index/` is the block-tree LevelDB. It holds the always-present block index, `txindex` when enabled, persisted index flags, and the optional Insight address/spent/timestamp/hash indexes. The key-prefix table is in `ZeroStruct.md` "LevelDB key families in `blocks/index/`".
 
 `chainstate/` is not an address index. It stores current validation state keyed for consensus checks: UTXOs, Sprout/Sapling anchors, and nullifiers. An existence-only anchor check (`Have*AnchorAt`) was tried and removed: it broke mempool acceptance (`SYNC.md` "Trees and anchors").
 
@@ -58,7 +58,7 @@ External indexers such as Blockbook or a custom syncer should be treated as sepa
 
 ## Peers.dat Decoding And Recovery
 
-Bitcoin and Zero share the same broad addrman model: an in-memory peer address manager with "new" and "tried" buckets, periodically dumped to `peers.dat`. Bitcoin Core documentation describes it as a cache used to avoid bootstrapping from scratch after restart. Zero's `retired/Peer.md` owns the local source layout, serialization wrapper, DNS seed behavior, logging, and recovery details.
+Bitcoin and Zero share the same broad addrman model: an in-memory peer address manager with "new" and "tried" buckets, periodically dumped to `peers.dat`. Bitcoin Core documentation describes it as a cache used to avoid bootstrapping from scratch after restart.
 
 Tools found:
 
@@ -83,7 +83,7 @@ Recommended Zero recovery procedure:
 
 Recommended Zero tooling:
 
-1. Port `getaddrmaninfo` and `getrawaddrman` from Bitcoin Core before writing bespoke binary parsers. The detailed adaptation assessment belongs in `Runtime.md` section 6.4.
+1. Port `getaddrmaninfo` and `getrawaddrman` from Bitcoin Core before writing bespoke binary parsers.
 2. Add a small offline `zero-peers-dump` only if porting RPCs is too invasive.
 3. Keep peer forensics separate from wallet recovery tooling.
 
@@ -107,15 +107,6 @@ Practical Zero guidance:
 - Add reliable export/import paths before changing wallet storage. Key/seed export and verified restore matter more than database fashion.
 - If a new store is introduced, treat it as a wallet architecture change with migration tooling, not a dependency bump.
 
-## Current Sync State
-
-| Area | State |
-|---|---|
-| `Runtime.md` | Current for ZeroPerf node structure and runtime behavior; uses `wallet.zero`; points here for lifecycle/preservation classification |
-| `ZeroStruct.md` in the Zero repository | Branch-local copy; not updated by this partitioning pass |
-| `Zeros/ZEROV.md` | Superseded transition note; retained only to explain why BDB 18.1.40 is not the current plan |
-| Source help strings | Some user-facing strings still say `wallet.dat` where Zero means `wallet.zero`; fix during source cleanup, leave test fixtures alone unless they affect docs |
-
 ## Expected Benefits Of The Structured View
 
 This classification prevents three recurring confusions:
@@ -131,11 +122,3 @@ It also gives a cleaner lifecycle vocabulary for cleanup and archiving:
 - Regenerate: chainstate, block index, peer cache, fee estimates.
 - Rebuild intentionally: Insight indexes, external explorer DBs, performance profiles.
 - Delete freely when stale: temp logs, failed scratch datadirs, transient generated caches.
-
-## Open Work
-
-1. Decide whether `ZeroStruct.md` in the Zero repository remains an actively maintained copy or should be frozen in favor of `Runtime.md`.
-2. Fix the user-facing `-salvagewallet` help string in source if a source cleanup pass is opened.
-3. Scope a `getrawaddrman` / `getaddrmaninfo` port for Zero.
-4. Verify `txindex` defaults in `Zero` separately before claiming the ZeroPerf default for all active branches.
-5. Consider a small table in cleanup docs distinguishing preservation-critical wallet files from regenerable node stores.

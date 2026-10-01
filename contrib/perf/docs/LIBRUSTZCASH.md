@@ -91,4 +91,4 @@ Option B honestly. (5) is time-sensitive and independent.
 
 libsnark proved Sprout in C++. Sapling moved proving and verification to Rust
 `bellman`, and Sprout verification followed, leaving libsnark on no live path.
-Zero still ships `src/snark/` unbuilt -- a deletion item in `PLAN.md`.
+Zero still ships `src/snark/` unbuilt; this tree has deleted it (`PLAN.md` P19).

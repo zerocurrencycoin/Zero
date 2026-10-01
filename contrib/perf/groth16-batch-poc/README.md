@@ -1,6 +1,6 @@
 # Groth16 batch-verification prototype (Phases 0–1 of `docs/PerfGroth.md` "9.4 Groth16 batch verification: full execution plan")
 
-**Status: experimental, disposition postponed.** This is a standalone proof-of-concept, not integrated with `zerod` in any way. It does not touch `main.cpp`, the FFI layer, or any consensus code. See `Perf.md` §0.1a for the live decision this prototype feeds into (hand-port this approach vs. adopt `zcash/sapling-crypto`'s `BatchValidator` directly) — that decision is unresolved, and this code's fate (kept as a reference, extended into Phase 2, or discarded in favor of the adopt-upstream path) depends on it. Do not build on top of this without reading that section first.
+**Status: experimental, disposition postponed.** This is a standalone proof-of-concept, not integrated with `zerod` in any way. It does not touch `main.cpp`, the FFI layer, or any consensus code. See `docs/PLAN.md` Y1 for the decision this prototype feeds into (hand-port this approach vs. adopt `zcash/sapling-crypto`'s `BatchValidator` directly) — that decision is unresolved, and this code's fate (kept as a reference, extended into Phase 2, or discarded in favor of the adopt-upstream path) depends on it. Do not build on top of this without reading that section first.
 
 ## What this proves
 
@@ -41,7 +41,7 @@ Full shallow-clone timed out when tried without `--depth 1` (the full history is
 
 ## Provenance
 
-Built and tested in a Claude Code session on 2026-07-08, as Phases 0–1 of the execution plan in `docs/PerfGroth.md` "9.4 Groth16 batch verification: full execution plan". Originally developed in a session-scoped scratchpad (`/private/tmp/.../scratchpad/groth16-batch/batch-poc/`) that does not persist across sessions; copied here specifically so the code survives session shutdown. The reference repos used for research during that session (current `zcash/librustzcash`, `zkcrypto/bellman`, `zcash/sapling-crypto`, Zebra, `zcashd`, and four sibling zcashd forks — see `Perf.md` §6.1/§6.2) were **not** copied here; they were read-only research checkouts, not something this repo needs to carry, and are cited by URL/commit in `Perf.md`.
+Phases 0-1 of `docs/PerfGroth.md` "9.4 Groth16 batch verification: full execution plan". The reference repositories used for the research (`zcash/librustzcash`, `zkcrypto/bellman`, `zcash/sapling-crypto`, Zebra, `zcashd` and its forks) are not carried here.
 
 ## Disposition
 

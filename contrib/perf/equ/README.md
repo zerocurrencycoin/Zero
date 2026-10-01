@@ -8,8 +8,8 @@ for making the solver competitive.
 spread across the perf tree**: solver internals, lineage, measurement method,
 plans and solve findings all live in these files. The one deliberate exception
 is Equihash's **verification** cost during block connection, which is a sync
-finding and stays in `../Perf.md` S5. Placement rules generally:
-`../docs/POLICY.md` S2.0a.
+finding and stays in `../docs/SYNC.md`. Placement rules generally:
+`../docs/POLICY.md` "Documents".
 
 ## The set
 
@@ -29,8 +29,7 @@ section id instead.
 
 Split along the seam the perf docs use -- facts, method, plan -- with the
 solver internals and the vendored-copy question separated out once each grew
-past the point where `FINDINGS` could be read as one subject. Related tracks: `../docs/FINDINGS.md` S2 (why Equihash is a
-parallel track, not sync work), `../docs/SCHEMA.md` (recording results so they
+past the point where `FINDINGS` could be read as one subject. Related: `../docs/SCHEMA.md` (recording results so they
 aggregate across platforms).
 
 ## Where things stand

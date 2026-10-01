@@ -585,10 +585,10 @@ the right shape.
 
 ---
 
-## Parallel-track framing, moved from docs/FINDINGS.md
+## Parallel-track framing
 
-Moved 2026-09-06: solve-versus-verify scope, the shared-primitive argument for
-bucketing blake2b separately, and the `zcbenchmark` reference figures.
+Solve-versus-verify scope, the shared-primitive argument for bucketing blake2b
+separately, and the `zcbenchmark` reference figures.
 
 
 **Delineated deliberately.** Work in these areas is developed in parallel,
@@ -647,7 +647,7 @@ structures as everything else, with these specifics:
 
 - **Bundle first.** Any new build-time option gets an entry in
   RecBench bundles before a trial is recorded, or every row reads
-  `custom` and cannot be grouped (`POLICY.md` S3).
+  `custom` and cannot be grouped (`SCHEMA.md` "Bundles").
 - **Classify the flag.** Is it architectural, scenario, or perf? That decides
   whether it belongs in the bundle key.
 - **`workload.op` must distinguish solve from verify from sync.** Otherwise a
@@ -665,7 +665,7 @@ structures as everything else, with these specifics:
 blake2b is **18-21% pre-Sapling but 3-4% post-Sapling**, so on the *sync* track
 it does not compete with Groth16 for attention. That is a statement about sync,
 not about mining, and it was the reason blake2b SIMD was set aside on the sync
-track (`TASKS.md`). If the parallel work targets the mining use case, this
+track. If the parallel work targets the mining use case, this
 judgement does not apply to it.
 
 ---

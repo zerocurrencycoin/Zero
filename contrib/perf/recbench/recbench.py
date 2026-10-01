@@ -381,7 +381,7 @@ def _stamp(row: dict) -> dict:
         row["workload"] = wl
         # Assemble via stamp's own resolvers rather than a local dict: a
         # hand-rolled block here silently dropped `bundle`, `bundle_v` and
-        # `effective` from every --record row, so POLICY S3's rule that every
+        # `effective` from every --record row, so the SCHEMA.md "Bundles" rule that every
         # row carries the compiled-vs-runtime pair held only for --import-tsv.
         _bf = platform_stamp.detect_build_features()
         _rt = row.get("runtime", {}) or {}
@@ -950,7 +950,7 @@ def self_test() -> int:
     check(DEFAULT_DIR is None or Path(str(rbpaths.store_dir())) == DEFAULT_DIR,
           "default store comes from rbpaths, not a compiled-in path")
 
-    # 2. A recorded row must carry the feature block POLICY S3 requires.
+    # 2. A recorded row must carry the feature block SCHEMA.md "Bundles" requires.
     #    stamp.py resolves bundle/effective, but recbench.py used to build its
     #    own three-key dict and dropped them from every --record row.
     with tempfile.TemporaryDirectory() as td:

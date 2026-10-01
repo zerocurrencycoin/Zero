@@ -304,7 +304,7 @@ was specified before it was built, not after.
 but `recbench.py` built its own three-key `features` dict for `--record`
 instead of calling those resolvers. So `bundle`, `bundle_v` and `effective`
 were present on `--import-tsv` rows and absent from every recorded one --
-POLICY S3 states that **every** row carries `effective`, and that held for one
+`SCHEMA.md` "Bundles" states that **every** row carries `effective`, and that held for one
 write path out of two.
 
 `effective` is the field that keeps a wallet-capable binary run with
@@ -589,12 +589,12 @@ See Done for what landed.
 | D17 | R4: `--superseded` / `--all-rows`; retired rows kept, excluded from current | 2026-09-03 |
 | D18 | R6: `metric`/`value`/`unit` payload; a ns/digest row records through the same store | 2026-09-03 |
 | D19 | B2c: folded-stack parser, format detected by content, self-tested on macOS | 2026-09-03 |
-| D20 | Product items to `TASKS.md` Product handoff; BenchSummary struck | 2026-09-03 |
+| D20 | Product items to the work register; BenchSummary struck | 2026-09-03 |
 | D21 | Recorded runtime key is `solver`, not `equihashsolver` | 2026-09-03 |
 | D22 | `--superseded` rejects a fingerprint no row carries | 2026-09-03 |
 | D23 | R6b: the height window lives in `features.workload`; a metric row records none | 2026-09-03 |
 | D24 | R4 gaps closed: `--import-tsv` can retire, both collators filter at load | 2026-09-03 |
-| D25 | Root documents restored to the product tree's state; the ASCII audit moved to `POLICY.md` | 2026-09-03 |
+| D25 | Root documents restored to the product tree's state; the ASCII audit moved into this tree | 2026-09-03 |
 | D26 | R6c: collation reads `metric`/`value`/`unit`; metric and unit are part of the grouping key, so units never pool | 2026-09-03 |
 | D27 | R3b: `--merge` with context selection and an across-contexts guard, `--index`, cross-store duplicate reporting | 2026-09-03 |
 | D28 | `recbench.py` resolves its store through `rbpaths`, not a compiled-in `parents[2]` | 2026-09-05 |

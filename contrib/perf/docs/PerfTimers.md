@@ -280,8 +280,7 @@ obvious.
 3. **Emit `BenchSummary`** (S3.3) -- product change, Zero review.
 4. **Parse `BenchSummary`** (S4 item 2).
 
-Steps 2 and 3 touch `src/main.cpp`, which is **Zero-owned**
-(`POLICY.md` S1). They are specified here and reviewed there. Step 1 is
+Steps 2 and 3 touch `src/main.cpp`, which is **Zero-owned**. They are specified here and reviewed there. Step 1 is
 `contrib/perf/` and can proceed independently.
 
 **Not gated on the batching decision.** Measuring proof cost is not the same as changing

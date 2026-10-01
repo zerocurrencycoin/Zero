@@ -255,7 +255,7 @@ launch and have not counted may still exist inside the proof path.
 ## 5. A mining node at tip
 
 A mining node (`gen=1`, `genproclimit=1`) shows 32 threads with one doing the
-work (`test-logs/mainnet-mining-20260827/`): 13 `zcash-scriptch`, 6
+work (M-THREADS-MINING): 13 `zcash-scriptch`, 6
 `zcash-httpworker`, 1 `threadHTTP`, 4 net, 4 service (`scheduler`, wallet
 flush, `txnotify`, zeronode pool), 1 `zcash-miner`, 3 main/runtime. The
 script-check workers are sized for IBD and idle at tip: under 2 s of CPU each

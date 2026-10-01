@@ -76,7 +76,7 @@ bulk throughput of the two libraries is within 1-2%. Library division:
 ### Equihash verifications per block
 
 Before `37f3f3459`, `CheckBlock` ran 3.00 times per block during reindex
-(562,254 calls over 187,418 blocks, `test-logs/lockstats-20260912/`), and each
+(M-CHECKBLOCK-CALLS), and each
 call re-verified the Equihash solution. That commit skips the PoW branch of
 `CheckBlockHeader` in `AcceptBlock` and `ConnectBlock` when the index entry
 is already at `BLOCK_VALID_TREE`, which `AcceptBlockHeader` reaches only after
@@ -84,6 +84,13 @@ verifying the header. A Zcash-family block hash covers `nSolution`, so the
 index entry pins the verified header. The merkle check is untouched: it is the
 CVE-2012-2459 duplicate-transaction guard, and its input is the transaction
 list, not the header.
+
+The guard detects a level that pairs a node with itself while building the
+tree (`CBlock::BuildMerkleTree(bool* mutated)`), and `CheckBlock` rejects with
+`bad-txns-duplicate`. Zero, Zcash, Pirate, Hush3, Zclassic and Firo all carry
+it in the pre-2015 in-block form, which materialises `vMerkleTree`. Bitcoin
+since `ee60e5625b` computes the root in `consensus/merkle.cpp` without storing
+the tree.
 
 **Measured after the change** (M-EQ-VERIFY-SITES, `ZERO_PERF` per-caller
 counters):
@@ -226,6 +233,6 @@ reported by RPC. Items: `PLAN.md` K1, K2.
 | `LoadBlockIndexDB` and `ThreadImport` honour shutdown | A multi-million-block index load can be stopped by SIGTERM |
 | FDCACHE | Compiled out; see section 3 |
 
-Out-of-order children on reindex were checked and need no change: 133,955
-blocks stashed, 133,524 reparented, each once, because
-`mapBlocksUnknownParent` erases what it visits (`test-logs/p17-outoforder-20260922/`).
+Out-of-order children on reindex were checked and need no change: each
+stashed block is reparented once, because `mapBlocksUnknownParent` erases
+what it visits (M-RX-UNKPARENT).

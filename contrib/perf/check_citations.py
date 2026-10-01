@@ -4,9 +4,12 @@
 Two rules exist in writing and nothing enforced either, which is how a
 693-violation ASCII backlog and 11 stale absolute paths accumulated:
 
-  1. A number is cited by `M-*` id (docs/POLICY.md S7.1). Measures.md owns
+  1. A number is cited by `M-*` id (docs/POLICY.md "Documents"). Measures.md owns
      figures; everything else cites the id.
-  2. No absolute paths in tracked documents (docs/POLICY.md S7.3).
+  2. No absolute paths in tracked documents (docs/POLICY.md "Enforcement").
+  3. --runs: a specific test-logs run is named only by Measures.md (the
+     evidence column) and PLAN.md (open items). A persistent document cites
+     the M-* id. Counted, not gated: lint-perf.sh ratchets the total.
 
 Scope is deliberately narrow, because a check that fires on everything gets
 ignored:
@@ -23,6 +26,7 @@ Usage:
   contrib/perf/check_citations.py                 # owned docs; exit 1 on findings
   contrib/perf/check_citations.py PATH...         # limit to given paths
   contrib/perf/check_citations.py --paths-only    # only rule 2
+  contrib/perf/check_citations.py --runs          # only rule 3; prints the count
   contrib/perf/check_citations.py --self-test
 
 Exit: 0 clean, 1 findings, 2 usage error.
@@ -68,7 +72,25 @@ RULE_TEXT = re.compile(r"Never write|must not|do not (?:write|put)|prohibit",
 # purpose: a citation four paragraphs away is not a citation.
 CONTEXT = 6
 
-SKIP_DIR = re.compile(r"contrib/perf/(retired|zcash-lint|mine|groth16-batch-poc)/")
+SKIP_DIR = re.compile(r"contrib/perf/(zcash-lint|mine|groth16-batch-poc)/")
+
+# Rule 3. A named run, not a template (`measures_<run>.csv`, `walletsync-*/`)
+# and not the index or the archive store, which are structure.
+RUN_REF = re.compile(r"test-logs/(?!DATA_INDEX\.md|archives\b)"
+                     r"([A-Za-z0-9][A-Za-z0-9._-]*)(?![A-Za-z0-9._-]*[<*])")
+RUN_OK_FILE = re.compile(r"(^|/)docs/(Measures|PLAN)\.md$|(^|/)reporoot/")
+
+
+def run_refs(path):
+    """Return [(lineno, text)] naming a specific run outside its owners."""
+    if RUN_OK_FILE.search(path):
+        return []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except (OSError, UnicodeDecodeError):
+        return []
+    return [(n, l.strip()) for n, l in enumerate(lines, 1) if RUN_REF.search(l)]
 
 
 def owned_docs():
@@ -206,6 +228,29 @@ def self_test():
 
     check(scan_text("Nothing notable here.\n") == [], "a clean document is clean")
 
+    # Rule 3: a named run is counted; templates and structure are not.
+    def runs(text, name="x.md"):
+        import shutil
+        d = tempfile.mkdtemp()
+        p = os.path.join(d, name)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        try:
+            return run_refs(p)
+        finally:
+            shutil.rmtree(d)
+    check(runs("see `test-logs/lockstats-20260912/`\n"),
+          "a named run is counted")
+    for structural in ("`test-logs/DATA_INDEX.md`", "`test-logs/archives/`",
+                       "`test-logs/measures_<run>.csv`",
+                       "`test-logs/walletsync-*/util.tsv`",
+                       "`test-logs/validate-<utc>.log`"):
+        check(not runs(structural + "\n"),
+              "structure or template is not a run: %r" % structural)
+    check(not runs("`test-logs/lockstats-20260912/`\n", "docs/Measures.md"),
+          "Measures.md owns run names")
+
     print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)
     return 0 if ok else 1
 
@@ -214,6 +259,15 @@ def main(argv):
     if "--self-test" in argv:
         return self_test()
     paths_only = "--paths-only" in argv
+    if "--runs" in argv:
+        paths = [a for a in argv if not a.startswith("--")] or owned_docs()
+        total = 0
+        for p in sorted(paths):
+            for lineno, text in run_refs(p):
+                print("%s:%d: run-citation: %s" % (p, lineno, text[:110]))
+                total += 1
+        print("run-citations: %d" % total)
+        return 0
     paths = [a for a in argv if not a.startswith("--")] or owned_docs()
 
     total = 0

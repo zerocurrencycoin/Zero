@@ -56,7 +56,7 @@ a capability nothing uses."
 
 **The `?full` counters were the gap**: increments race, resets do not. Fixed and
 timed -- no measurable cost, since the production build is single-threaded and
-`au32` is then a plain `u32` (`test-logs/atomics-timing-20260911/FINDINGS.md`).
+`au32` is then a plain `u32` (M-LOCK-ATOMICS).
 
 **Memory is the real constraint on independent parallel solves**, not locking:
 ~3.3 GB per tromp instance (M-EQ-PEAK-TROMP), ~7.15 GB per reference instance
@@ -212,9 +212,8 @@ is required and the fix is not optional.
 Widening verification is the only change that could move post-Sapling sync, and
 it is also the riskiest. **Do not attempt it before:**
 
-1. **P1 measured post-Sapling** -- the cost is currently unquantified
-   (`test-logs/p1-measured-20260912/FINDINGS.md`: the counters work but the
-   tiny snap skips all proofs below the last checkpoint).
+1. **P1 measured post-Sapling** -- the cost is unquantified: the counters
+   work, but the tiny snap skips all proofs below the last checkpoint.
 2. **The libsnark thread question answered** (S4 below). If the pinned crates
    already spawn threads inside proof verification, adding an outer pool
    oversubscribes rather than parallelises.
@@ -229,11 +228,8 @@ connected.
 
 ### 5.4 Measured already
 
-| Result | Where |
-|--------|-------|
-| Lock-order inversions: **0**; `AssertLockHeld` violation: **1** (P12) | `test-logs/lockorder-20260912/` |
-| Recursive acquires: **5,567,609** (~29.7/block); underflows: **0** | `test-logs/lockstats-20260912/` |
-| `?full` atomics cost: **-1.03%**, not distinguishable from noise | `test-logs/atomics-timing-20260911/` |
+M-LOCK-ORDER (no inversions; one `AssertLockHeld` violation, P12),
+M-LOCK-RECURSIVE, M-LOCK-ATOMICS (inside noise).
 
 ## 6. The block read path, confirmed
 

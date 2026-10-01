@@ -34,45 +34,14 @@ OWNED='^contrib/perf/'
 OWNED_EXCEPT='contrib/perf/datadir_guard\.sh'
 SHELLCHECK_EXCLUDE="SC2046,SC2086,SC2162,SC2035,SC2043,SC2094,SC2129,SC2164,SC2230"
 
-# Ratchets (docs/POLICY.md S2.0 rule 4). Current counts become a ceiling that
-# may only be lowered. A pass that cuts tables or concentrates a subject should
-# lower the number here in the same commit. Raising one is a deliberate act
-# that belongs in its own commit with a reason. Raises so far:
-#   88 -> 92  keep/ZeroWallet_Design.md restored by owner decision
-#   92 -> 101 P8/P9/P10 product items, RECORDS_READINESS, D2/D3/D5 verification, R1-R3
-#             placement, schema/tooling dispositions, GROTH status review
-# A ratchet never blocks a fix or a direct instruction: raise it and record
-# the reason, as here. It exists to catch drift, not to veto work.
-# uniblake 44 -> 50, Equihash 46 -> 47, tables 99 -> 100:
-# reporoot/MIGRATION_PLAN.md documents a provenance break -- three tracked
-# documents cite uniblake docs that are uncommitted. Naming the repo and the
-# files is the finding, not sprawl.
-# Equihash 50 -> 51: G5 clarification in README names the solver harness.
-# Equihash 49 -> 50: P13 resolution names CheckEquihashSolution.
-# Equihash 48 -> 49: TOOLING_FAILURES.md cites the equihash.cpp misread as
-# a worked example of a search failure.
-# Equihash 47 -> 48: P11 records the duplicated tromp driver in TASKS.md,
-# which is task state naming its subject.
-# tables 110 -> 113: P14 upstream history, P19/P20, thread census, LIBSNARK.
-# tables 108 -> 110: P15-P18 work items, upstream lock precedent.
-# tables 105 -> 108: locking risk tables, core-count derivation,
-# HIST/SPARK resolution, BUILDCONFIG.
-# tables 104 -> 105: CONCURRENCY.md experiment plan, THREADS.md review.
-# tables 102 -> 104: docs/THREADS.md (thread census) and the P12 lock finding.
-# Groth16 58 -> 59, tables 113 -> 118: CPU_MEASUREMENT.md uses the Groth16
-# bucket share as the worked example of share-vs-rate confusion; codectx.py.
-# Groth16 57 -> 58: LIBSNARK.md states what replaced it (Groth16/bellman).
-# Groth16 56 -> 57, tables 101 -> 102: docs/CONCURRENCY.md names the
-# proof-verification path when listing what is not parallelised.
-# Groth16 55 -> 56: reporoot/LIBRUSTZCASH_DECISION.md states the batching
-# prerequisite; a decision draft naming its subject is not sprawl.
-# uniblake 38 -> 44, Equihash 45 -> 46: reporoot/MIGRATION_PLAN.md names the
-# repos it proposes moving, uniblake being the one on the build path. Naming
-# a repo in a migration plan is not subject sprawl.
-# Equihash 42 -> 45: the D2/D3/D5 source-verification rows name the solver
-# in TASKS.md. That is task state (what was checked, where), not exposition,
-# so it belongs there; the ceiling moves rather than the text.
+# Ratchets (docs/POLICY.md "Enforcement"). Current counts are a
+# ceiling that may only be lowered. A pass that cuts tables or concentrates a
+# subject lowers the number here in the same commit. Raising one is a
+# deliberate act, in its own commit, with the reason in the commit message.
+# A ratchet never blocks a fix or a direct instruction: raise it and give the
+# reason. It exists to catch drift, not to veto work.
 RATCHET_TABLES=118
+RATCHET_RUNS=21
 RATCHET_CONC="Equihash=51
 Groth16=59
 libsodium=36
@@ -127,20 +96,27 @@ run_check() {
                   out=$(python3 "$t" --self-test 2>&1) || \
                     printf '%s: %s\n' "$t" "$(printf '%s' "$out" | tail -1)"
                 done ;;
-    tables)     # Table size and per-file count (docs/POLICY.md S2.0). A table
+    tables)     # Table size and per-file count. A table
                 # needs >=2 rows and rows x cols >= 9; at most 10 per file.
                 # RATCHET, not a hard gate: the backlog predates the rule, so
                 # gating on zero would fail on known work. Gating on "no worse
                 # than RATCHET_TABLES" fails only on a regression, and the
-                # ceiling is lowered as the cull proceeds. POLICY S2.0 rule 4:
-                # a check that cannot fail the build is a comment.
+                # ceiling is lowered as the cull proceeds.
                 n=$(contrib/perf/check_tables.py contrib/perf 2>&1 | grep -c .)
                 if [ "$n" -gt "$RATCHET_TABLES" ]; then
                   printf 'contrib/perf/RATCHET: table findings %d exceed ratchet %d -- cut tables or lower the ratchet\n' \
                     "$n" "$RATCHET_TABLES"
                 fi
                 contrib/perf/check_tables.py contrib/perf 2>&1 | sed 's/^/  /' || true ;;
-    concentration) # One owner per subject (docs/POLICY.md S2.0a). Same ratchet
+    runs)       # A specific test-logs run is named only in Measures.md and
+                # PLAN.md; persistent documents cite the M-* id. Ratchet: equ/
+                # carries the backlog.
+                n=$(contrib/perf/check_citations.py --runs | sed -n 's/^run-citations: //p')
+                if [ "$n" -gt "$RATCHET_RUNS" ]; then
+                  printf 'contrib/perf/RATCHET: run citations %d exceed ratchet %d -- cite the M-* id\n' \
+                    "$n" "$RATCHET_RUNS"
+                fi ;;
+    concentration) # One owner per subject. Same ratchet
                    # rule as tables: the target is 20% outside the owner, the
                    # ceiling is where we are now, and it only moves down.
                    conc=$(contrib/perf/check_concentration.py contrib/perf 2>&1 || true)
@@ -168,25 +144,20 @@ run_check() {
                     2>&1 | grep -v 'as expected' | sed 's|^|contrib/perf/|'
                 fi ;;
     docmap)     # Every tracked .md has a row in README.md's Documentation
-                # map, and no row names a file that is gone (docs/POLICY.md
-                # S2.0a). Hard gate, not a ratchet: there is no backlog here,
+                # map, and no row names a file that is gone. Hard gate, not a ratchet: there is no backlog here,
                 # and a file with no inclusion rule is exactly how the set
                 # accreted. Prefix findings so owned_lines counts them.
                 contrib/perf/check_docmap.py contrib/perf 2>&1 \
                   | sed 's|^|contrib/perf/|' ;;
     citations)  # Measurement figures must name a source, and no tracked
-                # document may carry an absolute path (docs/POLICY.md S7.1,
-                # S7.3). Scoped to docs/.
+                # document may carry an absolute path. Scoped to docs/.
                 contrib/perf/check_citations.py \
                   $(git ls-files 'contrib/perf/docs/*.md') 2>/dev/null ;;
     unicode-docs) # Owned documents only. Inherited src/ and root-level
                   # Zero-owned docs are out of scope for this gate; run
                   # fix_ascii.py with no args to see the whole tree.
-                  # retired/ holds documents awaiting deletion after content
-                  # extraction: not maintained, so not gated.
                   contrib/perf/fix_ascii.py \
-                    $(git ls-files 'contrib/perf/*.md' 'contrib/perf/**/*.md' \
-                      | grep -v '^contrib/perf/retired/') 2>/dev/null ;;
+                    $(git ls-files 'contrib/perf/*.md' 'contrib/perf/**/*.md') 2>/dev/null ;;
     json)       # Tracked JSON must parse. recbench/features.json is read by
                 # every launcher through recbench/stamp.py, so a syntax error
                 # there fails a campaign after the run rather than before it.
@@ -202,7 +173,7 @@ run_check() {
   esac
 }
 
-CHECKS="self-tests unicode unicode-docs citations buildconfig docmap concentration tables json shellcheck whitespace shebang shell-locale
+CHECKS="self-tests unicode unicode-docs citations runs buildconfig docmap concentration tables json shellcheck whitespace shebang shell-locale
         python-utf8-encoding include-guards includes locale-dependence
         make-dist cargo-patches"
 

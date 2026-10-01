@@ -464,7 +464,7 @@ measurement and any SIMD work on it are documented and maintained there
 1. **Multi-way BLAKE2b in the tromp path** is now the highest-value Equihash
    item -- above every S1.2 memory target, which address the default solver
    production does not select (S2).
-2. **blake2b vector kernels: closed, not deferred.** Measured in uniblake and slower than scalar there. This tree adopts that result; status and scope are in `../docs/TASKS.md` (Vectorisation), figures in `uniblake/docs/NEON.md`.
+2. **blake2b vector kernels: closed, not deferred.** Measured in uniblake and slower than scalar there. This tree adopts that result; figures in `uniblake/docs/NEON.md`.
 
 
 3. **Do not port Cantor.** Third independent confirmation.

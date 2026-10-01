@@ -56,10 +56,14 @@ Four results that look like platform defects and are not. Each cost time once.
 | d | **`Permission denied` is a file mode**, not a port problem. `core.fileMode=true` strips a local `+x` on checkout, so a test committed `100644` fails before it runs. Check `git ls-files -s` first |
 | e | **A skip is not a pass.** Three more instances found by sweeping for the shape: `check-security` failures were discarded by `\|\| true`; `rpc-tests.sh` fell off the end with status 0 when wallet/utils/bitcoind were not all enabled; and a tier selecting nothing printed "Tests completed: 0" and exited 0. All now fail |
 
+Tier rules: every runnable `qa/rpc-tests/*.py` (with `run_test` and
+`__main__`) is in exactly one tier, and `-list-csv` has no duplicates; a test
+enters a passing tier only after repeated green runs, not one.
+
 ## Suite plan: constants, tiers, failure modes
 
 30/30). Tier U created, validated and emptied. Full Bfail/Efail sweep run: 16
-of 39 pass. Standards written up in `POLICY.md` S2.2. Remaining: move the 16
+of 39 pass. Remaining: move the 16
 after a stability check, and work the 23 failures by mode.
 
 

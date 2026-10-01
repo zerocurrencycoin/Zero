@@ -41,7 +41,7 @@ section here.
 `wall_s`, `cpu_pct`, ...), comparability rules, extraction schema, and the
 ledger `CAMPAIGN=` map live in **`docs/Measures.md`** (§8 for bindings). **Plans /
 specs** (BENCH-*, FIX-*, IMP-*, L0-L7, Stages) and **lab materials**:
-**`docs/Perf.md`** (in this directory, not the repo root). Prefer Measures tokens in new TSV/JSONL columns when extending
+**`docs/PLAN.md`** and the owning document. Prefer Measures tokens in new TSV/JSONL columns when extending
 these scripts.
 
 **Datadir rule:** never use the default `~/Library/Application Support/zero`
@@ -105,7 +105,7 @@ catalog and conf templates: Zero **TEST_ZERO.md** §8 and
 `contrib/conf-templates/`. Do not copy this campaign set into a GA ship tree.
 
 **Long trials:** lab discipline, including the restartability rule, is
-`docs/POLICY.md` S4.
+`docs/POLICY.md` "Lab discipline".
 **ConnectBlock vs wallet-on:** `capture_sequence` / `bench_matrix` target import
 CPU on `zcash-loadblk`. Wallet-on fat reindex is a separate track
 (`wallet_sync_profile.sh`, M-WAL-SYNC-FAT / M-CPU-WAL-FAT) -- bottleneck is
@@ -122,7 +122,7 @@ python3 contrib/perf/extract_measures.py --self-test
 # After any lab (LAB is disposable):
 python3 contrib/perf/extract_measures.py \
   --datadir "$LAB" --run-id tiny-... --op-class reindex --no-wallet --env lab \
-  --jsonl test-logs/tiny.jsonl --csv test-logs/measures_tiny.csv
+  --jsonl test-logs/<run>.jsonl --csv test-logs/measures_<run>.csv
 
 # Live node (read-only; not a lab campaign unless --env insight|wallet):
 python3 contrib/perf/extract_measures.py \
@@ -329,8 +329,7 @@ M-WAL-SYNC-P0, M-WAL-SYNC-P1, M-WAL-SYNC-FAT, M-CPU-WAL-FAT. **Caveat:**
 `getwalletinfo` in `sample_row` can block under fat-wallet `cs_wallet` contention
 -- tip time then from `debug.log`; hygiene timeout is queue **G0b**.
 
-Archive: `test-logs/archives/walletsync-fat-g0-20260812.tar.gz` + per-run
-`FINDINGS.md`. Mitigations: `docs/WITNESS.md` "Mechanisms".
+Mitigations: `docs/WITNESS.md` "Mechanisms".
 
 `WALLETINFO_TIMEOUT_S` (default 5; `0` skips txcount). `ZEROD_EXTRA_ARGS` for
 **opt-in** witness flags (defaults off; see `zerod -help`):
@@ -524,8 +523,7 @@ ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
 ```
 
 The golden fat wallet is DevFee wallet material, kept outside the tree and
-used **by reference only** -- no addresses, no host paths in tracked documents
-(`docs/POLICY.md` S7.2).
+used **by reference only** -- no addresses, no host paths in tracked documents.
 
 **Current host:** `p0` and `p1` are **MISSING**, and `fat` resolves to a
 110 KB `wallet.zero` -- **not** the golden 749 MB wallet the `M-WAL-*` rows
@@ -626,9 +624,9 @@ Do not merge callees into `ops-campaign.sh` itself. It stays a catalog + resume 
 
 Every markdown file in `contrib/perf`, what it owns, and what it does not
 hold. A file without an inclusion rule accretes unrelated material
-(`docs/POLICY.md` "The accretion rule"). When two documents could hold
+(`docs/POLICY.md` "Documents"). When two documents could hold
 something, the owner takes it and non-owners cite it. Adding a file means
-adding a row here and deleting another file (`docs/POLICY.md` S2.0 rule 1).
+adding a row here and deleting another file.
 
 `lint-perf.sh` `docmap` fails if a tracked `.md` has no row, or a row names a
 file that does not exist.
@@ -666,10 +664,7 @@ file that does not exist.
 | `docs/Stores.md` | Zero's on-disk data structures and local stores | Performance findings about them |
 | `docs/BUILD_RECONFIG.md` | The autotools re-configure trap and its options | Anything not about configure |
 | `zcash-lint/ZEROPERF.md` | What the vendored Zcash linters are, and which findings are set aside | Lint results |
-| `reporoot/*.md` | Transient drafts and decision papers for Zero-owned material: root-document reviews, migration and cleanup plans (`POLICY.md`) | Anything authoritative; disposition is the owner's |
-| `retired/*.md` | Documents awaiting deletion once their content is extracted; not maintained. `TENTZero.md` is held until Zero takes it (`PLAN.md` D11) | Anything current |
-
-Rules, ownership, retention and lab discipline: **`docs/POLICY.md`**.
+| `reporoot/*.md` | Transient drafts and decision papers for Zero-owned material: root-document reviews, migration and cleanup plans | Anything authoritative; disposition is the owner's |
 
 ## Before adding a document or a cross-reference
 

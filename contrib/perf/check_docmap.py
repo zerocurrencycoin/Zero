@@ -13,7 +13,7 @@ Two directions are checked:
   missing   a tracked .md with no row -> it has no inclusion rule
   stale     a row naming a path that no longer exists -> the map lies
 
-A row may name a file (`Perf.md`), a directory (`equ/`, `mine/*.md`) or several
+A row may name a file (`PLAN.md`), a directory (`equ/`, `mine/*.md`) or several
 comma-separated files. Matching is by basename or by directory prefix.
 
   check_docmap.py [root]
@@ -58,7 +58,7 @@ def covered(rel, section):
     """True if a row names REL by basename, or by a directory wildcard row.
 
     A directory only counts when the map names it as a wildcard -- `equ/`,
-    `retired/*.md`, `mine/*.md`. Matching a bare `docs/` substring would let any
+    `mine/*.md`. Matching a bare `docs/` substring would let any
     row mentioning `docs/POLICY.md` cover every future file in docs/, which is
     the accretion this check exists to stop.
     """

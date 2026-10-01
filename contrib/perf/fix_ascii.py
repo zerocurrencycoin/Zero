@@ -17,6 +17,19 @@ Every --fix confirms before writing (Y/n). There is no flag to skip it.
   contrib/perf/fix_ascii.py PATH...    # limit to given paths
 
 Exit status: 0 clean, 1 violations found, 2 usage error.
+
+Classes: REPLACE has an exact ASCII equivalent and --fix rewrites it;
+FLAG_ONLY_RANGES (emoji, dingbats, variation selectors) is reported, never
+rewritten; TOLERATED (section sign) passes; SKIP_PATH (vendored source,
+depends/, captures under mine/) is not scanned; EXEMPT is README.md.
+
+Node source is not normalised: spec notation (JoinSplit.hpp, ZIP-208 in
+consensus/params.cpp), quoted bytes (wallet/paymentdisclosure.h), and
+verbatim Zcash RPC help text in rpcwallet.cpp, which is a product decision.
+
+--fix writes only under contrib/perf/ unless --all-paths, skips files that
+look mathematical unless --ascii-formula (a middle-dot rewrite once turned a
+pairing equation into subtraction), and always confirms.
 """
 import contextlib
 import io
@@ -62,7 +75,6 @@ SKIP_PATH = re.compile(
     r"^(src/(leveldb|univalue|secp256k1|snark|crypto/ctaes)/"
     r"|depends/"
     r"|contrib/perf/(mine|groth16-batch-poc)/"
-    r"|contrib/perf/dis-nodes\.txt$"      # captured chat text, keep verbatim
     r"|share/genbuild\.sh$)"
 )
 CHECK_EXT = re.compile(r"\.(md|cpp|h|hpp|py|sh|txt|conf|csv|include|ac|am)$")
@@ -155,7 +167,7 @@ def self_test():
     check("\u00b7" in REPLACE, "middle dot is in the table")
     check(REPLACE["\u00b7"] == "-",
           "middle dot maps to '-'; NEVER bulk-apply to a document with formulas "
-          "(docs/POLICY.md S7.4)")
+          "(module docstring)")
 
     # Flag-only ranges must never gain a silent replacement.
     for lo, hi in FLAG_ONLY_RANGES:
@@ -169,10 +181,10 @@ def self_test():
     # Exemption and skip paths.
     check(EXEMPT.search("README.md"), "root README exempt")
     check(EXEMPT.search("contrib/perf/README.md"), "nested README exempt")
-    check(not EXEMPT.search("contrib/perf/Perf.md"), "other docs are not exempt")
+    check(not EXEMPT.search("contrib/perf/docs/PLAN.md"), "other docs are not exempt")
     check(SKIP_PATH.match("src/leveldb/db.cc"), "vendored leveldb skipped")
     check(SKIP_PATH.match("depends/x.mk"), "depends skipped")
-    check(not SKIP_PATH.match("contrib/perf/Perf.md"), "owned docs not skipped")
+    check(not SKIP_PATH.match("contrib/perf/docs/PLAN.md"), "owned docs not skipped")
 
     # scan() reports position and kind.
     with tempfile.TemporaryDirectory() as d:
@@ -311,7 +323,7 @@ def main(argv):
 
     # --fix is scoped to ZeroPerf-owned files. Zero owns the root documents
     # and src/; rewriting them from this tree contradicts the ownership rule
-    # (contrib/perf/docs/POLICY.md S7) and has silently damaged content before:
+    # (module docstring) and has silently damaged content before:
     # the U+00B7 -> '-' mapping turned products into apparent subtraction in a
     # Groth16 pairing equation. Reporting is unrestricted; only writing is not.
     OWNED = "contrib/perf/"
@@ -328,7 +340,7 @@ def main(argv):
     # holding mathematics, is not something to run unattended: this tool has
     # silently rewritten eight documents it did not own, and its U+00B7 -> '-'
     # mapping turned products into apparent subtraction in a pairing equation
-    # (docs/POLICY.md S7.4). Both classes now require explicit confirmation.
+    # (module docstring). Both classes now require explicit confirmation.
     if do_fix:
         planned = [p for p in paths if scan(p, show_all) and not EXEMPT.search(p)]
         formula = [p for p in planned if has_formula(p)]
@@ -347,7 +359,7 @@ def main(argv):
 
         # Every file change is confirmed. There is no flag to skip this:
         # an unattended rewrite is how eight unowned documents and a pairing
-        # equation were damaged (docs/POLICY.md S7.4). Non-interactive callers
+        # equation were damaged (module docstring). Non-interactive callers
         # get a refusal, not a silent yes.
         if planned and not confirm_changes(planned):
             print("aborted; no files changed", file=sys.stderr)

@@ -1,65 +1,37 @@
-# Changes made to the main tree from ZeroPerf
+# Changes this tree made outside `contrib/perf/`, for Zero to review
 
-**Record of `src/` edits originating in this tree.** They are Zero-owned
-code (`POLICY.md` S7.1); this file exists so the product tree can review them
-as a set rather than discovering them in a diff.
+Draft for Zero. Compared against Zero `72e421e41` and its working tree; this
+branch diverged from Zero at `198b3b287`. Regenerate the list with
+`git diff --stat 198b3b287 HEAD -- src qa`. None of these is in Zero yet.
 
-**Status: uncommitted in the ZeroPerf working tree**, 2026-09-10.
+Effect on a default build: **behaviour** changes what a release does;
+**perf-only** compiles only with `--enable-perf` (`ZERO_PERF`) or a debug
+lock build; **test** changes tests only.
 
-## 1. Equihash solver default: `default` -> `tromp`
+| Subject | Files | Effect | Register |
+|---------|-------|--------|----------|
+| Equihash hashing through uniblake instead of libsodium; `EhHashState` | `crypto/eh_hashstate.h`, `crypto/equihash.*`, `pow/tromp/*`, `Makefile.am` | behaviour, consensus-adjacent: needs the uniblake sibling to build | `SYNC.md` "Shipped changes" |
+| Equihash batch list generation, default off | `crypto/equihash.*` | none by default | -- |
+| Mining solver default `tromp`, with a fallback to the reference solver off (192,7); help text and reported default match | `miner.cpp`, `init.cpp`, `metrics.cpp`, `test/miner_tests.cpp` | behaviour: every miner's default solver. Needs a release note | Q8 |
+| `generate` logs that `-equihashsolver` does not apply to it | `rpc/mining.cpp` | log line | -- |
+| tromp driver written once (`EhTrompSolveRounds`); sort comparator fold; `Xc.reserve()` | `pow/tromp/equi_miner.h`, `crypto/equihash.cpp`, `test/equihash_tests.cpp` | solver speed; same solutions | Q3 |
+| Skip re-verifying Equihash for a header already at `BLOCK_VALID_TREE` | `main.cpp` | behaviour: fewer verifications per block on reindex | P13 |
+| `IsInitialBlockDownload` hoisted out of per-block loops; block-index comparator calls `CompareTo` once | `main.cpp` | speed | B2, P23 |
+| Missing locks in `getspentinfo` and `getblockdeltas` (upstream `14ec1016b`) | `rpc/misc.cpp`, `rpc/blockchain.cpp` | correctness | P12, P15 |
+| Note index invalidated only on membership change | `wallet/wallet.*`, `wallet/gtest/test_wallet.cpp` | wallet speed | A1 |
+| Opt-in witness modes `-walletwitness=ibd-defer`, `-walletwitnessnote=1`; incremental Merkle root cached | `wallet/*`, `zcash/IncrementalMerkleTree.*`, `qa/rpc-tests/wallet_witness_defer.py` | none unless the flags are set; root cache always on | `WITNESS.md` "Ship state" |
+| Explicit arguments at the five `GetFilteredNotes` callers | `wallet/asyncrpcoperation_*.cpp`, `wallet/rpcwallet.cpp` | none | P10 |
+| Perf layer: phase timers, proof counters, per-caller Equihash counters, script-check pool utilization, `-perffdcache` | `main.*`, `pow.*`, `checkqueue.h`, `init.cpp` | perf-only | P1, P8 |
+| Recursive-lock attribution by lock location | `sync.*` | debug lock builds only | `LOCKS.md` |
+| `src/snark/` deleted: in no makefile, no object, no include | `src/snark/` | none | P19 |
+| Test fixes: Zero constants in `test_framework/util.py`, relative heights, `Decimal` to `int`, tier lists, zeronode script modes | `qa/` | test | `TESTING.md` |
 
-| File | Change |
-|------|--------|
-| `src/miner.cpp:544` | `GetArg("-equihashsolver", "tromp")` + rationale comment |
-| `src/miner.cpp:552` | **New parameter guard**: falls back to the reference solver when the chain is not (192,7) |
-| `src/init.cpp:551` | Help text names both solvers and the real default |
-| `src/metrics.cpp:258` | Reported default matches the effective one |
-| `src/test/miner_tests.cpp` | New case `equihashsolver_default_and_param_guard` (+51 lines) |
+## Review before applying
 
-Rationale, evidence and the mutation test:
-`test-logs/tromp-default-20260909/FINDINGS.md`. **Needs a release note** --
-this changes what every miner runs by default.
-
-## 2. `generate` RPC solver messaging
-
-`src/rpc/mining.cpp:218` -- `generate` calls `EhBasicSolveUncancellable`
-directly and never consults `-equihashsolver`, but logged nothing, so the two
-mining paths were silently inconsistent. Now logs in the same shape as
-`BitcoinMiner`, stating that the flag does not apply.
-
-## 3. P1 prototype: proof-verification counters
-
-| File | Change |
-|------|--------|
-| `src/main.h` | `PerfProofCounters` struct + `LogPerfProofCounters()`, inside the existing `ZERO_PERF` block |
-| `src/main.cpp` | `PerfProofTimer` RAII + `PERF_PROOF_TIMER()` macro; four call sites; logger called from `ConnectBlock` |
-
-**Compiled out entirely without `ZERO_PERF`** -- verified: zero symbols and
-zero format strings in the default object. Detail:
-`test-logs/p1-proto-20260910/FINDINGS.md`.
-
-## 4. Naming correction (test tooling, not `src/`)
-
-`contrib/perf/performance-measurements.sh:86,116` wrote `$DATADIR/zcash.conf`;
-Zero requires `zero.conf`. The node never started and **the script exited 0**.
-Inherited filename from the Zcash original.
-
-### Naming sweep, 2026-09-10
-
-Searched `contrib/perf/`, `qa/`, `contrib/`, `zcutil/` for Zcash-era names that
-are wrong for Zero:
-
-| Pattern | Result |
-|---------|--------|
-| `zcash.conf` | **1 real bug**, fixed above. No others |
-| `wallet.dat` (Zero uses `wallet.zero`) | none |
-| `zcash-cli`, `zcashd` as binaries | none |
-| `bitcoin.conf` | none |
-| `~/.zcash-params` | **Correct, keep.** Zero shares Zcash's params directory; `zeropaths.py:39` and `README.md` both document it as the product default |
-| `qa/zcash/` paths | **Correct, keep.** Real directory |
-| `zcash_rpc*` shell function names in `performance-measurements.sh` | Cosmetic only -- internal function names, no behaviour. Left alone |
-| `zcash-loadblk`, `zcash-scriptch` thread names | **Correct, keep.** Actual thread names in the binary |
-
-**One functional defect in the whole tree**, and it was found by running the
-tool rather than by reading it -- the script had been present and "passing"
-for as long as it has existed.
+- Code comments added here carry dates, measured figures and history (for
+  example `httpserver.h` on `-rpcthreads` and `-rpcworkqueue`). DOC-CONVENTIONS
+  forbids those in inline comments; strip them to the invariant when applying.
+- The uniblake dependency resolves to a sibling checkout; its repository is
+  on a personal account (`MIGRATION_PLAN.md`).
+- Each behaviour change ships with its release note; the solver default is
+  the one users see.

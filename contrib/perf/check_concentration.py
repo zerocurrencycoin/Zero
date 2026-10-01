@@ -2,7 +2,7 @@
 # Copyright (c) 2026 The Zero developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
-"""Enforce the one-owner rules from docs/POLICY.md S2.0a.
+"""Enforce the one-owner rules from docs/POLICY.md "Documents".
 
 Two failures this catches, both of which happened and were only found by
 reading:
@@ -12,8 +12,8 @@ reading:
                       files with `equ/` holding 25% of its mentions.
 
   duplicated task id  The same id tracked in two files, whose states then
-                      diverge. Eight ids were in both Perf.md and TASKS.md;
-                      one stayed "postponed" after being closed elsewhere.
+                      diverge. Eight ids were once tracked in two files; one
+                      stayed "postponed" after being closed in the other.
 
 Ownership is declared here, not inferred: a subject with no owner is not
 checked, because guessing an owner from mention counts would bless whatever

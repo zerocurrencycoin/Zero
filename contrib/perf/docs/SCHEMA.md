@@ -196,6 +196,19 @@ Rules that keep bundles honest:
   make old rows mean something new -- add `perf-v2`, never redefine `perf`.
 - **An unrecognised combination gets `bundle: "custom"`**, never a guess.
 
+Which build flags enter the bundle key (`recbench/stamp.py`):
+
+| Class | Flags | In the key | Why |
+|-------|-------|------------|-----|
+| Architectural | `ENABLE_ZMQ`, `ENABLE_PROTON` | No; recorded | Constant across scenarios; keying on them splits identical builds |
+| Scenario | `ENABLE_WALLET`, `ENABLE_MINING` | Yes | Each has a runtime counterpart (`-disablewallet`, `-gen`) that can disagree with the build |
+| Perf | `ZERO_PERF`, `ZERO_FDCACHE` | Yes | Lab instrumentation, off in shipped builds |
+
+Every row carries `features.effective` (`wallet_built`, `wallet_active`,
+`mining_built`, `mining_active`): a wallet-capable binary run with
+`-disablewallet` and a binary built without a wallet are different
+measurements. `null` means unknown, never off.
+
 This is what makes "all NOTEIDX runs on arm64 against the last baseline" a
 one-line filter.
 

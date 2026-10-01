@@ -31,7 +31,7 @@ MINE_MAINNET_SOLVE=1 contrib/perf/mine_bench.sh mainnet-template
 ./src/zero-cli zcbenchmark solveequihash 3    # the baseline above
 ```
 
-**Per-run discipline** (`../docs/POLICY.md` S4): one trial per invocation, no
+**Per-run discipline** (`../docs/POLICY.md` "Lab discipline"): one trial per invocation, no
 unrestartable batches, and every result stamped with platform, build and
 feature set so a Linux number and a macOS number can be told apart
 (`../docs/SCHEMA.md`). A solve takes ~60 s, so a 4-trial comparison is minutes,

@@ -5,7 +5,7 @@
 
 **Not this file:** findings (`SYNC.md`, `WITNESS.md`, `PerfGroth.md`), work items (`PLAN.md`), lab material paths (`README.md` "Snapshot archives: the Insight flags are required"). Structure/algorithms (**ZeroStruct.md**). Contributor gates (**TEST_ZERO.md**). Short-snap procedure (**AtHeight.md**). Script usage (**contrib/perf/README.md**).
 
-**ID rule:** Quantitative results use **`M-*`** IDs here only. Perf cites those IDs in one line. New campaigns get an `M-*` row here before citation elsewhere. Ledger `CAMPAIGN=` strings bind in §8. Prefer `height_per_s` when height and block counts differ. Do not put BENCH/FIX/IMP, L0-L7, Stages, or G/P priorities in this file.
+**ID rule:** Quantitative results use **`M-*`** IDs here only. Other documents cite those IDs. New campaigns get an `M-*` row here before citation elsewhere. Ledger `CAMPAIGN=` strings bind in §8. Prefer `height_per_s` when height and block counts differ. Do not put BENCH/FIX/IMP, L0-L7, Stages, or G/P priorities in this file.
 
 **Branch note:** Re-verify tip numbers before citing in release notes.
 
@@ -175,6 +175,7 @@ Use case: gate RPC clients and harnesses; **not** ops-ready.
 | Reindex / bootstrap / catch-up throughput | M-EQ-PEAK-DEFAULT | `EhOptimisedSolve` (192,7) | Measured peak **7.15 GB**; **6.6 GB** physical footprint | `spot` | `lab_monitor` | `equ/FINDINGS.md` |
 | Reindex / bootstrap / catch-up throughput | M-EQ-PEAK-TROMP | tromp (192,7) | Peak physical footprint **3.3 GB** | `spot` | `lab_monitor` | `equ/VENDORED.md` |
 | Reindex / bootstrap / catch-up throughput | M-EQ-TROMP-PAIRED | tromp vs reference (192,7), 4 paired nonces, one session | **8.99x** mean / **9.11x** median speedup; solution sets **identical** (11 each); default CV 8.4%, tromp CV 2.28% | `paired` | `lab_monitor` | `test-logs/g5-paired-20260910/FINDINGS.md` |
+| Reindex / bootstrap / catch-up throughput | M-MINE-SOLVE | `zcbenchmark solveequihash`, reference solver (192,7), random nonces, n=3 | **54.2 / 67.1 / 69.0 s** per solve, ~0.016 Sol/s; one core; peak physical **7148 MB** | `spot` | `res_sample` | `test-logs/res-mine-20260819/solve.tsv` |
 | Reindex / bootstrap / catch-up throughput | M-EQ-SOLVE-1927-FIXED | reference solver (192,7), fixed nonces 0-3 | **40.58 s** mean / **39.76 s** median per solve, CV 11.0%, ~0.0246 Sol/s | `paired` | `lab_monitor` | `test-logs/g5-solve-20260910/FINDINGS.md` |
 | Reindex / bootstrap / catch-up throughput | M-EQ-TROMP-SPEEDUP | tromp vs default (192,7) | **5.69x** mean over n=4 paired nonces; solution sets identical | `paired` | `lab_monitor` | `equ/VENDORED.md` |
 | Reindex / bootstrap / catch-up throughput | M-EQ-D3-SORT | `EhOptimisedSolve` (192,7) | Sort patch **1.22x**, paired nonces | `paired` | `lab_monitor` | `equ/FINDINGS.md` |
@@ -287,7 +288,15 @@ Use case: CI / contributor expectation only. **Do not** compare to IBD/reindex.
 | Microbenchmarks (`zcbenchmark`) | M-ZCB-SAP-CREATE | `createsaplingspend` n=10 / `createsaplingoutput` n=50 | **330.0 ms** (n=10) / **48.8 ms** (n=50) median; createsaplingoutput CV 6.5%, no warmup effect | `repro` | `zcbench` | `test-logs/a3-zcbench-20260910/FINDINGS.md` |
 | Microbenchmarks (`zcbenchmark`) | M-ZCB-SUITE | JoinSplit / Sapling / Equihash / connectblockslow / ... | Partial archive 2026-09-10: 4 of 17 (see M-ZCB-SAP-*); `parameterloading` fails RPC -3 | `capability` / `repro` | `zcbench` | `contrib/perf/performance-measurements.sh`; `src/zcbenchmarks.cpp` |
 
-| Peer / misc | M-PEER-LOAD | peers.dat load | **3073** addrs in **3 ms** | `spot` | `debug_log` | `retired/Peer.md` (ZeroPerf) |
+| Locking | M-LOCK-ORDER | Lock-order inversions; `AssertLockHeld` violations, tiny reindex | **0** inversions; **1** violation (P12) | `spot` | `debug_log` | `test-logs/lockorder-20260912/` |
+| Locking | M-LOCK-RECURSIVE | Recursive acquires and underflows, tiny reindex | **5,567,609** (~29.7/block); **0** underflows | `spot` | `debug_log` | `test-logs/lockstats-20260912/` |
+| Locking | M-LOCK-ATTR | Recursive sites by attribution, tiny reindex 0-187417, corrected instrument | **6** sites, **5.92** per block | `spot` | `debug_log` | `test-logs/lockattr-corrected-20260922/` |
+| Locking | M-LOCK-ATOMICS | Cost of atomic `?full` counters in the tromp solver | **-1.03%**, inside noise | `spot` | `none` | `test-logs/atomics-timing-20260911/` |
+| Block import | M-CHECKBLOCK-CALLS | `CheckBlock` calls per block on reindex, before `37f3f3459` | **3.00** (562,254 over 187,418 blocks) | `spot` | `debug_log` | `test-logs/lockstats-20260912/` |
+| Block import | M-RX-UNKPARENT | Out-of-order children on tiny reindex | **133,955** stashed, **133,524** reparented, each once | `spot` | `debug_log` | `test-logs/p17-outoforder-20260922/` |
+| Logging | M-LOG-TINY | `debug.log` volume, tiny reindex, after gating the two largest sources | **187,827** lines, **40 MB**, about one per block | `spot` | `debug_log` | build `f34332af9`; run not retained |
+| Logging | M-LOG-LIVE | `debug.log` on a live node without `-debug` | **570 MB**; initial import **2,549,445** lines; follow-tip about **1,000** lines/day | `spot` | `debug_log` | live node, P18 investigation (`test-logs/p18-shrink-20260922/`) |
+| Threads | M-THREADS-MINING | Threads on a mining node at tip, `gen=1 genproclimit=1` | **32** threads, one doing the work | `spot` | `none` | `test-logs/mainnet-mining-20260827/` |
 
 | In-tree `-debug=bench` | M-BENCH-CONNECT | ConnectBlock substep ms | **No archived campaign** in docs | `capability` | `debug_bench` | `src/main.cpp` LogPrint("bench", ...) |
 

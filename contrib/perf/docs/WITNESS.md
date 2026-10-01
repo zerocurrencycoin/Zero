@@ -152,8 +152,6 @@ Tests that gate it:
 | `WalletTests.NoteTxIndexTracksNoteBearingTxs` | Invalidation rule, section 3 |
 | `wallet_witness_defer.py` (Tier B) | R1/R2 spend after import and rebuild; R5a, R5b, R7b |
 
-Lab test plan: `test-logs/witness-defer-test-plan.md` (gitignored).
-
 **Default-on gate:** the opt-in exit above, plus the A4 remeasure, plus the
 flag collapse below.
 

@@ -16,9 +16,8 @@ Entry point for the whole set: `README.md`.
 ## 1. Keys, widths, and where the constants live
 
 How the collision key, the row widths and the comparator length actually
-behave in `OptimisedSolve`. Read this before changing any of them; the task
-steps that consume it are `../docs/TASKS.md` D2/D3, which cite this section
-rather than restating it.
+behave in `OptimisedSolve`. Read this before changing any of them; task
+steps cite this section rather than restating it.
 
 ### 1.1 The collision key
 
