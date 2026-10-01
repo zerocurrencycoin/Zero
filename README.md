@@ -84,7 +84,7 @@ Zero aims at decentralisation, open source, and peer-to-peer operation, with pri
 
 🔢 Development Fund
 ------------------------------------------
-**7.5%** of block subsidy in eligible heights. See [ZERO_COIN.md -- Founders reward](ZERO_COIN.md#founders-reward-75).
+**7.5%** of block subsidy in eligible heights. See [ZERO_COIN.md -- Founders reward](ZERO_COIN.md#founders-reward).
 
 
 📣 Announcements
@@ -165,7 +165,7 @@ Config, then an isolated lab cycle under `/tmp` (not the live datadir):
 
 From-source merge check: `./contrib/run-tests.sh --strict`. Maintainer inventory: [TEST_ZERO.md](TEST_ZERO.md).
 
-### Data directory (`zero.conf`, wallet, chain)
+### Data directory
 
 Canonical defaults (`GetDefaultDataDir()` / `ZC_GetBaseParamsDir()` in `src/util.cpp`):
 
@@ -201,7 +201,7 @@ mkdir $env:APPDATA\zero
 echo server=1 > $env:APPDATA\zero\zero.conf
 ```
 
-### Full node RPC (Linux)
+### Full node RPC on Linux
 
 With `server=1` and RPC credentials in `zero.conf`:
 

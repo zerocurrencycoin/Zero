@@ -2,25 +2,24 @@
 
 Build guide for the Zero full node binary `zerod`.
 
-**Quick Start:** §2 -- clone, install packages, build (Linux, macOS, Windows cross-compile, packaging).
-**Data directory:** §3. **Developer / depends:** §4. **Per-platform:** §5. **Troubleshooting:** §6.
-**Testing:** [TEST_ZERO.md](TEST_ZERO.md) -- merge gate, platform evidence, operational soaks.
+**Quick Start:** section 2 -- clone, install packages, build (Linux, macOS, Windows cross-compile, packaging).
+**Data directory:** section 3. **Developer / depends:** section 4. **Per-platform:** section 5. **Troubleshooting:** section 6.
 
 ---
 
 ## 1. Introduction
 
-Build `zerod` from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). **Tested:** Ubuntu 24.04, macOS 24.5.0. **Runtime rule of thumb:** the **build OS** sets the binary's glibc/libstdc++ floor -- deploy on that OS class or newer. Maintainer ABI / multi-Ubuntu notes stay in internal docs until a public minimum-OS decision ships with a release. The tree uses Autotools with **`depends/`** for deterministic dependency builds.
+Build `zerod` from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). **Tested:** Ubuntu 24.04, macOS 26.3 (Darwin 25.3). **Runtime rule of thumb:** the **build OS** sets the binary's glibc/libstdc++ floor -- deploy on that OS class or newer. Maintainer ABI / multi-Ubuntu notes stay in internal docs until a public minimum-OS decision ships with a release. The tree uses Autotools with **`depends/`** for deterministic dependency builds.
 
 ### 1.1 System requirements
 
 | Category | Requirement |
 |----------|-------------|
 | **Disk (build)** | Mac &lt;6 GB, Linux &lt;5 GB for toolchain + object files (more for `depends/` caches). |
-| **Disk (runtime)** | Full node datadir and params: see §3. |
+| **Disk (runtime)** | Full node datadir and params: see section 3. |
 | **RAM** | ~4 cores / 16 GB RAM comfortable for parallel `make`; reduce `-j` if the linker is OOM-killed. |
-| **Toolchain** | **C++14.** Linux: **GCC 7.0+** (tested: GCC 13.3 on Ubuntu 24.04). macOS: **Apple Clang** (tested: Apple Clang 17.0 on macOS 24.5.0). Windows cross: **MXE mingw-w64**. **GNU Make** 4.0+. **Git** 2.0+. |
-| **Boost (from depends)** | 1.88.x (see §4.1). |
+| **Toolchain** | **C++14.** Linux: **GCC 7.0+** (tested: GCC 13.3 on Ubuntu 24.04). macOS: **Apple Clang** (tested: Apple Clang 21.0 on macOS 26.3, Apple Clang 17.0 on macOS 15.5). Windows cross: **MXE mingw-w64**. **GNU Make** 4.0+. **Git** 2.0+. |
+| **Boost (from depends)** | 1.88.x (see section 4.1). |
 | **Python** | **3.10+** for `depends` scripts, RPC tests, and `qa/zcash/full_test_suite.py`. Maintainer validation uses **Python 3.12**; use 3.10+ for supported behavior. |
 
 Most linked libraries are built from **`depends/`** as hashed tarballs, not the distro package manager.
@@ -44,7 +43,7 @@ Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. The Qt desktop wallet is a
 
 **Receipts.** Gitignored **`.build/`** holds identity and command logs (`ready-*.txt`, `build-native-*.log`, `test-logs/`). Autotools `config.log` / `config.status` stay at the repo root (also gitignored) and are not the validation pin. Older **`logs/`** and **`test-logs/`** paths remain gitignored if present.
 
-**Rebuild stages** (`./zcutil/build.sh` runs these in order). Sapling params (`./zcutil/fetch-params.sh`) are **system setup** (before first `zerod` start, §3). They are not part of this cycle.
+**Rebuild stages** (`./zcutil/build.sh` runs these in order). Sapling params (`./zcutil/fetch-params.sh`) are **system setup** (before first `zerod` start, section 3). They are not part of this cycle.
 
 | Stage | What `build.sh` runs | When it is cheap | When it is expensive |
 |-------|----------------------|------------------|----------------------|
@@ -92,12 +91,20 @@ sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib \
 ./zcutil/build.sh -j$(nproc)
 ```
 
-**Other Linux distros:** Install the same toolchain roles as the Ubuntu list above. BDB comes from `depends/`. If `make -C depends` fails, see §4.7.
+**Other Linux distros:** Install the same toolchain roles as the Ubuntu list above. BDB comes from `depends/`. If `make -C depends` fails, see section 4.7.
 
 
 ### 2.3 macOS ARM64
 
-**OS tested:** macOS 24.5.0 (darwin 24.5.0).
+Binaries target macOS 15.0 and later (`OSX_MIN_VERSION` in `depends/hosts/darwin.mk`). The depends host triplet carries the Darwin kernel version (for example `aarch64-apple-darwin25.3.0`), not the macOS release:
+
+| macOS release | Darwin version | Status |
+|---------------|----------------|--------|
+| 26.3 Tahoe | 25.3 | Tested |
+| 15.5 Sequoia | 24.5 | Tested previously |
+| 15.0 Sequoia | 24.0 | Minimum deployment target |
+
+`sw_vers -productVersion` shows the macOS release; `uname -r` shows the Darwin version.
 
 **Prerequisites:**
 ```bash
@@ -168,27 +175,31 @@ cd "$MXE_ROOT" && make MXE_TARGETS='x86_64-w64-mingw32.static' gcc -j$(nproc)
 ```
 Then build Zero as above.
 
-### 2.5 Packaging on Linux
+### 2.5 Packaging
 
-**Recommended (current Zero naming):** After building, run:
+Each platform has a packaging script that stages `zerod`, `zero-cli`, `zero-tx`, and README from a finished build, writes an archive to `artifacts/`, and then rewrites `artifacts/SHA256SUMS` for everything in that directory. Staging happens in `bin/`; both directories are gitignored. The version comes from the configured tree (`X.Y.Z`, keeping a `-rcN` or `-betaN` suffix) unless `-v` is given. Every script takes `--help`, `-s` (skip stripping), and `-L` (capture a log).
 
-```bash
-./zcutil/release-linux.sh
-```
+| Platform | Run on | Command | Output |
+|----------|--------|---------|--------|
+| Linux | Linux, after `./zcutil/build.sh` | `./zcutil/release-linux.sh` | `linux-zero-v<ver>.tgz`, `linux-zero-v<ver>.deb` (`Package: zero`, with `zero-fetch-params`) |
+| macOS | macOS, after `./zcutil/build.sh` | `./zcutil/release-macos.sh [--sign IDENTITY] [--notarize PROFILE]` | `macos-zero-v<ver>-<arch>.zip` (with `zero-fetch-params`) |
+| Windows | Linux build host, after `./zcutil/build.sh -win` | `./zcutil/release-win.sh [--sign-pkcs12 FILE]` | `win-zero-v<ver>.zip` |
 
-Output: `artifacts/linux-zero-v<VERSION>.tgz` and `artifacts/linux-zero-v<VERSION>.deb` (`Package: zero`, includes `zero-fetch-params` when `zcutil/fetch-params.sh` is present). Version is semver from `src/zerod --version` unless `-v X.Y.Z`. Use `-s` to skip stripping; `-L` to capture log.
+The `.deb` `Version:` field writes a release-candidate suffix as `~rcN`, so Debian orders `4.1.0~rc1` before `4.1.0`. On macOS, `--sign` applies a Developer ID Application signature with the hardened runtime and a secure timestamp, and `--notarize` submits the zip with `xcrun notarytool` using a stored keychain profile; a zip of command-line tools cannot be stapled, so Gatekeeper checks the notarization online on first run. On Windows, `--sign-pkcs12` applies Authenticode with `osslsigncode` (password in `ZERO_AUTHENTICODE_PASS`). Without these options the archives are unsigned and the scripts warn.
 
-Default builds are **not** stripped. `release-linux.sh` strips unless you pass `-s`.
+`./zcutil/checksums.sh` writes `artifacts/SHA256SUMS` on its own, and `./zcutil/checksums.sh --verify` checks the directory against it. Run it after any signing step, because signing changes the files.
+
+Default builds are **not** stripped. The packaging scripts strip the staged copies unless you pass `-s`.
 
 ### 2.6 Release lifecycle
 
-**Version bump.** `configure.ac` (`_CLIENT_VERSION_*`), `src/config/bitcoin-config.h`, `src/clientversion.h`. After bump: build per §2, run contributor gate, confirm `zerod -version`.
+**Version bump.** `configure.ac` (`_CLIENT_VERSION_*`), `src/config/bitcoin-config.h`, `src/clientversion.h`. After bump: build per section 2, run contributor gate, confirm `zerod -version`.
 
 **Git.**
 
 Tag `vMAJOR.MINOR.PATCH` from the release line after a clean build and contributor gate. Archives: `Zero-<ver>-<target>-<triplet>.<ext>`.
 
-**Build and test.** Build per §2. Confirm the machine with `zcutil/check-setup.sh` and identity with `zcutil/check-release.sh --exact` when tagging (clean tree; HEAD must equal `--release`, default **v4.0.1**). Then `zcutil/build-release.sh` if you still need a compile, and:
+**Build and test.** Build per section 2. Confirm the machine with `zcutil/check-setup.sh` and identity with `zcutil/check-release.sh --exact` when tagging (clean tree; HEAD must equal `--release`, default **v4.1.0-rc1**). Then `zcutil/build-release.sh` if you still need a compile, and:
 
 ```bash
 ./contrib/run-tests.sh --strict
@@ -196,9 +207,19 @@ Tag `vMAJOR.MINOR.PATCH` from the release line after a clean build and contribut
 
 Or `./contrib/run-tests.sh --strict` if a receipt already exists. Logs: `.build/test-logs/`. Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`. On failure: [TEST_ZERO.md](TEST_ZERO.md).
 
-**Package.** `zcutil/release-linux.sh` stages stripped binaries into tarball and .deb. `contrib/devtools/split-debug.sh` exists for separate debuginfo but is not wired in.
+**Package.** Run the packaging script for each shipped platform (section 2.5). `contrib/devtools/split-debug.sh` exists for separate debuginfo but is not wired in.
 
-**Checksum and sign.** Do this during release prep (same sitting as tag + package), not after the GitHub Release is published. Unsigned CI artifacts are not releases. Until the procedure is written: `SHA256SUMS` for every artifact; detached GPG over the sums file for Linux; macOS Developer ID + notarization (stapler) for shipped binaries; Authenticode if a Windows PE ships. Operator verify steps belong in this section when ready. RC recording (present vs explicitly missing): [TEST_ZERO.md](TEST_ZERO.md) §8.
+**Checksum and sign.** Do this during release prep (same sitting as tag + package), not after the GitHub Release is published. Unsigned CI artifacts are not releases. Sign macOS and Windows binaries with the packaging script options, collect all archives in one `artifacts/` directory, run `./zcutil/checksums.sh`, then sign the sums file: `gpg --armor --detach-sign artifacts/SHA256SUMS`. Publish the archives, `SHA256SUMS`, and `SHA256SUMS.asc` together. RC recording (present vs explicitly missing): [TEST_ZERO.md](TEST_ZERO.md) section 8.
+
+**Verify a download.** In the download directory:
+
+| Platform | Commands |
+|----------|----------|
+| Linux | `sha256sum --ignore-missing -c SHA256SUMS` and `gpg --verify SHA256SUMS.asc SHA256SUMS` |
+| macOS | `shasum -a 256 --ignore-missing -c SHA256SUMS`; after unzipping, `codesign --verify --strict zerod` and `spctl --assess --type execute -v zerod` |
+| Windows (PowerShell) | `Get-FileHash -Algorithm SHA256 win-zero-v<ver>.zip` and compare with the line in `SHA256SUMS`; `signtool verify /pa zerod.exe` (Windows SDK) |
+
+`--ignore-missing` skips lines for archives of other platforms that were not downloaded.
 
 ### 2.7 Compiler and release flags
 
@@ -207,7 +228,7 @@ Or `./contrib/run-tests.sh --strict` if a receipt already exists. Logs: `.build/
 | `depends/hosts/linux.mk` (darwin, mingw32) | `-O1 -pipe` | Via `config.site`. Zcash-inherited. Bitcoin Core uses `-O2`. |
 | `zcutil/build-native.sh` | `CXXFLAGS='-g'` | Always. Inflates objects; suppresses `-Wall`/`-Wextra` via `CXXFLAGS_overridden`. |
 | `zcutil/build-win.sh` | `CXXFLAGS="-DPTW32_STATIC_LIB ..."` | No `-g`; inherits `-O1`. |
-| `zcutil/release-linux.sh` | `strip` | Strips staged binaries by default. |
+| `zcutil/release-*.sh` | `strip` | Strip staged binaries by default. |
 | `contrib/devtools/split-debug.sh` | `objcopy --only-keep-debug` | Not wired into release. |
 
 
@@ -302,7 +323,7 @@ Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 | Component | Version | Recipe / lock | Notes for builders / porters |
 |-----------|---------|---------------|------------------------------|
 | BerkeleyDB | 6.2.32 | `bdb.mk` | Wallet format 6.2.x; **6.2.32** fixes ARM64 mutex issues vs 6.2.23. AGPLv3. Built via depends, not optional for default wallet. |
-| Boost | 1.88.0 | `boost.mk` | Node + tests. Darwin needs **`--toolset=clang`** and often **`-Wno-enum-constexpr-conversion`** (§5.2). |
+| Boost | 1.88.0 | `boost.mk` | Node + tests. Darwin needs **`--toolset=clang`** and often **`-Wno-enum-constexpr-conversion`** (section 5.2). |
 | OpenSSL | 1.1.1w | `openssl.mk` | RPC TLS and legacy EVP call sites. **1.1.1 is EOL upstream**; **project decision:** stay on **1.1.1w** in **`depends`** until a scheduled, audited move to **OpenSSL 3.x** (or removal) with EVP/TLS regression tests. |
 | libsodium | 1.0.21 | `libsodium.mk` | Crypto; URL pinned to GitHub releases. |
 | libevent | 2.1.12 | `libevent.mk` | Network stack. |
@@ -335,7 +356,7 @@ Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 |------|---------|
 | Normal build from clean or dirty tree | **`./zcutil/build.sh -jN`** |
 | Rebuild after editing **`src/`** only | **`make -jN`** (keep existing **`config.status`**) |
-| Reconfigure after **`./autogen.sh`** | **`CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure ...`** then **`make`** (see §6.2) |
+| Reconfigure after **`./autogen.sh`** | **`CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure ...`** then **`make`** (see section 6.2) |
 | Depends library version bump | **`make -C depends`** then reconfigure + **`make`** |
 | Bare **`./configure`** at repo root | **Avoid** -- misses BDB and other depends unless you pass **`CONFIG_SITE`** and **`--prefix=depends/$HOST`** |
 
@@ -349,13 +370,15 @@ CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
 make -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 ```
 
-Extra options (e.g. **`ENABLE_SYSTEM_COMMAND`**) go in **`CONFIGURE_FLAGS`** for **`build.sh`**, or on the **`./configure`** line when configuring manually. Per-platform flag details: §5.
+Extra options (e.g. **`ENABLE_SYSTEM_COMMAND`**) go in **`CONFIGURE_FLAGS`** for **`build.sh`**, or on the **`./configure`** line when configuring manually. Per-platform flag details: section 5.
 
 ### 4.3 Depends layout
 
 - Each library is a `depends/packages/<name>.mk` recipe (version, URL, hash).
 - **Portable `sed`:** recipes use `build_SED_INPLACE` (`sed -i.old` style). Do not use bare `sed -i`.
 - Checksums: Linux `sha256sum`, Darwin `shasum -a 256`.
+
+**Sharing depends between clones.** `depends/sources/` holds downloaded archives and is path-independent; several clones or worktrees can share one download directory with `SOURCES_PATH=/path/to/shared/sources`. `depends/built/` (override: `BASE_CACHE`) holds built packages whose files record the absolute prefix of the clone that built them, and its cache key does not include that path. Keep it per clone: do not copy `depends/built/` between clones, and after moving or renaming a clone run the clean rebuild in section 6.6.
 
 ### 4.4 zcutil/build.sh
 
@@ -388,15 +411,15 @@ Extra options (e.g. **`ENABLE_SYSTEM_COMMAND`**) go in **`CONFIGURE_FLAGS`** for
 | `--disable-mining` | Exclude mining code |
 | `--enable-ccache` | Use ccache (default: auto) |
 
-#### 4.6.1 Shell notify hooks (OPS-SHELL)
+#### 4.6.1 Shell notify hooks
 
-Three optional flags run an **external shell command** when an event occurs. Each substitutes **`%s`** in the command string (block hash, transaction id, or sanitized alert text), then invokes the system shell via **`::system()`**:
+Three optional flags run an **external shell command** when an event occurs. Each substitutes **`%s`** in the command string (block hash, transaction id, or sanitized warning text), then invokes the system shell via **`::system()`**:
 
 | Flag | Trigger |
 |------|---------|
 | **`-blocknotify=<cmd>`** | Active chain tip changes |
 | **`-walletnotify=<cmd>`** | Wallet sees a new or updated transaction |
-| **`-alertnotify=<cmd>`** | Deprecation or network alert text is emitted |
+| **`-alertnotify=<cmd>`** | Deprecation, long-fork, or unexpected block-rate warning |
 
 **Default (release) builds do not execute these commands.** The hooks are gated at **compile time** by **`ENABLE_SYSTEM_COMMAND`**. If the flag is not set at build time, **`zerod`** logs that the notification was skipped and continues -- secure by default; opt-in only when the operator deliberately rebuilds.
 
@@ -411,7 +434,7 @@ make -j$(nproc)
 
 Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine one regtest block, confirm the log line appears **only** on an **`ENABLE_SYSTEM_COMMAND`** build.
 
-**Why the gate exists.** Inherited Bitcoin Core behavior turns the node into a shell launcher. Config values come from **`zero.conf`** and the command line; even with sanitization on alert text, a mistaken or hostile config can run arbitrary commands as the **`zerod`** user. Most deployments use **ZMQ** or RPC polling instead; compile-time opt-in shrinks the attack surface of default binaries.
+**Rationale.** Inherited Bitcoin Core behavior turns the node into a shell launcher. Config values come from **`zero.conf`** and the command line; even with sanitization on warning text, a mistaken or hostile config can run arbitrary commands as the **`zerod`** user. Most deployments use **ZMQ** or RPC polling instead; compile-time opt-in shrinks the attack surface of default binaries.
 
 **When shell hooks are still appropriate**
 
@@ -419,7 +442,7 @@ Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine on
 |----------|---------|-------|
 | Legacy automation | **`blocknotify`** runs a fixed path script that touches a flag file for an old indexer | Prefer **`-zmqpubhashblock`** for new work |
 | Wallet-driven ops | **`walletnotify`** appends txid to a fifo for a custom accounting daemon | Wallet must be enabled; high volume can spawn many threads |
-| Deprecation / alert path | **`alertnotify`** emails or pages on deprecation banner (see GTest **`DeprecationTest.AlertNotify`**) | P2P alert relay is obsolete; deprecation still calls **`CAlert::Notify`** |
+| Node warnings | **`alertnotify`** emails or pages on a deprecation or long-fork warning (GTest **`DeprecationTest.AlertNotify`**) | Fires on this node's own warnings only |
 
 **Preferred alternatives (no shell)**
 
@@ -429,7 +452,7 @@ Verify: set **`-blocknotify='echo test >> /tmp/zero-blocknotify.log'`**, mine on
 | New tx | **`-zmqpubhashtx=...`**, **`-zmqpubrawtx=...`** |
 | Wallet activity | Poll **`listtransactions`** / **`zs_listtransactions`** from a sidecar, or ZMQ raw tx |
 
-**Testing:** GTest **`DeprecationTest.AlertNotify`** covers **`-alertnotify`**. See **TEST_ZERO.md** / **TODO.md** for notify coverage status.
+**Testing:** GTest **`DeprecationTest`** covers default-build `-alertnotify`, `-blocknotify`, and `-walletnotify`.
 
 
 ### 4.7 Depends recipe troubleshooting
@@ -454,11 +477,11 @@ GCC 7.0+ for C++14. Manual build: `make -C depends`, then `CONFIG_SITE=$PWD/depe
 
 ### 5.2 macOS ARM64
 
-Apple Clang. Configure with `--enable-proton=no` and `CXXFLAGS="-g -Wno-enum-constexpr-conversion"` (Boost/Clang). BDB mutex crash: see §6.2.
+Apple Clang. Configure with `--enable-proton=no` and `CXXFLAGS="-g -Wno-enum-constexpr-conversion"` (Boost/Clang). BDB mutex crash: see section 6.2.
 
 ### 5.3 Windows
 
-Cross-compile from Linux via MXE. See §2.4 for full steps. Manual: `make HOST=x86_64-w64-mingw32 -C depends`, configure with `--host`, make in `src/` with mingw compilers.
+Cross-compile from Linux via MXE. See section 2.4 for full steps. Manual: `make HOST=x86_64-w64-mingw32 -C depends`, configure with `--host`, make in `src/` with mingw compilers.
 
 ---
 
@@ -474,7 +497,7 @@ Run `./zcutil/fetch-params.sh` before starting zerod.
 
 ### 6.2 Berkeley DB
 
-BDB **6.2.32** (depends). Used for wallet storage. Wallet-enabled builds require depends + **`CONFIG_SITE`** (see §4.2).
+BDB **6.2.32** (depends). Used for wallet storage. Wallet-enabled builds require depends + **`CONFIG_SITE`** (see section 4.2).
 
 **`libdb_cxx headers missing` on configure:** You ran **`./configure`** without **`CONFIG_SITE`**, or depends was not built for the current **`HOST`**. Fix:
 
@@ -491,7 +514,7 @@ Or run **`./zcutil/build.sh`**, which does this automatically. Do **not** use **
 
 **Mutex crash (macOS):** `rm -rf "$HOME/Library/Application Support/zero/database"` and restart.
 
-**`-bind_at_load` linker warning (macOS):** Manual **`make`** or **`make check-symbols`** without **`MACOSX_DEPLOYMENT_TARGET`** can print **`ld: warning: -bind_at_load is deprecated on macOS`**. GNU libtool adds the flag when the env var is unset (defaults to **`10.0`**). **`./zcutil/build.sh`** exports **`MACOSX_DEPLOYMENT_TARGET=15.0`**; for manual builds run **`export MACOSX_DEPLOYMENT_TARGET=15.0`** first. Build still succeeds; warning is cosmetic. Permanent Makefile/configure export: postponed (**TODO**).
+**`-bind_at_load` linker warning (macOS):** Manual **`make`** or **`make check-symbols`** without **`MACOSX_DEPLOYMENT_TARGET`** can print **`ld: warning: -bind_at_load is deprecated on macOS`**. GNU libtool adds the flag when the env var is unset (defaults to **`10.0`**). **`./zcutil/build.sh`** exports **`MACOSX_DEPLOYMENT_TARGET=15.0`**; for manual builds run **`export MACOSX_DEPLOYMENT_TARGET=15.0`** first. Build still succeeds; warning is cosmetic. Permanent Makefile/configure export: postponed (**TODO** OPS-MACOS-DEPLOY-TARGET).
 
 ### 6.3 Boost / GCC
 
@@ -507,13 +530,23 @@ The Qt desktop wallet is built elsewhere. This repo builds only `zerod`, `zero-c
 
 ### 6.6 Clean Rebuild
 
+`depends/` has no `clean` target; remove its generated directories instead. Downloaded sources in `depends/sources/` can stay.
+
 ```bash
-make clean && make distclean
-cd depends && make clean && cd ..
-./autogen.sh
-CONFIG_SITE=$PWD/depends/$HOST/share/config.site ./configure ...
-make -j4
+make distclean
+rm -rf depends/$HOST depends/built/$HOST depends/work
+./zcutil/build.sh
 ```
+
+`$HOST` is the depends host triplet, the directory name under `depends/` (for example `x86_64-pc-linux-gnu` or `aarch64-apple-darwin25.3.0`).
+
+**Moved or copied clone.** depends installs packages with an absolute prefix (`<clone>/depends/$HOST`), and its pkg-config files and the configure output record that path. After renaming or moving a clone, or copying `depends/built/` from another clone, the build still searches the old location (linker warning `search path '<old path>/depends/...' not found`), and would link the old libraries if that directory existed. Check with:
+
+```bash
+grep -rl "<old clone path>" depends/$HOST/lib/pkgconfig config.status src/Makefile
+```
+
+If anything matches, run the clean rebuild above. A fresh clone that builds its own `depends/` is not affected.
 
 ### 6.7 Build Log
 

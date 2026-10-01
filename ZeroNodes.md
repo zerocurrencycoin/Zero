@@ -1,105 +1,84 @@
 # Zero Nodes -- zeronode operator guide
 
-## 1. Purpose and role
-
-**Purpose:** Run a **zeronode** on mainnet or testnet -- collateral, config, RPC, sporks, and what the node does on a deep reorg.
-
-**Include:** Operator setup, spork effects, coinbase order summary, P2P/discovery, operator-visible reorg policy.
-
-**Exclude:** `CZeronodeWalletInterface` and `--disable-wallet` (**`ZeroNodeDev.md`**); TNT execution catalog (**`UpdateZero.md`** section **3.5**); ZND anchors (**`ZeroNodeDev.md`** section **4**); test phases (**`ZeroNodeDev.md`** section **5**); file map (**`~/Work/ZK/ZeroPerf/TENTZero.md`**); emission tables (**`ZERO_COIN.md`**); family reorg compare (**`~/Work/ZK/ZKs/Comparison.md`** section **14.5**); insight/explorer flags (**`ZeroStruct.md`**).
-
-Developer documents in **UpdateZero.md** section **1**. **Developers:** **`ZeroNodeDev.md`**.
+How to run a zeronode on mainnet or testnet: collateral, configuration, sporks, coinbase payments, and node behavior on a deep reorg. Source for the public operator section in BUILD_ZERO (ZN-01 in ZeroNodeDev.md).
 
 ---
 
-## 2. What a zeronode is
+## 1. What a zeronode is
 
-Zero's zeronode layer is a renamed port of frozen TENT masternode code. File map: **`~/Work/ZK/ZeroPerf/TENTZero.md`**.
+A zeronode is a full node that locks exactly **10,000 ZER** of collateral in one UTXO and in return receives a share of each block reward once the payment sporks are on. Zero's zeronode layer is a renamed port of TENT's masternode code (`src/zeronode/`).
 
-- **Collateral:** 10,000 ZER locked UTXO (exact amount)
-- **Payment:** 20% -> 40% of block subsidy by 800k tiers, spork-gated
-- **Services:** SwiftTX (`SPORK_2` / `SPORK_3` **on** mainnet since 1558907000; do not strip -- **DEF-06**), budget/superblocks (those sporks remain off), P2P extensions
-
-Code: **`src/zeronode/`**.
+- **Payment:** 20% of the block subsidy, rising by 5% every 800,000 blocks to 40%, when the payment sporks are enabled.
+- **Services:** zeronode list and payment voting, SwiftTX instant locks (sporks `SPORK_2` and `SPORK_3` are on mainnet), and budget superblocks (sporks off).
 
 ---
 
-## 3. Coinbase order
+## 2. Coinbase order
 
 1. `GetBlockSubsidy(height)`
-2. Founders **7.5%** (mainnet heights 412300-7999999)
-3. Zeronode payee (`GetZeronodePayment` or budget)
-4. Miner + fees
+2. Founders output, 7.5% (mainnet heights 412300 to 7999999)
+3. Zeronode payee (`GetZeronodePayment`, or the budget payee when superblocks are on)
+4. Miner, plus fees
 
-Amounts and `contrib/stats/` commands: **`ZERO_COIN.md`**.
+Payee amounts must match exactly; overpayment to the winner is logged as `OVERPAY`.
 
 ---
 
-## 4. Sporks
+## 3. Sporks
 
-Unsigned default for these IDs is **off** (timestamp `4070908800`). Mainnet uses signed sporks. Regtest tests that need payees must activate the relevant sporks with `createsporkkeys` / `spork`.
+Sporks are network-wide switches signed with the spork key. The unsigned default for the IDs below is off (timestamp `4070908800`); mainnet uses signed values. Regtest tests that need payees activate sporks with `createsporkkeys` and `spork`. Mechanics and key status: ZeroNodeDev.md section 6.
 
 | Spork | Effect |
 |-------|--------|
-| `SPORK_7_ZERONODE_PAYMENT_ENABLED` | Master zeronode pay switch |
-| `SPORK_6_ZERONODE_FULL_PAYMENT_ENABLED` | Tier schedule vs 100000 zat fixed |
+| `SPORK_7_ZERONODE_PAYMENT_ENABLED` | Master switch for zeronode payments |
+| `SPORK_6_ZERONODE_FULL_PAYMENT_ENABLED` | Tiered schedule instead of a fixed 100,000 zatoshis |
 | `SPORK_8_ZERONODE_PAYMENT_ENFORCEMENT` | Reject blocks that fail payee checks |
 | `SPORK_13_ENABLE_SUPERBLOCKS` | Budget payee path |
-| `SPORK_2_SWIFTTX` | SwiftTX instant-lock (mainnet **on**) |
-| `SPORK_3_SWIFTTX_BLOCK_FILTERING` | SwiftTX in blocks (mainnet **on**) |
+| `SPORK_2_SWIFTTX` | SwiftTX instant locks (mainnet on) |
+| `SPORK_3_SWIFTTX_BLOCK_FILTERING` | SwiftTX conflict filtering in blocks (mainnet on) |
 
 ---
 
-## 5. Operator setup
+## 4. Setup
 
 ```bash
 ./zcutil/fetch-params.sh
 ./src/zerod -daemon
 ./src/zero-cli zeronode genkey
-# zeronode.conf: alias MN1 <ip>:23801 <privkey> <txid> <vout>
-./src/zero-cli zeronode startalias MN1
+# send exactly 10000 ZER to an address in this wallet; wait for confirmations
+./src/zero-cli getzeronodeoutputs
 ```
 
-**Ports:** mainnet P2P **23801**, RPC **23811**. **Datadir:** [README datadir table](README.md#data-directory-zeroconf-wallet-chain).
+`zero.conf` on the zeronode host:
 
-**Wallet-disabled build:** stub interface -- **`ZeroNodeDev.md`**.
+```text
+zeronode=1
+zeronodeprivkey=<key from zeronode genkey>
+externalip=<public ip>:23801
+```
 
----
+`zeronode.conf` in the data directory (override with `-znconf`), one line per zeronode:
 
-## 6. Deep reorg
+```text
+MN1 <public ip>:23801 <zeronodeprivkey> <collateral txid> <output index>
+```
 
-Settled policy: **do not apply** a reorg or unintended rewind deeper than **99** blocks (`MAX_REORG_LENGTH = 100 - 1` in `main.h`). Coinbase **maturity** is **720** (when a coinbase UTXO may be spent). Those numbers are not interchangeable.
+Then start it with `./src/zero-cli zeronode startalias MN1` (or `startzeronode "alias" "0" "MN1"`).
 
-If a most-work fork would disconnect **more than 99** blocks, this node logs, shows a modal, and **`StartShutdown()`**. The fork is **not** connected. The same bound applies to an unintended rewind at startup.
-
-A reorg of **100--719** blocks therefore takes this process **off relay** while collateral can still be immature. That is accepted operator behavior, not a pending cap change. Do not raise 99 toward 720 (witness cache is `WITNESS_CACHE_SIZE = MAX_REORG_LENGTH + 1` = 100 slots). Do not copy TENT unbounded follow.
-
-Family compare: **`~/Work/ZK/ZKs/Comparison.md`** section **14.5**. Catalog IDs **TNT-02** / **TNT-03**: **`UpdateZero.md`** section **3.5.1** (keep 99; no scheduled policy change).
-
----
-
-## 7. P2P
-
-**Discovery:** ten DNS seeds (`seed0`..`seed9`.zerocurrency.io); `peers.dat` via `CAddrDB`. No fixed IP seeds in `chainparamsseeds.h` today.
-
-**Zeronode extensions:** `spork`, `zn winner`, `zn announce`, `zn ping`, budget messages, SwiftTX locks. Dispatch: `src/main.cpp` else-branch after `notfound` -> `znodeman`, `budget`, `zeronodePayments`, SwiftTX, spork, `zeronodeSync`. Handled commands do not emit `Unknown command` (**TNT-01** done in tree).
+**Ports:** mainnet P2P 23801, RPC 23811. **Data directory:** `~/.zero` (Linux), `~/Library/Application Support/zero` (macOS), `%APPDATA%\zero` (Windows). A wallet-disabled build cannot run a zeronode: collateral lookup and signing need the wallet.
 
 ---
 
-## 8. Testing
+## 5. Deep reorg
 
-Regtest runner: **`TEST_ZERO.md`**. Zeronode phases A-F: **`ZeroNodeDev.md`** section **5**. Live coinbase checks: **`ZERO_COIN.md`** (`chain_stats.py`).
+A node refuses to apply a reorg, or an unintended rewind at startup, deeper than 99 blocks. Instead it logs the event, shows a modal, and shuts down; the competing fork is not connected. Coinbase maturity (720 blocks) is a separate rule.
+
+A reorg of 100 to 719 blocks therefore takes the zeronode off the network while its collateral may still be immature. The 99-block bound is tied to the size of the shielded witness cache; following unbounded reorgs, as TENT does, is rejected. Analysis and options: UpdateZero section 8.3.
 
 ---
 
-## 9. References
+## 6. P2P
 
-| Topic | Doc |
-|-------|-----|
-| Wallet interface / tests | **`ZeroNodeDev.md`** |
-| File map | **`~/Work/ZK/ZeroPerf/TENTZero.md`** |
-| TNT catalog | **`UpdateZero.md`** section **3.5** |
-| Economics | **`ZERO_COIN.md`** |
-| Reorg family | **`~/Work/ZK/ZKs/Comparison.md`** section **14.5** |
-| CVE posture | **`ZcashFixes.md`** |
-| Maintainer map | **`UpdateZero.md`** section **1** |
+**Discovery:** ten DNS seeds (`seed0`..`seed9.zerocurrency.io`) and `peers.dat`. There are no fixed IP seeds (REL-08); a node cannot find peers if DNS fails.
+
+**Zeronode messages:** `spork`, zeronode winner, announce, and ping, budget messages, and SwiftTX locks, dispatched in `src/main.cpp` after the standard messages to the zeronode manager, budget, payments, SwiftTX, spork, and sync handlers.

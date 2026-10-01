@@ -114,7 +114,6 @@ metricsui,metrics,,n,y,y,y
 metricsrefreshtime,metrics,,n,y,y,y
 shrinkdebugfile,debug,,y,y,y,y
 help-debug,debug,,y,y,y,y
-alerts,network,,y,y,y,y
 deleteconflicttx,wallet-hidden,,n,n,n,y
 enableswifttx,zeronode-hidden,,n,n,n,y
 swifttxdepth,zeronode-hidden,,n,n,n,y

@@ -208,6 +208,8 @@ testScriptsTierBFailRetired=(
     'mergetoaddress_sprout.py'
     'sprout_sapling_migration.py'
     'turnstile.py'
+    'zcjoinsplit.py'
+    'zcjoinsplitdoublespend.py'
 )
 
 testScriptsTierBFail=()

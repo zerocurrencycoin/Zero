@@ -1,65 +1,23 @@
 # Shielded witness rebuild and reindex coverage
-*Project Planning*
 
-**Status:** findings and proposals captured
-**Scope:** wallet `BuildWitnessCache` / note witnesses across `-reindex`
+Test coverage for wallet `BuildWitnessCache` and note witnesses across `-reindex`, and the two remaining options. Tracked as TST-WITNESS-REINDEX.
 
 ---
 
-## 1. Problem
+## 1. Current coverage
 
-No automated test exercises **shielded** witness rebuild on `-reindex`:
-
-| Existing | Covers |
-|----------|--------|
-| `qa/rpc-tests/reindex.py` (Tier A) | Transparent only: mine 3, `-reindex`, `getblockcount` |
-| `WalletTests.CachedWitnessesEmptyChain/ChainTip/DecrementFirst` | Forward cache semantics in gtest (in gate) |
-| `WalletTests.CachedWitnessesCleanIndex` | Intended reindex-style rebuild -- **quarantined** (see below) |
-
-Quarantine filter: `qa/zcash/test_filters.sh` -- `GTEST_PASS_EXCLUDE` / `GTEST_FAIL_ONLY` for `WalletTests.CachedWitnessesCleanIndex`.
+| Test | Covers | Status |
+|------|--------|--------|
+| `qa/rpc-tests/reindex.py` | Transparent: mine, `-reindex`, `getblockcount` | Tier A |
+| `qa/rpc-tests/reindex_shielded.py` | A Sapling note stays spendable after `-reindex`, through real `BuildWitnessCache`, `pcoinsTip`, and `ReadBlockFromDisk` | Tier B pass |
+| `WalletTests.CachedWitnessesEmptyChain` / `ChainTip` / `DecrementFirst` | Forward witness cache semantics | GTest, in gate |
+| `WalletTests.CachedWitnessesCleanIndex` | Reindex-style rebuild in process | Quarantined (`qa/zcash/test_filters.sh` `GTEST_PASS_EXCLUDE` / `GTEST_FAIL_ONLY`) |
+| `rpc_zero_exclusive_tests` | RPC error **-33** while `fBuildingWitnessCache` is set (PIR-03) | Boost, in gate |
 
 ---
 
-## 2. Proposed `reindex_shielded.py` (preferred -- ExtTests B1)
+## 2. Remaining options
 
-**Goal:** regtest RPC script that proves Sapling notes remain spendable after `-reindex`.
+**Revive `CachedWitnessesCleanIndex`.** Do this only if in-process coverage is needed beyond `reindex_shielded.py`. The fixture needs `pcoinsTip` anchors and disk-backed blocks, which the default wallet fixture does not provide. Higher effort and risk than the RPC script it would duplicate.
 
-**Sketch:**
-
-1. `initialize_chain_clean`, one node, wallet on.  
-2. Mine to maturity (`COINBASE_MATURITY` = 720).  
-3. `z_getnewaddress` / `z_sendmany` (t->z or z->z), mine enough for spendability.  
-4. Record shielded balance / note count.  
-5. `stop` / restart with `-reindex` (and `-checkblockindex=1` optional).  
-6. Wait until tip restored; assert shielded balance unchanged and a further `z_sendmany` succeeds.
-
-**Tier:** Tier B pass (or Ext) once green -- not Tier A (maturity mining is slow).  
-**Effort:** M (~0.5–1 day) + **~5–20 min** per run.  
-**Why preferred over gtest CleanIndex:** real `pcoinsTip` + `ReadBlockFromDisk` + `BuildWitnessCache`; no harness faking.
-
-**Not started:** no `qa/rpc-tests/reindex_shielded.py` in tree yet.
-
----
-
-## 3. CleanIndex gtest (ExtTests B2) -- postponed
-
-Revive `CachedWitnessesCleanIndex` only if in-process coverage is required after B1. Needs harness `pcoinsTip` anchors + disk-backed blocks. Higher risk/effort than B1.
-
----
-
-## 4. Witness read-path hardening (ExtTests C) -- postponed
-
-Replace `assert` on inconsistent witness roots in `GetSproutNoteWitnesses` / `GetSaplingNoteWitnesses` with logged skip + `boost::none`. Separate reviewed change; consensus-adjacent wallet behavior.
-
----
-
-## 5. Related tracks (do not merge into this task)
-
-| Track | Relation |
-|-------|----------|
-| **OPS-AT-HEIGHT** / **AtHeight.md** | Mainnet short/tiny snaps; no `-stopatheight` |
-| **OPS-REINDEX-RESUME** | File-cursor resume (`L`/`H`) -- shipped |
-| **OPS-REINDEX-CONF** | Sticky `reindex=` warn (loud); refuse postponed |
-| **TST-08** / PIR-03 | `-33` while `fBuildingWitnessCache` -- separate |
-| **EXT-INSIGHT-FIXTURES** | Insight RPC promote -- orthogonal |
-
+**Witness read-path hardening.** `GetSproutNoteWitnesses` / `GetSaplingNoteWitnesses` (`src/wallet/wallet.cpp`) `assert` that each witness root matches the anchor. Proposal: replace the asserts with a logged skip returning `boost::none`, so a corrupt or empty witness cache cannot abort the node. This is consensus-adjacent wallet behavior and needs its own reviewed change and a test that feeds an inconsistent cache.

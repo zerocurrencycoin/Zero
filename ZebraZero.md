@@ -1,17 +1,8 @@
 # Zebra to Zero -- port suggestions
-*Project Planning*
 
-## 1. Purpose and role
+## 1. Purpose
 
-**Purpose:** What Zero could adopt from **Zebra** (`zebrad`) and related stacks (YEC fork, CipherScan reference) -- sidecar validation, verifier lessons, post-Insight architecture study. **Not** a rewrite of zerod in Rust.
-
-**Include:** Port strategies A-D; Orchard/NU6.2 lessons; Sprout CVE posture; YEC/`ycash-zebra` facts; CipherScan layer table for ZEC.
-
-**Exclude:** zerod datadir and use-case flags (**`ZeroStruct.md`**); ecosystem/indexer compare (**`Comparison.md`**); TNT/ZND zeronode ports (**`ZeroNodeDev.md`**).
-
-Developer documents in **UpdateZero.md** section **1**, **Documentation map**.
-
-Clone paths: `~/Work/ZK/ZKs/zebra`, `~/Work/ZK/ZKs/ycash-zebra`. Index: **`ZKRepos.md`**. CVE timeline: **`ZcashFixes.md`**.
+What Zero could adopt from Zebra (`zebrad`) and related stacks (the Ycash fork, the CipherScan explorer): sidecar validation, verifier design, and post-Insight architecture. Not a rewrite of zerod in Rust.
 
 ---
 
@@ -30,9 +21,9 @@ Zebra is an alternate **full-node validator**, not a drop-in replacement for `ze
 
 ---
 
-## 3. Realistic port strategies (ordered)
+## 3. Port strategies
 
-### A. Sidecar validator (lowest risk)
+### A. Sidecar validator
 
 Run **zebrad** beside Zero for cross-checking on **Zcash** (not ZER chain):
 
@@ -41,95 +32,65 @@ Run **zebrad** beside Zero for cross-checking on **Zcash** (not ZER chain):
 
 **Effort:** ops + monitoring. **No Zero code merge.**
 
-### B. Cherry-pick verification architecture (medium)
+### B. Verification architecture
 
 Zero already uses `ProofVerifier::Strict()` on connect. Adopt **Zebra-style explicit verifier routing** without Rust:
 
-- Height -> Sprout/Sapling verify policy table (mirrors `verifier_for(network_upgrade)` in **`ZcashFixes.md`** Part 1.4)
+- Height -> Sprout/Sapling verify policy table (like Zebra's `verifier_for(network_upgrade)`, **`ZcashFixes.md`** section **2.4**)
 - Pin Groth16 params hash in release notes
 - Regression tests that fail if ConnectBlock skips JoinSplit verify
 
 **Files:** `main.cpp`, `qa/rpc-tests/` sprout/turnstile tests.
 
-### C. Rust FFI proof crate (high)
+### C. Rust FFI proof crate
 
 Extract `zebra-consensus` verify into a shared `.so` called from Zero. Defer unless Orchard is on the roadmap.
 
-### D. Full node rewrite (not recommended)
+### D. Full node rewrite
 
 Replacing `zerod` with Zebra loses wallet, zeronode, Insight hooks, and qa harness.
 
 ---
 
-## 4. Orchard / NU6.2 lessons (if Zero ever adds Orchard)
+## 4. Orchard and Sprout implications
 
-Zebra 4.5.3 + 5.0.0 sequence:
+If Zero ever adds Orchard, follow the Zebra 4.5.3 / 5.0.0 pattern (emergency consensus disable, NU with a new pinned verifying key, dual keys for historical sync, strict proof length) and study it on Zcash `zebrad`, not assetchain testnets. Zero has no NU5 in `consensus/upgrades.cpp`.
 
-1. Emergency disable Orchard actions at consensus height
-2. NU hard fork with new **pinned verifying key**
-3. **Dual keys** for historical sync (`VERIFYING_KEY_PRE_NU6_2` / `POST_NU6_2`)
-4. Strict Orchard proof length rule
+Zebra and Zero were both unaffected by the Sprout `fChecked` CVE. **Do not port `fChecked` from upstream zcashd.** Diff `ConnectBlock` on each zcashd security tag. Zero analysis and the Sprout wind-down proposal: **`ZcashFixes.md`** sections **7**-**8**.
 
-Zero has no NU5 in `consensus/upgrades.cpp`. Study on **Zcash** `zebrad` + **`ZcashFixes.md`**, not assetchain testnets.
+P2P features Zero lacks (addrv2, ASMap, I2P) are catalogued as PIR-06..08 in **UpdateZero.md** section **3.4**.
 
 ---
 
-## 5. Sprout CVE posture (Zero-specific win)
-
-Zebra was never affected by Sprout `fChecked` (CVE-2026-35679). Zero is also unaffected. **Do not port `fChecked` from upstream zcashd.**
-
-Process: subscribe to ZFND/ZODL releases; diff `ConnectBlock` on each zcashd security tag. Sprout sunset plan: **`ZcashFixes.md`** Part 3.
-
----
-
-## 6. Network stack ideas
-
-Features Zero lacks (study Bitcoin Core merges):
-
-| Feature | In Zero? | Reference |
-|---------|----------|-----------|
-| BIP155 addrv2 | No | [BIP 155](https://github.com/bitcoin/bips/blob/master/bip-0155.mediawiki) |
-| ASMap | No | Bitcoin Core `doc/asmap.md` |
-| I2P SAM proxy | No | Bitcoin Core `-i2psam` |
-
----
-
-## 7. Testing / CI patterns from Zebra
+## 5. Testing / CI patterns from Zebra
 
 - Block replay tests after consensus changes
-- Fuzz deserializers (no dedicated Zero fuzz targets in tree yet)
+- Fuzz deserializers (Zero: TST-06)
 - Optional: regtest block from `zerod` vs pinned `zebrad` on Zcash testnet
 
 ---
 
-## 8. Suggested execution order
+## 6. Suggested execution order
 
 1. Sidecar `zebrad` on **Zcash** mainnet (no Zero code change)
 2. ConnectBlock JoinSplit verify regression test
-3. Sprout sunset NU proposal (**`ZcashFixes.md`** Part 3)
+3. Sprout wind-down proposal (**`ZcashFixes.md`** section **8**)
 4. Rust FFI only if Orchard approved
 
 ---
 
-## 9. Ycash (YEC) and `ycash-zebra`
+## 7. Ycash and `ycash-zebra`
 
 Ycash is the only zcash-lineage clone in this workspace that **ships a Zebra fork** for its own chain. Pirate, TENT, and Zero do **not** integrate Zebra code.
 
-### 8.1 Clones
+### 7.1 Repos
 
-| Repo | Path | Upstream | Role |
-|------|------|----------|------|
-| Ycash Zebra | `~/Work/ZK/ZKs/ycash-zebra` | [ycashfoundation/zebra](https://github.com/ycashfoundation/zebra) | Rust full-node fork (tracks [ZcashFoundation/zebra](https://github.com/ZcashFoundation/zebra)) |
-| Ycash zcashd | `~/Work/ZK/ZKs/ycash` | [ycashfoundation/ycash](https://github.com/ycashfoundation/ycash) | **Authoritative YEC consensus** until `ycash-zebra` params are verified |
+| Repo | Upstream | Role |
+|------|----------|------|
+| Ycash Zebra | [ycashfoundation/zebra](https://github.com/ycashfoundation/zebra) | Rust full-node fork tracking [ZcashFoundation/zebra](https://github.com/ZcashFoundation/zebra) |
+| Ycash zcashd | [ycashfoundation/ycash](https://github.com/ycashfoundation/ycash) | **Authoritative YEC consensus** until `ycash-zebra` params are verified |
 
-```bash
-cd ~/Work/ZK/ZKs
-git clone --depth 1 https://github.com/ycashfoundation/zebra.git ycash-zebra
-git clone --depth 1 https://github.com/ycashfoundation/ycash.git ycash
-git -C ycash-zebra pull --ff-only
-```
-
-### 8.2 YEC chain facts (from `ycash` / foundation docs)
+### 7.2 YEC chain facts
 
 | Item | YEC | Zero (ZER) |
 |------|-----|------------|
@@ -145,7 +106,7 @@ git -C ycash-zebra pull --ff-only
 
 Sources: [Ycash fork docs](https://www.ycash.xyz/docs/the_fork/), [mining pool notes](https://www.ycash.xyz/docs/mining_pool_setup/), `ycash/src/chainparams.cpp`, `ycash/src/consensus/upgrades.cpp`.
 
-### 8.3 Ycash Rust stack (not in Zero tree)
+### 7.3 Ycash Rust stack
 
 Ycash moved explorer/wallet off Insight to:
 
@@ -159,26 +120,26 @@ Ycash moved explorer/wallet off Insight to:
 
 No shared C++ with Zero. Useful as a **reference architecture** for leaving zcashd + Insight, not as a code port source.
 
-### 8.4 `ycash-zebra` vs ZFND `zebra`
+### 7.4 `ycash-zebra` vs ZFND `zebra`
 
-Shallow clone (Jun 2026): `ycash-zebra` tip tracks upstream Zebra workspace layout (`zebrad`, `zebra-chain`, `zebra-consensus`, ...). Parameter files under `zebra-chain/src/parameters/` still read as **Zcash network** constants in the checked tree; YEC-specific activation and address prefixes live in **`ycash`** (`ycashd`) today.
+`ycash-zebra` tracks upstream Zebra workspace layout (`zebrad`, `zebra-chain`, `zebra-consensus`, ...). Parameter files under `zebra-chain/src/parameters/` still read as **Zcash network** constants in the checked tree; YEC-specific activation and address prefixes live in **`ycash`** (`ycashd`) today.
 
 **Before treating `ycash-zebra` as a YEC mainnet node:** diff `ycash-zebra/zebra-chain/src/parameters/` against `ycash/src/chainparams.cpp` and `consensus/upgrades.cpp` (570k fork, 192,7, HRPs, subsidy). Until that diff is clean, use **`ycashd`** as the live YEC node reference and **`ycash-zebra`** as an upstream-tracking fork to watch.
 
-### 8.5 Relevance to Zero
+### 7.5 Relevance to Zero
 
 | Topic | Lesson |
 |-------|--------|
 | Equihash 192,7 | YEC and Zero share PoW shape; Ycash did not adopt Pirate's Zawy RT_CST_RST |
 | Node strategy | Ycash bet on **zebrad + lightwalletd**; Zero stays on **zerod + zeronode + Insight** |
-| Sprout audit | Ycash preserved Sprout; high priority for zcashd security backports (see **`ZcashFixes.md`** Appendix) |
+| Sprout audit | Ycash preserved Sprout; high priority for zcashd security backports (**`ZcashFixes.md`** section **6**) |
 | Orchard | YEC zcashd path stops at Sapling-era upgrades in tree sampled; no Zero Orchard either |
 
 Zero cannot run `ycash-zebra` against ZER chain without a full parameter port. Sidecar **`zebrad`** remains **Zcash-only** for security monitoring.
 
 ---
 
-## 10. CipherScan (ZEC reference indexer)
+## 8. CipherScan
 
 [CipherScan](https://cipherscan.app) is a **Zcash mainnet** explorer and API stack, not a zerod module. Useful as a reference for post-Insight architecture on **ZEC**.
 

@@ -1,5 +1,6 @@
 # Height-bounded sync, reindex, and bootstrap
-*Project Planning*
+
+How to run mainnet reindex, resume, and bootstrap labs at a bounded height, given that Zero has no `-stopatheight`. Used for manual ops tests that are too large for CI.
 
 ---
 
@@ -18,35 +19,19 @@
 
 ---
 
-## 2. Lab measurements (mainnet, 2026-07)
+## 2. Lab archives
 
-### Persistent archives (host; not in git)
-
-**Canonical location only:** `~/Library/Application Support/zero/` (same dir as the full `chainblocks.tgz`). Extract into a dedicated lab datadir from that archive; do not duplicate the tarballs elsewhere.
+Mainnet snapshot archives live outside git. **Canonical location only:** `~/Library/Application Support/zero/` (same dir as the full `chainblocks.tgz`). Extract into a dedicated lab datadir from that archive; do not duplicate the tarballs elsewhere.
 
 | Artifact | Path under `Application Support/zero/` | Measured `-disablewallet -reindex` |
 |----------|----------------------------------------|-------------------------------------|
-| Full blocks+chainstate | `chainblocks.tgz` (~8.1 GiB) | Full tip ~8–10h class |
+| Full blocks+chainstate | `chainblocks.tgz` (~8.1 GiB) | Full tip, hours |
 | Short `blk00000..002` | `chainblocks-short.tgz` (~342 MiB) | Tip **245992**, wall **~274s** |
 | Tiny `blk00000..001` | `chainblocks-tiny.tgz` (~228 MiB) | Tip **187417**, wall **~198s** |
 
-Each short/tiny archive embeds offline insight `zero.conf` + `README.txt`. Do **not** commit tarballs into Zero400.
+Each short/tiny archive embeds offline insight `zero.conf` + `README.txt`. Do **not** commit tarballs into this repo.
 
-#### Size vs duration (tiny vs short)
-
-Measured `-disablewallet -reindex` on this host (rates = totals / wall seconds).
-
-| | Tiny (2 blk) | Short (3 blk) | `blk00002` only (short − tiny) |
-|--|--------------|---------------|--------------------------------|
-| Archive | 228 MiB | 342 MiB | 114 MiB |
-| Uncompressed `blk*.dat` | 256 MiB | 384 MiB | 128 MiB |
-| Tip height | 187417 | 245992 | 58575 |
-| Wall | 198 s | 274 s | 76 s |
-| **height/s** | **946.6** | **897.8** | **770.7** |
-| **archive MiB/s** | **1.15** | **1.25** | **1.50** |
-| **blk MiB/s** | **1.29** | **1.40** | **1.68** |
-
-Prefer **tiny** for most labs; **short** when a third completed file helps resume tests. Neither predicts tip reindex cost (see longhaul). Use a disposable lab datadir (never the golden tree); procedure in §4.1.
+Prefer **tiny** for most labs; **short** when a third completed file helps resume tests. Neither predicts full-tip reindex cost. Use a disposable lab datadir, never the golden tree; procedure in section **4.1**.
 
 **Networks:** same code paths on mainnet / testnet / regtest. **Data is not interchangeable** (magic, genesis, blk layout). Regtest remains the fast logic path (mine N blocks); short/tiny mainnet snaps are for mainnet-cost ConnectBlock behavior at low height.
 
@@ -77,9 +62,9 @@ Do **not** use sticky `reindex=` in conf. Prefer one-shot CLI `-reindex` and typ
 
 ## 4.1 Short snaps and resume -- step-by-step
 
-**Goal:** cheap mainnet ConnectBlock / reindex / resume labs without the full tip. Semantics: **ZeroStruct** §13.2 (`L`/`H`/`R`).
+**Goal:** cheap mainnet ConnectBlock / reindex / resume labs without the full tip. Semantics: **ZeroStruct** section **11.2** (`L`/`H`/`R`).
 
-### A. Unpack a short/tiny snap (once per lab dir)
+### A. Unpack a short or tiny snap
 
 ```bash
 # Canonical archives (macOS host example)
@@ -98,10 +83,10 @@ Use a **dedicated** `zero.conf` in `$LAB` (snap may ship one). Required ideas:
 - **No** `reindex=1` in conf.
 - Lab: `listen=0`, `maxconnections=0`, prefer `disablewallet=1`.
 
-### B. Fresh reindex of the snap (timed baseline)
+### B. Timed fresh reindex of the snap
 
 ```bash
-cd /path/to/Zero400
+cd /path/to/Zero
 ./src/zerod -datadir="$LAB" -disablewallet -reindex -daemon
 # Watch: grep -E 'Reindex source:|Reindex progress:|UpdateTip:|Reindexing finished' "$LAB/debug.log"
 ./src/zero-cli -datadir="$LAB" getblockcount   # tiny ~187417; short ~245992
@@ -110,7 +95,7 @@ cd /path/to/Zero400
 
 Expect log `Reindex source: -reindex argument` (or `DB_FLAG mismatch` if flags disagree). Progress lines after each completed `blk#####.dat`. Finish: `Reindexing finished`; `'R'` cleared; `L`/`H` kept as history.
 
-### C. Resume after interrupt (the resume lab)
+### C. Resume after an interrupt
 
 Interrupt only after at least one **completed** `blk#####.dat` so `L` advances (tiny: finish `blk00000` then stop in `blk00001`; short: same with three files). Stopping only mid-first-file leaves `L` unset/0 -- restart still looks like a short redo of file 0.
 
@@ -144,13 +129,13 @@ If you pass `-reindex` again on restart, that is a **new wipe**, not a resume.
 
 | Lab | Archive | Why |
 |-----|---------|-----|
-| Fast ConnectBlock / dbcache / FD | **tiny** (2 blk) | ~198s baseline |
+| Fast ConnectBlock / dbcache / FD | **tiny** (2 blk) | Shortest run |
 | Resume across a completed file boundary | **short** (3 blk) | Third file gives a clearer `L` step |
-| Full tip / longhaul | `chainblocks.tgz` into `zero-lab-reindex/` | Hours; optional rich monitor outside git |
+| Full tip | `chainblocks.tgz` into a lab datadir | Hours |
 
 ### E. Common mistakes
 
-1. Sticky `reindex=` in conf -- every restart wipes; loud warn only today.  
+1. Sticky `reindex=` in conf -- every restart wipes; zerod only warns.  
 2. Changing insight/txindex between runs -- forces wipe.  
 3. Expecting resume **at a height** -- cursor is **file** (`L`), `H` is tip after that file.  
 4. Running labs on the golden `Application Support/zero` tree -- extract to `$LAB` only.  
@@ -158,37 +143,21 @@ If you pass `-reindex` again on restart, that is a **new wipe**, not a resume.
 
 ---
 
-## 5. Tests: done vs appropriate next
+## 5. Test coverage
 
-| Layer | Status | Notes |
-|-------|--------|-------|
-| GTest `reindex_tests` | **Shipped** | Markers, `ReindexResumeStartFile` (incl. L+1 past last file), DB_FLAG insight/txindex round-trip (no live wipe) |
-| Short-snap timed reindex | **Manual once** | Tip 245992 / ~274s; not CI (archive size) |
-| Short-snap resume interrupt | **Appropriate manual** | Stop mid-`blk00001`, restart without `-reindex`, expect startfile redo; use persistent short tgz |
-| Conf `reindex=` warn | Covered by **OPS-REINDEX-CONF** | Loud warn shipped; refuse/`-reindexforce` postponed with **OPS-REINDEX** remainder |
-| Insight flip wipe | Lab-only | Destructive; short snap cheaper than full chain; do not run on golden |
-| `-stopatheight` / height-stop harness | **OPS-AT-HEIGHT** postponed | No daemon flag today |
-| Regtest logic | Prefer existing harness | Mine N blocks; do not use mainnet short snap |
+Automated: GTest `reindex_tests` covers the markers, `ReindexResumeStartFile` (including `L+1` past the last file), and the `DB_FLAG` insight/txindex round trip without a live wipe. Everything that needs mainnet blk files is manual under this doc, because unpacking the archives is too large for CI:
 
-**Not appropriate for default CI:** unpacking 342 MiB mainnet blks. Keep short-snap exercises as ops/manual under this doc.
+- Timed reindex of a tiny or short snap (section **4.1 B**).
+- Resume across a completed file boundary (section **4.1 C**).
+- Insight flag flip forcing a wipe: destructive, lab datadir only.
 
-## 6. Possible future work (postponed)
+Regtest logic stays in the RPC harness. Refusing sticky conf `reindex=` (`-reindexforce`) is the OPS-REINDEX remainder; a height-stop harness is **OPS-AT-HEIGHT**.
 
-Tracked as **OPS-AT-HEIGHT**. Candidates if ever scheduled (pick one; do not invent all):
+## 6. Postponed work
+
+Tracked as **OPS-AT-HEIGHT**. Candidates (pick one):
 
 - Port Bitcoin-style `-stopatheight` for bench / short reindex runs (debug category).  
-- Document-only: canonical short-snap + linearize `max_height` recipes (this file + ZeroStruct §13.7).  
 - Optional: log rate / per-blk-file duration (instrumentation), still no height stop.
 
-**Out of scope here:** OPS-REINDEX-SKIP (skip-wallet below H); skip-chain connect below H; assumeutxo.
-
----
-
-## 7. Cross-links
-
-- Reindex resume / DB_FLAG: **ZeroStruct** §13.1–13.2  
-- Bootstrap generate/install: **ZeroStruct** §13.7  
-- Fork index defaults: **`~/Work/ZK/ZKs/Comparison.md`** §12.6  
-- Insight ops: **`~/Work/ZK/insight/InsightBlock.md`**  
-- Tracking: **TODO.md** -- **OPS-AT-HEIGHT** (postponed)  
-- Shielded `-reindex` coverage (CleanIndex / `reindex_shielded`): **WitnessReindex.md** (**TST-WITNESS-REINDEX**, postponed)
+**Out of scope here:** skip-wallet below H (OPS-REINDEX remainder); skip-chain connect below H; assumeutxo.

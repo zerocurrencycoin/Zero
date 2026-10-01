@@ -205,8 +205,8 @@ walletpassphrasechange,wallet,y,y,y,y
 walletpassphrase,wallet,y,y,y,y
 resendwallettransactions,hidden,y,y,y,y
 zcbenchmark,wallet,n,y,y,y
-zcrawjoinsplit,wallet,n,y,y,y
-zcrawreceive,wallet,n,n,n,y
+zcrawjoinsplit,wallet,n,y,y,n
+zcrawreceive,wallet,n,n,n,n
 zcsamplejoinsplit,wallet,n,y,y,y
 z_converttex,wallet,n,y,n,n
 z_listreceivedbyaddress,wallet,n,y,y,y

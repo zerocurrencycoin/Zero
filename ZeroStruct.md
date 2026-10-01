@@ -1,19 +1,8 @@
 # Zero node structure
-*Project Planning*
 
-## 1. Purpose and role
+## 1. Purpose
 
-**Audience:** **zerod** maintainers and contributors (node internals, flags, datadir, client requirements from the daemon's side). Block explorer host admins and Insight/bitcore developers use **`~/Work/ZK/insight/InsightBlock.md`** as their primary runbook; this file only states what **zerod** must expose.
-
-**Purpose:** Explain **zerod** **data structures and the algorithms that process them** -- datadir / LevelDB keys, indexes, caches, concurrent updates and locking, `ConnectBlock` and wallet paths that hit those structures -- plus runtime **options by use case** and what each client needs the node to expose.
-
-**Include:** Datadir and LevelDB keys; `-dbcache` and cache split; flags tied to workloads; `ConnectBlock` index path; wallet ops that hit the chain; RPC clients; **external client integration** (Insight stack, zerowallet requirement matrices, cross-doc map); brief zeronode cache role. Occasional Zcash/Pirate notes **only** to orient on zerod today or likely direction.
-
-**Exclude:** Node **status FSM**, RPC soft-path conditions, and UI presentation maps (**`StatusTransitions.md`**); ecosystem/indexer compare (**`Comparison.md`**); port/cherry-pick execution (**`UpdateZero.md`**); zeronode operator/dev detail (**`ZeroNodes.md`**, **`ZeroNodeDev.md`**); wallet Qt UI (**`zerowallet400/UpdateWallet.md`**); local clone paths (**`ZKRepos.md`**); **zerocurrencycoin** org repo audit (**`~/Work/ZK/Repos/ZeroC.md`**); Insight nginx/Cloudflare/bitcore install steps (**`InsightBlock.md`**).
-
-**Set rule:** **`ZeroStruct` ⊆ zerod structures + algorithms + per-client requirements from the node's perspective**. Status readiness vocabulary lives in **StatusTransitions.md**. No Blockbook port plan (**UpdateZero** section **4**); no cross-fork indexer tables (**Comparison** section **12**); no GitHub org disposition (**Repos/ZeroC**). Integration concern IDs use prefix **INT-NN** (section **11.7**); do not reuse **C-NN** from **UpdateZero** section **8** Completed.
-
-Developer documents in **UpdateZero.md** section **1**, **Documentation map**. Regtest harness: **`TEST_ZERO.md`**.
+How zerod stores and processes chain, index, and wallet data: datadir and LevelDB layout, caches and `-dbcache`, the `ConnectBlock` and wallet paths that touch them, runtime options by workload, and what each client requires the node to expose. Integration concerns carry ids **INT-NN** (section **10.7**).
 
 ---
 
@@ -41,13 +30,13 @@ All use cases share one datadir, one **`ConnectBlock`** path, and one UTXO set. 
 | lightwalletd | txindex, synced | Client viewing keys only |
 | `chain_stats.py --dev` | insight on listed t-addrs | Those addresses only |
 
-Explorer nodes are often **watch-only** (no spending keys) but still hold full chain + indexes. Deployment topology, ports, and operator checklists: **section 11**; Insight ops runbooks: **`~/Work/ZK/insight/`**; wallet connect flow: **`~/Work/ZK/zerowallet400/UpdateWallet.md`**.
+Explorer nodes are often **watch-only** (no spending keys) but still hold the full chain and indexes.
 
 ```mermaid
 flowchart TB
   P2P["P2P peers :23801"] --> val
 
-  subgraph zerod ["zerod — single process"]
+  subgraph zerod ["zerod -- single process"]
     direction TB
     val["ConnectBlock validation"]
     mem["In-memory UTXO cache<br/>(-dbcache remainder)"]
@@ -60,11 +49,11 @@ flowchart TB
     val --> mem --> rpc
   end
 
-  subgraph datadir ["Datadir ~/.zero — one tree, all use cases"]
+  subgraph datadir ["Datadir ~/.zero -- one tree, all use cases"]
     direction LR
-    blocks["blocks/<br/>raw blk · rev"]
-    index["blocks/index/<br/>LevelDB · txindex · insight"]
-    chain["chainstate/<br/>LevelDB · UTXO set"]
+    blocks["blocks/<br/>raw blk / rev"]
+    index["blocks/index/<br/>LevelDB / txindex / insight"]
+    chain["chainstate/<br/>LevelDB / UTXO set"]
     wallet["wallet.dat"]
     zncache["zncache.dat"]
   end
@@ -77,9 +66,9 @@ flowchart TB
 
   subgraph clients ["RPC clients"]
     direction LR
-    cli["zero-cli · scripts"]
+    cli["zero-cli / scripts"]
     ins["insight-api"]
-    bb["Blockbook · lightwalletd · stats"]
+    bb["Blockbook / lightwalletd / stats"]
   end
 
   rpc --> cli
@@ -88,17 +77,6 @@ flowchart TB
   zmq -.-> ins
   rest --> http["HTTP GET clients"]
 ```
-
-### Diagram roles (sections 2 and 11.1)
-
-Two figures, different scope:
-
-| Section | Question | Shows |
-|---------|----------|-------|
-| **2** (above) | How can one **`zerod`** serve every workload? | **Inside** the process: P2P, **`ConnectBlock`**, datadir, **`-dbcache`**, RPC/ZMQ/REST |
-| **11.1** | How do production stacks wire in? | **Outside**: clients, ZMQ, bitcore **:3001**, browser via nginx |
-
-The **Client checklist** table above is flags-only; **section 11** holds ports, matrices, and post-deploy smoke checks.
 
 ---
 
@@ -153,9 +131,9 @@ Shielded value is never exposed chain-wide through addressindex RPCs (same priva
 On startup, **`zerod` logs the split** (search `debug.log` for `Cache configuration:`):
 
 ```
-* Using … MiB for block index database
-* Using … MiB for chain state database
-* Using … MiB for in-memory UTXO set
+* Using ... MiB for block index database
+* Using ... MiB for chain state database
+* Using ... MiB for in-memory UTXO set
 ```
 
 ### 4.1 How the split works
@@ -189,7 +167,7 @@ flowchart TD
 
 **`-insightexplorer` does not add a separate DB directory** -- it only changes how much of `-dbcache` is reserved for the block-tree LevelDB that already holds optional index keys.
 
-### 4.2 Worked examples (MiB)
+### 4.2 Worked examples
 
 | `-dbcache` | `-insightexplorer` | Block tree | Chainstate DB | In-memory UTXO |
 |------------|-------------------|------------|---------------|------------------|
@@ -224,7 +202,7 @@ if (GetBoolArg("-insightexplorer", false))
     nBlockTreeDBCache = nTotalCache * 3 / 4;         // 75%
 ```
 
-(~1584–1594). Not tunable without a code change. Changing `-dbcache` alone does **not** require reindex. Hit/miss counters are not implemented; optional metrics / tunable split remain deferred under **OPS-CACHE-METRICS**.
+(~1584-1594). Not tunable without a code change. Changing `-dbcache` alone does **not** require reindex. Hit/miss counters are not implemented; optional metrics / tunable split remain deferred under **OPS-CACHE-METRICS**.
 
 **Operator approach (no code change yet):**
 
@@ -232,11 +210,11 @@ if (GetBoolArg("-insightexplorer", false))
 2. Prefer **dual-phase** sync on constrained hosts: IBD / reindex with insight **off** (or `-disablewallet`), then enable insight + **`-reindex`** (or index rebuild) with a large `dbcache`.
 3. Do **not** treat the 75% constant as a bug by itself -- it matches Pirate/Bitcore intent; measure tip `cache=` and address-RPC latency before changing the ratio.
 
-**`-reindex`:** operational only -- **section 13** and Insight ops docs. Not a build setting.
+**`-reindex`:** operational only -- section **11** and Insight ops docs. Not a build setting.
 
-### 4.3.1 Measured utilization (insight on, default 800)
+### 4.3.1 Measured utilization
 
-Startup with **`insightexplorer=1`**, **`dbcache=800`** (mainnet reindex, 2026-07):
+Startup with **`insightexplorer=1`**, **`dbcache=800`** during a mainnet reindex:
 
 ```
 * Using 600.0MiB for block index database   # 75%
@@ -270,77 +248,29 @@ du -sh ~/.zero/blocks/index ~/.zero/chainstate ~/.zero/blocks 2>/dev/null
 
 | Signal | How to read |
 |--------|-------------|
-| Startup `Using … MiB for in-memory UTXO` | **Budget** from `-dbcache` after insight/txindex split |
+| Startup `Using ... MiB for in-memory UTXO` | **Budget** from `-dbcache` after insight/txindex split |
 | Tip `cache=XMiB(Ytx)` | **Current** coins-view usage and entry count |
 | `gettxoutsetinfo.txouts` / `bytes_serialized` | **Full set** on disk (not the hot cache) |
 | RSS >> UTXO budget, tip `cache=` low | Wallet / LevelDB mmap / OS -- do not raise `dbcache` blindly |
 | Tip `cache=` near UTXO budget + frequent flushes | Raise `-dbcache` or reduce insight steal (code change) |
 
-#### 4.3.2a `getmemoryinfo` (not UTXO / not dbcache)
+#### 4.3.2a `getmemoryinfo`
 
-**What it reports:** stats for the **locked (mlock) memory manager** used for keys and other sensitive material -- **not** process RSS, **not** `-dbcache`, **not** the UTXO coins cache. Operators often misread it as "total RAM used"; see [Stack Exchange](https://bitcoin.stackexchange.com/questions/101863/what-does-the-rpc-call-getmemoryinfo-show).
+In Bitcoin Core and zcashd (4.1.0+), `getmemoryinfo` reports the **locked (mlock) memory pool** used for keys -- not process RSS, not `-dbcache`, not the UTXO cache. Zero and Pirate do not have it. Zero still uses the older `LockedPageManager` / `secure_allocator` (`src/support/pagelocker.h`), whose only statistic is `GetLockedPageCount()` (locked OS pages, not exported over RPC). Porting the RPC means porting `LockedPool` from Bitcoin/Zcash `support/` first; the Zcash `getmemoryinfo` + `RPCLockedMemoryInfo()` is the closest template. Tracked as **WAL-LOCKEDPOOL** (TODO Pending). It would not replace the **4.3.2** checks for cache sizing.
 
-| Tree | RPC | What you get | Prerequisite |
-|------|-----|--------------|--------------|
-| **Bitcoin Core** | [`getmemoryinfo`](https://bitcoincore.org/en/doc/31.0.0/rpc/control/getmemoryinfo/) | `locked` object; optional `"mallocinfo"` (glibc heap XML) | [`LockedPool`](https://github.com/bitcoin/bitcoin/blob/master/src/support/lockedpool.h) + RPC ([added](https://github.com/bitcoin/bitcoin/commit/82a667591eb34bf8391b624658f252773ff0e949) 2016-09-18, Wladimir J. van der Laan); [`mallocinfo` mode](https://github.com/bitcoin/bitcoin/commit/e141aa4ba604ff22c68454112501c166d3e892c9) later |
-| **Zcash (`zcashd`)** | `getmemoryinfo` in [`src/rpc/misc.cpp`](https://github.com/zcash/zcash/blob/master/src/rpc/misc.cpp) | `locked` only (no mallocinfo in the Zcash help text sampled) | Same LockedPool stack; shipped in [zcashd 4.1.0](https://github.com/zcash/zcash/blob/v4.1.0/doc/release-notes/release-notes-4.1.0.md) changelog (`rpc: Add getmemoryinfo call`) |
-| **Pirate** | **Absent** | -- | -- |
-| **Zero** | **Absent** | -- | Still on older [`LockedPageManager`](src/support/pagelocker.h) / `secure_allocator`; **no** `LockedPoolManager::stats()` API that the RPC reads |
-
-**`LockedPool::Stats` vs what Zero already has:**
-
-| `LockedPool::Stats` field | Meaning | Already in Zero? |
-|---------------------------|---------|------------------|
-| `used` | Bytes allocated from locked arenas | **No** |
-| `free` | Bytes free in current arenas | **No** |
-| `total` | Bytes managed by the pool | **No** |
-| `locked` | Bytes that successfully `mlock`'d | **No** (partial: page lock yes/no, not byte tally) |
-| `chunks_used` | Allocated chunk count | **No** |
-| `chunks_free` | Free chunk count | **No** |
-
-Zero's only related API is [`GetLockedPageCount()`](src/support/pagelocker.h) -- returns **how many OS pages** are currently locked (histogram size), not bytes/chunks/arenas. It is **not** exported over RPC. So **zero of the six `Stats` fields** exist as structured data in Zero today; page count is a different, coarser signal.
-
-**Compatible implementation to port (if desired):** Zcash's small `getmemoryinfo` + `RPCLockedMemoryInfo()` is the closest match to Zero's zcashd-lineage tree, but it depends on **LockedPool** (Bitcoin/Zcash `support/`), which Zero has not taken. Drop-in RPC alone is insufficient. Even after a port, it would **not** replace the VPS status commands in **4.3.2** for dbcache/UTXO sizing.
-
-### 4.3.3 UTXO cache accounting (Bitcoin / Zcash / clones)
+### 4.3.3 UTXO cache accounting across forks
 
 | Project | Sizing knobs | What is counted | Reporting |
 |---------|--------------|-----------------|-----------|
 | **Bitcoin Core** | `-dbcache` split across block-tree / chainstate DB / coins cache; flush when `CoinsTip` usage exceeds budget | `DynamicMemoryUsage()` of in-memory coins map; entry count via `GetCacheSize()` | Flush logs often include coins count + KiB; **no** hit/miss rate RPC; `getmemoryinfo` is locked-pool only (see **4.3.2a**) |
-| **Zcash / Zero / Ycash / …** | Same Bitcoin-era split; Zero/Zcash tip line `cache=%.1fMiB(%utx)` = UTXO-view **usage** and **entry count** | Same `CCoinsViewCache` model (+ shielded anchors/nullifiers in the same cache machinery on zcashd-lineage) | **Usage only** in `UpdateTip` / verify paths; **no** hit/miss counters |
-| **Pirate** | Same 75% block-tree bump when address **or** spent on; plus LevelDB **DB-knobs** (see **13.3**) | Same coins cache | Same usage-style logging |
+| **Zcash / Zero / Ycash / ...** | Same Bitcoin-era split; Zero/Zcash tip line `cache=%.1fMiB(%utx)` = UTXO-view **usage** and **entry count** | Same `CCoinsViewCache` model (+ shielded anchors/nullifiers in the same cache machinery on zcashd-lineage) | **Usage only** in `UpdateTip` / verify paths; **no** hit/miss counters |
+| **Pirate** | Same 75% block-tree bump when address **or** spent on; plus LevelDB **DB-knobs** (see **11.3**) | Same coins cache | Same usage-style logging |
 
-**Implication:** you cannot size "MiB per chain UTXO" from docs alone. Raise `-dbcache` when IBD flushes constantly or tip `cache=` rides the allocated ceiling; do not raise it when RSS is high but tip `cache=` is low (wallet/mmap bound).
+**Implication:** you cannot size "MiB per chain UTXO" from docs alone. Raise `-dbcache` when IBD flushes constantly or tip `cache=` rides the allocated ceiling; do not raise it when RSS is high but tip `cache=` is low (wallet/mmap bound). A tunable 75% split and hit/miss counters are **OPS-CACHE-METRICS** (TODO Pending).
 
-**OPS-CACHE (done for ops status):** section **4.3.1**–**4.3.2** + Pirate DB-knobs in **13.3**. Tunable 75% split and hit/miss metrics = **OPS-CACHE-METRICS** (postponed).
-
-### 4.3.4 Automated measurement and `getdbinfo` (OPS-CACHE-METRICS)
+### 4.3.4 `getdbinfo`
 
 **RPC `getdbinfo`:** returns `-dbcache` slice budgets, in-memory UTXO `DynamicMemoryUsage` / `GetCacheSize` / fill %, and per-DB LevelDB block-cache capacity/usage (`Cache::TotalCharge`, Zero patch -- upstream LevelDB 1.x has no `block-cache-usage` property), write-buffer budget, `leveldb.stats`, `num-files-at-level0`.
-
-**Script:** ZeroPerf `contrib/measure_dbcache_utxo.py` (campaign; not in this tree).
-
-```bash
-# In the ZeroPerf worktree:
-PATH=src:$PATH ZERO_MEASURE_MATRIX=800,2048,4096 ZERO_MEASURE_INSIGHT=both \
-  ZERO_MEASURE_BLOCKS=600 ZERO_MEASURE_SETINFO_EVERY=0 \
-  python3 contrib/measure_dbcache_utxo.py
-# Env: ZERO_MEASURE_DBCACHE | MATRIX, INSIGHT=0|1|both, BLOCKS, BATCH,
-#      SETINFO_EVERY (0 = final only / P4), DBINFO_EVERY, ADDR_EVERY
-```
-
-**Matrix `20260725_194505`** (600 blocks, P4 continuous tip, P5 `getdbinfo`):
-
-| dbcache | insight | BI / CS / UTXO MiB | UTXO fill % | BI/CS block_cache fill | generate(100) p50 | getdbinfo p50 | setinfo | getaddressbalance p50 |
-|---------|---------|--------------------|-------------|------------------------|-------------------|---------------|---------|----------------------|
-| 800 | off | 100 / 183 / 517 | 0.0012 | 0 / 0 | 835 ms | 4.3 ms | 12 ms | -- |
-| 800 | on | 600 / 58 / 142 | 0.0043 | 0 / 0 | 866 ms | 4.4 ms | 14 ms | 4.4 ms |
-| 2048 | off | 256 / 456 / 1336 | 0.0005 | 0 / 0 | 879 ms | 4.4 ms | 13 ms | -- |
-| 2048 | on | 1536 / 136 / 376 | 0.0016 | 0 / 0 | 816 ms | 4.3 ms | 15 ms | 4.3 ms |
-| 4096 | off | 512 / 904 / 2680 | 0.0002 | 0 / 0 | 854 ms | 4.5 ms | 15 ms | -- |
-| 4096 | on | 3072 / 264 / 760 | 0.0008 | 0 / 0 | 859 ms | 4.5 ms | 15 ms | 4.5 ms |
-
-**Readout:** budgets move with `-dbcache` / insight; regtest utilization does not (UTXO fill &lt;0.005%, RSS ~82-86 MiB). LevelDB `block_cache_usage=0` with `num-files-at-level*=0` -- data still in memtable; LRU fill is for SST blocks (meaningful on mainnet/IBD after flush). Insight grows `blocks/index` du (~0.26 vs ~0.05 MiB) but not generate latency at h=600. Charts: canvas `dbcache-utxo-measure`.
 
 ### 4.4 Symptoms and tuning
 
@@ -351,13 +281,12 @@ PATH=src:$PATH ZERO_MEASURE_MATRIX=800,2048,4096 ZERO_MEASURE_INSIGHT=both \
 | OOM / swap | `dbcache` + bitcore + wallet > RAM | Drop to **800**; `-disablewallet` on explorer |
 | High RSS, low tip `cache=` | Wallet or mmap | Do not raise `dbcache` blindly |
 
-Cross-refs: **InsightBlock.md** **2.2**; Linux ABI **UpdateZero.md** **3.6**.
 
 ---
 
 ## 5. Options by use case
 
-### Validator + wallet (default)
+### Validator with wallet
 
 | Item | zerod behavior |
 |------|----------------|
@@ -372,8 +301,6 @@ Desktop **zerowallet** embeds `zerod` and uses local RPC; it does **not** enable
 
 ### Insight explorer backend
 
-**Specialty ops (tiny audience):** prod **`zero.conf`** / bitcore / host runbook -- **`~/Work/ZK/insight/InsightBlock.md`** section **2.2** and **`config/`**. This section only states what **`zerod`** must expose for that client.
-
 Zero repo **`contrib/zero.conf`** is a **wallet** sample -- not Insight.
 
 | Mechanism | Detail |
@@ -384,13 +311,13 @@ Zero repo **`contrib/zero.conf`** is a **wallet** sample -- not Insight.
 | Related RPCs | `getspentinfo`, `getblockdeltas`, `getblockhashes`; richer `getrawtransaction` when spent index active |
 | Limits | Transparent **P2PKH / P2SH** only; no chain-wide z-addr search (protocol; index walks `vout` only) |
 | `-dbcache` | **section 4**; **800** on 4 GiB shared hosts; **2048** on 8 GiB `zerod`-heavy -- validate via log |
-| `-reindex` | **Operational** -- CLI one-shot; never permanent conf (**section 13**) |
+| `-reindex` | **Operational** -- CLI one-shot; never permanent conf (section **11**) |
 | Wallet on explorer host | Prefer **`-disablewallet`** (no `wallet.zero`, no keypool) |
 | Client | **insight-api-zero** (Node.js) calls RPC; mainnet UI [insight.zeromachine.io](https://insight.zeromachine.io/) |
 
 **vs Pirate `pirated`:** Pirate docs often list separate `addressindex=1`, `spentindex=1`, `timestampindex=1` in config. RPC names match; zerod uses the single **`-insightexplorer`** switch.
 
-### External indexer RPC feed (Blockbook-style)
+### External indexer RPC feed
 
 | On zerod | Notes |
 |----------|-------|
@@ -398,8 +325,6 @@ Zero repo **`contrib/zero.conf`** is a **wallet** sample -- not Insight.
 | `txindex` | Required for `getrawtransaction` by txid; default **on** in Zero |
 | `-insightexplorer` | **Not** required -- indexer builds its own DB |
 | RPC pattern | `getblock` (verbosity 2), `getrawtransaction`, block hash walk |
-
-Zero org Blockbook port status: **`UpdateZero.md` section 4**. How other coins attach Blockbook: **`Comparison.md`** section **12**.
 
 ### Emission and supply audit
 
@@ -410,7 +335,7 @@ Zero org Blockbook port status: **`UpdateZero.md` section 4**. How other coins a
 | `contrib/stats/decode_coinbase.py` | Synced node; `getblock` verbosity 2 |
 | `gettxoutsetinfo` | Synced node; aggregate transparent total only |
 
-`--cons` sums **consensus subsidy rules**, not the live UTXO set. See **`ZERO_COIN.md`**.
+`--cons` sums **consensus subsidy rules**, not the live UTXO set.
 
 ### lightwalletd backend
 
@@ -421,13 +346,13 @@ Zero org Blockbook port status: **`UpdateZero.md` section 4**. How other coins a
 | `-insightexplorer` | Not required for standard compact-block path |
 | Wallet keys on node | Not required on server if clients hold keys |
 
-Zero does not ship lightwalletd; pairing is operator choice. Ecosystem compare: **`Comparison.md`** section **12**. Zero org repos and mobile stack: **`~/Work/ZK/Repos/ZeroC.md`**.
+Zero does not ship lightwalletd; pairing is the operator's choice.
 
 ### Zeronode operator
 
-Uses wallet + P2P extensions; **`zncache.dat`** persists broadcast state. Not an address index. Operator workflow: **`ZeroNodes.md`**; wallet boundary: **`ZeroNodeDev.md`**.
+Uses the wallet and P2P extensions; **`zncache.dat`** persists broadcast state. Not an address index.
 
-### Other flags (when relevant)
+### Other flags
 
 | Flag | Reindex? | Use |
 |------|----------|-----|
@@ -436,8 +361,6 @@ Uses wallet + P2P extensions; **`zncache.dat`** persists broadcast state. Not an
 | `-zmqpub*` | No | Block/tx notifications for custom indexers |
 | `-experimentalfeatures` + `-zmergetoaddress` | No | Manual merge RPC (real on-chain txs) |
 | `-consolidation=1` | No | Auto Sapling note merge on `ChainTip` |
-
-**Obsolete in tree:** optional Qpid Proton AMQP (`src/amqp/`) -- build default **`NO_PROTON=1`**. Prefer **ZMQ** for new work.
 
 **Experimental without insight:**
 
@@ -454,29 +377,26 @@ Uses wallet + P2P extensions; **`zncache.dat`** persists broadcast state. Not an
 
 Default mainnet RPC port **23811**. Authoritative name matrix: **`RPCs.csv`**, **`RPCs_extended.csv`** (column `zero_missing_sources`: Z=Zcash-only in Zero, P=Pirate-only, B=not in Zero).
 
-### 6.1 CSV summary
+### 6.1 RPC categories
 
-| Metric | Count | Source |
-|--------|------:|--------|
-| RPC rows | **278** | **`RPCs.csv`** |
-| Implemented in Zero (`zero=y`) | **172** | same |
-| `addressindex` category | **5** | `getaddresstxids`, `getaddressbalance`, `getaddressdeltas`, `getaddressutxos`, `getaddressmempool` |
-| `zero_exclusive` category | **7** | `zs_listtransactions`, `zs_gettransaction`, `zs_listspentbyaddress`, `zs_listreceivedbyaddress`, `zs_listsentbyaddress`, **`getalldata`**, **`getsupply`** |
+`RPCs.csv` lists every RPC across Zero, Zcash, and Pirate; column `zero` marks those implemented in Zero. Two categories matter for clients:
+
+| Category | RPCs |
+|----------|------|
+| `addressindex` | `getaddresstxids`, `getaddressbalance`, `getaddressdeltas`, `getaddressutxos`, `getaddressmempool` |
+| `zero_exclusive` | `zs_listtransactions`, `zs_gettransaction`, `zs_listspentbyaddress`, `zs_listreceivedbyaddress`, `zs_listsentbyaddress`, **`getalldata`**, **`getsupply`** |
 
 ### 6.2 Client-critical RPCs vs harness
 
-Sample sets derived from **section 11** (zerowallet and Insight). "Harness" = mention in **`src/test/`** or **`qa/rpc-tests/`** (not scenario depth).
+Sample sets derived from section **10** (zerowallet and Insight). "Harness" = mention in **`src/test/`** or **`qa/rpc-tests/`** (not scenario depth).
 
-| Client sample | Listed | Harness mention | Gap |
-|---------------|-------:|-----------------|-----|
-| zerowallet-critical | 18 | 17 | **`zeronodestats`** -- no test file hit |
-| insight-critical | 19 | 18 | **`zeronodestats`** -- no test file hit |
+Every zerowallet-critical and Insight-critical RPC in section **10** is now mentioned by at least one harness file; the remaining gaps are depth, below.
 
 | Category | Harness | Depth |
 |----------|---------|-------|
 | **`addressindex`** (5 RPCs) | **`qa/rpc-tests/addressindex.py`** + param checks in **`src/test/rpc_tests.cpp`** | Functional index build/fetch on regtest with insight flags |
-| **`zero_exclusive`** (7 RPCs) | **`src/test/rpc_zero_exclusive_tests.cpp`** + scenario for getalldata | Param + soft gates; populated-wallet History via **`getalldata_scenario.py`** (Ext) |
-| **`getalldata`** | exclusive + Ext scenario | Gates on empty wallet; nCount/datatype on mined/sent txs in scenario |
+| **`zero_exclusive`** (7 RPCs) | **`src/test/rpc_zero_exclusive_tests.cpp`** + scenario for getalldata | `getalldata`: gates plus populated-wallet History via **`getalldata_scenario.py`** (Ext). `zs_*` / `getsupply`: param-only (TST-01) |
+| Zeronode / budget RPCs | **`rpc_zeronode_tests.cpp`**, **`rpc_zeronode_budget_tests.cpp`** | Arity and error paths (ZN-01 phase A) |
 
 #### `getalldata` -- structure and algorithms
 
@@ -487,7 +407,7 @@ Sample sets derived from **section 11** (zerowallet and Insight). "Harness" = me
 | Arg | Meaning | Implementation notes |
 |-----|---------|----------------------|
 | 1 datatype | 0 = balances+txs, 1 = balances, 2 = txs (+ chain fields) | Section gates on `params[0]` |
-| 2 transactiontype | 0=all, 1=1d, 2=7d, 3=30d, 4=90d, 5=365d, other=all | Day window for History; omitted today -> `365*30` days (product default undecided -- TODO ARG2) |
+| 2 transactiontype | 0=10y, 1=1d, 2=7d, 3=30d, 4=90d, 5=365d, other=10y | Day window for History; omitted -> 7 days |
 | 3 transactioncount | max History rows | `params.size() >= 3`; `<= 0` -> 200 |
 | 4 watchonly | bool | only when `params.size() == 4` |
 
@@ -505,21 +425,20 @@ Sample sets derived from **section 11** (zerowallet and Insight). "Harness" = me
 
 1. Optional soft gate (**-34**) before heavy work.
 2. Build address balances when datatype in {0,1}.
-3. When datatype in {0,2}: day cutoff -> filter archive + wallet txs **before** sort-map insert (W3); detect sort-key collisions (W2); decrypt/emit newest-first until `nCount`; reverse to oldest-first for JSON field `listtransactions`.
+3. When datatype in {0,2}: day cutoff -> filter archive + wallet txs **before** sort-map insert; count sort-key collisions between archive and wallet; decrypt/emit newest-first until `nCount`; reverse to oldest-first for JSON field `listtransactions`.
 
-**Problem statements / solution outline (pro-con owned in TODO)**
+**Open concerns**
 
 | Concern | Structure impact | Direction |
 |---------|------------------|-----------|
-| Tip poll CPU on large `mapWallet` | Full History decrypt + JSON each tick | Datatype split / cache (W5/W6); day default; helpers -- **TODO** |
-| Balance-walk Base58 cost | `addressBalances` keyed by `EncodeDestination` / `EncodePaymentAddress` strings; every credited vout re-encodes | Prefer destination-typed keys; encode once at JSON emit -- **WAL-GETALLDATA-ADDRKEY** (possibility; finding below) |
-| Omitted arg2 ~30y window | Near-unbounded filter before nCount | ARG2-DEFAULT -- **TODO** |
-| Duplicate day / count parsing | Drift between emit and early filter | Shared helpers -- **TODO** |
-| `wtxOrdered` vs getalldata | Orthogonal: insert-time order vs RPC sort map | §13.4 |
+| Tip poll CPU on large `mapWallet` | Full History decrypt + JSON each tick | Datatype split and cache (WAL-GETALLDATA-W5 / W6) |
+| Balance-walk Base58 cost | `addressBalances` keyed by `EncodeDestination` / `EncodePaymentAddress` strings; every credited vout re-encodes | Key by destination, encode once at JSON emit (**WAL-GETALLDATA-ADDRKEY**, below) |
+| Duplicate day / count parsing | Drift between emit and early filter | WAL-GETALLDATA-HELPERS |
+| `wtxOrdered` vs getalldata | Orthogonal: insert-time order vs RPC sort map | section **11.4** |
 
-**Performance finding -- address keying vs Base58 (2026-07-24)**
+**Address keying vs Base58 encoding**
 
-On a DevFee-scale wallet (`txcount` ~800k) with Zerowallet attached, `sample` during tip `getalldata` showed hot stacks in `getalldata` -> `EncodeBase58Check` / `EncodeBase58` (not IBD, not script checks). Cause is **call volume**: the balance walk keys `map<string, balancestruct> addressBalances` with freshly encoded address strings per unspent output, so the same founders P2SH id is Base58-encoded hundreds of thousands of times.
+On a wallet with about 800k transactions and Zerowallet attached, profiling tip `getalldata` showed hot stacks in `EncodeBase58Check` / `EncodeBase58`. Cause is **call volume**: the balance walk keys `map<string, balancestruct> addressBalances` with freshly encoded address strings per unspent output, so the same founders P2SH id is Base58-encoded hundreds of thousands of times.
 
 Transparent destinations already carry fixed-size ids:
 
@@ -539,9 +458,9 @@ Transparent destinations already carry fixed-size ids:
 
 Shielded entries in the same map need a parallel typed key or tagged binary id (Sapling/Sprout payment-address bytes), not Base58/`zs` strings, if the balance map is unified. Orthogonal to W5/W6 (fewer/cheaper tip polls) and W1 (fewer wallet passes); do after or beside those if tip CPU remains Base58-dominated in samples.
 
-Task id: **WAL-GETALLDATA-ADDRKEY** -- **Zerowallet / out of Zero400 scope** (finding only here; 2026-07-24).
+Task id: **WAL-GETALLDATA-ADDRKEY** (node-side fix; the finding lives only here).
 
-**Dispatch gates (server):** warmup; witness rebuild; `initWitnessesBuilt` for `getalldata`/`z_sendmany`; HTTP work-queue full -> 503. Test commands: **TEST_ZERO**. Task IDs S4--S8 / W*: **TODO**.
+**Dispatch gates (server):** warmup; witness rebuild; `initWitnessesBuilt` for `getalldata`/`z_sendmany`; HTTP work-queue full -> 503.
 
 **Impl refs:** `src/wallet/rpczerowallet.cpp`; client convert `src/rpc/client.cpp`; shared emit helpers `getRpcArcTx*` (also `zs_*`).
 
@@ -549,7 +468,7 @@ Task id: **WAL-GETALLDATA-ADDRKEY** -- **Zerowallet / out of Zero400 scope** (fi
 
 **Goal:** For each registered CRPCCommand (and **`RPCs.csv`** `zero=y`), know (a) whether a harness invokes it, (b) how deep the test goes, and (c) which shipped clients call it.
 
-**Step 1 -- RPC name list.** Prefer CRPCCommand tables under **`src/rpc/`**, **`src/wallet/`** (**173** names as of 2026-07-24). Cross-check **`RPCs.csv`** (`zero=y`, **172** rows -- expect drift of 1). Also **`src/rpc/client.cpp`** (`vRPCConvertParams`).
+**Step 1 -- RPC name list.** Prefer the CRPCCommand tables under **`src/rpc/`** and **`src/wallet/`**. Cross-check **`RPCs.csv`** (`zero=y`) and **`src/rpc/client.cpp`** (`vRPCConvertParams`); expect small drift.
 
 **Step 2 -- Test invocation scan.** For each RPC name, search:
 
@@ -561,15 +480,13 @@ Classify hits:
 
 | Depth | Meaning | Examples |
 |-------|---------|----------|
-| **none** | No harness file mentions the string | ~32 names (see probe list below) |
+| **none** | No harness file mentions the string | Covered only by the probe below |
 | **param-only** | Arg-count / type skeleton only | **`rpc_zero_exclusive_tests.cpp`**, **`rpc_zero_experimental_tests.cpp`** |
 | **functional** | Regtest or GTest builds chain/wallet state and asserts fields | **`addressindex.py`**, many **`wallet*.py`**, **`rpc_wallet_tests.cpp`** |
 
 **Caveat:** String match over-counts (comments, help text). Tier pass scripts may mention an RPC without asserting it.
 
-**Uncovered-name probe (2026-07-24):** **`qa/rpc-tests/rpc_coverage_probe.py`** (Ext pass). String-scan: **141** covered / **32** uncovered of **173** registered. Empty-arg (or `help` for destructive) invoke: **32/32 recognize, 32/32 respond, 0 crash**. Run: `./qa/pull-tester/rpc-tests.sh rpc_coverage_probe`. Optional: `ZERO_RPC_PROBE_ALL=1` probes every registered name.
-
-Uncovered set at probe authoring: `checkbudgets`, `createmultisig`, `createsporkkeys`, `estimatepriority`, `getaddednodeinfo`, `getbudgetvotes`, `getchaintxstats`, `getconnectioncount`, `getdeprecationinfo`, `getdifficulty`, `getgenerate`, `getlocalsolps`, `getmininginfo`, `getnettotals`, `getnetworkhashps`, `getunconfirmedbalance`, `getzeronodeoutputs`, `getzeronodescores`, `getzeronodewinners`, `lockunspent`, `ping`, `setgenerate`, `startzeronode`, `verifychain`, `walletpassphrasechange`, `zcbenchmark`, `zcsamplejoinsplit`, `zeronodecurrent`, `zeronodedebug`, `zeronodestats`, `znbudgetrawvote`, `znfinalbudget`.
+**Uncovered-name probe:** **`qa/rpc-tests/rpc_coverage_probe.py`** (Ext pass) string-scans the harness, then invokes every RPC with no harness mention (empty args, or `help` for destructive ones) and checks that each is recognized, responds, and does not crash. `ZERO_RPC_PROBE_ALL=1` probes every registered name. Run: `./qa/pull-tester/rpc-tests.sh rpc_coverage_probe`.
 
 **What `--all` is not:** `./contrib/run-tests.sh --all` = pass-only C++ filters + **`rpc-tests.sh -all`** (Tier **A + B pass + E pass**). It does **not** run Bfail/Efail, does **not** fuzz args, and does **not** guarantee every RPC was called -- only that those scripts passed. The coverage probe closes the "never mentioned" gap for recognize/respond/crash only.
 
@@ -577,26 +494,21 @@ Uncovered set at probe authoring: `checkbudgets`, `createmultisig`, `createspork
 
 | Client | Where to grep | Pattern |
 |--------|---------------|---------|
-| **zerowallet400** | `src/rpc.cpp` | `{"method", "<rpcname>"}` |
-| **Insight stack** | `~/Work/ZK/insight/error/bitcore-node-zero/` (e.g. `bitcoind.js`) | Method table ~line 175; `this.client.<camelCase>` |
-| **Insight HTTP routes** | `error/index.js` | `/supply`, `/zeronodestats`, `/saplingblocks/...` |
+| **zerowallet** | `src/rpc.cpp` | `{"method", "<rpcname>"}` |
+| **Insight stack** | bitcore-node-zero `bitcoind.js` | Method table; `this.client.<camelCase>` |
+| **Insight HTTP routes** | insight-api-zero `index.js` | `/supply`, `/zeronodestats`, `/saplingblocks/...` |
 | **Stats scripts** | `contrib/stats/chain_stats.py` | `rpc(cli, "<rpcname>", ...)` |
-| **Blockbook / lightwalletd** | **`UpdateZero.md` section 4**, **`Comparison.md`** section **12** | Separate infra; not in Zero org tree |
 
-**Step 4 -- Prioritize new tests.** Sort by: client-critical (**section 11.5**, **11.4**) AND (**none** OR **param-only**). Current top gaps:
+**Step 4 -- Prioritize new tests.** Sort by client-critical (sections **10.4**, **10.5**) AND depth **none** or **param-only**. Current top gaps:
 
 | RPC | Test depth | Client(s) |
 |-----|------------|-----------|
-| **`getalldata`** | param-only | zerowallet (primary UI refresh) |
 | **`getsupply`** | param-only (+ field exists) | zerowallet, Insight `/supply` |
 | **`getsaplingblocks`**, **`getsaplingwitness`**, **`getsaplingwitnessatheight`** | param-only | Insight `/saplingblocks`, bitcoind.js |
-| **`zeronodestats`** | **none** | zerowallet, Insight `/zeronodestats` |
-| **`zs_*` exclusive (5 RPCs)** | param-only | Wallet/hidden category; lower traffic than **`getalldata`** |
-| Zeronode/budget RPCs (**`startzeronode`**, **`zeronodecurrent`**, **`znbudget*`, ...**) | mostly **none** | zerowallet zeronode UI; **`UpdateZero.md`** TST-03 |
+| **`zs_*` exclusive (5 RPCs)** | param-only | Wallet/hidden category |
+| `zeronodestats` | Boost keys only | zerowallet, Insight `/zeronodestats` |
 
-**Step 5 -- Track output.** Maintainer task: add **`tests`** and **`clients`** columns to **`RPCs_extended.csv`** (or a generated **`RPC_coverage.csv`**) via a small audit script under **`contrib/`** -- see **`TODO.md`**. Re-run when RPCs or clients change.
-
-Test commands and scenarios: **TEST_ZERO**. Task status: **TODO** (TST-01, TST-03).
+**Step 5 -- Track output.** Open: add **`tests`** and **`clients`** columns to **`RPCs_extended.csv`** (or a generated **`RPC_coverage.csv`**) with a small audit script under **`contrib/`**. Re-run when RPCs or clients change.
 
 ---
 
@@ -611,7 +523,7 @@ On `ConnectBlock` with `-insightexplorer`:
 5. Wallet: `ChainTip`, witness cache, optional consolidation async op (**section 8**).
 6. Update mempool address index for unconfirmed txs when `fAddressIndex`.
 
-On reorg, insight code disconnects blocks and reverses index entries (covered by **`addressindex.py`** / **`TEST_ZERO.md`**).
+On reorg, insight code disconnects blocks and reverses index entries (covered by `addressindex.py`).
 
 Same connect-order heritage as zcashd; Zero adds coinbase split and zeronode hooks in validation.
 
@@ -629,7 +541,7 @@ Experimental manual merge of transparent UTXOs and/or shielded notes. **Real sig
 
 `-consolidation=1`: wallet `ChainTip` queues `AsyncRPCOperation_saplingconsolidation` (10-45 notes per address -> one self-send via `CommitConsolidationTx`). Related: `-consolidatesaplingaddress=`, `-consolidationtxfee`. zerowallet sets **`consolidation=1`** on first-run **`zero.conf`**; Insight does not use this path.
 
-**vs Pirate:** Pirate ships manual **`consolidateaddress`** RPC and dust/cleanup modes; Zero has auto consolidation and experimental **`z_mergetoaddress`** instead. Port review: **`UpdateZero.md`** section **5**.
+**vs Pirate:** Pirate ships manual **`consolidateaddress`** RPC and dust/cleanup modes; Zero has auto consolidation and experimental **`z_mergetoaddress`** instead.
 
 No automated tests in **`qa/rpc-tests/`** cover **`-consolidation`** today.
 
@@ -644,21 +556,15 @@ No automated tests in **`qa/rpc-tests/`** cover **`-consolidation`** today.
 | Budget | Memory + disk | Proposal/finalization |
 | Transaction archive | `archiverule` in block tree | Optional; toggle triggers reindex |
 
-No Zcash mainnet equivalent; ported from TENT masternode layer. Operator workflow: **`ZeroNodes.md`**.
+No Zcash equivalent; ported from the TENT masternode layer.
 
 ---
 
-## 10. Regtest and tests
+## 10. External clients and integration
 
-Harness tiers, **`contrib/run-tests.sh --all`** / `rpc-tests.sh -all` (**47** pass-tier invocations: A10+B29+E8; lists in **TEST_ZERO** §3); insight scripts (**B pass**); pure `txindex.py` = **Bfail Debug**; regtest maturity **720**: **`TEST_ZERO.md`**. Resume/short-snap ops: **AtHeight.md** §4.1.
+Operator contract: ports, requirement matrices, integration concerns, and post-deploy checks. Insight host operation is covered by the Insight runbooks.
 
----
-
-## 11. External clients and integration
-
-Operator contract: ports, matrices, concerns, post-deploy smoke. Client **flags** summary is in **section 2**; Insight ops detail stays in **`~/Work/ZK/insight/`**.
-
-### 11.1 Client architecture
+### 10.1 Client architecture
 
 ```mermaid
 flowchart LR
@@ -668,7 +574,7 @@ flowchart LR
     REST["HTTP REST optional -rest=1"]
     P2P["P2P :23801"]
   end
-  W["zerowallet400 Qt"] -->|RPC only| RPC
+  W["zerowallet Qt"] -->|RPC only| RPC
   INS["Insight stack Node.js"] -->|RPC + ZMQ| RPC
   INS --> ZMQ
   CLI["zero-cli / scripts"] --> RPC
@@ -683,12 +589,10 @@ flowchart LR
 | **zerowallet** | Yes -- embedded or external | Mobile WS **8237** (desktop only) |
 | **Insight stack** | Yes -- connect mode | `/insight-api-zero/` on bitcore **3001** |
 | **zero-cli** | Yes | No |
-| **Blockbook** | Yes -- RPC only | Blockbook Go API (**UpdateZero.md** section **4**) |
+| **Blockbook** | Yes -- RPC only | Blockbook Go API |
 | **Public explorer UI** | No direct | Via Insight stack |
 
-### 11.2 Ports and paths
-
-Datadir layout: **section 3**; implementation **`src/util.cpp`** (`GetDefaultDataDir`). Public port/datadir table: **`ZERO_COIN.md`**, **`BUILD_ZERO.md` section 3**.
+### 10.2 Ports and paths
 
 | Service | Port | Set in |
 |---------|------|--------|
@@ -698,9 +602,9 @@ Datadir layout: **section 3**; implementation **`src/util.cpp`** (`GetDefaultDat
 | bitcore-node HTTP | **3001** | `bitcore-node.json` |
 | zerowallet mobile WS | **8237** | Qt settings |
 
-macOS path mismatch: **INT-01** (section **11.7**).
+macOS path mismatch: **INT-01** (section **10.7**).
 
-### 11.3 Requirement matrix
+### 10.3 Requirement matrix
 
 | Capability | Validator / zerowallet | Insight backend | Blockbook-style |
 |------------|------------------------|-----------------|-----------------|
@@ -710,28 +614,28 @@ macOS path mismatch: **INT-01** (section **11.7**).
 | `txindex=1` | Yes | Yes | Yes |
 | `-experimentalfeatures` | Sometimes | **Yes** | No |
 | `-insightexplorer` | **No** | **Yes** | **No** |
-| `-dbcache` | Optional | **2048** on 4 GiB VPS; **4096+** on 8+ GiB hosts | Moderate (**section 4**) |
+| `-dbcache` | Optional | **800** on 4 GiB shared hosts; **2048** on 8 GiB (**section 4.3**) | Moderate (**section 4**) |
 | Address-index RPCs | No | **Yes** (t-address only) | No |
 | `getalldata` | **Yes** | No | No |
 | ZMQ | No | **Yes** | Optional |
 
-### 11.4 Insight stack
+### 10.4 Insight stack
 
-Transparent block explorer for mainnet ([insight.zeromachine.io](https://insight.zeromachine.io/)). Node flags: **section 5**; prod configs **`~/Work/ZK/insight/config/`**; nginx/systemd **`InsightBlock.md`**.
+Transparent block explorer for mainnet ([insight.zeromachine.io](https://insight.zeromachine.io/)); node flags in section **5**.
 
-Representative zerod RPC groups: chain/blocks, **`getrawtransaction`**, address-index methods (**section 6.2**), `getsupply`, `zeronodestats`, `getsaplingblocks`, `estimatefee`. Insight HTTP API catalog: **`~/Work/ZK/insight/error/insight-api-zero/README.md`**. Prod **`zero.conf`**: **`~/Work/ZK/insight/config/zero.conf`**.
+Representative zerod RPC groups: chain/blocks, **`getrawtransaction`**, address-index methods (**section 6.2**), `getsupply`, `zeronodestats`, `getsaplingblocks`, `estimatefee`.
 
-### 11.5 zerowallet
+### 10.5 zerowallet
 
-Repo **`~/Work/ZK/zerowallet400`**; connect flow **`UpdateWallet.md`**. JSON-RPC only; no zerod REST; no local Insight.
+JSON-RPC only; no zerod REST; no local Insight.
 
 Wallet-critical RPCs include **`getalldata`** (primary UI refresh), chain info RPCs, `getsupply`, send/status RPCs, **`getaddressesbyaccount [""]`** (empty account string required on Zero), zeronode RPCs. Structure notes: **section 6.2**. Open poll/cache tasks: **TODO** WAL-GETALLDATA-*. PirateOcean does not use this RPC (in-process wallet models).
 
 Release couples embedded **`zerod`** binary to wallet tag; exercise **`getalldata`** on release smoke.
 
-**Attach vs launch.** The wallet may spawn `zerod`, attach to an already-running node, or the operator starts `zerod` first. RPC creds and `rpcport` must match that datadir's `zero.conf` (mainnet default **23811**). Path case: **INT-01**. Node-side lifetime and RPC state: **TEST_ZERO.md** §8. GUI clicks stay in the wallet repo.
+**Attach vs launch.** The wallet may spawn `zerod`, attach to an already-running node, or the operator starts `zerod` first. RPC creds and `rpcport` must match that datadir's `zero.conf` (mainnet default **23811**). Path case: **INT-01**.
 
-### 11.6 RPC / REST / ZMQ
+### 10.6 RPC / REST / ZMQ
 
 | Surface | Enabled by | Insight | zerowallet |
 |---------|------------|---------|------------|
@@ -740,19 +644,19 @@ Release couples embedded **`zerod`** binary to wallet tag; exercise **`getalldat
 | Insight REST/WS | bitcore-node | Yes | Browser links only |
 | ZMQ | `-zmqpub*` | Yes (block/tx events) | No |
 
-Insight must use **ZMQ** or RPC polling, not **`-blocknotify`** / **`-walletnotify`** (inert in distributed builds; **OPS-SHELL** -> **BUILD_ZERO.md** section **4.6.1**).
+Insight must use **ZMQ** or RPC polling, not **`-blocknotify`** / **`-walletnotify`** (inert in default builds, which omit `ENABLE_SYSTEM_COMMAND`).
 
-### 11.7 Integration concerns (INT-NN)
+### 10.7 Integration concerns
 
 | ID | Area | Determination | Severity | Recommendation |
 |----|------|---------------|----------|----------------|
-| INT-01 | macOS paths | **Canonical: lowercase `zero`.** **`zerod`**: `GetDefaultDataDir()` -> `~/Library/Application Support/zero/` (`src/util.cpp` lines 471-492). Public docs (**`ZERO_COIN.md`**, **`BUILD_ZERO.md`**) match. **zerowallet400 bug**: `Library/Application Support/Zero/zero.conf` (`connection.cpp` lines 539-556). Params dir is separate: `ZcashParams` (both agree). APFS often masks the case mismatch. | **Medium** | Fix wallet to use `zero/`; until then symlink or single tree on case-sensitive volumes |
-| INT-02 | Conf reuse | Wallet `zero.conf` lacks insight flags; **`reindex=1` left in conf** wipes indexes every restart | **High** | Separate explorer conf; one-shot CLI `-reindex` only (**section 13**) |
+| INT-01 | macOS paths | **Canonical: lowercase `zero`.** **`zerod`**: `GetDefaultDataDir()` -> `~/Library/Application Support/zero/` (`src/util.cpp`). **zerowallet bug**: it writes `Library/Application Support/Zero/zero.conf` (zerowallet `src/connection.cpp`). Params dir is separate: `ZcashParams` (both agree). APFS often masks the case mismatch. | **Medium** | Fix wallet to use `zero/`; until then symlink or single tree on case-sensitive volumes |
+| INT-02 | Conf reuse | Wallet `zero.conf` lacks insight flags; **`reindex=1` left in conf** wipes indexes every restart | **High** | Separate explorer conf; one-shot CLI `-reindex` only (section **11**) |
 | INT-03 | Shielded explorer | Addressindex RPCs index **transparent P2PKH/P2SH (t-addresses) only**; **no chain-wide z-addr search** | Info | Match peer explorer wording (see below) |
 | INT-04 | Insight stack EOL | Node 8 / Ubuntu 18.04 in prod survey | **Medium** | Plan upgrade per **`InsightPort.md`** |
 | INT-05 | Wallet / node version | Embedded `zerod` must match RPC API | **High** on release | Same release tag; smoke **`getalldata`** (harness gap **section 6.2**) |
 | INT-06 | REST on zerod | Optional; weak harness | **Low** | Not required for Insight or wallet |
-| INT-07 | `getrawtransaction` fees | Issue #70 | **Low** | **`UpdateZero.md`** issue notes |
+| INT-07 | `getrawtransaction` fees | Issue #70; `size` already returned and tested | **Low** | Transparent-only `fee` with `txindex` |
 | INT-08 | Insight ops | No liveness watchdog | **Medium** | **`InsightBlock.md`** or external monitor |
 
 **INT-03 peer wording (transparent-only indexing):**
@@ -765,11 +669,10 @@ Insight must use **ZMQ** or RPC polling, not **`-blocknotify`** / **`-walletnoti
 | Zcash / Blockbook ecosystem | Indexers sync **transparent** UTXOs and outputs; shielded value visible only to wallets with viewing keys or in per-tx parsed fields, not as z-addr search |
 | Modern explorer UIs (e.g. zcashexplorer-style) | Label txs shielded vs transparent; pool-level shielded **aggregates** -- not per-z-addr balance lookup |
 
-Node-repo validation: **`TEST_ZERO.md`** -- **`--strict`** strongly recommended (maintainer decides); **`--all`** not a merge gate. Insight/wallet smoke: **`InsightBlock.md`** / zerowallet release notes.
 
-### 11.8 Post-deploy smoke checklist
+### 10.8 Post-deploy smoke checklist
 
-**Purpose:** Manual operator checks after deploy or release -- **not** a test specification, not a list of new GTest/`rpc-tests` to write, and not a feature backlog. Automated gates live in **`TEST_ZERO.md`**; this catches wiring (ZMQ, nginx, sync) that CI skips.
+Manual checks after a deploy or release. They catch wiring (ZMQ, nginx, sync) that automated tests skip; they are not a test specification.
 
 | Check | Action | Pass |
 |-------|--------|------|
@@ -778,43 +681,22 @@ Node-repo validation: **`TEST_ZERO.md`** -- **`--strict`** strongly recommended 
 | ZMQ | Port **28332** listening or subscribe test | Events after block/tx |
 | Insight API | `curl .../insight-api-zero/sync` | `status` synced |
 | Wallet RPC | `getalldata` via wallet or CLI | Non-error JSON object |
-| Wallet attach | GUI or CLI against an already-running `zerod` using that datadir `zero.conf` | Same RPC; **TEST_ZERO.md** §8 OPS-ATTACH |
-| Release artifact | `sha256` (+ signature when REL-01/02 exist) of the binary under test | Unsigned CI is not a release |
+| Wallet attach | GUI or CLI against an already-running `zerod` using that datadir `zero.conf` | Same RPC as OPS-ATTACH |
+| Release artifact | `sha256` (+ signature once REL-01 is done) of the binary under test | Unsigned CI is not a release |
 | Testnet | `-testnet`, RPC **23812** | P2P + RPC up |
 
 Optional: zerod REST (`-rest=1`) -- not used by Insight or zerowallet.
 
 ---
 
-## 12. Document ownership
-
-One owner per topic; elsewhere use a one-line pointer only (**UpdateZero.md** section **1**, topic registry).
-
-| Topic | Owner |
-|-------|-------|
-| zerod flags / `-dbcache` / client matrix / reindex ops | **ZeroStruct.md** (this file), **section 13** |
-| Integration concerns **INT-NN** | **ZeroStruct.md** section **11.7** |
-| Build / depends / **OPS-SHELL** / **OPS-EXPLORER** | **BUILD_ZERO.md** sections **4.6.1**, **4.6.2** |
-| Insight specialty ops (conf / bitcore / host) | **`~/Work/ZK/insight/`** -- not a public Zero reader track |
-| Public datadir / ports / economics | **ZERO_COIN.md** |
-| Insight prod ops | **`~/Work/ZK/insight/`** |
-| Wallet Qt / connect | **zerowallet400/UpdateWallet.md** |
-| Cherry-picks / Blockbook port / maintainer audit **C-NN** | **UpdateZero.md** |
-| Clone source diffs / cross-chain fork history | **`ZKs/Comparison.md`** |
-| Ecosystem compare (indexers, validators) | **`ZKs/Comparison.md`** section **12** |
-| RPC name matrix | **RPCs.csv** |
-| Test harness / **TST-NN** | **TEST_ZERO.md** |
-
----
-
-## 13. Operator paths: indexes, reindex, UTXO discovery
+## 11. Operator paths: indexes, reindex, UTXO discovery
 
 Two audiences (do not conflate):
 
 | Audience | Needs | Doc home |
 |----------|-------|----------|
-| **Block explorer admin** | Insight flags, `-reindex` CLI, `-disablewallet`, `dbcache`, Cloudflare/nginx, bitcore | This section + **`InsightBlock.md`** |
-| **Desktop / end-user** | Synced node or embedded zerod, wallet keys, no insight | **BUILD_ZERO** / wallet docs; insight **off** |
+| **Block explorer admin** | Insight flags, `-reindex` CLI, `-disablewallet`, `dbcache`, Cloudflare/nginx, bitcore | This section; host steps in the Insight runbook |
+| **Desktop / end-user** | Synced node or embedded zerod, wallet keys, no insight | Insight **off** |
 
 | Role | Host | Wallet | Indexes | Goal |
 |------|------|--------|---------|------|
@@ -822,9 +704,7 @@ Two audiences (do not conflate):
 | **B. Spend wallet** | Desktop / private | Keys | insight usually off | Send / shield |
 | **C. Discovery** | A or public Insight HTTPS | None | insight on A | UTXO lists for B (`rescan=false`) |
 
-### 13.1 Flags (including operational `-reindex`)
-
-**Doc split:** `DB_FLAG` keys, mismatch rules, and reindex-resume marker semantics live **only here**. Insight specialty docs (`InsightBlock.md`) cover host conf, CLI one-shots, and “do / don’t” -- not LevelDB key layout.
+### 11.1 Flags
 
 ```text
 experimentalfeatures=1   # RPC gate for insight address RPCs (NOT a DB_FLAG)
@@ -837,12 +717,12 @@ txindex=1                # txid -> file position (Zero default ON -- keep stable
 | Flag | Role | Toggle cost |
 |------|------|-------------|
 | `experimentalfeatures` | Unlock experimental RPCs | Restart only (not persisted in `DB_FLAG`) |
-| `insightexplorer` | Build insight LevelDB keys | **Reindex** if conf ≠ stored `DB_FLAG` |
-| `txindex` | Full tx lookup | **Reindex** if conf ≠ stored `DB_FLAG` |
+| `insightexplorer` | Build insight LevelDB keys | **Reindex** if conf != stored `DB_FLAG` |
+| `txindex` | Full tx lookup | **Reindex** if conf != stored `DB_FLAG` |
 | **`-reindex` (CLI)** | One-shot wipe + rebuild | This process only |
 | **`reindex=1` (conf)** | Same wipe every startup while present | **Footgun** -- see below |
 
-#### Why CLI `-reindex`, not `reindex=1` in conf
+#### CLI `-reindex` versus `reindex=1` in conf
 
 Both set the same `GetBoolArg("-reindex")` / `fReindex` path. Prefer **CLI**:
 
@@ -853,11 +733,11 @@ Both set the same `GetBoolArg("-reindex")` / `fReindex` path. Prefer **CLI**:
 | Intent | Explicit operator action | Easy to forget after first enable |
 | Automation | systemd `ExecStart` one-shot or manual | Conf drift across hosts |
 
-There is **no** good reason to prefer conf for a finished insight host. Conf is only accidentally useful as a “stuck on” hammer -- and that is exactly the leftover-wipe bug **OPS-REINDEX-CONF** should block (warn / refuse unless `-reindexforce`, or one-shot then ignore).
+There is **no** good reason to prefer conf for a finished insight host. Conf is only accidentally useful as a "stuck on" hammer -- and that is exactly the leftover-wipe bug the OPS-REINDEX remainder should block (zerod warns today; refuse unless `-reindexforce`, or apply once then ignore).
 
-#### `DB_FLAG` (persisted index mode)
+#### `DB_FLAG`
 
-Stored in `blocks/index/` as LevelDB key `('F', name)` → `'1'` / `'0'` (`CBlockTreeDB::WriteFlag` / `ReadFlag` in `txdb.cpp`). Compared at startup in `init.cpp` **only when `fReindex` is not already set**.
+Stored in `blocks/index/` as LevelDB key `('F', name)` -> `'1'` / `'0'` (`CBlockTreeDB::WriteFlag` / `ReadFlag` in `txdb.cpp`). Compared at startup in `init.cpp` **only when `fReindex` is not already set**.
 
 | `name` | Runtime source | Typical insight host |
 |--------|----------------|----------------------|
@@ -869,18 +749,18 @@ Stored in `blocks/index/` as LevelDB key `('F', name)` → `'1'` / `'0'` (`CBloc
 
 **Not a `DB_FLAG`:** `experimentalfeatures` -- RPC gate only.
 
-#### `DB_FLAG` mismatch handling (today vs target)
+#### `DB_FLAG` mismatch handling
 
 **Today (`init.cpp`) -- coupled steps:**
 
 1. `desired =` runtime (conf / hardcoded defaults).  
 2. `stored = ReadFlag(name)`.  
 3. If `stored != desired`: **`WriteFlag(name, desired)` immediately**, log `Reindex source: DB_FLAG mismatch (...)`, set `fReindex = true`.  
-4. Open block-tree + chainstate **with wipe** → destroy indexes/UTXO set, set `'R'`, replay `blk*.dat` (resume uses `L`/`H` if an interrupted rebuild left `'R'` without wiping again).
+4. Open block-tree + chainstate **with wipe** -> destroy indexes/UTXO set, set `'R'`, replay `blk*.dat` (resume uses `L`/`H` if an interrupted rebuild left `'R'` without wiping again).
 
-So mismatch always **updates the flag to match conf first**, then rebuilds so on-disk indexes match the new mode. Commenting `insightexplorer` off → desired false, stored true → wipe to a **non-insight** index. Turning it back on → another wipe to rebuild insight keys.
+So mismatch always **updates the flag to match conf first**, then rebuilds so on-disk indexes match the new mode. Commenting `insightexplorer` off -> desired false, stored true -> wipe to a **non-insight** index. Turning it back on -> another wipe to rebuild insight keys.
 
-**How to decouple (future OPS-REINDEX-CONF -- not in this change):** treat the steps as independent gates:
+**How to decouple (OPS-REINDEX remainder):** treat the steps as independent gates:
 
 | Step | Coupled today | Decoupled target |
 |------|---------------|------------------|
@@ -891,11 +771,11 @@ So mismatch always **updates the flag to match conf first**, then rebuilds so on
 
 Until decoupled, **leave insight/`txindex` flags stable** after a good build. Telemetry already names the mismatch source so logs show why a wipe started.
 
-**`txindex` default (history):** Bitcoin/Zcash-era default was **off** (`fTxIndex = false`). On **2020-11-19**, Cryptoforge **`require txindex on all full nodes`** (`f66a8a485` Zero; same-day `e17eeceb4` Pirate) forced **`fTxIndex = true`**, hid `-txindex` from help. **No extended commit rationale.** Zcash remains opt-in. **OPS-TXINDEX-DEFAULT (postponed):** whether reverting to ecosystem opt-in is safe/warranted after ~6 years of Zero+Pirate default-on; needs disk/ops evidence and client impact review -- not a drive-by flip.
+**`txindex` default.** Bitcoin and Zcash default `txindex` off. Zero and Pirate made the same change, forcing `fTxIndex = true` and hid `-txindex` from help, with no recorded rationale. **OPS-TXINDEX-DEFAULT** (postponed): whether returning to opt-in is safe; needs disk/ops evidence and a client impact review.
 
 **`txindex` impact:** extra LevelDB keys on connect; enables arbitrary `getrawtransaction`. Keep **on** unless a documented disk-constrained validator policy says otherwise.
 
-### 13.2 `-reindex` procedure (ops; host checklists in InsightBlock)
+### 11.2 `-reindex` procedure
 
 ```bash
 # Conf: insight flags set and stable, NO reindex=
@@ -912,9 +792,9 @@ zerod -reindex -daemon
 | Interrupt mid-reindex | `'R'` set; `L`/`H` progress markers written; **resume not consumed yet** | Kept |
 | Clean finish | `'R'` erased; `L`/`H` left as last completed file/tip | Kept |
 
-**OPS-REINDEX-CONF:** sticky conf `reindex=` logs a **loud** `InitWarning` + `LogPrintf` (**shipped**); prefer one-shot CLI `-reindex` (typically `-disablewallet`). **Refuse** / `-reindexforce` for sticky conf and unforced `DB_FLAG` mismatch **postponed** (warn only for now).
+**Sticky conf `reindex=`** logs a loud `InitWarning` plus `LogPrintf` recommending one-shot CLI `-reindex` (typically with `-disablewallet`). Refusing sticky conf or an unforced `DB_FLAG` mismatch (`-reindexforce`) is the OPS-REINDEX remainder (TODO Pending).
 
-#### Progress markers and resume (OPS-REINDEX-RESUME)
+#### Progress markers and resume
 
 **Write path:** after each `blk#####.dat` in `ThreadImport`:
 
@@ -924,13 +804,11 @@ zerod -reindex -daemon
 | `DB_REINDEX_LASTFILE` | `'L'` | Last **completed** blk file number |
 | `DB_REINDEX_LASTBLOCK` | `'H'` | `chainActive.Height()` after that file |
 
-Log: `Reindex progress: lastfile=… lastblock=…`. Tests: `src/test/reindex_tests.cpp` (markers, `'R'`, `ReindexResumeStartFile`, DB_FLAG insight/txindex). Do **not** clear `L`/`H` at finish -- they mean “caught up to blocks present then,” not a permanent tip claim.
+Log: `Reindex progress: lastfile=... lastblock=...`. Tests: `src/test/reindex_tests.cpp` (markers, `'R'`, `ReindexResumeStartFile`, DB_FLAG insight/txindex). Do **not** clear `L`/`H` at finish -- they mean "caught up to blocks present then," not a permanent tip claim.
 
-**Consume path (shipped):** on startup, if `'R'` is set (DBs not wiped), `ThreadImport` starts at `ReindexResumeStartFile(L, blk_count)` (= `L+1` when valid). Fresh `-reindex` / `DB_FLAG` wipe clears `blocks/index/`, so `L` is absent and import starts at file 0.
+**Consume path:** on startup, if `'R'` is set (DBs not wiped), `ThreadImport` starts at `ReindexResumeStartFile(L, blk_count)` (= `L+1` when valid). Fresh `-reindex` / `DB_FLAG` wipe clears `blocks/index/`, so `L` is absent and import starts at file 0.
 
-**Ops recipe (short/tiny snaps + resume interrupt):** step-by-step in **AtHeight.md** §4.1.
-
-**Telemetry (shipped):** `Reindex source:` lines for `-reindex argument`, `DB_FLAG mismatch (...)`, `resume (DB_REINDEX_FLAG present)`, `legacy blk hardlink upgrade`. Conf `reindex=` logs a **Warning** preferring one-shot CLI `-reindex` (and typically `-disablewallet`); does not refuse yet (no `-reindexforce`).
+**Telemetry:** `Reindex source:` lines name the trigger: `-reindex argument`, `DB_FLAG mismatch (...)`, `resume (DB_REINDEX_FLAG present)`, or `legacy blk hardlink upgrade`.
 
 **`L` / `H` absent or out of range:**
 
@@ -938,31 +816,31 @@ Log: `Reindex progress: lastfile=… lastblock=…`. Tests: `src/test/reindex_te
 |-----------|----------|
 | `'R'` set, **`L` missing** | Start at file **0** |
 | `'R'` set, **`H` missing** | File-based resume from `L`; log tip when `H` present |
-| **`L` ≥** blk file count or **`L` < 0** | Start at **0** (out of range) |
+| **`L` >=** blk file count or **`L` < 0** | Start at **0** (out of range) |
 | **`H` vs tip disagree** | Log; continue from file cursor (`L`) |
 | **`'R'` clear** but `L`/`H` present | Historical only -- do not resume |
 | **No `'R'`**, operator passes `-reindex` | Wipe + full rebuild; markers rewritten as rebuild proceeds |
 
-#### 13.2.1 Skip wallet vs skip chain (postponed)
+#### 11.2.1 Skip wallet vs skip chain
 
 | Feature | Skips | Builds insight/txindex? | Notes |
 |---------|-------|-------------------------|-------|
 | **Skip wallet below H** | `SyncTransaction` / `AddToWallet` / `IsMine` for blocks `< H` | Yes | Fat wallet reindex CPU; explorer hosts prefer `-disablewallet` instead |
 | **Skip chain connect below H** | Validation / UTXO below H | No for those heights | Needs chainstate already at H (snapshot/bootstrap); out of scope |
 
-**OPS-REINDEX-SKIP (todo, postponed):** implement **skip-wallet** only; skip-chain out of scope until snapshot story is solid.
+**Decision (OPS-REINDEX remainder):** implement skip-wallet only; skip-chain is out of scope until the snapshot story is solid.
 
-### 13.3 Pirate index and DB options
+### 11.3 Pirate index and DB options
 
-Compare **Pirate-specific** knobs here; ecosystem-wide index/txindex tables live in **`~/Work/ZK/ZKs/Comparison.md`**.
+Pirate exposes LevelDB tuning as options; Zero hardcodes it.
 
 | Option | Pirate | Zero today | Notes |
 |--------|--------|------------|-------|
 | Index enable | Separate `-addressindex` / `-spentindex` / `-timestampindex` | Bundled `-insightexplorer` (+ experimental gate) | Flag surface differs; both fill `blocks/index/` keys |
 | Cache bump | **75%** of `-dbcache` if address **or** spent on | **75%** if insight on | Same Bitpay-style idea |
 | `-txindex` | Forced on (Cryptoforge 2020) | Forced on (same-day Zero) | See **OPS-TXINDEX-DEFAULT** |
-| **DB-knobs** | `-dbmaxopenfiles` (default **1000**), `-dbcompression` (default **true**) | Hardcoded in [`src/dbwrapper.cpp`](src/dbwrapper.cpp): `max_open_files = 256` (was 64), `compression = kNoCompression` | Pirate knobs apply to **`CBlockTreeDB` only**; Zero bump is all `CDBWrapper` DBs |
-| Wallet `nTimeSmart` | Pirate: `= blocktime` ([`5f0cab6ba`](https://github.com/PirateNetwork/pirate/commit/5f0cab6bad6e61bcc751c4c44dd98c1f3a286709), Cryptoforge, 2021-11-17) | Full `OrderedTxItems` rebuild | Wallet CPU; not a DB option -- **13.4.1** |
+| **DB-knobs** | `-dbmaxopenfiles` (default **1000**), `-dbcompression` (default **true**) | Hardcoded in [`src/dbwrapper.cpp`](src/dbwrapper.cpp): `max_open_files = 256`, `compression = kNoCompression` | Pirate knobs apply to **`CBlockTreeDB` only**; Zero's value applies to all `CDBWrapper` DBs |
+| Wallet `nTimeSmart` | Pirate: `= blocktime` | Clamp via incremental `wtxOrdered` | Wallet CPU; not a DB option -- **11.4.1** |
 
 #### What the DB-knobs regulate
 
@@ -970,44 +848,14 @@ Both map to LevelDB `Options` on the **block-tree** DB (`blocks/index/`), wired 
 
 | Knob | LevelDB field | Effect |
 |------|---------------|--------|
-| `-dbmaxopenfiles` | `options.max_open_files` | Cap on SST / table files kept open (FDs). Higher reduces open/close churn on a **large** `blocks/index/` (insight/addressindex). Too high pressures `ulimit -n`. Bitcoin-era wrapper default was **64**; Zero now **256** (all `CDBWrapper` DBs, 2026-07); Pirate default **1000** on block-tree only. |
-| `-dbcompression` | `options.compression` | **true** → Snappy (`kSnappyCompression`); **false** → `kNoCompression`. Compresses on-disk blocks: less disk / more CPU on read-write. |
+| `-dbmaxopenfiles` | `options.max_open_files` | Cap on SST / table files kept open (FDs). Higher reduces open/close churn on a **large** `blocks/index/` (insight/addressindex). Too high pressures `ulimit -n`. Bitcoin-era default **64**; Zero **256**; Pirate **1000** on block-tree only. |
+| `-dbcompression` | `options.compression` | **true** -> Snappy (`kSnappyCompression`); **false** -> `kNoCompression`. Compresses on-disk blocks: less disk / more CPU on read-write. |
 
 They do **not** change which indexes exist, the 75% `dbcache` split, or in-memory UTXO size.
 
-#### History (who / when)
+**Decision (OPS-PIRATE-DB):** `max_open_files = 256`. Snappy compression, per-DB knobs, and 1000 open files stay optional until measured on an insight host (FD count with `lsof`, `iostat`, address-RPC latency). A low cap causes open/close thrashing, not an FD leak; diagnose real leaks (sockets, ZMQ, peers) by `lsof` growth while idle.
 
-| When | Who | What |
-|------|-----|------|
-| **2018-03-27** | TheTrunk | [`8b78a8199`](https://github.com/PirateNetwork/pirate/commit/8b78a8199e185165af3609028ee36211514b22d5) "Bitcore port" -- introduces address/spent/timestamp indexes **and** `-dbmaxopenfiles` / `-dbcompression` (defaults 1000 / true) into the Komodo/Pirate tree |
-| **2020-12-07** | Cryptoforge | QT merge commits touch the same symbols in churn; **not** the feature introduction |
-| **2021-11-17** | Cryptoforge | [`5f0cab6ba`](https://github.com/PirateNetwork/pirate/commit/5f0cab6bad6e61bcc751c4c44dd98c1f3a286709) `nTimeSmart = blocktime` (wallet), unrelated to LevelDB knobs |
-
-#### Useful vs complementary (undecided)
-
-| Lens | Reading |
-|------|---------|
-| **Complementary to insight** | Yes in intent: Bitcore-era large address indexes stress LevelDB FD count and disk; knobs tune that store. Same problem class as Zero `blocks/index/` under `-insightexplorer`. |
-| **Useful for Zero today** | **Partial.** `max_open_files=256` shipped; compression still off. Re-measure FD use (`lsof` / lab `fd_count`), `iostat`, address-RPC latency on insight hosts before raising further. |
-| **64 → 256 (modest bump)** | **Shipped 2026-07** in [`dbwrapper.cpp`](src/dbwrapper.cpp) (all LevelDB wrappers). Pirate's **1000** and `-dbcompression` still optional follow-ups. Needs adequate `ulimit -n`. |
-| **Leak?** | LevelDB **reuses** FDs within `max_open_files`; a low cap causes **thrashing** (open/close cost), not an FD leak. True leaks (unclosed sockets, ZMQ, peers) are a different class -- diagnose with `lsof` growth over time while idle. |
-| **Decision** | **OPS-PIRATE-DB done:** `max_open_files` **256 shipped**; compression / per-DB Pirate knobs / 1000 still **optional** after measure. |
-
-### 13.3a Performance lab tree (decided)
-
-**Decision (2026-07-22):** Keep **ZeroPerf** (`~/Work/ZK/ZeroPerf`, branch `perf-401`, hub `Perf.md`) as a **separate** experiment tree from canonical **Zero400**.
-
-| Keep in ZeroPerf | Land in Zero400 only after |
-|------------------|----------------------------|
-| Groth16 batch experiments (hand-port vs `sapling-crypto` BatchValidator -- still open) | Linux + Windows A/B shows a real tip throughput win |
-| FD-cache / root-latch probes (correct; no measured macOS SSD win) | Same evidence bar |
-| Blake2/NEON and other coding candidates | Measure on Zero400 tip, not only mid-chain lab |
-
-**Ops reuse (not a merge):** reindex resume, short snaps, rich monitors developed under Zero400 labs may be copied into the perf lab when needed; they are not a reason to flatten the trees.
-
-Canonical node work, consensus, and release gates stay in **Zero400**.
-
-### 13.4 `mapWallet` vs address index
+### 11.4 `mapWallet` vs address index
 
 | | `mapWallet` | Insight index |
 |--|-------------|---------------|
@@ -1015,11 +863,11 @@ Canonical node work, consensus, and release gates stay in **Zero400**.
 | Filled by | `IsMine` | Every transparent output |
 | Pain | `OrderedTxItems` O(n) | Large address RPC / cold cache |
 
-#### 13.4.1 `nTimeSmart` -- where, how set, how read
+#### 11.4.1 `nTimeSmart` -- where, how set, how read
 
-**Field:** `CWalletTx::nTimeSmart` ([`src/wallet/wallet.h`](src/wallet/wallet.h) ~449). Persisted in wallet BDB as mapValue key **`timesmart`** on serialize; loaded back into the field ([`wallet.h`](src/wallet/wallet.h) ~565–590).
+**Field:** `CWalletTx::nTimeSmart` ([`src/wallet/wallet.h`](src/wallet/wallet.h) ~449). Persisted in wallet BDB as mapValue key **`timesmart`** on serialize; loaded back into the field ([`wallet.h`](src/wallet/wallet.h) ~565-590).
 
-**Set (Zero, new insert path):** in [`AddToWallet`](src/wallet/wallet.cpp) (~2034–2072):
+**Set (Zero, new insert path):** in [`AddToWallet`](src/wallet/wallet.cpp) (~2034-2072):
 
 1. Default `nTimeSmart = nTimeReceived` (wall clock when first seen).
 2. If the tx has a known `hashBlock`, walk **`OrderedTxItems()`** (full `mapWallet` rebuild) newest-first; take latest prior smart/received time within +5 minutes of now; then  
@@ -1034,70 +882,24 @@ Canonical node work, consensus, and release gates stay in **Zero400**.
 | API | Behavior |
 |-----|----------|
 | `CWalletTx::GetTxTime()` | [`wallet.cpp`](src/wallet/wallet.cpp) ~2999: return `nTimeSmart` if non-zero, else `nTimeReceived` |
-| Wallet JSON (`listtransactions`, etc.) | `"time"` ← `GetTxTime()`; `"timereceived"` ← `nTimeReceived` ([`rpcwallet.cpp`](src/wallet/rpcwallet.cpp) ~104–105) |
+| Wallet JSON (`listtransactions`, etc.) | `"time"` <- `GetTxTime()`; `"timereceived"` <- `nTimeReceived` ([`rpcwallet.cpp`](src/wallet/rpcwallet.cpp) ~104-105) |
 | Direct | No separate RPC field named `timesmart` in normal list output (value is folded into `"time"`) |
 
 So UI/RPC "transaction time" is the smart time when present; the expensive Zero path exists only to compute that field on insert.
 
-#### 13.4.2 `wtxOrdered` evolution (Bitcoin / Zcash) and Zero delta
+#### 11.4.2 `wtxOrdered` in Zero
 
-| When | Tree | Change | Refs |
-|------|------|--------|------|
-| **~2015 / Bitcoin Core 0.12 era** | Bitcoin | Keep ordered list in memory (`wtxOrdered`) instead of rebuilding on every need; accounts still merged via `TxPair` | Luke Dashjr optimisation ("Store transaction list order in memory…"); Bitcoin lineage also [#6851](https://github.com/bitcoin/bitcoin/pull/6851)-era wallet ordering work |
-| **2015-10-19** | Zcash tree | Same optimisation lands early: [`31d49b09b`](https://github.com/zcash/zcash/commit/31d49b09b756e73958350ae12a976e072377347f) (wallet.h/cpp, rpcwallet, walletdb, accounting_tests) | Present long before NU5/4.x |
-| **2018-07-31** | Bitcoin | Kill accounts: remove `CAccountingEntry` / account RPCs; `TxItems` becomes `CWalletTx*` only | [bitcoin#13825](https://github.com/bitcoin/bitcoin/pull/13825) lineage (`[wallet] Kill accounts`) |
-| **2021-08 (zcashd 4.5.0)** | Zcash | Backport kill-accounts ([`8af7e138a`](https://github.com/zcash/zcash/commit/8af7e138ac2e06ebe148c4be6f0b9a2d366e3f2e), merge [`5b194067e`](https://github.com/zcash/zcash/commit/5b194067eab3f5f343d4696897fd0e4deca892f6) / [#5271](https://github.com/zcash/zcash/pull/5271)); release [v4.5.0](https://github.com/zcash/zcash/releases/tag/v4.5.0) | `wtxOrdered` **kept**; accounts removed |
-| **Zero today** | Zero | Incremental **`wtxOrdered`** with **`TxPair`** (accounts kept); `OrderedTxItems` merges lacentries | WAL-WTXORDERED done; RPC removal still **WAL-RPC-ACCOUNTS** |
-| **2021-11-17** | Pirate daemon | Skip smart-time walk: both times = **blocktime** | [`5f0cab6ba`](https://github.com/PirateNetwork/pirate/commit/5f0cab6bad6e61bcc751c4c44dd98c1f3a286709) |
-| **PirateOcean** | Qt desktop tree | Still full OrderedTxItems + delete/reorder | Not the daemon shortcut |
+Bitcoin and Zcash keep the wallet's ordered tx view in memory (`wtxOrdered`) instead of rebuilding it. Bitcoin #13825 and zcashd 4.5.0 later removed accounts, leaving `wtxOrdered` as `multimap<int64_t, CWalletTx*>`. Zero now maintains `wtxOrdered` incrementally with `TxPair`, because it still has accounting entries (`laccentries`); `OrderedTxItems()` returns that structure instead of rebuilding from all of `mapWallet`. Every erase and reorder site (`EraseFromWallet`, delete + reorder helpers) must keep `wtxOrdered` in sync; GTest `WalletTests.WtxOrderedConsistentAfterErase` checks `wtxOrdered` matches `mapWallet` after deletes.
 
-**Obsolete account RPCs -- two layers (not part of `wtxOrdered`):**
+Pirate took a different shortcut: skip the walk and set `nTimeSmart = nTimeReceived = blocktime`. That is O(1) but loses arrival-time meaning; keep it only as an emergency alternate. PirateOcean (pirate-qt) still rebuilds.
 
-| Layer | Question | Track |
-|-------|----------|-------|
-| **Business** | Deprecate / disable / delete `getaccount`, `listaccounts`, `move`, `sendfrom`, …? | Product (clients, docs, Zerowallet) |
-| **Code risk** | Blast radius if removed: BDB `acentry`, account filters, reorder rewrite, RPC table/help, callers | Engineering analysis -- **WAL-RPC-ACCOUNTS** |
+**Remaining gap:** matching Zcash's pointer-only type requires removing the account RPCs (`getaccount`, `listaccounts`, `move`, `sendfrom`, ...). That has a business layer (clients, docs, Zerowallet) and a code-risk layer (BDB `acentry`, account filters, reorder, RPC table): **WAL-RPC-ACCOUNTS**.
 
-Kill-accounts (Bitcoin [#13825](https://github.com/bitcoin/bitcoin/pull/13825) / Zcash 4.5) drops that layer because accounts are non-consensus and confusing. Zero may keep RPCs until business decides; port **`wtxOrdered` with `TxPair` + `laccentries`**.
+`wtxOrdered` does not change which txs are in the wallet, consensus, LevelDB indexes, or the `GetTxTime` clamp formula; it only changes how prior entries are found for the clamp.
 
-**Delete / reorder (also TENT, Pirate, PirateOcean):** `EraseFromWallet` everywhere; Delete+Reorder on Zero/TENT/Pirate/Ocean; Zcash erase only. Sync `wtxOrdered` on all erase/reorder sites.
+#### Relation to `txindex` and insight
 
-**Pirate faster insert:** skips **`OrderedTxItems()`** (O(n) rebuild of all `mapWallet`) on each new blocked tx; O(1) assign of blocktime. Not the same as shipping `wtxOrdered`. `listtransactions` may still rebuild.
-
-**PirateOcean** ([repo](https://github.com/PirateNetwork/PirateOcean)): pirate-qt; still O(n) smart-time; has delete/reorder. Distinct from main `pirate` daemon.
-
-#### What `wtxOrdered` regulates (WAL-WTXORDERED)
-
-| Piece | Role |
-|-------|------|
-| **`wtxOrdered`** | In-memory multimap / ordered view of wallet txs (+ accounting entries via `TxPair`), kept incremental on insert/erase/reorder |
-| **`OrderedTxItems()`** | Zero today: rebuilds that view from all of `mapWallet` (O(n) per call). After port: returns the incremental structure (O(1) / O(k) walk) |
-| **Call sites** | Smart-time on `AddToWallet`; `listtransactions` / account filters; delete and reorder helpers |
-
-It does **not** change which txs are in the wallet, consensus validation, LevelDB indexes, or `GetTxTime` clamp formula (only how prior entries are found for the clamp).
-
-#### History (who / when) -- incremental order vs Pirate shortcut
-
-| When | Who / tree | What |
-|------|------------|------|
-| **~2015** | Bitcoin / Luke Dashjr lineage | Keep order in memory (`wtxOrdered`) instead of rebuilding |
-| **2015-10-19** | Zcash [`31d49b09b`](https://github.com/zcash/zcash/commit/31d49b09b756e73958350ae12a976e072377347f) | Same optimisation early in zcashd |
-| **2018 / 2021** | Bitcoin kill-accounts; Zcash 4.5 | Accounts removed; **`wtxOrdered` kept** (pointer-only items) |
-| **2021-11-17** | Cryptoforge Pirate [`5f0cab6ba`](https://github.com/PirateNetwork/pirate/commit/5f0cab6bad6e61bcc751c4c44dd98c1f3a286709) | **Different fix:** skip walk; `nTimeSmart = nTimeReceived = blocktime` -- no `wtxOrdered` |
-| **Zero today** | Zero | Incremental `wtxOrdered` with **`TxPair`** (accounts kept); smart-time walk uses `wtxOrdered` const reverse (tx pointer / `.first`); exact Zcash pointer-only type needs accounts kill |
-
-#### Useful vs complementary (alternate only)
-
-| Lens | Reading |
-|------|---------|
-| **Useful for large `mapWallet`** | Incremental `wtxOrdered` avoids O(n) `OrderedTxItems` rebuild on each insert; mid-reindex with wallet loaded is wall-clock bound by insert CPU, not Equihash. |
-| **Complementary to Pirate shortcut** | Same pain class. Pirate O(1) blocktime assign loses arrival-time semantics; `wtxOrdered` keeps Bitcoin/Zcash clamp. Prefer incremental map; timesmart only as emergency alternate. |
-| **Complementary to insight / txindex?** | **Orthogonal stores.** Indexes off does not fix wallet insert CPU; `wtxOrdered` does not shrink `blocks/index/`. |
-| **Remaining type gap** | Zcash `multimap<int64_t, CWalletTx*>` vs Zero `TxPair` -- business/RPC accounts decision, not another insert algorithm. |
-
-#### Relation to `txindex` (and insight)
-
-`txindex` is a **block-tree LevelDB** feature (`DB_TXINDEX` / key prefix `t` in `blocks/index/`): txid → disk position for arbitrary `getrawtransaction`. Zero (and Pirate) force **`fTxIndex = true`** since Cryptoforge 2020-11-19 (**OPS-TXINDEX-DEFAULT**). Insight address/spent indexes are **additional** keys in the same DB, gated by `-insightexplorer`.
+`txindex` is a **block-tree LevelDB** feature (`DB_TXINDEX` / key prefix `t` in `blocks/index/`): txid -> disk position for arbitrary `getrawtransaction`. Zero and Pirate force **`fTxIndex = true`** (**OPS-TXINDEX-DEFAULT**). Insight address/spent indexes are **additional** keys in the same DB, gated by `-insightexplorer`.
 
 | | `txindex` / insight | `wtxOrdered` / `OrderedTxItems` |
 |--|---------------------|----------------------------------|
@@ -1105,51 +907,45 @@ It does **not** change which txs are in the wallet, consensus validation, LevelD
 | Filled by | Every connected tx (txid index); every transparent output (insight) | Wallet `IsMine` / accounting only |
 | Cost class | Disk + ConnectBlock index writes; large explorer reindex | CPU on wallet insert/list when `mapWallet` is huge |
 | Ops lever | Conf flags + reindex; **OPS-TXINDEX-DEFAULT** / **OPS-PIRATE-DB** | Code port; no conf flag |
-| Fixes fat-wallet insert CPU? | **No** | **Yes** (incremental) or Pirate shortcut |
+| Fixes fat-wallet insert CPU? | **No** | **Yes** |
 | Needed for transparent UTXO-by-address extract? | Insight `getaddressutxos` / addressindex (txindex usually co-required on explorers) | **No** -- prefer `-disablewallet` on explorers |
 
 **Value of default-on `txindex`:** cheap arbitrary tx lookup for Blockbook, lightwalletd, explorers, and fee-display paths that resolve inputs. **Do not** conflate "reindex is slow" with "wallet OrderedTxItems is slow": isolate by measuring with wallet empty / `-disablewallet` vs large wallet + indexes off.
 
-**WAL-WTXORDERED** does not change the case for keeping or reverting default `txindex`. **OPS-TXINDEX-DEFAULT** stays a separate disk/ops product decision.
+The incremental `wtxOrdered` does not change the case for keeping or reverting default `txindex`. **OPS-TXINDEX-DEFAULT** stays a separate disk/ops product decision.
 
-#### 13.4.3 Validating `wtxOrdered` (no full insight reindex)
+#### 11.4.3 Validating `wtxOrdered` changes
 
-1. Correctness: insert N / `GetTxTime` / accounting / `listtransactions`.
-2. Microbench: 10k–50k owned txs before/after.
-3. ZeroPerf retarget: `Perf.md` is **ConnectBlock-scoped (not wallet)**; bucket `OrderedTxItems`/`AddToWallet` on a short fat-wallet window.
-4. Optional `#ifdef` counters.
+When touching insert, erase, or reorder: check insert N / `GetTxTime` / accounting / `listtransactions`; microbench 10k-50k owned txs before and after; keep `WtxOrderedConsistentAfterErase` green.
 
-**Assure (in WAL-WTXORDERED):** steps 1–3 review erase sites; **Assure-4** = Boost/gtest after deletes that `wtxOrdered` ≡ `mapWallet` -- **depends on** index existing (ship with the port).
-
-#### 13.4.4 `GetTxTime` / times
+#### 11.4.4 `GetTxTime` / times
 
 | Tree | Insert | Notes |
 |------|--------|-------|
 | Bitcoin / Zcash | Clamp via `wtxOrdered`; received = first seen | `"time"` vs `"timereceived"` |
-| Zero / TENT / PirateOcean | Same clamp, O(n) rebuild | High CPU on fat wallets |
-| Pirate daemon | Both ← blocktime | Fast insert; loses arrival-time meaning |
+| Zero | Same clamp via incremental `wtxOrdered` | |
+| TENT / PirateOcean | Same clamp, O(n) rebuild | High CPU on fat wallets |
+| Pirate daemon | Both <- blocktime | Fast insert; loses arrival-time meaning |
 
 Consensus-neutral. CPU save from Pirate shortcut = skipping OrderedTxItems, not the integer write.
 
-### 13.5 Empty wallet vs `-disablewallet`
+### 11.5 Empty wallet vs `-disablewallet`
 
 Prefer **`-disablewallet`** on explorer hosts; dedicated datadir (desktop wallet must not share it).
 
-### 13.6 UTXO discovery
+### 11.6 UTXO discovery
 
 1. Explorer node RPCs / SSH (`getaddressutxos` with `-insightexplorer`; prefer `-disablewallet`).
 2. Public Insight HTTPS (CF -> nginx -> Node) -- expected public API; **not** public **zerod RPC**. Large `/addrs/.../utxo` may **413**; use local RPC for full dumps.
-3. Slim wallet + `importprivkey … false`.
+3. Slim wallet + `importprivkey ... false`.
 4. Height walk + `gettxout`.
 5. REST `/rest/getutxos`.
 
-Founders slots 1–3 full lists extracted 2026-07-22 via (1); see **TODO** Completed **OPS-DEV-UTXO**.
-
-### 13.7 Bootstrap and state snapshots -- generate / install
+### 11.7 Bootstrap and state snapshots -- generate / install
 
 **Audience:** zerod maintainer / ops with a trusted peer. Not an unsigned public end-user product.
 
-#### A. `bootstrap.dat` (validated block stream)
+#### A. `bootstrap.dat`
 
 **Generate** (synced node with RPC):
 
@@ -1175,7 +971,7 @@ zerod -daemon
 
 **Bounds:** Rebuilds chainstate by connecting blocks (CPU). Does **not** copy insight indexes. Wallet still rescans unless `-disablewallet` / empty wallet.
 
-#### B. Trusted LevelDB / blocks copy (ops only)
+#### B. Trusted LevelDB and blocks copy
 
 Stop source and destination nodes. Copy only what you intend to skip rebuilding:
 
@@ -1194,10 +990,10 @@ rsync -aH --delete "$SRC/chainstate/" "$DST/chainstate/"
 
 Start destination **without** `-reindex`. Verify `getblockchaininfo` / `gettxoutsetinfo` against source tip. No unsigned public snapshots for end users.
 
-**OPS-BOOTSTRAP-DOC (done):** this section + `contrib/linearize` README.
 
-**Height bounds / stop-at-height:** Zero has no `-stopatheight`. Lab short-snap, linearize `max_height`, ecosystem comparison, and postponed track **OPS-AT-HEIGHT** -- see **AtHeight.md**.
-### 13.8 Founders designs A / B / Z
+**Height bounds:** Zero has no `-stopatheight` (**OPS-AT-HEIGHT**); use linearize `max_height` or truncated blk files.
+
+### 11.8 Founders designs A / B / Z
 
 **Status today (mainnet):** Coinbase founders output is **7.5%** of `GetBlockSubsidy` from **fee-start** through last founders height. Payee is selected by height from **`vFoundersRewardAddress`** (10 slots). Script path **`GetFoundersRewardScriptAtHeight`** requires a **P2SH** destination (`CScriptID`); mainnet entries are **2-of-3 multisig** P2SH (`t3...`). Rotation interval is roughly `lastFRHeight / N` blocks per slot (`GetFoundersRewardAddressAtHeight`). RPC surface today: **`zeronodestats.chainStats.developmentfee`**; mining RPCs use **founders** / **foundersreward** (see **DOC-FR-NAMING**). Explorer nodes should use `-disablewallet` when only address-index UTXO RPCs are needed.
 
@@ -1213,13 +1009,6 @@ Changing **updates** (how often / which slot receives) vs **type** (what script/
 
 **Product order if pursued:** decide custody (2-of-3 vs single t vs z) first, then rotation cadence, then implementation + activation height. Not scheduled; needs consensus review before code.
 
-### 13.9 Checklists
-
-**Insight host admin** (primary: **InsightBlock.md**): `-disablewallet`, insight flags, no conf `reindex`, CF/nginx, smoke `getaddressbalance`.
-
-**zerod maintainer / contributor** (this file): flag semantics, datadir, `dbcache`, wallet vs index, tests.
-
-**Desktop wallet user:** no insight; sync; backup keys; ignore explorer runbooks.
 
 ---
 

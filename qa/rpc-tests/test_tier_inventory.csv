@@ -74,6 +74,8 @@ Bfail,retired,wallet_overwintertx.py
 Bfail,retired,mergetoaddress_sprout.py
 Bfail,retired,sprout_sapling_migration.py
 Bfail,retired,turnstile.py
+Bfail,retired,zcjoinsplit.py
+Bfail,retired,zcjoinsplitdoublespend.py
 E,pass,invalidateblock.py
 E,pass,maxblocksinflight.py
 E,pass,rpc_coverage_probe.py

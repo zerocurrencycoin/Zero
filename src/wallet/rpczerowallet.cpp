@@ -2047,14 +2047,14 @@ UniValue getalldata(const UniValue& params, bool fHelp)
             "                    Value of 0: Return address, balance, transactions and blockchain info\n"
             "                    Value of 1: Return address, balance, blockchain info\n"
             "                    Value of 2: Return transactions and blockchain info\n"
-            "2. \"transactiontype\"     (integer, optional) \n"
-            "                    Value of 0: Return all transactions\n"
+            "2. \"transactiontype\"     (integer, optional, default=2) \n"
+            "                    Value of 0: Return all transactions in the last 10 years\n"
             "                    Value of 1: Return all transactions in the last 24 hours\n"
             "                    Value of 2: Return all transactions in the last 7 days\n"
             "                    Value of 3: Return all transactions in the last 30 days\n"
             "                    Value of 4: Return all transactions in the last 90 days\n"
             "                    Value of 5: Return all transactions in the last 365 days\n"
-            "                    Other number: Return all transactions\n"
+            "                    Other number: same as 0\n"
             "3. \"transactioncount\"     (integer, optional) \n"
             "4. \"Include Watch Only\"   (bool, optional, Default = false) \n"
             "\n"
@@ -2397,7 +2397,8 @@ UniValue getalldata(const UniValue& params, bool fHelp)
 
     if (params.size() > 0 && (params[0].get_int() == 2 || params[0].get_int() == 0))
     {
-        int day = 365 * 30; //30 Years
+        // Omitted: 7 days. 0 or an unlisted value: 10 years, which covers the whole chain.
+        int day = params.size() > 1 ? 365 * 10 : 7;
         if(params.size() > 1)
         {
             if(params[1].get_int() == 1)

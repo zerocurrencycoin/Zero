@@ -65,7 +65,7 @@ Target block spacing **120 s** (pre-Blossom); ~800k blocks per halving interval 
 
 ---
 
-## Emission timeline (mainnet)
+## Mainnet emission timeline
 
 Historical path from genesis to the current schedule. Amounts are consensus mint (`GetBlockSubsidy`); payee split is applied after (founders / zeronode / miner).
 
@@ -86,7 +86,7 @@ Historical path from genesis to the current schedule. Amounts are consensus mint
 
 **Projected:** next halving **3,200,000**; founders continue to **7,999,999**; cumulative mint at founders end model **~16.93M ZER**; long-run schedule asymptotes under the 21M-class ceiling used in tests -- product target remains **some 20M ZER** (supply review open).
 
-### Halving calendar (compact)
+### Halving calendar
 
 | Event | Block | Date (UTC) |
 |-------|-------|------------|
@@ -99,7 +99,7 @@ Historical path from genesis to the current schedule. Amounts are consensus mint
 
 ---
 
-## Timing constants (consensus)
+## Consensus timing constants
 
 | Constant | Value |
 |----------|-------|
@@ -124,7 +124,7 @@ Implementation: **`GetBlockSubsidy`** in **`src/main.cpp`**.
 
 ---
 
-## Fee-start height (`nFeeStartBlockHeight`)
+## Fee-start height
 
 | Network | Height |
 |---------|--------|
@@ -136,7 +136,7 @@ At mainnet fee-start: base subsidy steps **10 -> 10.8 ZER**; founders output bec
 
 ---
 
-## Founders reward (7.5%)
+## Founders reward
 
 - **When:** `height >= fee-start` and `height <=` last founders height (**7,999,999** under pre-Blossom formula).
 - **Amount:** **7.5%** of **`GetBlockSubsidy`** for that height.
@@ -144,7 +144,7 @@ At mainnet fee-start: base subsidy steps **10 -> 10.8 ZER**; founders output bec
 
 ---
 
-## Zeronode payments (20-40%)
+## Zeronode payments
 
 Share of **block value** (subsidy before fees split).
 
@@ -179,7 +179,7 @@ Share of **block value** (subsidy before fees split).
 
 Total supply is targeted at some **20M ZER**. **`MAX_MONEY`** in **`src/amount.h`** limits per-output amounts; validation uses **`MoneyRange`** on individual subsidy outputs, not a running cap on total supply. Integrators should not equate **`MAX_MONEY`** with total supply.
 
-### Stable arithmetic (why integer)
+### Integer arithmetic
 
 Subsidy and founders amounts must match in miner, `ConnectBlock`, GBT, and RPC. Mixing `double` with `CAmount` (`10.8 * COIN`, `* 0.075`, `* 7.5 / 100`) can diverge by path after many halvings. **Target:** one integer rule -- base subsidy in zats; founders **`subsidy * 75 / 1000`** (trunc toward 0); same helper everywhere. Zeronode share already uses integer percent (`blockValue * N / 100`). **In tree:** `GetFoundersRewardAmount` / integer `GetBlockSubsidy`. Remaining naming: **DOC-FR-NAMING** (TODO). Supply vs ~20M target: TODO, not this helper.
 
@@ -195,17 +195,17 @@ Wallets and signers must use activation heights from **`getblockchaininfo`** / *
 
 ## Founder and system addresses
 
-### Founders (mainnet, rotate by height)
+### Founders addresses
 
 `t3hmg6WApjqVFw9oPWTDy4JLEqXcUWthg5v`, `t3hrh5M7eaGA5zXCitPXz2pbe146GkVPWHs`, `t3aWmHqBGS7watoKQLa7uykeTaYHoYqM361`, `t3hsi89hPsZzmnbs3pny6cfAxMxV5TJLErj`, `t3TdGxPVUdMXd6qDrDCEuJETLadZ9Ki3s9r`, `t3cb5ZjKmbGbqDaYk97Auam9kXXikGQBmyY`, `t3V1YovGUPW9WSBoAHS48FDdUfUTo6LDpZR`, `t3KB9n28MVg31oo856t1tQGfJuYq8usTvSi`, `t3dqSV4YGj5V3WjQhqFGrKTMUf9Tgc6xnJM`, `t3aJkYT1i6tyytq8J6khPaDNtgZsBSXgfBf`
 
 Testnet/regtest: **`src/chainparams.cpp`** (`GetFoundersRewardAddressAtHeight`).
 
-### Zeronode dummy (collateral checks only)
+### Zeronode dummy address
 
 Mainnet `t1TLNF3seMZennWmmxik8r1PVEKj5zudgRw`; testnet `tmWuQ8Yh3pHDa8MingmN8ECPRBxo2n8uZRs`; regtest `s1eQnJdoWDhKhxDrX8ev3aFjb1J6ZwXCxUT`. Used to build validation-only transactions for **10,000 ZER** collateral checks.
 
-### ZeroWallet donation (separate application)
+### ZeroWallet donation address
 
 Mainnet donation address published with the desktop wallet project: `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP`.
 
@@ -219,7 +219,7 @@ Mainnet donation address published with the desktop wallet project: `t1fDbALrS7t
 
 ### Default data paths
 
-Replace **`USERNAME`** with your OS login. Platform setup examples: [README](README.md#data-directory-zeroconf-wallet-chain).
+Replace **`USERNAME`** with your OS login. Platform setup examples: [README](README.md#data-directory).
 
 | Platform | Data directory | Proving params |
 |----------|----------------|----------------|
@@ -269,7 +269,7 @@ Nodes:    3,390,032.47 ZER
 Dev:            800,037.10 ZER
 ```
 
-### Through halving 3 (height 2,400,000 inclusive)
+### Through halving 3
 
 | Component | ZER | Share of subsidy |
 |-----------|-----|------------------|
@@ -278,7 +278,7 @@ Dev:            800,037.10 ZER
 | Nodes (20/25/30% tiers) | 3,390,032.47 | 22.92% |
 | Dev (7.5%) | 800,037.10 | 5.41% |
 
-### Subsidy by era (same through 2,400,000)
+### Subsidy by era
 
 | Height range | Blocks | Subsidy/block | Era total ZER |
 |--------------|--------|---------------|---------------|
@@ -288,7 +288,7 @@ Dev:            800,037.10 ZER
 | 1,600,000 - 2,399,999 | 800,000 | 2.7 | 2,160,000.00 |
 | 2,400,000 | 1 | 1.35 | 1.35 |
 
-### Dev received through height 2,400,000 (by rotation index)
+### Dev received by rotation index
 
 | Index | Address (prefix) | Cumulative ZER |
 |-------|------------------|----------------|
@@ -300,7 +300,7 @@ Dev:            800,037.10 ZER
 
 Rotation interval: **800,000** blocks per index (`height / 800000`). Full addresses: **Dev and system addresses** above.
 
-### Grand totals (projected)
+### Projected totals
 
 | Milestone | Height | Cumulative subsidy ZER |
 |-----------|--------|------------------------|
@@ -318,7 +318,7 @@ Typical **3-vout** coinbase: dev P2SH + nodes P2PKH + miner P2PKH.
 
 Tools: see command table in **Emission totals** above.
 
-### Customary on-chain stats (when node synced)
+### On-chain statistics
 
 | RPC | Use |
 |-----|-----|
@@ -345,6 +345,6 @@ Sprout pool on mainnet remains non-zero (historical shielded balance); Sapling i
 
 ---
 
-## Coinbase validation (extended)
+## Coinbase validation
 
 Mainnet-verified coinbase behavior: run `contrib/stats/decode_coinbase.py` and `contrib/stats/chain_stats.py` against a synced **`src/zerod`**. Emission tables in this file are the product narrative; scripts are the check.
