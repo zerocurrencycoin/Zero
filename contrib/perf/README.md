@@ -1,18 +1,18 @@
 # contrib/perf
 
-**New here? Read `docs/HOWTO.md` first.** It teaches the
-workflow -- how to take a profile, how to read the three views, which traps
-have produced wrong numbers before. This file is a per-tool reference and
-assumes you already know why you are running something.
+Per-tool reference for the performance harness. The measurement workflow --
+taking a profile, reading its three views, known traps -- is `docs/HOWTO.md`;
+this file assumes that background.
 
-Quickest useful thing:
+Minimal profile cycle:
 
 ```bash
 contrib/perf/profile_run.sh <scenario> <datadir> 60   # capture -> bucket -> collate
-contrib/perf/profile_collate.py report                # everything accumulated so far
+contrib/perf/profile_collate.py report                # report over all collated runs
 ```
 
-Data produced 2026-08-19/20 and its provenance: `test-logs/DATA_INDEX.md`.
+Recorded run data and its provenance: `test-logs/DATA_INDEX.md` at the
+repository root.
 
 ## Routing
 
@@ -23,7 +23,8 @@ per-tool caveats. It is deliberately the only place those live in long form.
 |-------------|------|
 | How to take a profile and read it | `docs/HOWTO.md` |
 | One-line index of every tool | `docs/HOWTO.md` S4.1 |
-| Findings and method | `docs/Perf.md` |
+| Block validation and import | `docs/SYNC.md` |
+| Wallet witnesses | `docs/WITNESS.md` |
 | Numbers bound to `M-*` | `docs/Measures.md` |
 | Work items and what to do next | `docs/PLAN.md` |
 | Rules, ownership, placement, lab discipline | `docs/POLICY.md` |
@@ -46,7 +47,7 @@ these scripts.
 **Datadir rule:** never use the default `~/Library/Application Support/zero`
 (or `~/.zero`) as a **writable** lab datadir, and never launch `zerod`
 `-reindex`/`-rescan`/`-loadblock` against it. Launchers refuse that path and
-also refuse **LAB** under the Zero400 product tree. Shared guard:
+also refuse **LAB** under the Zero product tree. Shared guard:
 `contrib/perf/datadir_guard.sh` -> `contrib/perf/debuglog.py --guard-write`.
 Override (can destroy the live node): `ZERO_PERF_ALLOW_LIVE_DATADIR=1` or
 `python3 contrib/perf/debuglog.py --guard-write --allow-live-datadir PATH`.
@@ -88,18 +89,19 @@ python3 contrib/perf/debuglog.py --self-test
 python3 contrib/perf/debuglog.py --list --datadir "$HOME/Library/Application Support/zero"
 python3 contrib/perf/debuglog.py --list --datadir "$HOME/Library/Application Support/zero" --rotated
 python3 contrib/perf/debuglog.py --list --log "$HOME/Library/Application Support/zero/*.log"
+python3 contrib/perf/debuglog.py --observed-runtime "$LAB/debug.log"   # disablewallet=, script_threads=
 ```
 
 **Reuse outside this tree:** the fixture contract is the reusable part --
 refuse protected datadirs, inject wallets by env, packed snaps outside git,
 `bootstrap.dat` copies only, scratch `zero.conf` with no sticky `reindex=`,
 Insight flags matching the copied index, append-only ledger. Product runtime check (RPC before sync, then warm snap):
-`contrib/ops-validate.sh` -- copy to Zero400 as the same path. Long import
+`contrib/ops-validate.sh` -- copy to Zero as the same path. Long import
 (`bootstrap`, `reindex`) defaults to height **100000** and `-disablewallet`.
 `reindex all` goes to snap tip (tiny 187417). `rescan` keeps indexes and waits
 for Done loading. Wallet: `p0` / `p1` / `fat` / `none` or `--wallet=PATH`
 (`contrib/ops-validate.sh wallets` lists paths). Product ops
-catalog and conf templates: Zero400 **TEST_ZERO.md** §8 and
+catalog and conf templates: Zero **TEST_ZERO.md** §8 and
 `contrib/conf-templates/`. Do not copy this campaign set into a GA ship tree.
 
 **Long trials:** lab discipline, including the restartability rule, is
@@ -107,7 +109,7 @@ catalog and conf templates: Zero400 **TEST_ZERO.md** §8 and
 **ConnectBlock vs wallet-on:** `capture_sequence` / `bench_matrix` target import
 CPU on `zcash-loadblk`. Wallet-on fat reindex is a separate track
 (`wallet_sync_profile.sh`, M-WAL-SYNC-FAT / M-CPU-WAL-FAT) -- bottleneck is
-`VerifyAndSetInitialWitness`, not `OrderedTxItems` (see **docs/Perf.md** §0.14).
+`VerifyAndSetInitialWitness`, not `OrderedTxItems` (`docs/WITNESS.md` "Cost").
 
 ## extract_measures.py
 
@@ -163,7 +165,7 @@ findings. `--rotated` is defined in **debug.log path spec** above.
 
 Create a disposable lab datadir and unroll only `blocks/` + `chainstate/`
 (includes `blocks/index/` and `rev*`). Does **not** write `zero.conf` or start
-`zerod`. Refuses the default Application Support datadir and Zero400 as **LAB**
+`zerod`. Refuses the default Application Support datadir and Zero as **LAB**
 unless `ZERO_PERF_ALLOW_LIVE_DATADIR=1`. Default archive is read-only (no writes
 there).
 
@@ -174,7 +176,7 @@ contrib/perf/prep_lab_datadir.sh unroll
 ```
 
 Defaults: `LAB=reindex-profile/mainnet-p2p-23911`,
-`ARCHIVE=$HOME/Library/Application Support/zero/chainblocks812-clean.tgz`.
+`ARCHIVE=` defaults to `chainblocks812-clean.tgz` found by `snap_archive`.
 `ARCHIVE=` (empty) unrolls from `SRC=reindex-profile/fulltip-812-datadir` instead.
 Then write `LAB/zero.conf` by hand (`rpcport=23911`, `port=23901`, Insight flags
 if the copied index was built with Insight).
@@ -182,7 +184,7 @@ if the copied index was built with Insight).
 Opt-in witness flags (defaults off; wallet required -- do not combine with
 `-disablewallet`): `-walletwitness=ibd-defer` `-walletwitnessnote=1`.
 Caught-up follow-tip: `ibd-defer` applies on the next IBD/reindex; to rebuild
-now add `-walletwitness=rebuild` for that start only. See **docs/Perf.md** §0.14.
+now add `-walletwitness=rebuild` for that start only (`docs/WITNESS.md` "Mechanisms").
 
 ## tiny_baseline.sh
 
@@ -219,7 +221,7 @@ python3 contrib/perf/decode_captures.py reindex-profile/captures --json reindex-
 ## bench_matrix.sh
 
 Historical `ZERO_FDCACHE` A/B (`-perffdcache` / `-perfbufsize`) against a
-fixed height window. **ZeroPerf only** -- do not copy into a GA Zero400 tree.
+fixed height window. **ZeroPerf only** -- do not copy into a GA Zero tree.
 Stock ConnectBlock rematch moved to `postsapling_reindex.sh`; product
 bootstrap is `contrib/ops-validate.sh bootstrap`. Keep this file for FDCACHE
 re-measure if that flag returns to the mix.
@@ -253,8 +255,38 @@ ZERO_PERF_SRC_DATADIR="$HOME/Library/Application Support/zero" \
 #   -> per-trial util.tsv (ps %cpu/%mem/rss + vmmap Physical footprint at milestones)
 ```
 
-Plans/specs: **docs/Perf.md** §0.13 (BENCH-BOOT / FIX-*).
-Lab materials / density banding: **docs/Perf.md** §0.9 / §1.
+`CONDITIONS` also takes `parN` (`-par=N`). `INTERLEAVE=1` runs every
+condition once per round instead of all trials of one condition in a row.
+Every runtime flag is declared to RecBench, so arms get distinct `config_id`s,
+and checked against the node's own log before recording
+(`debuglog.py --observed-runtime`): a trial whose node did not apply
+`-disablewallet` or the requested `-par` width is refused, not recorded.
+`util.tsv` carries a `therm` column from `pmset -g therm` (`none` unless macOS
+has raised a thermal or performance warning).
+
+Manual check of the refusal path (needs a node, ~2 min, not part of any gate):
+a wrapper that drops `-par` makes a `par4` trial run 14 threads, and the row
+must be refused.
+
+```bash
+printf '#!/usr/bin/env bash\nargs=(); for a in "$@"; do case "$a" in -par=*) ;; *) args+=("$a");; esac; done\nexec %s/src/zerod "${args[@]}"\n' "$PWD" > /tmp/zerod-drop-par
+chmod +x /tmp/zerod-drop-par
+ZEROD=/tmp/zerod-drop-par ZERO_PERF_STORE_DIR=/tmp/rb-check ZERO_PERF_SCRATCH_DATADIR=/tmp/zero-lab-check \
+ZERO_PERF_DATADIR_POLICY=replace WARMUP_HEIGHT=0 MEASURE_BLOCKS=20000 N_TRIALS=1 CONDITIONS=par4 \
+  contrib/perf/postsapling_reindex.sh   # expect: runtime mismatch ... row not recorded
+```
+The rsync skips `bootstrap.dat*`. For large campaigns set
+`ZERO_PERF_SCRATCH_DATADIR=/tmp/...` and `ZERO_PERF_DATADIR_POLICY=replace`:
+the default `aside` keeps a ~7.6 GB copy per trial. Script checks run only
+above the last checkpoint (h700,000), so a `-par` window must start there:
+
+```bash
+ZERO_PERF_SCRATCH_DATADIR=/tmp/zero-lab-par ZERO_PERF_DATADIR_POLICY=replace \
+WARMUP_HEIGHT=700000 MEASURE_BLOCKS=200000 N_TRIALS=4 INTERLEAVE=1 \
+CONDITIONS=par0,par7,par4,par1 CAMPAIGN=par-ab-700k \
+  contrib/perf/postsapling_reindex.sh
+```
+
 
 ## mine_bench.sh
 
@@ -266,21 +298,18 @@ contrib/perf/mine_bench.sh mainnet-template # (192,7) env + notes; opt-in solve
 ```
 
 Env: `MINE_BLOCKS`, `MINE_TIMEOUT_S`, `CAMPAIGN=mine-equihash-*`.
-**Done:** regtest smoke (M-MINE-REGTEST-SMOKE).
-**G5 (Track M), mainnet (192,7) timed solve -- the timing half is DONE, the
-profiling half is not.** `mainnet-template` mode alone only writes an env stub
-and never solves; that is the "G5 problem". The timing was taken instead
-through the fixed-nonce harness in `equihash_tests`
-(`SOLVE_TIMING_1927` / `SOLVE_TIMING_SOLVER`), which is the better instrument
--- paired nonces, both solver arms in one process, solutions verified in-loop.
-Results: M-EQ-SOLVE-1927-FIXED and M-EQ-TROMP-PAIRED.
+Regtest result: M-MINE-REGTEST-SMOKE.
 
-**What remains of G5:** the Instruments capture, for a per-phase CPU
-breakdown of a mainnet solve. `MINE_MAINNET_SOLVE=1` plus an external
-`xctrace` attach; not run.
+`mainnet-template` writes an env stub and does not solve. Timed mainnet
+(192,7) solves use the fixed-nonce harness in `equihash_tests`
+(`SOLVE_TIMING_1927` / `SOLVE_TIMING_SOLVER`) instead: paired nonces, both
+solver arms in one process, solutions verified in-loop. Results:
+M-EQ-SOLVE-1927-FIXED and M-EQ-TROMP-PAIRED. A per-phase CPU profile of a
+mainnet solve needs `MINE_MAINNET_SOLVE=1` plus an external `xctrace` attach;
+that capture is task G5.
 
-KATs: **`src/test/data/`** (`1927EQ.txt`, `1927EQ_h1.hex`; see `kats/README.md`). TST-05 green;
-further test adaptation **postponed (G9)**.
+KATs: **`src/test/data/`** (`1927EQ.txt`, `1927EQ_h1.hex`; see `kats/README.md`).
+Test status: TST-05, G9.
 
 ## wallet_sync_profile.sh
 
@@ -301,7 +330,7 @@ M-WAL-SYNC-P0, M-WAL-SYNC-P1, M-WAL-SYNC-FAT, M-CPU-WAL-FAT. **Caveat:**
 -- tip time then from `debug.log`; hygiene timeout is queue **G0b**.
 
 Archive: `test-logs/archives/walletsync-fat-g0-20260812.tar.gz` + per-run
-`FINDINGS.md`. Mitigations: **docs/Perf.md** §0.14. Queue: **docs/Perf.md** §0.13 G.
+`FINDINGS.md`. Mitigations: `docs/WITNESS.md` "Mechanisms".
 
 `WALLETINFO_TIMEOUT_S` (default 5; `0` skips txcount). `ZEROD_EXTRA_ARGS` for
 **opt-in** witness flags (defaults off; see `zerod -help`):
@@ -312,9 +341,8 @@ Archive: `test-logs/archives/walletsync-fat-g0-20260812.tar.gz` + per-run
 `getwalletinfo` extras: `note_tx_count`, `sprout_note_count`, `sapling_note_count`.
 While rebuilding (`-33`): status allowlist `stop`/`help`/`getblockcount`/`getblockchaininfo`/`getnetworkinfo`
 (deny-by-default; `getblockcount` still stalls on `cs_main` until the walk ends).
-R5c / **FIX-WIT-WALK-UNLOCK**: product, not a lab e2e -- **docs/Perf.md** §0.16.
+R5c needs the height walk to release `cs_main` first (`docs/PLAN.md` A6).
 Held and known-fail tests are excluded by `qa/zcash/test_filters.sh`; do not re-list them here. B1 `reindex_shielded.py` covers reindex spend.
-Witness RPC lockout / peer comparison / risk: **docs/Perf.md** §0.14 / §0.16.
 
 ## witness_lab.sh
 
@@ -329,7 +357,7 @@ ZERO_PERF_WALLET_FILE=... contrib/perf/witness_lab.sh rebuild-noteidx
 
 Reusable automation; **one-time** lab samples (not CI). Tiny/short tips are pre-Sapling
 (187417 / 245992) -- DIRTY-CONT `note_visits` and tip height-walk need
-`ZERO_PERF_CHAIN_SNAP=full` (disposable full tip; see docs/Perf.md §0.16). E2E:
+`ZERO_PERF_CHAIN_SNAP=full` (disposable full tip). E2E:
 `wallet_witness_defer.py`.
 
 Post-Sap WIT-REBUILD (one trial at a time):
@@ -339,7 +367,7 @@ ZERO_PERF_CHAIN_SNAP=full ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
   contrib/perf/witness_lab.sh rebuild-noteidx
 ```
 
-Disposable full tip: `reindex-profile/fulltip-812-datadir` (or `chainblocks812-clean.tgz`).
+Disposable full tip: `reindex-profile/fulltip-812-datadir`. It is not kept; recreate it from `chainblocks812-clean.tgz` with `LAB=reindex-profile/fulltip-812-datadir contrib/perf/prep_lab_datadir.sh`.
 Scratch `zero.conf` needs `experimentalfeatures=1` + `insightexplorer=1`.
 
 ```bash
@@ -384,12 +412,11 @@ contrib/perf/codequery.sh symbol 'crypto_generichash_blake2b_init' src/
 contrib/perf/codequery.sh count 'sodium_' src/
 ```
 
-Written after two ad-hoc greps gave wrong answers in one session: a
-`grep --include=*.cpp` whose glob zsh expanded (and, finding no match,
-aborted the whole pipeline) reported "one call site" when there were twelve;
-and an `awk -F=` against colon-separated `vmmap` output recorded every memory
-value as blank. Both failed silently. Prefer this over a hand-written grep
-when the answer will be written down.
+It guards against two silent failure modes of hand-written searches: an
+unquoted `--include=*.cpp` glob expanded by zsh, which aborts the pipeline and
+undercounts (one call site reported, twelve present); and splitting on the
+wrong delimiter (`awk -F=` over colon-separated `vmmap` output), which yields
+blank values. Use it whenever the answer will be written down.
 
 ## Snapshot archives: the Insight flags are required
 
@@ -406,9 +433,9 @@ of loading the tip in seconds. The snapshot's `chainstate/` was built by a node
 with Insight indexes enabled; a node started without them does not recognise
 that state as usable.
 
-Verified 2026-09-17 on `chainblocks812-clean.tgz`: with the flags, startup
-reached **height 2,518,018** with `LoadBlockIndexDB: insight explorer enabled`
-and **`block index 19709ms`** -- 20 seconds, no reindex.
+With the flags, `chainblocks812-clean.tgz` starts at **height 2,518,018** with
+`LoadBlockIndexDB: insight explorer enabled` and **`block index 19709ms`**, no
+reindex.
 
 Minimal working lab conf (no wallet, no network, no mining):
 
@@ -433,9 +460,9 @@ with no index and no chainstate, so there is nothing for Insight settings to
 be consistent with -- the node builds both from scratch as it imports. The
 flags only matter when *transplanting* a prebuilt `chainstate/`.
 
-### Why the snapshot loads in 20 s and the bootstrap takes 2 h
+### Snapshot load versus bootstrap import
 
-Two different operations, and the log lines name the difference:
+The two are different operations, and the startup log lines show it:
 
 | | `chainblocks812-clean.tgz` | `bootstrap.dat` |
 |---|---|---|
@@ -445,20 +472,39 @@ Two different operations, and the log lines name the difference:
 | Verification at start | last **288** blocks, level 3 | none -- every block validated during import |
 | Total to usable tip | **~20 s** | **7,191 s (2.00 h)** |
 
-The snapshot is not faster at the same work; it **skips the work**, having had
-it done once already. The 37 ms bootstrap figure is the tell -- its index load
-is instant because the index is empty.
+The snapshot does not perform the same work faster; it **skips the work**,
+which was done when the snapshot was built. The 37 ms bootstrap index load
+reflects an empty index.
 
-**Consequence for lab design:** use the snapshot when the question is about a
+**Lab inputs.** Originals are read-only; copy or softlink into scratch.
+Launchers find archives with `snap_archive` (`perflib.sh`), which searches
+`ZERO_PERF_ARCHIVE_DIR`, the default datadir, then its `.save` sibling. The
+datadir was re-imported from `bootstrap.dat` and the previous one kept as
+`zero.save`, which is where the archives are now.
+
+| Input | Location | Notes |
+|-------|----------|-------|
+| `chainblocks-tiny.tgz` | `zero.save` | `blk00000`-`00001` (P2P order), tip 187,417. **Carries a `zero.conf` with `insightexplorer=1`, `experimentalfeatures=1`, `dbcache=512`**, which `tiny_baseline.sh` uses; results with it are ~9% slower than without (M-RX-TINY-20260930). sha256 in `chainblocks-short-tiny.sha256` |
+| `chainblocks-short.tgz` | `zero.save` | three files, tip 245,992; same sha256 file |
+| `chainblocks-postsap12.tgz` | `zero.save` | twelve files, reaches h583,699+ (1.8 GB) |
+| `chainblocks812-clean.tgz` | `zero.save` | 9.1 GB tip snapshot with `blocks/index` and `chainstate`; `prep_lab_datadir.sh` default. `chainblocks812.tgz` has identical block and chainstate data; only `blocks/index` differs, by LevelDB compaction |
+| `bootstrap.dat` | out of tree, `linearize/bootstrap.dat` beside this repository or the product tree (`LINEARIZE_DIR` overrides); lab softlink `reindex-profile/bootstrap-src/bootstrap.dat`. `ops-validate.sh bootstrap` refuses the original and warns when it cannot find it | ~5.04 GiB, heights 0-2,468,990 in height order, magic `5a45524f`; built with Zero `contrib/linearize`. The live datadir's `bootstrap.dat.old` is the imported copy |
+| Live `blocks/` | default datadir | Height-ordered (bootstrap import); `postsapling_reindex.sh` rsyncs it read-only |
+| Ledgers | `reindex-profile/bench-summaries/` | RecBench store |
+
+A new height-prefix snapshot is best cut with `contrib/linearize`: a hash list
+from `linearize-hashes.py` against a lab node, truncated to the tip height,
+then `linearize-data.py` with an output directory.
+
+**Lab design:** use the snapshot when the question is about a
 node *at* the tip (RPC behaviour, memory at rest, witness operations), and
 `bootstrap.dat` when the question is about *reaching* the tip (validation
 throughput, CPU during import). They are not substitutes.
 
-## Lab wallets: where they are and how to use them
+## Lab wallets
 
-**The catalog is `contrib/ops-validate.sh wallets`** -- it prints each id, its
-size and its resolved path. That command is the answer to "where are the test
-wallets"; this section says what they are, because no document did.
+`contrib/ops-validate.sh wallets` prints each wallet id, its size and its
+resolved path. This section defines what each id is.
 
 | Id | Default path | What it is |
 |----|--------------|------------|
@@ -477,20 +523,16 @@ ZERO_PERF_WALLET_FILE=/path/to/fat/wallet.zero \
   contrib/perf/wallet_sync_profile.sh            # fat reindex profile
 ```
 
-**Why the golden fat wallet is not in this tree, and why that was hard to
-discover.** `docs/POLICY.md` S7.2 keeps DevFee wallet material out of the tree
-and uses it **by reference only** -- no addresses, no host paths in tracked
-documents. That is deliberate and correct. What was missing is any statement
-of *what the referenced thing is*, so `fat` appeared in eight `M-*` rows and
-several analyses with no definition anywhere. Hence this table.
+The golden fat wallet is DevFee wallet material, kept outside the tree and
+used **by reference only** -- no addresses, no host paths in tracked documents
+(`docs/POLICY.md` S7.2).
 
-**On this host:** `p0` and `p1` are **MISSING**, and `fat` resolves to a
+**Current host:** `p0` and `p1` are **MISSING**, and `fat` resolves to a
 110 KB `wallet.zero` -- **not** the golden 749 MB wallet the `M-WAL-*` rows
 were taken against. A wallet-on run here produces valid numbers that are
 **not comparable** to those rows.
 
-**The fat-wallet finding, since it is the largest in the tree:** a fat-wallet
-reindex of the tiny snap runs at **~19 blk/s against ~1,000 for
+**Fat-wallet finding:** a fat-wallet reindex of the tiny snap runs at **~19 blk/s against ~1,000 for
 `-disablewallet`** -- **~50x slower** (M-WAL-SYNC-FAT, 2.75 h for 187,417
 blocks). The bottleneck is `BuildWitnessCache` ->
 `VerifyAndSetInitialWitness`, ~97% of CPU (M-CPU-WAL-FAT), not
@@ -511,19 +553,18 @@ contrib/perf/codectx.py calls src/main.cpp GetSpentIndex
 contrib/perf/codectx.py phrase 'mostly\s+redundant' src/main.cpp
 ```
 
-Written after three failures in one session: an `awk 'NR<=N'` scan reported a
-lock from a *different function* as covering a call site (twice, on the
-`FlushStateToDisk` and `getspentinfo` questions); and a comment phrase split
-across two lines was reported absent when present. `phrase` folds line breaks
-and comment markers before matching. Exit 1 on no match, as `codequery.sh`
-does.
+It guards against two failure modes of line-range scans: an `awk 'NR<=N'` scan
+attributes a lock taken in a *different function* to the call site (observed
+on `FlushStateToDisk` and `getspentinfo`); and a comment phrase split across
+lines is reported absent. `phrase` folds line breaks and comment markers
+before matching. Exit 1 on no match, as `codequery.sh` does.
 
 ## snapshot_data.sh
 
 Copy a data file aside before a run overwrites it. Collated outputs
 (`REPORT.md`, `collation.json`, `util.tsv`, `measures_*.csv`) are rewritten in
-place, so without a copy the previous revision is gone and "what did this say
-before?" is unanswerable. Ledgers are append-only and do not need this.
+place and keep no previous revision. Ledgers are append-only and do not need
+this.
 
 ```bash
 contrib/perf/snapshot_data.sh reindex-profile/bench-summaries/REPORT.md
@@ -543,7 +584,7 @@ should reference its internals by path.
 
 ## ops-campaign.sh
 
-Rematch the same wallet x op matrix after each integration cycle (docs/Perf.md §0.16).
+Rematch the same wallet x op matrix after each integration cycle.
 **ZeroPerf only.** **One trial per invocation.** Do not batch fat/full/long trials.
 
 Catalog: `contrib/perf/cycle_trials.tsv` (`SET=smoke|gate|long`).
@@ -565,7 +606,7 @@ Ledger `CAMPAIGN=cycle-1` (then cycle-2, cycle-3). Status:
 
 | Script | Campaign role | Plan |
 |---|---|---|
-| `ops-validate.sh` | product ops | `reindex` / `reindex all` / `rescan p0` / `bootstrap` / wallet ids. Copy to Zero400. |
+| `ops-validate.sh` | product ops | `reindex` / `reindex all` / `rescan p0` / `bootstrap` / wallet ids. Copy to Zero. |
 | `tiny_baseline.sh` | `none` + reindex + tiny/short | Fold: `ZERO_OPS_SNAP=tiny contrib/ops-validate.sh reindex all` plus extract_measures. Then delete or make a one-line wrapper. |
 | `wallet_sync_profile.sh` | p0/p1/fat reindex | Keep until ops-validate grows `ZERO_OPS_WALLET` + util.tsv (`WALLETINFO_TIMEOUT_S`). Then dispatch to ops-validate reindex. |
 | `witness_lab.sh` | rescan / sync / flag A/B | Split: stock rescan/catchup -> ops-validate rescan (keep chainstate). Remain standalone: `dirty-cont`, `rebuild`, `*-noteidx`, `ibd-defer`, tip-rebuild. Those flags are the witness lab, not product ops. |
@@ -574,38 +615,36 @@ Ledger `CAMPAIGN=cycle-1` (then cycle-2, cycle-3). Status:
 | `bench_matrix.sh` | not in cycle catalog | Remain standalone, historical FDCACHE. ZeroPerf only. |
 | `capture_sequence.sh` / `prep_lab_datadir.sh` | Instruments / snap unroll | Remain standalone. |
 
-Do not merge callees into `ops-campaign.sh` itself. It stays a catalog + resume ledger. Do not copy the campaign set into GA Zero400.
+Do not merge callees into `ops-campaign.sh` itself. It stays a catalog + resume ledger. Do not copy the campaign set into GA Zero.
 
 `witness_lab.sh` also accepts `rescan`, `rescan-noteidx`, `catchup`,
 `catchup-noteidx`, `tip-catchup`, `tip-catchup-note` as single trials.
-```
 
 ---
 
 ## Documentation map
 
 Every markdown file in `contrib/perf`, what it owns, and what it does not
-hold. **A file with no inclusion rule accretes** -- nobody can say what does
-not belong in it, so everything does; that is how this set reached 43 files,
-five of them about the set itself. When two documents could hold something,
-the owner takes it and non-owners cite it. Adding a file means adding a row
-here and deleting another file (`docs/POLICY.md` S2.0 rule 1).
+hold. A file without an inclusion rule accretes unrelated material
+(`docs/POLICY.md` "The accretion rule"). When two documents could hold
+something, the owner takes it and non-owners cite it. Adding a file means
+adding a row here and deleting another file (`docs/POLICY.md` S2.0 rule 1).
 
 `lint-perf.sh` `docmap` fails if a tracked `.md` has no row, or a row names a
 file that does not exist.
 
 | Document | Owns | Does not hold |
 |---|---|---|
-| `docs/Perf.md` | ConnectBlock CPU, disk I/O and FDCACHE, the Merkle-root latch, memory, `AddToBlockIndex` | Task state. Solver internals. Hashing kernels. Witness mechanics |
+| `docs/SYNC.md` | Block validation and import: CPU by height, Equihash verification, `CheckBlock` redundancy, disk I/O and FDCACHE, trees and anchors, memory | Task state. Solver internals. Hashing kernels. Witness mechanics |
+| `docs/WITNESS.md` | Wallet witness cache: cost, defer and NOTEIDX, note index, RPC gates, reorg and crash | Task state. Note-selection locking (`LOCKS.md`) |
 | `docs/PerfGroth.md` | Sapling Groth16 cost and batch headroom | Non-Groth findings; scheduling |
-| `equ/` | Equihash: solver internals, lineage, method, plans, solve findings | Equihash verification cost during sync, which is a `docs/Perf.md` finding |
+| `equ/` | Equihash: solver internals, lineage, method, plans, solve findings | Equihash verification cost during sync, which is `docs/SYNC.md` |
 | `docs/HASHLIBS.md` | Which library computes which hash, and what that costs | Kernel internals; Equihash solving |
 | `docs/SODIUM_SURVEY.md` | Which libsodium version, and why | Hashing performance |
 | `docs/CROSSPROJECT.md` | Recording results comparably across projects | Either project's findings |
 | `docs/PRODUCT.md` | Node-code changes perf work identified, and the evidence | Their state |
-| `docs/PLAN.md` | What to decide and what to do next, one line per item | Any detail whose subject is owned elsewhere |
+| `docs/PLAN.md` | The single work register: decisions, items, order, grouped by module | Analysis whose subject has an owning document |
 | `docs/TESTING.md` | Test and validation state: how to run the suites, suite rules, known defects, suite plan | Performance findings |
-| `docs/TASKS.md` | Frozen, superseded by `PLAN.md`; retained until migration (PLAN X1) completes | New items -- do not add |
 | `README.md` | Per-tool invocation, env vars, per-tool caveats | Findings; task state |
 | `docs/HOWTO.md` | How to take a measurement and read it | Per-tool detail |
 | `docs/Measures.md` | The `M-*` registry and metric vocabulary | Narrative |
@@ -619,17 +658,16 @@ file that does not exist.
 | `docs/SCRIPTQUEUE.md` | Why `max_concurrent` misled, and what occupancy actually is | Thread census (`THREADS.md`) |
 | `docs/CPU_MEASUREMENT.md` | Which CPU quantity a figure is, and how to sample it without contradiction | Any specific measurement's result |
 | `docs/LOCKS.md` | **Every lock finding**: rates, sites, upstream precedent, disposition | Work items (`PLAN.md`); thread census (`THREADS.md`) |
-| `docs/CONCURRENCY.md` | Thread pools, their sizing, solver synchronisation, and how to validate locking | Performance findings (`Perf.md`); task state |
+| `docs/CONCURRENCY.md` | Thread pools, their sizing, solver synchronisation, and how to validate locking | Performance findings (`SYNC.md`); task state |
 | `docs/RECORDS_READINESS.md` | Whether the store can type a given result, and the interim rule | Row shape itself (`SCHEMA.md`); measurement results |
-| `docs/FINDINGS.md` | What is known, newest first | Proof verification (its own file); work items |
-| `docs/NOTES.md`, `mine/*.md` | Point-in-time records, kept as written | Anything durable |
+| `mine/*.md` | Point-in-time records, kept as written | Anything durable |
 | `docs/PerfTimers.md` | Spec for the block-processing phase timers (`IMP-BENCH-ALWAYS`) | Measured results; task state |
 | `docs/PerfPlatforms.md` | What the harness needs per platform, and the Linux/Windows equivalents | Findings taken on any one platform |
 | `docs/Stores.md` | Zero's on-disk data structures and local stores | Performance findings about them |
 | `docs/BUILD_RECONFIG.md` | The autotools re-configure trap and its options | Anything not about configure |
 | `zcash-lint/ZEROPERF.md` | What the vendored Zcash linters are, and which findings are set aside | Lint results |
-| `reporoot/*.md` | Transient drafts and decision papers for Zero400-owned material: root-document reviews, migration and cleanup plans (`POLICY.md`) | Anything authoritative; disposition is the owner's |
-| `keep/*.md` | Archived point-in-time notes, kept as written (S5): `Peer.md` node/RPC ops, `TENT.md` and `TENTZero.md` TENT lineage and port map, `ZcashV.md` 2026 Sprout/Orchard vulnerabilities across zcashd forks, `ZeroWallet_Design.md` Qt wallet design (out of node scope, kept as reference) | Anything durable or maintained; these are not updated |
+| `reporoot/*.md` | Transient drafts and decision papers for Zero-owned material: root-document reviews, migration and cleanup plans (`POLICY.md`) | Anything authoritative; disposition is the owner's |
+| `retired/*.md` | Documents awaiting deletion once their content is extracted; not maintained. `TENTZero.md` is held until Zero takes it (`PLAN.md` D11) | Anything current |
 
 Rules, ownership, retention and lab discipline: **`docs/POLICY.md`**.
 
@@ -638,8 +676,7 @@ Rules, ownership, retention and lab discipline: **`docs/POLICY.md`**.
 **One subject, one file.** Everything about a topic goes in the single file
 that owns it -- findings, method, defects, and the plan for it together. Do not
 open a second file to cover the same subject from another angle, and do not
-leave a summary behind in the first. A developer should be able to read one
-file and be done, not assemble the picture from five.
+leave a summary behind in the first. One file answers one subject.
 
 **A file per subject, not a file per angle.** A document is warranted by a
 major subject or subsystem -- locking, testing, measurement, a dependency. It

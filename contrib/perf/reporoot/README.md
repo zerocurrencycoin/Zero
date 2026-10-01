@@ -1,15 +1,15 @@
-# reporoot -- transient drafts for Zero400-owned root documents
+# reporoot -- transient drafts for Zero-owned root documents
 
 **Transient. Nothing here is authoritative.** These are proposed rewrites of
 documents this tree reads but does not edit (`POLICY.md` S7.1): `TODO.md`,
 `TEST_ZERO.md`, `ZeroStruct.md`, `AtHeight.md`, `BUILD_ZERO.md`,
 `WitnessReindex.md`, `ExtTests.md`, `UpdateZero.md`.
 
-**Why drafts live here.** Those files are owned by the Zero400 product tree.
+**Why drafts live here.** Those files are owned by the Zero product tree.
 ZeroPerf can read them, and perf work produces findings and task-state changes
 that belong in them, but editing them from this tree would fork the product
 documentation across two checkouts. So the change is written here, reviewed,
-and applied in Zero400 by whoever owns that tree.
+and applied in Zero by whoever owns that tree.
 
 **Lifecycle.** A draft is deleted once applied upstream, or once superseded.
 A file here that has been applied is not a record -- the upstream document is.

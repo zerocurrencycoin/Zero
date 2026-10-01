@@ -318,9 +318,9 @@ express it only by copying an opaque state the caller is not supposed to know
 the size of, which is exactly what `eh_hashstate.h` had to wrap. **The cost is
 not in the hash -- it is in the interface not admitting the pattern.**
 
-## 3. What this corrects in Perf.md S5
+## 3. What this corrects in the earlier diagnosis
 
-`Perf.md` S5 diagnosed Equihash's CPU share as libsodium running an
+The earlier diagnosis Equihash's CPU share as libsodium running an
 unaccelerated scalar compression function on aarch64, and recommended
 replacing the hashing at this one call site rather than patching libsodium's
 dispatcher.

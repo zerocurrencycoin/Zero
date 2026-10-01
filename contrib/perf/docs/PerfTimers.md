@@ -10,7 +10,7 @@ found by reading the call sites, the proposed shape, and what each change must
 be checked against.
 
 **No code changes are made by this document.** Tracking item and state:
-`TASKS.md` B1. Findings that motivate it: `FINDINGS.md` S1.1.
+`PLAN.md` P1. Why it matters: `SYNC.md` "Where the time goes".
 
 Numbers cited by `M-*` id live in `Measures.md`. Line numbers are
 `src/main.cpp` as of writing; re-confirm before editing, they drift.
@@ -275,12 +275,12 @@ obvious.
 
 1. **Parse the existing ten lines** (S4 item 1) -- ZeroPerf-owned, no node
    change, immediately useful on logs already captured.
-2. **Add proof-verification counters** (S3.2) -- product change, Zero400 review.
+2. **Add proof-verification counters** (S3.2) -- product change, Zero review.
    Required before any summary is worth shipping (S2.1).
-3. **Emit `BenchSummary`** (S3.3) -- product change, Zero400 review.
+3. **Emit `BenchSummary`** (S3.3) -- product change, Zero review.
 4. **Parse `BenchSummary`** (S4 item 2).
 
-Steps 2 and 3 touch `src/main.cpp`, which is **Zero400-owned**
+Steps 2 and 3 touch `src/main.cpp`, which is **Zero-owned**
 (`POLICY.md` S1). They are specified here and reviewed there. Step 1 is
 `contrib/perf/` and can proceed independently.
 

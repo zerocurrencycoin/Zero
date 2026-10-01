@@ -12,7 +12,7 @@ user sets.**
 | Thread | Site | Count | Sizing |
 |--------|------|------:|--------|
 | `ThreadScriptCheck` | `init.cpp:1366` | `nScriptCheckThreads - 1` | `-par`; `0` = auto via `GetNumCores()`, negative leaves N cores free, capped at `MAX_SCRIPTCHECK_THREADS` = 16 (`main.h:91`). **The only user-sized pool** |
-| Async RPC worker | `asyncrpcqueue.cpp:179` | **1** | `addWorker()` called once (`rpc/server.cpp:311`); the multi-worker loop is commented out. See P9 |
+| Async RPC worker | `asyncrpcqueue.cpp:179` | **1** | `addWorker()` called once (`rpc/server.cpp:311`); the multi-worker loop is commented out. See `LOCKS.md` "Shielded note selection and the single async worker" |
 | HTTP workers | `httpserver.cpp` | `-rpcthreads`, default **4** | Separate from the `threadHTTP` dispatcher below |
 
 ## 2. Fixed singletons
@@ -46,8 +46,9 @@ that -- it confirms there is no verification pool to widen.
 - **`ThreadScriptCheck`** is the only genuinely variable-width pool, and its
   work is transparent-script verification -- stateless, which is why it is
   safe to widen.
-- **Async RPC at one worker** is load-bearing for wallet safety (P9), not a
-  performance choice.
+- **Async RPC at one worker** serialises `z_sendmany`, migration and
+  consolidation note selection, which do not lock notes (`PLAN.md` B4). It is
+  a correctness constraint, not a performance choice.
 
 **Five are conditional** (`dnsseed`, `torcontrol`, metrics, wallet flush, and
 `ThreadImport` only with import files), so a given run launches fewer than 17.
@@ -180,8 +181,8 @@ So `-par=0` produces a **13-thread pool of unequal cores** here, and on a
 different things, and a barrier-style workload finishes when its *slowest*
 participant does.
 
-**This is the concrete argument for the `cores/2, cap 4` proposal**
-(`CONCURRENCY.md` S5.1): not that fewer threads are faster, but that
+**This is an argument for the cap-4 proposal**
+(`CONCURRENCY.md` "`-par` sizing: is the default right?"): not that fewer threads are faster, but that
 scheduling onto E-cores adds variance for work that is not the bottleneck.
 **Still unmeasured** -- the experiment is designed and not run, and the
 prediction recorded there is "no difference outside noise".
@@ -246,7 +247,20 @@ Until that runs, the observation stands on its own: **the default allocates
 |------|------------------------------|
 | `src/leveldb/` | Vendored; its own threading (`env_posix.cc`) |
 | `src/test/` | Test harness threads, not node behaviour |
-| librustzcash / libsnark internals | The 2016 comment disabling multi-worker async RPC cites libsnark "which by default uses multiple threads". **Never verified here** -- whether the pinned crates spawn threads during proof verification is unknown, and it bears directly on whether widening any pool is safe |
+| librustzcash internals | Whether the pinned crates spawn threads during proof verification is unverified, and it bears on whether widening any pool is safe. libsnark is not a factor: `src/snark/` is in no makefile and is not built, so the libsnark half of the 2016 single-worker rationale does not apply to Zero |
 
-The libsnark question is the real gap this census exposes: a thread we do not
+The librustzcash question is the gap this census leaves: a thread we do not
 launch and have not counted may still exist inside the proof path.
+
+## 5. A mining node at tip
+
+A mining node (`gen=1`, `genproclimit=1`) shows 32 threads with one doing the
+work (`test-logs/mainnet-mining-20260827/`): 13 `zcash-scriptch`, 6
+`zcash-httpworker`, 1 `threadHTTP`, 4 net, 4 service (`scheduler`, wallet
+flush, `txnotify`, zeronode pool), 1 `zcash-miner`, 3 main/runtime. The
+script-check workers are sized for IBD and idle at tip: under 2 s of CPU each
+against the miner's 324 min. No pool responds to load -- `rpcthreads`,
+script-check width and net threads are fixed at startup -- so thread count is
+a configuration fact, not an activity signal. `-par=1` would free the 13
+workers at the cost of serial script checks on each connected block;
+unmeasured.

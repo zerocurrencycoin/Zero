@@ -6,7 +6,7 @@ itself.
 
 ## 1. Peers, for context
 
-Cross-repo comparison lives in `ZK/ZKs/Comparison.md` S9. In short: Zero at
+Cross-repo comparison lives in `Comparison.md` (out of tree) S9. In short: Zero at
 1.0.21 was ahead of every peer surveyed (Zcash 1.0.20, others 1.0.18), and
 Zcash has moved blake2b out of libsodium into Rust entirely -- which is the
 precedent for Zero's own uniblake work.
@@ -52,7 +52,7 @@ ed25519.
 
 ## 5. Measured: ZeroPerf rebuilt and retested at 1.0.22
 
-ZeroPerf was rebuilt against 1.0.22 and re-benchmarked. **Zero400 was not
+ZeroPerf was rebuilt against 1.0.22 and re-benchmarked. **Zero was not
 touched** and remains at 1.0.21.
 
 The C++ source is identical between the two builds: the only commit between
@@ -184,7 +184,7 @@ upgrade remain the ones in S6.
 
 **Switched 2026-09-05.** `depends/packages/libsodium.mk` pins 1.0.22 in
 ZeroPerf; all lab binaries and benchmarks build against it, and
-`contrib/perf/sodium_oracle.sh` supplies it as the benchmark oracle. **Zero400
+`contrib/perf/sodium_oracle.sh` supplies it as the benchmark oracle. **Zero
 remains on 1.0.21 and is not changed by this.**
 
 Basis for the switch, all verified above:
@@ -211,9 +211,9 @@ sits inside the 1348-1388 band every build measured today across both
 libsodium versions, which is the practical statement of their equivalence: the
 version is not resolvable above this benchmark's run-to-run spread.
 
-## 7. Open: Zero400
+## 7. Open: Zero
 
-ZeroPerf is settled (S6). **Zero400 remains on 1.0.21**, deliberately: this
+ZeroPerf is settled (S6). **Zero remains on 1.0.21**, deliberately: this
 tree does not change the product tree (`POLICY.md` S7), and a consensus-code
 dependency bump is a decision for the tree that owns it.
 

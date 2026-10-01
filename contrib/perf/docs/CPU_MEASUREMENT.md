@@ -77,5 +77,5 @@ is directly interpretable as "cores in use".
 
 The **bucket** side has its own version of this problem: a share is over
 sampled stacks, so a function that is 50% of samples on a single-threaded
-phase is not 50% of machine capacity. `Perf.md` S2 states its denominators;
+phase is not 50% of machine capacity. `SYNC.md` "Where the time goes" states its denominators;
 newer figures should do the same explicitly rather than by convention.

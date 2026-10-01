@@ -1,7 +1,7 @@
 # Concurrency and thread sizing: what is in place now
 
 Inventory taken 2026-09-11 against `src/` at `a2a691fb3` + working changes.
-Locations and logic only; performance findings belong to `Perf.md`.
+Locations and logic only; performance findings belong to `SYNC.md`.
 
 ## 1. Thread pools and their sizing
 
@@ -21,8 +21,9 @@ interesting ones:
   the commit: *"Disabled until we can lock notes and also tune performance of
   libsnark which by default uses multiple threads."* Upstream met the
   note-locking half in `06553d139` (2022-10-24) and re-enabled its loop; Zero
-  is before that fix. **This is what makes unreserved `z_sendmany` note
-  selection safe today** -- see `TASKS.md` P9.
+  is before that fix. It serialises the async operations but not
+  `z_mergetoaddress`, which selects on an HTTP thread -- see `LOCKS.md`
+  "Shielded note selection and the single async worker".
 - **tromp solver.** `equi eq(1)` is single-threaded, so the barrier, the worker
   pool and the atomic counters are all compiled out.
 
@@ -30,7 +31,7 @@ interesting ones:
 
 | Path | Why |
 |------|-----|
-| Shielded proof verification | Runs on the import thread; `scriptcheck` workers never see it. This is why post-Sapling sync is single-core bound (`Perf.md` S2) |
+| Shielded proof verification | Runs on the import thread; `scriptcheck` workers never see it. This is why post-Sapling sync is single-core bound (`SYNC.md` "Where the time goes") |
 | Block connection / state write | Serial by design |
 | Wallet note selection | No reservation mechanism on the `sendmany` path; safety currently comes from the single async worker (P9) |
 
@@ -140,38 +141,56 @@ Written 2026-09-12. **Nothing here has been run** except where marked.
 
 ### 5.1 `-par` sizing: is the default right?
 
-**Proposal on the table: `cores/2`, capped at 4**, rather than today's
-all-cores-up-to-16.
+`-par=0` resolves to `GetNumCores()`, capped at `MAX_SCRIPTCHECK_THREADS` = 16
+(`init.cpp:1125-1132`), and spawns `nScriptCheckThreads - 1` workers because
+the connecting thread participates:
 
-**The argument for it**, on the evidence this tree has: post-Sapling sync is
-proof-verification-bound on `ThreadImport` (`Perf.md` S2), and script checking is not
-the bottleneck. Threads that cannot help still contend for memory bandwidth
-and, on this host, for 4 efficiency cores that are slower than the 10
-performance cores -- a pool sized to 14 schedules work onto cores that finish
-late and hold the round.
+| CPUs | Workers | Participants |
+|-----:|--------:|-------------:|
+| 1 | 0 | 1 -- checks run inline |
+| 2 | 1 | 2 |
+| 4 | 3 | 4 |
+| 14 (this host: 10 P + 4 E cores) | 13 | 14 |
+| 16+ | 15 | 16 |
 
-**The argument against changing it blind:** no measurement here has varied
-`-par`. The default is upstream's and applies to every Bitcoin-family node;
-diverging needs evidence, not reasoning.
+The proportional part is correct at small sizes; a 2-CPU VPS gets one worker.
+The cap is the only free choice, and it dates from ECDSA-bound 2013 workloads.
+Post-Sapling sync is proof-verification-bound on `ThreadImport`, and stack
+sampling found all 13 workers parked for an entire post-Sapling import
+(`SCRIPTQUEUE.md` "Measurement 2").
 
-**Experiment (cheap, ~2 h, no code change):**
+**Proposal (`PLAN.md` P20): lower `MAX_SCRIPTCHECK_THREADS` from 16 to 4;
+keep the proportional formula.** Nothing changes for hosts of 4 CPUs or fewer.
 
-| Arm | `-par` | Rationale |
-|-----|-------:|-----------|
-| A | 0 (auto = 14) | today's default on this host |
-| B | 7 | cores/2 |
-| C | 4 | the proposed cap |
-| D | 1 | serial, the floor |
+**Proposal: `-rpcthreads` 4 -> 2.** Zero's RPC consumers are a wallet UI
+polling `getalldata` and an explorer, and `getalldata` already refuses
+concurrency through its own gate (`rpczerowallet.cpp:62`, returns -34). Two
+workers let a cheap call proceed while an expensive one holds the gate.
+Bitcoin moved the other way -- 4 -> 16 threads and queue 16 -> 64 in
+`e56fc7ce6a` -- because its RPC load grew; state the workload the lower value
+serves.
 
-Fixed tiny reindex, n=4 per arm, paired by snapshot. Report `blocks_per_sec`
-with n and dispersion as a fraction, plus `phys_mb` peak. **Pre-registered
-prediction: no difference outside noise**, because the work is not script-bound
-at these heights. If that holds, the finding is "the knob does not matter for
-sync", which argues for the lower default on memory grounds alone and is worth
-recording either way.
+**Experiment, no code change.** Fixed tiny reindex, n=4 per arm, paired by
+snapshot; report `blocks_per_sec` with dispersion and `phys_mb` peak.
 
-**Then repeat post-Sapling**, where the mix changes. A `-par` result from
-pre-Sapling heights does not transfer.
+| Arm | `-par` |
+|-----|-------:|
+| A | 0 (auto, 14) |
+| B | 7 |
+| C | 4 |
+| D | 1 |
+
+Below the last checkpoint (h700,000) `fExpensiveChecks` is false and
+`ConnectBlock` passes no queue, so the experiment was run on h700k-900k.
+
+**Measured** (M-PAR-AB-700K, blk/s): 14 threads 379.03, 7 threads 376.88,
+4 threads 368.10 (n=3; 374.53 without one trial that ran 4-8% slow throughout
+for an unidentified reason), serial 355.87. The pre-registered prediction -- no
+difference -- is wrong above the checkpoint: serial checking costs 6.1%, and
+throughput rises monotonically with workers. Capping at 4 costs 1.2-2.9% on this
+14-core host and removes 10 threads; capping at 7 costs ~0.6%. Below the
+checkpoint the pool does no work, so there the cap is free. Whether ~1% of
+post-checkpoint sync is worth 10 threads is `PLAN.md` decision 8.
 
 ### 5.2 Read-only RPC under concurrency
 
@@ -237,7 +256,7 @@ each block is an independent open/seek/read/close cycle.
 blocks of ~1-2 KB pre-Sapling. So one 4 KB stdio read spans 2-4 consecutive
 blocks, and during a sequential reindex the next block is usually already in
 the page cache -- which is why the measured `disk_syscall` bucket is only
-**4.91%** of CPU (`Perf.md` S3) despite ~750,000 open/close pairs over a tiny
+**4.91%** of CPU (`SYNC.md` "Disk I/O and FDCACHE") despite ~750,000 open/close pairs over a tiny
 reindex.
 
 **"Sequential access index increment is implicit" -- correct, and that is the
@@ -250,7 +269,7 @@ a path the OS had already made cheap.
 **Where it would matter, and does not here:** random access -- explorer
 `getblock` over scattered heights -- hits a different file per request and
 pays the full `fopen`/`fclose` each time with no locality. That is the
-unmeasured case recorded in `Perf.md` S3, and the reason the flag is
+unmeasured case recorded in `SYNC.md` "Disk I/O and FDCACHE", and the reason the flag is
 retained rather than deleted.
 
 ## 7. `FlushStateToDisk` relocking: examined, not trivially removable

@@ -53,5 +53,5 @@ test, but the prior now favours the cap.
 
 **Caveat, unchanged:** these blocks are below the last checkpoint, so
 `fExpensiveChecks` is false and `ConnectBlock` passes `NULL` instead of the
-queue (`main.cpp:3110`). A post-checkpoint workload is where script checks
-would actually run, and that measurement has not been taken.
+queue (`main.cpp:3110`). Above the checkpoint the pool does work: serial
+checking is 6.1% slower than 14 workers on h700k-900k (M-PAR-AB-700K).

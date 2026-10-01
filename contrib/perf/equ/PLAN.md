@@ -807,7 +807,7 @@ and a stated answer to "how much of the 7.15 GB was realloc transient" --
 including "less than predicted", which is a result.
 
 **Kanban: ToDo. Effort XS** (diff), **S** (measurement). Product change,
-Zero400 review.
+Zero review.
 
 ### D3. Fold `len` to a compile-time constant -- steps
 
@@ -894,7 +894,7 @@ the merge, neither of which this touches. Peak footprint unchanged (6.6 GB) --
 D3 alters no allocation. Detail: `../equ/FINDINGS.md` S3.2,
 `test-logs/eqsolve-fixednonce-20260826/`.
 
-**Remaining before Finished:** review on Zero400, which owns `src/`.
+**Remaining before Finished:** review in Zero, which owns `src/`.
 
 **Lesson recorded, because it nearly published a wrong number.** An unpaired
 random-nonce measurement of this same change read **1.30x mean / 1.51x median /
@@ -918,7 +918,7 @@ cost is call overhead, which is what says whether S1.3 earns its V2 gate. **Do
 not start S1.3 before D3 reports.**
 
 **Kanban: ToDo. Effort XS** (diff), **S** (measurement). Product change,
-Zero400 review.
+Zero review.
 
 ---
 

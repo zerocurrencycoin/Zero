@@ -1,7 +1,7 @@
 # Vendored Zcash lint scripts
 
 Unmodified copy of `test/lint/` from the Zcash tree at
-`~/Work/ZK/ZKs/zcash`, taken **2026-08-19**.
+a zcash clone (out of tree), taken **2026-08-19**.
 
 | Field | Value |
 |-------|-------|
@@ -19,7 +19,7 @@ The scripts assume they are run from a repo root and mostly operate on tracked
 files or on the working diff:
 
 ```bash
-cd ~/Work/ZK/ZeroPerf
+# from the repository root
 contrib/perf/zcash-lint/lint-whitespace.sh
 contrib/perf/zcash-lint/lint-shebang.sh
 contrib/perf/zcash-lint/lint-all.sh      # runs every lint-*.sh, exit 1 if any fail
@@ -36,7 +36,7 @@ this directory.
 | `lint-shell.sh` | 0 | shellcheck not installed; self-skips |
 | `lint-cargo-patches.sh` | 0 | clean |
 | `lint-make-dist.sh` | 0 | clean |
-| `lint-shebang.sh` | 1 | 12 scripts use `#!/bin/bash`, not `#!/usr/bin/env bash`; 11 are `contrib/perf/*.sh`. Zero400 `zcutil/*.sh` already uses the env form (8 of 8) |
+| `lint-shebang.sh` | 1 | 12 scripts use `#!/bin/bash`, not `#!/usr/bin/env bash`; 11 are `contrib/perf/*.sh`. Zero `zcutil/*.sh` already uses the env form (8 of 8) |
 | `lint-shell-locale.sh` | 1 | ~20 scripts lack `export LC_ALL=C` |
 | `lint-python-utf8-encoding.sh` | 1 | `open()` without `encoding="utf8"`; 3 sites in `contrib/perf/` |
 | `lint-include-guards.sh` | 1 | **Not applicable.** Expects `ZCASH_*` guards; Zero inherited `BITCOIN_*` from Bitcoin |
@@ -56,7 +56,7 @@ This took the finding count from 225 to 52; the remainder are headers using
 ### Acted on
 
 `lint-shebang.sh`: the 9 `contrib/perf/*.sh` scripts using `#!/bin/bash` now use
-`#!/usr/bin/env bash`. Zero400-owned scripts were left alone.
+`#!/usr/bin/env bash`. Zero-owned scripts were left alone.
 `contrib/perf/datadir_guard.sh` is still reported and is a **false positive**:
 it is sourced, not executed (mode 644, no shebang by design).
 

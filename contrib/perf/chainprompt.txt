@@ -8,8 +8,8 @@
   - gettxoutsetinfo gives a chain-wide transparent total only, not per-address.                            
   - Shielded (Sprout/Sapling) balances are never exposed chain-wide by design (privacy ceiling) -- any "top 
   wallets/addresses" analysis is necessarily transparent-only.                                             
-  - A real local Insight/bitcore-node deployment exists (~/Work/ZK/ZKs/insight/: insight-api-zero,         
-  bitcore-node-zero, bitcore-lib-zero), plus parallel sibling forks under ~/Work/ZK/ZKs/insight/ecosystem/ 
+  - A real local Insight/bitcore-node deployment exists (insight clones, out of tree: insight-api-zero,         
+  bitcore-node-zero, bitcore-lib-zero), plus parallel sibling forks in its ecosystem/ directory 
   (TENT, Zen/Horizen, Pirate) that may have already solved or attempted this.                              
   - contrib/linearize/ (linearize-hashes.py/linearize-data.py) and bootstrap.dat give raw serialized block 
   access outside the live node; contrib/stats/chain_stats.py is an existing lightweight RPC-scan pattern   
@@ -25,8 +25,8 @@
   research)? Specifically: do any of them maintain a live sorted/ranked address-balance table, and if so,  
   how (a maintained secondary index updated incrementally on each block connect, vs. a periodic full       
   UTXO-set scan/rebuild, vs. an external SQL/columnar store fed by RPC or ZMQ)?                            
-  2. Local code check first, before assuming a gap: search ~/Work/ZK/ZKs/insight/ (including the ecosystem/
-  sibling forks) and ~/Work/ZK/Zero400/~/Work/ZK/ZeroPerf for any existing rich-list, balance-ranking, or  
+  2. Local code check first, before assuming a gap: search the insight clones (including the ecosystem/
+  sibling forks) and the Zero and ZeroPerf trees for any existing rich-list, balance-ranking, or  
   UTXO-ranking code/scripts/RPC extensions -- don't assume this needs to be built from scratch without      
   checking. Report exactly what exists today versus what would need to be added.                           
   3. Given zerod's actual data surfaces (raw blocks/*.dat via linearize tooling or direct parsing,         

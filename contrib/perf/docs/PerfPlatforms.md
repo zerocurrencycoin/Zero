@@ -9,8 +9,7 @@ platform comparability rule now lives in `Measures.md`; this file keeps the
 tool survey until the runbook absorbs it, then retires.
 
 Written as a **survey and recommendation**, not a plan of record. Nothing here
-is scheduled; items judged worth doing are tracked in `TASKS.md`, with the
-reasoning in `FINDINGS.md`.
+is scheduled; items judged worth doing are `PLAN.md` group F.
 
 ---
 
@@ -38,8 +37,8 @@ Two specific reasons the numbers might not transfer:
   vector width and a different bls12_381 code path; the pinned crates ship
   assembly for both. The proof-verification share could plausibly differ by more than the
   4% same-host repeat spread.
-- **blake2b.** `FINDINGS.md` S2.3 records that stock arm64 still links
-  `blake2b_compress_ref` (the portable C fallback). On x86-64 an SSE/AVX path
+- **blake2b.** Stock libsodium on arm64 runs `blake2b_compress_ref` (the
+  portable C fallback); Equihash no longer uses it (`SYNC.md` "Equihash verification"). On x86-64 an SSE/AVX path
   may be selected instead, which would move the blake2b bucket -- 18-21%
   pre-Sapling -- without any source change.
 
@@ -102,6 +101,20 @@ profilers can feed the same path.
   the current captures; the existing `BUCKETS` needles already match mangled
   forms such as `Fr$u20$as$u20$pairing`, so they should carry over.
 
+**Capture, bucket, record.** The folded-stack parser is in
+`bucket_profile2.py`, detected by content and self-tested, so a Linux capture
+buckets through the same `classify()` as a macOS one. Folded stacks carry no
+thread name, hence `all`:
+
+```bash
+perf record -F 999 -g -p "$(pgrep -x zerod)" -- sleep 300
+perf script | stackcollapse-perf.pl > out.folded
+python3 contrib/perf/bucket_profile2.py out.folded all --json out.json
+python3 contrib/perf/recbench/recbench.py --append \
+  --campaign linux-baseline --run-id "linux-$(date -u +%Y%m%dT%H%M%SZ)" \
+  --workload op=reindex --workload snap=tiny ...
+```
+
 ### 3.2 Alternatives worth knowing
 
 | Tool | Use | Trade-off |
@@ -114,7 +127,7 @@ profilers can feed the same path.
 
 **`callgrind` is worth a specific note.** `performance-measurements.sh` already
 has a valgrind runner. Determinism is exactly what the FDCACHE A/B lacked, its
-effect sitting inside its own noise floor (`Perf.md` S3). For small,
+effect sitting inside its own noise floor (`SYNC.md` "Disk I/O and FDCACHE"). For small,
 CPU-bound comparisons -- a proof-verification before/after, say -- instruction
 counts would resolve differences that wall-clock cannot, at the cost of not
 being real time.
@@ -132,7 +145,7 @@ being real time.
 | Pageins, compressed | `vm_stat` | `/proc/vmstat`, `/proc/meminfo` |
 | Thermal | `xctrace` thermal-state | `/sys/class/thermal/`, `turbostat` -- **better than macOS here**, exposes per-core frequency directly |
 
-Linux is the **easier** platform for the thermal gap (`FINDINGS.md` S4):
+Linux is the **easier** platform for the thermal gap (`PLAN.md` K3):
 `turbostat` reports actual achieved frequency, so throttling is directly
 observable rather than inferred from a coarse Nominal/Serious state.
 
@@ -219,7 +232,7 @@ window and a thread to be comparable (`HOWTO.md` S4.5).
 
 | Need | Candidate | Why |
 |------|-----------|-----|
-| Statistical rigour on A/B results | **`hyperfine`** (MIT) | Warmup runs, outlier detection, and it reports when a difference is within noise -- exactly the FDCACHE A/B case (`Perf.md` S3) |
+| Statistical rigour on A/B results | **`hyperfine`** (MIT) | Warmup runs, outlier detection, and it reports when a difference is within noise -- exactly the FDCACHE A/B case |
 | Significance testing | `scipy.stats`, or `benchstat` from Go's toolchain | `REPORT.md` gives n/mean/stdev but no confidence statement. `benchstat`'s model (report a delta only when significant) directly suits the ledger |
 | Flame graphs from existing captures | **FlameGraph** (`stackcollapse-*`, `flamegraph.pl`) | Also the recommended Linux ingest path (S3.1) -- one dependency serving two purposes |
 | Cross-platform process sampling | **`psutil`** (Python, BSD) | Replaces most of `res_sample.sh`'s per-platform shelling out with one API across macOS/Linux/Windows |
@@ -268,4 +281,4 @@ Ranks 1 and 2 are documentation-only, cost almost nothing, and make every later
 item cheaper. Rank 3 is the first that produces a new number.
 
 **None of this is scheduled.** It is a survey; scheduling is
-`TASKS.md`.
+`PLAN.md`.

@@ -43,7 +43,7 @@ Confirmed pre-existing and **not** caused by any local edit: with no
 `configure.ac` change at all,
 
 ```bash
-cd Zero400 && ./config.status --recheck     # same libdb_cxx error
+cd Zero && ./config.status --recheck     # same libdb_cxx error
 ```
 
 ## Recovery
@@ -86,4 +86,4 @@ derives it.
    `zcutil/build-native.sh`, which already exports the site file.
 
 Option 1 or 2 is the smallest real improvement. Both touch `configure.ac`, which
-is Zero400-owned, so neither should land as a perf-local change.
+is Zero-owned, so neither should land as a perf-local change.

@@ -530,7 +530,7 @@ remainder is BLAKE2b (excluded), CUDA, build plumbing, or documentation.
 
 ## 3.10 Requihash research: what applies to Zero, and what does not
 
-`~/Work/ZK/Requihash` is a research project building a repaired Equihash
+Requihash (out of tree) is a research project building a repaired Equihash
 (`Req/`), a solver corpus, and a unified BLAKE library. Reviewed for
 transferable findings. **It is research, not a dependency**: `Req/` targets a
 Zebra-style verifier seam, not zcashd-lineage C++.
@@ -621,7 +621,7 @@ and has been removed. See S3.7 for current kernel status.
 
 ## 4. Cross-implementation survey
 
-Read from the local clones under `~/Work/ZK/ZKs/` (out of tree). The question
+Read from local clones of each project (out of tree). The question
 is not "who ran (192,7)" (`FINDINGS.md` S2a) but **which structural choices recur**, since a
 choice five independent implementations converge on is likely forced by the
 algorithm rather than by taste.

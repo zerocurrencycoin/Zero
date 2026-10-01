@@ -542,7 +542,7 @@ And RESTBITS 4 is not a choice: at (192,7) anything above 6 pushes the tag past
 
 Technique #4 (compact index-pointer storage) in the reference implementation,
 and what blocks a direct port. Source read locally at
-`~/Work/ZK/ZKs/equihash-tromp/equi_miner.h`.
+`equi_miner.h` in the equihash-tromp clone (out of tree).
 
 ### 2.1 Why the tag replaces accumulated indices
 

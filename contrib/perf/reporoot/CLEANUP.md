@@ -1,6 +1,6 @@
 # Codebase cleanup: inert, unused and misnamed inherited material
 
-**Draft for Zero400. Nothing removed.** Inventory taken 2026-09-10.
+**Draft for Zero. Nothing removed.** Inventory taken 2026-09-10.
 Items are grouped by what makes them safe or unsafe to touch, because
 "inherited" alone does not decide it.
 
@@ -31,7 +31,7 @@ rather than silently.
 - **rename and fix** to `zerod.service` etc. if packaging is wanted.
 
 Deciding one file at a time produces a directory half-converted, which is
-harder to reason about than either end state. **This is a Zero400 call.**
+harder to reason about than either end state. **This is a Zero call.**
 
 ## 2. Misnamed but correct -- do not change
 

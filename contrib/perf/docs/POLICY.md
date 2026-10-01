@@ -28,7 +28,7 @@ Whether an item is live at all, and why not if it is not. Ordered:
 |-------------|---------|
 | **Open** | Live and progressing |
 | **Blocked** | Live, cannot advance; blocker named |
-| **Finished** | Complete |
+| **Fixed** | Repaired |
 | **Postponed** | Live, waiting on a person's decision |
 | **Aside** | Not doing; reason recorded, kept so it is not re-proposed |
 
@@ -44,13 +44,14 @@ or **Postponed** (it was not). An item carries one value from each.
 ### 1.4 Referring to other material
 
 **Cite a document and a heading title, never a section number.** Numbers move
-whenever a document is reorganised, and every stale citation then has to be
-chased or silently rots. `POLICY.md` "Where material belongs" survives a
-renumber; `POLICY.md` S2.0a does not.
+whenever a document is reorganised. `POLICY.md` "Where material belongs"
+survives a renumber; `POLICY.md` S2.0a does not.
 
-Cite at all only when the reader must go there to act. A reference that merely
-notes another document also discusses the subject is noise, and each one is a
-link to maintain.
+**Cite at all only when the reader must go there to act**, and then name the
+specific section or subsection that holds what they need. A bare file name
+offered as "covers this topic" is not a citation; delete it. Within a file,
+refer back only to a table or definition the reader needs at that point --
+not to "see above" or "as discussed in".
 
 ---
 
@@ -71,55 +72,61 @@ Plus, for this directory:
 - **One subject per document, and one owner per subject.** Non-owners cite;
   they do not restate. A figure lives in `Measures.md` under an `M-*` id and is
   cited, never copied.
-- **One task id, one file.** Task state lives in `TASKS.md` and nowhere else.
-  `TASKS.md` may mention a subject; it may not explain one.
-- **Point-in-time notes are archived, not updated** (S5).
+- **One task id, one file.** Task state lives in `PLAN.md` and nowhere else.
+  `PLAN.md` may mention a subject; it may not explain one.
+- **Point-in-time notes are archived, not updated** ("Archiving point-in-time
+  notes").
 
 ### 2.0 The accretion rule
 
-This set has been restructured three times. Each pass produced a better
-partition and a larger set: 43 files and 15,645 lines, including five files
-whose subject was the reorganisation of the other files. **Partitioning was
-never the problem. The absence of a removal step was.**
+Restructuring has repeatedly produced a better partition and a larger set.
+The missing step is removal, so these rules are budgets, not intentions:
 
-So the rules are now subtractive, and they are budgets rather than intentions:
-
-1. **File budget: 11 in `docs/`, 6 in `equ/`.** Adding one requires deleting
-   one. There is no "stated reason and confirmation" escape hatch -- that
-   clause is how the set went from seven files to fifteen.
+1. **File count follows partition, not a quota.** A set of about ten tight,
+   properly partitioned documents is the target; fewer files that are
+   repetitive or disorganised are worse, and 20-30 is out of proportion for a
+   performance effort. A new file needs a subject no existing file owns.
 2. **No meta-documentation.** No file whose subject is the documentation set:
-   no map, no migration plan, no restructuring diagnosis, no per-directory
-   README that indexes the others. A rule about documents goes in this section.
-   A plan to move material is executed or dropped, not filed.
+   no migration plan, no restructuring diagnosis, no per-directory README that
+   indexes the others. The single permitted index is the documentation map in
+   `contrib/perf/README.md` "Documentation map". A rule about documents
+   goes in this section. A plan to move material is executed or dropped, not
+   filed.
 3. **A consolidation pass whose diff is net-positive has failed.** Deletion is
    the deliverable. Moving material from one file to another is not
    consolidation if both files grow.
-4. **A check that cannot fail the build is a comment.** `check_tables.py` and
-   `check_concentration.py` ran as "reported, not gated" for weeks while the
-   counts they reported got worse. Either gate it or delete it.
+4. **A check that cannot fail the build is a comment.** A reported-only count
+   gets worse unobserved. Either gate it or delete it.
 5. **Status is not a finding.** A findings document that carries a status
-   section will restate every item's state in each of its tables. Delete the
-   section; the state is in the work register.
-6. **A continuation point is a section, not a file.** Asked for "a
-   continuation point", a `NEXT.md` was created that restated `PLAN.md`'s
-   status table, decisions and item list -- a second answer to the question
-   `PLAN.md` opens by claiming. Caught and folded back the same session, but it
-   had passed `docmap` and `validate.sh`, because both check that a file is
-   registered, not that its subject is unowned. No gate covers this class; the
-   rule is the control. **A request for an artifact is not a request for a
-   file:** resolve which document owns the subject before creating anything.
-   Session-handoff material is the likeliest instance, because the request
-   recurs while the subject stays owned.
+   section restates every item's state in each of its tables. Delete the
+   section; the state is in `PLAN.md`.
+6. **A request for an artifact is not a request for a file.** A continuation
+   point, handoff or summary is a section of the document that owns the
+   subject -- for work state, `PLAN.md` "Pick up here". `docmap` and
+   `validate.sh` check that a file is registered, not that its subject is
+   unowned, so no gate catches a duplicate owner; this rule is the control.
+7. **Describe a failure by the step that went wrong.** An interpretation error
+   made from complete inputs is recorded as such, not in perceptual terms
+   ("misheard", "missed", "didn't see").
 
-   **On describing such a failure.** It was recorded first as having
-   "misheard" the request. That is wrong and the wrong word matters: the
-   request, this rule, and `PLAN.md`'s opening claim were all in context
-   simultaneously, in text, re-readable. Nothing was lost in transmission and
-   nothing was perceived. The failure was interpretation -- reasoning to the
-   wrong conclusion from complete inputs. Perceptual language ("heard",
-   "missed", "didn't see") imports an excuse that does not apply to a model
-   with the full exchange available, and it obscures where the defect actually
-   was. Name the step that went wrong.
+### 2.0b Writing rules
+
+A document states where the work is and where it is going. It does not
+narrate how it got there.
+
+- **No path narrative.** "Tried X, then Y broke, then Z" belongs in git
+  history. Keep the settled fact the path concluded with.
+- **Past attempts stay only if they inform a decision or enumerate failure
+  modes.** Then record them as a list: attempt, failure mode, and whether it
+  is closed.
+- **A date is not provenance.** Identify a measurement by commit or version,
+  build features and fixes present. Strike a date that carries none of these;
+  where one does, keep the identifying data and drop the date if redundant.
+- **Reference register.** No conversational openers, rhetorical questions,
+  "gotcha", "the hard way", "the tell", or authorial asides ("since no
+  document did"). State the fact.
+- **Cross-references** follow "Referring to other material": only where the
+  reader must go to act, naming the section.
 
 ### 2.0a Where material belongs
 
@@ -163,10 +170,10 @@ kept:
   decision, not a lint fix.
 
 | Owned-scope lint clean | `lint-perf.sh` | Enforced, passing |
-| Numbers cited by `M-*` | -- | **Convention only.** Proposed: `TASKS.md` A1c |
+| Numbers cited by `M-*` | -- | **Convention only.** Proposed check: `PLAN.md` N12 |
 | Full node only | -- | **Convention only.** 475 lines of wallet UI docs present |
-| One host per comparison | RecBench + aggregation guard | Helper exists; guard is `TASKS.md` A2f |
-| Import idempotency | `fingerprint` | Enforced, but v1 omits platform/build -- `TASKS.md` A2e |
+| One host per comparison | RecBench + aggregation guard | Helper exists; guard is `PLAN.md` N4 |
+| Import idempotency | `fingerprint` | Enforced, but v1 omits platform/build -- `PLAN.md` N4 |
 
 Backlog counts are regenerated into `contrib/perf/lint_backlog.json` rather
 than restated in prose, so they cannot go stale.
@@ -503,7 +510,7 @@ record.
 
 While building the classifier, `test-logs/archives/` (31.9 MB) was flagged as a
 deletable candidate. It is in fact the evidence archive for **M-WAL-SYNC-FAT** --
-cited by `Measures.md` and `Perf.md`, but written as `archives/...tar.gz`
+cited by `Measures.md` and `README.md`, but written as `archives/...tar.gz`
 without a `test-logs/` prefix, so a path-prefixed scan missed it.
 
 The classifier now scans every perf document for bare artifact names, and its
@@ -533,13 +540,19 @@ Also never reclaimed:
 
 ## 7. Ownership
 
+**Repository root directory: read-only from this tree.** No file at the
+repository root -- `README.md`, `AGENTS.md`, `CONTRIBUTING.md`, `TODO.md`,
+`TEST_ZERO.md`, `BUILD_ZERO.md`, `ZERO_COIN.md` or any other -- is edited,
+added, removed or renamed here, including typo and formatting fixes. Defects
+found in them are listed in `PLAN.md` "Product handoff" for Zero to apply.
+
 | Tree | Owns |
 |------|------|
-| **Zero400** | Authoritative code, tests, and product documents (`README.md`, `TODO.md`, `TEST_ZERO.md`, `ZeroStruct.md`, `BUILD_ZERO.md`). Changes to `src/` are reviewed there |
+| **Zero** | Authoritative code, tests, and product documents (`README.md`, `TODO.md`, `TEST_ZERO.md`, `ZeroStruct.md`, `BUILD_ZERO.md`). Changes to `src/` are reviewed there |
 | **ZeroPerf** | `contrib/perf/` -- the harness, these documents, and a gated source layer |
 
 Perf work that needs a product change is **specified here and reviewed in
-Zero400**. Do not restructure Zero400-owned documents from this tree: it
+Zero**. Do not restructure Zero-owned documents from this tree: it
 contradicts ownership and creates merge conflicts against the tree that owns
 them.
 
@@ -551,17 +564,17 @@ than where it was discovered.
 | Identifier | Goes in | Tree |
 |------------|---------|------|
 | `M-*` -- measure ids, campaign numbers | `Measures.md` | ZeroPerf |
-| `PERF-*` -- ConnectBlock optimization narrative | `FINDINGS.md`; numbers cited from `Measures.md` | ZeroPerf |
-| `OPS-*` / `WAL-*` / `FR-*` / `EXT-*` -- status and task text | `TODO.md` | Zero400 |
-| `OPS-*` / `WAL-*` / `FR-*` -- architecture | `ZeroStruct.md` | Zero400 |
-| `OPS-AT-HEIGHT` | `AtHeight.md` procedure; status in `TODO.md` | Zero400 |
-| `INT-*` | `ZeroStruct.md` S11.7 | Zero400 |
-| `TST-*` -- test and gate work | `TEST_ZERO.md`, `TODO.md` | Zero400 |
+| `PERF-*` -- block validation and import | `SYNC.md`; numbers cited from `Measures.md` | ZeroPerf |
+| `OPS-*` / `WAL-*` / `FR-*` / `EXT-*` -- status and task text | `TODO.md` | Zero |
+| `OPS-*` / `WAL-*` / `FR-*` -- architecture | `ZeroStruct.md` | Zero |
+| `OPS-AT-HEIGHT` | `AtHeight.md` procedure; status in `TODO.md` | Zero |
+| `INT-*` | `ZeroStruct.md` S11.7 | Zero |
+| `TST-*` -- test and gate work | `TEST_ZERO.md`, `TODO.md` | Zero |
 
 **A number with no `M-*` binding is not yet a measure.** `Measures.md` owns
 figures; everything else cites the id.
 
-Zero400-owned documents this tree reads but does not edit: `TODO.md`,
+Zero-owned documents this tree reads but does not edit: `TODO.md`,
 `TEST_ZERO.md`, `ZeroStruct.md`, `AtHeight.md`, `BUILD_ZERO.md`,
 `WitnessReindex.md`, `ExtTests.md`, `UpdateZero.md`.
 
@@ -583,7 +596,7 @@ consensus).
 ### 7.3 No absolute paths in tracked documents
 
 Reference a document by **name alone** (`TENTZero.md`, `CDBRewrite.md`), a
-sibling by repo-relative path (`contrib/perf/docs/TASKS.md`), and anything
+sibling by repo-relative path (`contrib/perf/docs/PLAN.md`), and anything
 outside the repo by name plus "(out of tree)" or a placeholder
 (`<linearize>/bootstrap.dat`).
 
@@ -594,12 +607,12 @@ repository, and breaks silently the moment a file moves -- as 11 references to
 env var the launchers already set.
 
 Enforcement: none yet; candidate for `lint-perf.sh` alongside the citation
-check (`TASKS.md` A1c).
+check (`PLAN.md` N12).
 
 ### 7.4 Automated rewrites stay inside owned scope and confirm their blast radius
 
 `fix_ascii.py --fix` writes only under `contrib/perf/`. Running it
-tree-wide once rewrote eight Zero400-owned root documents, which this tree does
+tree-wide once rewrote eight Zero-owned root documents, which this tree does
 not own (S7), and its `U+00B7 -> '-'` mapping turned products into apparent
 subtraction in a Groth16 pairing equation.
 
@@ -611,7 +624,7 @@ Two rules follow:
   table is safe for prose, not for mathematics. Middle dot, minus sign and
   arrows all carry meaning there. Fix those by hand, per site.
 
-Violations found in Zero400-owned files are **reported to that tree**, not
+Violations found in Zero-owned files are **reported to that tree**, not
 fixed here.
 
 `fix_ascii.py --fix` now enforces three guards, each with an explicit
@@ -632,8 +645,7 @@ checking they are byte-identical afterwards -- not by inspecting source text.
 
 ## 8. Method lessons
 
-Generalized from specific investigations; moved from `TASKS.md` 2026-09-06,
-where they were not work items.
+Generalized from specific investigations.
 
 
 
@@ -643,9 +655,9 @@ where they were not work items.
 | **A guard with N implementations has N behaviours** | Safety checks (datadir protection, value guards) get exactly one implementation, called from everywhere | Three copies of the datadir guard; one datadir destroyed |
 | **An invariant enforced procedurally will drift; enforce it structurally** | Put the check where the data must pass, not where a caller must remember. Stamping at the ledger writer makes an unstamped row unrepresentable | F1b, chosen over per-launcher calls |
 | **A rule nobody checks is a comment** | Every written rule needs an enforcement point or an explicit note that it is advisory | ASCII rule drifted to 693 violations; `M-*` citation rule to 5 restatements |
-| **A tool that has never failed a test has never been tested** | Self-tests gate the harness, not just the product. Five number-corrupting defects surfaced only when coverage was completed | `FINDINGS.md` S1.4 |
+| **A tool that has never failed a test has never been tested** | Self-tests gate the harness, not just the product. Five number-corrupting defects surfaced only when coverage was completed | Harness self-test coverage |
 | **Measure a null and it becomes evidence; assume it and it stays a guess** | A measured negative result is publishable and stops work. Two did | FDCACHE; I/O tuning |
-| **Profile when the bottleneck is unknown; benchmark when it is known** | Benchmarking an unknown bottleneck measures noise against noise | FDCACHE A/B (`FINDINGS.md` S3.2) |
+| **Profile when the bottleneck is unknown; benchmark when it is known** | Benchmarking an unknown bottleneck measures noise against noise | FDCACHE A/B |
 | **First-match-wins attribution makes ordering load-bearing** | Any classifier whose rules overlap must have its order treated as code, not formatting | Four published figures wrong from bucket order |
 | **A number without its window, platform and build is not comparable** | Record the conditions with the measurement or it cannot be aggregated later | Every pre-schema row came from one host and nothing said so |
 | **A reference oracle stored once, writable, is not a reference** | Anything later changes are validated against gets archived and made read-only *before* the work starts | V2 solver baseline sat at the path its regenerator writes to |

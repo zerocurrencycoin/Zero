@@ -63,9 +63,13 @@ anywhere, including out of this repository, and nothing inside needs editing.
 | `RB_BINARY`, `RB_BUILD_HEADER`, `RB_CONFIG_HEADER` | override one bound path |
 
 **No project path is compiled in.** `projects.json` holds one entry per target
--- Zero400, ZeroPerf, zerowallet, uniblake -- each with its own `root`, `store`
+-- Zero, ZeroPerf, zerowallet, uniblake -- each with its own `root`, `store`
 and bound paths. A root may be relative to RecBench or absolute or `~`-based,
-so projects need not live under one tree.
+so projects need not live under one tree. A project may also name `root_env`,
+the variable its own build uses to locate it (`UNIBLAKE_SRC` for the kernel
+library, as its `depends/` recipe uses), with a default root at the same
+sibling-of-this-repository location that recipe searches. A root that does not
+exist is an error naming both overrides.
 
 ```bash
 RB_PROJECT=uniblake python3 recbench/recbench.py --report

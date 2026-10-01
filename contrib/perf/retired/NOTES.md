@@ -15,28 +15,28 @@ stays as the record of when it was first established.
 
 ## Index
 
-Relocated notes now live in **`../keep/`**. They are kept as written and are
+Relocated notes now live in **`../retired/`**. They are kept as written and are
 not maintained.
 
 | Note | Date | Applies to | Subject |
 |------|------|-----------|---------|
-| `../keep/ZcashV.md` | 2026-06-08 | Zcash 2026 CVEs; RPC samples at h2,471,322 | Sprout `fChecked` and Orchard counterfeiting bugs; relevance to zcashd-lineage forks |
-| `../keep/Peer.md` | 2026-06-10 | Zero400 v4.0.1, macOS | Peer and RPC operations: paths, config, DNS seeds, addrman. Cited by `Measures.md` (M-PEER-LOAD) and `Stores.md` |
-| `../keep/ZeroWallet_Design.md` | 2026-06-26 | zerowallet400, Qt5 | Desktop wallet UI styling and themes |
-| `../keep/desys.md` | 2026-06 (est.) | zerowallet400, Qt5 | Ice-blue light theme design system |
-| `../keep/TENT.md` | frozen | TENT `bcb429b` (2021-11-13) | TENT masternode fork lineage and comparison |
-| `../keep/TENTZero.md` | frozen | TENT `bcb429b` (2021-11-13) | TENT to Zero zeronode file map. **Referenced by Zero400 documents** -- see below |
+| `../retired/ZcashV.md` | 2026-06-08 | Zcash 2026 CVEs; RPC samples at h2,471,322 | Sprout `fChecked` and Orchard counterfeiting bugs; relevance to zcashd-lineage forks |
+| `../retired/Peer.md` | 2026-06-10 | Zero400 v4.0.1, macOS | Peer and RPC operations: paths, config, DNS seeds, addrman. Cited by `Measures.md` (M-PEER-LOAD) and `Stores.md` |
+| `../retired/ZeroWallet_Design.md` | 2026-06-26 | zerowallet400, Qt5 | Desktop wallet UI styling and themes |
+| `../retired/desys.md` | 2026-06 (est.) | zerowallet400, Qt5 | Ice-blue light theme design system |
+| `../retired/TENT.md` | frozen | TENT `bcb429b` (2021-11-13) | TENT masternode fork lineage and comparison |
+| `../retired/TENTZero.md` | frozen | TENT `bcb429b` (2021-11-13) | TENT to Zero zeronode file map. **Referenced by Zero400 documents** -- see below |
 
 Dates marked `(est.)` are inferred from surrounding content rather than stated
 in the note; recorded as estimates rather than omitted (`POLICY.md` S5).
 
 ### Inbound references from Zero400
 
-`keep/TENTZero.md` is cited by **`UpdateZero.md`**, `ZeroNodes.md` and
+`retired/TENTZero.md` is cited by **`UpdateZero.md`**, `ZeroNodes.md` and
 `ZeroNodeDev.md` (11 sites), which name it as `TENTZero.md` without a path.
 
 Because nothing in ZeroPerf depends on it, the cleaner resolution is to **move
-the file into the Zero400 tree** that does. Until then it stays in `../keep/`
+the file into the Zero400 tree** that does. Until then it stays in `../retired/`
 and readers resolve the name by search.
 
 ### Retired

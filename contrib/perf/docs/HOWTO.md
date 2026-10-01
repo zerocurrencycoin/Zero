@@ -12,7 +12,7 @@ profile says where time goes; it cannot say whether a change is worth shipping.
 **Profile when you do not know the bottleneck; benchmark when you do and want
 to prove a delta.**
 
-Related: what the measurements found is `FINDINGS.md`; how to record a result
+Related: what the measurements found is `SYNC.md` and `WITNESS.md`; how to record a result
 so it aggregates is `SCHEMA.md`; lab rules and cleanup are `POLICY.md`.
 
 **Before recording anything**, stamp the run so it can be grouped later:
@@ -32,7 +32,8 @@ Each case below has been run. Commands are copy-pasteable from the repo root.
 ```bash
 SCRATCH=/tmp/zero-lab-reindex
 rm -rf $SCRATCH && mkdir -p $SCRATCH
-tar -xzf "$HOME/Library/Application Support/zero/chainblocks-tiny.tgz" -C $SCRATCH blocks
+. contrib/perf/perflib.sh
+tar -xzf "$(snap_archive chainblocks-tiny.tgz)" -C $SCRATCH blocks
 printf 'listen=0\nmaxconnections=0\nserver=1\nrpcuser=rt\nrpcpassword=rt\nrpcport=23970\ndisablewallet=1\n' > $SCRATCH/zero.conf
 
 ./src/zerod -datadir=$SCRATCH -reindex -daemon
@@ -58,7 +59,7 @@ Block data is `blocks/blk*.dat`, written sequentially in 42 files of ~128 MB,
 so a file prefix is a valid chain prefix. Twelve files reach h583699+.
 
 ```bash
-tar -xzf "$HOME/Library/Application Support/zero/chainblocks-postsap12.tgz" \
+tar -xzf "$(snap_archive chainblocks-postsap12.tgz)" \
     -C $SCRATCH blocks          # 1.65G, ~15 min to post-Sapling
 ```
 
@@ -218,8 +219,8 @@ function to open.
 ## 2.4 What changes the answer
 
 Height region, thread filter, wallet size and operation type each change the
-result, some of them enormously. The measured effect of each:
-**`FINDINGS.md`** S3.4 (region and operation) and S3.1 (wallet size).
+result. Region and operation: `SYNC.md` "Where the time goes". Wallet size:
+`WITNESS.md` "Cost".
 
 Two rules follow, and both are absolute:
 
@@ -237,7 +238,9 @@ Each of these produced a wrong published number once. What to do:
 
 | Trap | Guard |
 |------|-------|
-| Bucket ordering and bare needles | Do not reorder `BUCKETS` or widen a needle. The four figures this cost: `FINDINGS.md` S3.3 |
+| Bucket ordering and bare needles | Do not reorder `BUCKETS` or widen a needle. Four published figures were wrong from this: "tree 57-58%" had Groth16 folded in; witness cost vanished into a bare `CWallet::` needle; `disk_io` 14.66% over-matched (real syscall leaves 4.91%); BLAKE2b hid inside `equihash` |
+| Height window from a manual capture | Take the start from `xctrace export --toc`, convert to UTC before reading `debug.log`, and bound `UpdateTip` lines by timestamp -- `height=937` also matches `height=937237`. `profile_run.sh` does this |
+| Harness arithmetic on missing values | `float(x or 0)` counted a missing rate as 0.0 (33.3 reported for 100.0); an unguarded row key aborted the whole report. Closed by the self-tests; figures produced before them were re-verified unchanged |
 | Wrong snap assumed | Verify the tip a snap actually reaches; the short snap is **245992**, not ~520k |
 | Conflated measures | Read the `M-*` definition before citing. A rescan wall is not a witness-walk cost |
 | Back-imported rows | Check `run_id` and `recorded_at` before treating rows as independent trials |
@@ -254,8 +257,7 @@ Each of these produced a wrong published number once. What to do:
    different machines.
 4. **Mark superseded results, do not delete them.** `POLICY.md` S5, S6.
 
-Known gaps in coverage -- what has never been measured, and what that bounds --
-are `FINDINGS.md` S4.
+Coverage gaps -- what has never been measured -- are items in `PLAN.md`.
 
 ---
 

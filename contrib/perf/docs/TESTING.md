@@ -14,7 +14,7 @@ here.
 |-------|-----------|----------|
 | Everything | `contrib/run-tests.sh --all` | the gate before a push |
 | Boost | `./src/test/test_bitcoin` | no errors |
-| GTest | `qa/zcash/test_filters.sh` | all pass |
+| GTest | `. qa/zcash/test_filters.sh && ./src/zero-gtest --gtest_filter="$GTEST_PASS_EXCLUDE"` | all pass (221) |
 | RPC | `qa/pull-tester/rpc-tests.sh` | per tier, below |
 | Lab gates | `contrib/perf/validate.sh` | lint and selftest PASS |
 
@@ -23,7 +23,7 @@ and GTest compile-and-run the node's units; only the RPC tier exercises a
 running node over its interface, which is where a lock or an RPC-surface
 change actually shows. Running the unit suites alone leaves that untested.
 
-**Run GTest through `qa/zcash/test_filters.sh`, never bare.** A bare
+**Run GTest with the filter `qa/zcash/test_filters.sh` defines, never bare.** The file is sourced, not executed. A bare
 `./src/zero-gtest` aborts in `WalletTests.CachedWitnessesCleanIndex` before
 printing any summary, so the run looks like a crash with no pass count. The
 filter script exists for this.

@@ -1,6 +1,6 @@
 # Changes made to the main tree from ZeroPerf
 
-**Record of `src/` edits originating in this tree.** They are Zero400-owned
+**Record of `src/` edits originating in this tree.** They are Zero-owned
 code (`POLICY.md` S7.1); this file exists so the product tree can review them
 as a set rather than discovering them in a diff.
 

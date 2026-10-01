@@ -135,6 +135,51 @@ Acquisition counts are deterministic per block and do compare.
 
 - Concurrency coverage: every result here comes from a single-worker reindex.
 - `TRY_LOCK` paths are uninstrumented.
-- Shielded note selection does not lock the notes it selects
-  (`PLAN.md` B4); the single async RPC worker is what currently prevents the
-  race, which makes it a standing constraint rather than a settled design.
+- Shielded note selection does not lock the notes it selects; see below.
+
+## Shielded note selection and the single async worker
+
+Zero has shielded-note locking -- `setLockedSaplingNotes` (`wallet.h:1110`),
+`IsLockedNote` for `JSOutPoint` and `SaplingOutPoint` (`:1135`, `:1146`) --
+and `GetFilteredNotes` skips locked notes by default (`ignoreLocked=true`).
+Where each spender selects its inputs, and whether it locks them:
+
+| Operation | Inputs | Selected on | Locks them |
+|-----------|--------|-------------|------------|
+| `z_sendmany` | notes, UTXOs | async worker, at execution (`find_unspent_notes`) | No |
+| `z_mergetoaddress` | notes, UTXOs | HTTP thread, in the RPC handler | Yes, in the operation constructor (`lock_notes()`, `lock_utxos()`) |
+| `z_shieldcoinbase` | coinbase UTXOs only | HTTP thread | Yes (`lock_utxos()`) |
+| Sapling migration, consolidation | notes | async worker | No |
+
+All async operations run on one worker (`rpc/server.cpp:311`), so
+`z_sendmany`, migration and consolidation cannot select concurrently with
+each other. The single worker does **not** serialise `z_mergetoaddress`: its
+selection runs on an HTTP thread and can overlap a `z_sendmany` executing on
+the worker. `z_sendmany` skips notes `z_mergetoaddress` has already locked,
+but `z_mergetoaddress` can pick a note `z_sendmany` has selected and not yet
+spent. The consequence is a double spend of one note; the node and mempool
+reject the second transaction, so one operation fails. Funds are not at risk.
+
+**Upstream history.** Zcash added `-rpcasyncthreads` in `8d08172d0` and
+disabled it thirteen days later in `008fccfa4` ("Disabled until we can lock
+notes and also tune performance of libsnark"). Note locking then landed in
+three steps: `z_mergetoaddress` (`4e6400bc0`, PR #3106), Sapling note locking
+in `CWallet` (`0e0f5e4ea`, PR #3496; Zero's `b6b2b5d26`), and the send path
+(`06553d139`, PR #6408, fixing #2621 and #5654) inside `wallet_tx_builder`, a
+restructure Zero does not have. Zero carries the first two. libsnark is not
+built in Zero.
+
+**Options** (`PLAN.md` B4, decision 2):
+
+1. Record the constraint here and leave code unchanged. Enabling more than one
+   async worker, or adding a selector outside the worker, must add note locking
+   to `z_sendmany` first.
+2. Add `lock_notes()` / `unlock_notes()` to `z_sendmany`, mirroring
+   `z_mergetoaddress`. About 20 lines against an in-tree pattern; closes the
+   `z_mergetoaddress` overlap above and removes the dependency on worker count,
+   but diverges on wallet spend selection from a base upstream has since
+   restructured.
+
+Recommendation: (1) now; (2) if the overlap failure is seen in practice or
+multiple workers are reconsidered. Before (2), instrument the corner cases and
+add a deadlock timeout.

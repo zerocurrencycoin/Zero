@@ -28,7 +28,7 @@ answers a maintainer's question and says so in its first line.
 than the root -- work there does not carry ship-set expectations, which is why
 the perf tree lives under `contrib/perf/`.
 
-**This is a Zero400 decision.** Moving a root file changes what a distribution
+**This is a Zero decision.** Moving a root file changes what a distribution
 presents, so it needs the product tree's agreement even though the analysis is
 cheap. Transient copies of anything needed for reference can live here.
 

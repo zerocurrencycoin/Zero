@@ -2,7 +2,7 @@
 
 Node-code changes this investigation found. They cannot be made from ZeroPerf
 (`POLICY.md`, "Tree ownership"); each is specified here with its evidence and reviewed in
-Zero400.
+Zero.
 
 Items and their state are in `PLAN.md` under Product handoff. This file holds
 the evidence: what was found, in which source, and what the alternatives are.
@@ -458,7 +458,7 @@ as a mechanical transform plus a list of judged `.get()` sites.
 migration are entangled in its own history; doing P6 on `boost::optional`
 reproduces a shape upstream has already left.
 
-**Kanban: ToDo. Effort M.** Product change, Zero400 review.
+**Kanban: ToDo. Effort M.** Product change, Zero review.
 
 ### P6. Anchor depth for shielded spends
 
@@ -510,7 +510,7 @@ transaction commits to changes the transaction. Whether that is safe for Zero
 depends on its own activation history and is not answered by upstream's
 choice.
 
-**Kanban: ToDo. Effort L.** Product change, Zero400 review. Needs P5 first.
+**Kanban: ToDo. Effort L.** Product change, Zero review. Needs P5 first.
 
 ### P7. Coin-selection call clarity: adopt Ycash's shape, not TENT's
 
@@ -541,14 +541,27 @@ and its `find_utxos` became a single call plus a sort.
 `asyncrpcoperation_sendmany.cpp` is 215 lines against Zero's 1270. That path is
 not open here: the builder is heavily Orchard-dependent (P4).
 
-**Kanban: ToDo. Effort S-M.** Product change, Zero400 review. (a) is
+**Kanban: ToDo. Effort S-M.** Product change, Zero review. (a) is
 independent of everything else in P4-P6.
 
-### P2. NOTEIDX staleness
+### P10. Explicit parameters at defaulted call sites
 
-The note index is invalidated more often than note membership changes. Defect,
-cost and call sites: `FINDINGS.md` S3.1. Wallet code, so the fix needs product
-review.
+**Rule.** A call that relies on defaulted parameters either passes them
+explicitly or carries a terse comment naming the values taken and why. When in
+doubt, pass them.
+
+**Case.** `asyncrpcoperation_sendmany.cpp:955` calls the 6-argument
+`GetFilteredNotes(sproutEntries, saplingEntries, fromaddress_, mindepth_)`,
+which forwards to the 9-argument form (`wallet.cpp:5982`) and silently takes
+`maxDepth=INT_MAX`, `ignoreSpent=true`, `requireSpendingKey=true`,
+`ignoreLocked=true`. Whether locked notes are skipped is not visible at the
+call site. The wrapper is upstream Zcash (`39e58e79b`) and identical in Ycash,
+Hush3, Zclassic and Pirate; modern zcashd removed it for one fully explicit
+signature.
+
+**Change.** Add the explicit arguments at each `GetFilteredNotes` caller (no
+signature or behaviour change) and enumerate the other callers as part of the
+item. Do not delete the overload. Owner Zero (`src/wallet/`).
 
 ---
 

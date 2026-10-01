@@ -3,15 +3,14 @@
 Everything needed to decide and implement Sapling Groth16 batch verification.
 Current state and forward path only; superseded attempts are not recorded here.
 
-Numbers are cited by `M-*` id and live in `Measures.md`. Task status lives in
-`TASKS.md`.
+Numbers are cited by `M-*` id and live in `Measures.md`. Work items are
+`PLAN.md` group Y.
 
 **This is the focused Groth16 document.** It is the single home for Groth16
 evidence, options and implementation path. Other documents cite its conclusions
 and carry a headline figure at most -- they deliberately do not restate the
 evidence here. When adding Groth16 material anywhere in `contrib/perf/`, add it
-to this file instead. Task state: `TASKS.md`. Everything else:
-`FINDINGS.md`, which explicitly excludes this topic.
+to this file instead.
 
 > **Postponed pending developer review (2026-08-20).** This document is
 > complete and reviewable as it stands; it is waiting on a maintainer to pick
@@ -266,7 +265,7 @@ Reviewer entry point for people who have not lived in §§2/6/9.4. Evidence stay
 #### Why it exists
 
 1. **What we measured:** during mainnet `-reindex` / bootstrap import, after Sapling activation (~height 492,850), ConnectBlock CPU is dominated by verifying Sapling Groth16 proofs (spend/output). Corrected profiles: **~48-55%** chain-wide (M-CPU-SEQ); one corrected post-Sapling window hit **~60.9%** (M-CPU-CORR). Disk and Equihash are real but smaller.
-2. **What that means for operators:** post-Sapling reindex/import is slow mainly because each shielded description pays a full pairing check on the single `zcash-loadblk` thread -- not because disk is slow. The I/O side was measured and is not the bottleneck (`Perf.md` S3, M-CPU-FD-THR).
+2. **What that means for operators:** post-Sapling reindex/import is slow mainly because each shielded description pays a full pairing check on the single `zcash-loadblk` thread -- not because disk is slow. The I/O side was measured and is not the bottleneck (`SYNC.md` "Disk I/O and FDCACHE", M-CPU-FD-THR).
 3. **What Zero does today:** one `verify_proof` per spend/output, sequential, inside `ContextualCheckBlock` -> `ContextualCheckTransaction` -> `librustzcash_sapling_check_*`. Transparent script checks can use `zcash-scriptch` workers; Groth16 cannot -- different queue, never shared.
 4. **What "batching" would change:** for N proofs that share a verifying key, combine them with random linear weights and pay **one** expensive final-exponentiation for the batch instead of N. Same pass/fail math class; different operation schedule (consensus-adjacent -- needs review).
 5. **Why this is not "just implement it":** mid-investigation, upstream `sapling-crypto::BatchValidator` (production since 2022; used by zcashd and Zebra; Pirate has a C++/`cxx` precedent) appeared as a full alternative to hand-porting only the pairing batch math into Zero's pinned 2018 crates. That forks the project into a **decision**, not more Phase-2 coding.
@@ -376,7 +375,7 @@ Qualitative scope only. Calendar time estimates are **not** refined here -- ther
 
 **Open questions** for the Option A/B spike: `PerfGroth.md`, which owns Groth16.
 
-**Doc ownership:** this file only. Do **not** edit Zero400 **TODO** / ExtTests / UpdateZero from the ZeroPerf lab track until a deliberate merge.
+**Doc ownership:** this file only. Do **not** edit Zero **TODO** / ExtTests / UpdateZero from the ZeroPerf lab track until a deliberate merge.
 
 **Where `ShutdownRequested()` / `fRequestShutdown` are checked today**
 
@@ -502,6 +501,25 @@ POSIX `sigaction(SIGTERM/SIGINT/SIGHUP/SIGPIPE)` is under `#ifndef WIN32` in `in
 6. Perf re-measurement with the existing tooling: same Instruments/`xctrace` methodology as §2 (`contrib/perf/capture_sequence.sh` + `decode_captures.py`), same height windows, for a directly comparable before/after Groth16-bucket percentage and ms/block figure; plus a `bench_matrix.sh`-style throughput A/B with the same statistical rigor (t-test, n>=4 trials) §3 used -- §3's "implemented but no measurable win" outcome is a reminder not to skip this step.
 7. If the multicore/parallel-accumulation variant is pursued: a separate throughput test varying `-par`/thread count, since the entire point there is engaging otherwise-idle `zcash-scriptch`-adjacent cores -- measure scaling, not just single-thread speedup.
 
+### 6.2 Which zcashd-lineage nodes batch Sapling verification
+
+| Project | Sapling proof verification | Where |
+|---|---|---|
+| zcashd | Batches: one `sapling::BatchValidator` per block, validated after the tx loop | `main.cpp:1417-1425`, `:3306-3307`, `:3847` |
+| Zebra | Batches: `BatchValidator` in a `tower_batch_control::Batch`, `MAX_BATCH_SIZE=64`, `MAX_BATCH_LATENCY=100ms`, `multicore` feature on | `zebra-consensus/src/primitives/sapling.rs` |
+| Pirate | Batches: vendored `src/rust/` crate over `sapling_proofs::BatchValidator` behind `cxx` | `src/rust/src/sapling.rs`, `bridge.rs` |
+| Komodo, VerusCoin, Ycash | Unbatched: per-proof `librustzcash_sapling_check_spend`, as Zero | `main.cpp:1328`, `:1411`, `:1148` |
+
+Zero is with the majority of forks. Pirate is the closest precedent for Option
+B: a same-lineage C++ node calling `BatchValidator` through `cxx`.
+
+**Batch-failure attribution is a decision for Phase 4.** zcashd rejects the
+whole block with `bad-sapling-bundle-authorization` on any batch failure and
+does not re-verify per transaction. The Phase 4 fallback in section 9.4 keeps
+per-transaction error codes by re-verifying singly. Choose between matching
+upstream (less code) and keeping per-tx attribution (finer ban scoring,
+matches Zero's current behaviour).
+
 ### 9.4 Groth16 batch verification: full execution plan
 
 Confirmed this session, and load-bearing for the plan below: the actual FFI signatures at the boundary this work has to cross (`depends/aarch64-apple-darwin25.3.0/include/librustzcash.h:139-175`) -- `librustzcash_sapling_check_spend(ctx, cv, anchor, nullifier, rk, zkproof, spendAuthSig, sighashValue)` and `_check_output(ctx, cv, cm, ephemeralKey, zkproof)` take **raw serialized proof bytes**, not a pre-parsed `Proof` struct -- deserialization currently happens inside each Rust call, once per call. No `librustzcash` Rust source is vendored in this repo (only the built header/`.a` under `depends/aarch64-apple-darwin25.3.0/`) -- same situation as libsodium (§5/§9.2): the pinned source has to be fetched fresh for any of this to be real editable code, not assumed from the header alone.
@@ -578,7 +596,7 @@ batching requires either buffering at the C++ boundary or a new entry point.
 
 Groth16 verification is librustzcash's job, so any batch-verification work
 rests on this dependency. Established 2026-09-08 from the upstream repository
-(`ZK/ZKs/librustzcash`, updated to `5e770a91`, 2026-09-03).
+(librustzcash clone, out of tree, updated to `5e770a91`).
 
 ### The pin
 
@@ -633,7 +651,7 @@ that the crates are consumable as published artifacts.
 ### What Groth16 actually uses today
 
 **librustzcash version:** the 2018 pin `06da3b9a`, via `depends`. Checkouts of
-every generation for direct comparison: `ZK/ZKs/rustzcash/`.
+every generation for direct comparison, in the rustzcash comparison checkouts (out of tree).
 
 **The consensus verification path is four functions, all in `main.cpp`:**
 
@@ -771,7 +789,7 @@ have built the alternative (batched asynchronous verification,
 Sapling spends.
 
 **Full trajectory analysis, ecosystem comparison and effort assessment:
-`ZK/ZKs/rustzcash/ZcashRust.md`** (out of tree), alongside checkouts of every
+`ZcashRust.md`** (out of tree), alongside checkouts of every
 generation. In summary: reaching Ycash's level is an FFI delta of **+5/-1
 functions**, three of which are one feature Zero does not implement, so the
 1127-commit distance overstates the work by a wide margin -- what dominates is
@@ -860,7 +878,7 @@ equivalence testing lands, and it is optional.
 ## Recommendation for Zero: fork for custody, defer the upgrade
 
 A decision with arguments on both sides, stated so the case against is
-answerable rather than absent. Cross-chain evidence: `ZK/ZKs/rustzcash/`
+answerable rather than absent. Cross-chain evidence: the rustzcash comparison checkouts (out of tree)
 (out of tree).
 
 ### The recommendation
@@ -918,8 +936,8 @@ precondition, not a preference:
 
 | Before | Why |
 |---|---|
-| **Close the `contrib/perf` documentation work** (`TASKS.md` C1, 30 steps open; the gating one is folding `Perf.md`'s status sections) | A dependency change lands findings in a tree whose subjects are still 40-66% outside their owners. The result would be filed wherever it was written |
-| **Finish the pending test work** (`TASKS.md` Tests) | An algorithm change is judged by whether the suites still pass. Suites with known-held failures and no recorded baseline cannot make that judgement |
+| **Close the `contrib/perf` documentation work** (`PLAN.md` group D) | A dependency change lands findings in a tree whose subjects are still 40-66% outside their owners. The result would be filed wherever it was written |
+| **Finish the pending test work** (`PLAN.md` group G) | An algorithm change is judged by whether the suites still pass. Suites with known-held failures and no recorded baseline cannot make that judgement |
 | **Cut a reference benchmark** on the current build -- 5-10 trials preferred, all measurements kept -- recorded, with `cpu_busy` and millisecond timing | Without it, "did this help" is unanswerable. The lab only became able to resolve sub-1% differences on 2026-09-07 (M-LAB-WALL-MS, M-LAB-REPRO), and no multi-trial baseline has been taken since |
 
 **The order is not arbitrary.** A Groth16 or librustzcash experiment produces a
@@ -938,7 +956,7 @@ The commit distances (Ycash 1127, Pirate 2462) overstate what each project
 actually did. Isolating fork-specific work: **each fork carries about three
 commits of its own** -- network prefixes, activation heights, encoding -- on top
 of upstream history pulled forward. The named authors on both forks are the
-upstream Zcash team (`ZK/ZKs/rustzcash/ZcashRust.md` S9).
+upstream Zcash team (`ZcashRust.md` S9, out of tree).
 
 **So the move is not research; it is a bounded change of known shape, performed
 twice independently.** Both trees are checked out locally for reference.

@@ -9,7 +9,7 @@ Applies to both ledgers under `reindex-profile/bench-summaries/`:
 
 Status: **specified, partially implemented.** The `*.v2.jsonl` ledgers carry
 `schema`, `platform` and `build`; `features` is still `{}` on every row.
-Migration is tracked as **`TASKS.md` A2** (there is no "Track S").
+Remaining work: `PLAN.md` N2-N4.
 
 ---
 
@@ -199,6 +199,40 @@ Rules that keep bundles honest:
 This is what makes "all NOTEIDX runs on arm64 against the last baseline" a
 one-line filter.
 
+### 4.3 Workload classes
+
+`features.workload.op` keeps a solve trial from pooling with a reindex trial.
+It is free text today: `stamp.py --op` has no enum and no validation, so the
+guard in S5.1 has no workload key, and every existing row reads `reindex`.
+The demanding workloads are bound by different resources and must not be
+averaged together:
+
+| Class | Workload | `op` | Bound by | Hot thread |
+|-------|----------|------|----------|------------|
+| A | P2P sync, `-loadblock` bootstrap | `sync`, `bootstrap` | CPU, serial | `zcash-loadblk` |
+| B | Reindex of an existing datadir | `reindex` | CPU, serial | `zcash-loadblk` |
+| C | Wallet ingest / rescan | `rescan` | witness scan, `cs_wallet` | `Main Thread` |
+| D | Mining solve, header verify | `solve`, `verify` | CPU and memory capacity | miner thread |
+
+A and B measure within ~3 points on every bucket at the same heights; they
+stay separate because sourcing cost is real even where validation cost is
+not.
+
+Two derived fields complete it:
+
+- **`workload.wallet_shape`** for class C: `few-utxo-many-tx` (measured, the
+  fat wallet) or `many-utxo-few-tx` (no such wallet exists yet); `null` when
+  the wallet is `none`.
+- **`workload.era`**, derived from the height window: `sprout` below 492,850,
+  `sapling` at or above it, `mixed` for a window straddling it. A `mixed` row
+  averages two regimes and matches neither, so it is labelled rather than
+  compared.
+
+Back-annotation of existing rows is limited to `op` and `era`, both derivable
+from what was recorded. `wallet_shape` and bundle detail were not observed and
+are not reconstructed; old rows stay sparse and are correctly excluded from
+new comparisons. Work items: `PLAN.md` N2, N3.
+
 ---
 
 ## 5. Selection, grouping and aggregation
@@ -327,7 +361,7 @@ fabrication.
 
 ## 8. Migration
 
-Ordered so no step depends on a later one. Detail in `TASKS.md` **A2**.
+Ordered so no step depends on a later one. Open items: `PLAN.md` N2-N4.
 
 1. Back-annotate 49 rows: `schema: 1`, this system's `platform` block, `build`
    where recoverable, `date_confidence: estimated`. **Write a new file, keep

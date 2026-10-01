@@ -1,6 +1,6 @@
 # TODO.md -- review and proposed rewrite
 
-**Draft for the Zero400 tree. Not applied.** Reviewed 2026-09-09 against
+**Draft for the Zero tree. Not applied.** Reviewed 2026-09-09 against
 `src/` and `qa/` at `perf_b1b2` (`a2a691fb3`). Every state claim below was
 checked in source; where it was not, that is said.
 
