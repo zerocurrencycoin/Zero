@@ -3,12 +3,10 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#
-# Test txindex generation and fetching
-#
-# Known failures on Zero: Python 3 Decimal nValue handling, and asserts that expect
-# Bitcoin's 50-coin subsidy instead of Zero's 10 ZER.
-#
+"""
+Test txindex generation and fetching: a node with the index returns confirmed
+transactions that are not in its wallet. Zero forces the index on for every node.
+"""
 
 import time
 from test_framework.test_framework import BitcoinTestFramework
@@ -49,13 +47,11 @@ class TxIndexTest(BitcoinTestFramework):
 
         print("Testing transaction index...")
 
-        privkey = "cSdkPxkAjA4HDr5VHgsebAPDEh9Gyub4HK8UJr2DFGGqKKy4K5sG"
-        address = "mgY65WSfEmsyYaYPQaXhmXMeBhwp4EcsQW"
         addressHash = binascii.unhexlify("0b2f0a0c31bfe0406b0ccc1381fdbe311946dadc")
         scriptPubKey = CScript([OP_DUP, OP_HASH160, addressHash, OP_EQUALVERIFY, OP_CHECKSIG])
         unspent = self.nodes[0].listunspent()
         tx = CTransaction()
-        amount = unspent[0]["amount"] * 100000000
+        amount = int(unspent[0]["amount"] * COIN)
         tx.vin = [CTxIn(COutPoint(int(unspent[0]["txid"], 16), unspent[0]["vout"]))]
         tx.vout = [CTxOut(amount, scriptPubKey)]
         tx.rehash()
@@ -65,10 +61,13 @@ class TxIndexTest(BitcoinTestFramework):
         self.nodes[0].generate(1)
         self.sync_all()
 
-        # Check verbose raw transaction results
-        verbose = self.nodes[3].getrawtransaction(unspent[0]["txid"], 1)
-        assert_equal(verbose["vout"][0]["valueZat"], 5000000000);
-        assert_equal(verbose["vout"][0]["value"], 50);
+        # Node 3 holds neither transaction in its wallet; both come from the index.
+        funding = self.nodes[3].getrawtransaction(unspent[0]["txid"], 1)
+        assert_equal(funding["vout"][unspent[0]["vout"]]["valueZat"], amount)
+        assert_equal(funding["vout"][unspent[0]["vout"]]["value"], unspent[0]["amount"])
+        spend = self.nodes[3].getrawtransaction(txid, 1)
+        assert_equal(spend["vout"][0]["valueZat"], amount)
+        assert_equal(spend["vin"][0]["txid"], unspent[0]["txid"])
 
         print("Passed\n")
 

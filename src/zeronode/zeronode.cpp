@@ -12,6 +12,19 @@
 #include <boost/lexical_cast.hpp>
 
 #include "key_io.h"
+#include "chainparams.h"
+
+int ZeronodeMainnetPort()
+{
+    return Params(CBaseChainParams::MAIN).GetDefaultPort();
+}
+
+bool IsValidZeronodePort(int nPort)
+{
+    if (NetworkIdFromCommandLine() == CBaseChainParams::MAIN)
+        return nPort == ZeronodeMainnetPort();
+    return nPort != ZeronodeMainnetPort();
+}
 
 // keep track of the scanning errors I've seen
 map<uint256, int> mapSeenZeronodeScanningErrors;
@@ -203,7 +216,7 @@ void CZeronode::Check(bool forceCheck)
             return;
         }
 
-        CTxOut vout = CTxOut(9999.99 * COIN, scriptPubKey);
+        CTxOut vout = CTxOut(ZERONODE_COLLATERAL_CHECK_VALUE, scriptPubKey);
         tx.vin.push_back(vin);
         tx.vout.push_back(vout);
 
@@ -257,7 +270,7 @@ int64_t CZeronode::GetLastPaid()
 
     const CBlockIndex* BlockReading = pindexPrev;
 
-    int nMnCount = znodeman.CountEnabled() * 1.25;
+    int nMnCount = ZeronodeCountWithMargin(znodeman.CountEnabled());
     int n = 0;
     for (unsigned int i = 1; BlockReading && BlockReading->nHeight > 0; i++) {
         if (n >= nMnCount) {
@@ -403,14 +416,13 @@ bool CZeronodeBroadcast::Create(std::string strService, std::string strKeyZerono
     }
 
     CService service = CService(strService);
-    int mainnetDefaultPort = Params(CBaseChainParams::MAIN).GetDefaultPort();
-    if (NetworkIdFromCommandLine() == CBaseChainParams::MAIN) {
-        if (service.GetPort() != mainnetDefaultPort) {
+    int mainnetDefaultPort = ZeronodeMainnetPort();
+    if (!IsValidZeronodePort(service.GetPort())) {
+        if (NetworkIdFromCommandLine() == CBaseChainParams::MAIN) {
             strErrorRet = strprintf("Invalid port %u for zeronode %s, only %d is supported on mainnet.", service.GetPort(), strService, mainnetDefaultPort);
             LogPrint("zeronode","CZeronodeBroadcast::Create -- %s\n", strErrorRet);
             return false;
         }
-    } else if (service.GetPort() == mainnetDefaultPort) {
         strErrorRet = strprintf("Invalid port %u for zeronode %s, %d is the only supported on mainnet.", service.GetPort(), strService, mainnetDefaultPort);
         LogPrint("zeronode","CZeronodeBroadcast::Create -- %s\n", strErrorRet);
         return false;
@@ -504,9 +516,7 @@ bool CZeronodeBroadcast::CheckAndUpdate(int& nDos)
         return false;
     }
 
-    if (NetworkIdFromCommandLine() == CBaseChainParams::MAIN) {
-        if (addr.GetPort() != 23801) return false;
-    } else if (addr.GetPort() == 23801)
+    if (!IsValidZeronodePort(addr.GetPort()))
         return false;
 
     //search existing Zeronode list, this is where we update existing Zeronodes with new znb broadcasts
@@ -568,7 +578,7 @@ bool CZeronodeBroadcast::CheckInputsAndAdd(int& nDoS)
         return false;
     }
 
-    CTxOut vout = CTxOut(9999.99 * COIN, scriptPubKey);
+    CTxOut vout = CTxOut(ZERONODE_COLLATERAL_CHECK_VALUE, scriptPubKey);
     tx.vin.push_back(vin);
     tx.vout.push_back(vout);
 

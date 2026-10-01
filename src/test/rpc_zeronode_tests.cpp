@@ -10,8 +10,14 @@
 #include "amount.h"
 #include "chainparams.h"
 #include "zeronode/spork.h"
+#include "zeronode/swifttx.h"
+#include "zeronode/zeronode.h"
+#include "zeronode/zeronodeconfig.h"
+#include "wallet/wallet.h"
 
 #include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/filesystem/fstream.hpp>
 #include <boost/test/unit_test.hpp>
 
 #include <string>
@@ -195,6 +201,134 @@ BOOST_AUTO_TEST_CASE(getzeronodepayment_sporks)
     BOOST_CHECK_EQUAL(GetZeronodePayment(0, 10 * COIN), 10 * COIN * 20 / 100);
     BOOST_CHECK_EQUAL(GetZeronodePayment(interval, 10 * COIN), 10 * COIN * 25 / 100);
     mapSporksActive = saved;
+}
+
+// Amount constants written as decimal fractions of COIN fold to exact integers at
+// compile time; a rounding change would fail the build.
+static_assert(nHighTransactionFeeWarning == 1000000, "0.01 * COIN");
+static_assert(DEFAULT_TRANSACTION_MAXFEE == 10000000, "0.1 * COIN");
+static_assert(nHighTransactionMaxFeeWarning == 100000000, "100 * 0.01 * COIN");
+static_assert(ZERONODE_COLLATERAL_CHECK_VALUE == 999999000000LL, "9999.99 ZER");
+static_assert(SWIFTTX_MIN_COLLATERAL_FEE == 10000, "0.0001 ZER");
+
+// Integer forms of former floating-point expressions: identical results over the
+// whole range of zeronode counts and heights the network can reach.
+BOOST_AUTO_TEST_CASE(zeronode_integer_math)
+{
+    for (int n = 0; n <= 200000; ++n) {
+        BOOST_REQUIRE_EQUAL(ZeronodeCountWithMargin(n), int(n * 1.25));
+        for (int nHeight : {0, 1, 1000, 2500000, 50000000}) {
+            BOOST_REQUIRE_EQUAL(ZeronodePaymentWindowStart(nHeight, n), int(nHeight - (n * 1.25)));
+        }
+    }
+    BOOST_CHECK_EQUAL(ZERONODE_COLLATERAL_CHECK_VALUE, CAmount(9999.99 * COIN));
+    BOOST_CHECK_EQUAL(ZERONODE_COLLATERAL_CHECK_VALUE, CAmount(999999000000LL));
+    BOOST_CHECK_EQUAL(SWIFTTX_MIN_COLLATERAL_FEE, CAmount(COIN * 0.0001));
+    BOOST_CHECK_EQUAL(SWIFTTX_MIN_COLLATERAL_FEE, CAmount(10000));
+    BOOST_CHECK_EQUAL(CAmount(COIN / 10), CAmount(0.1 * COIN));
+}
+
+// Zeronode port rule: mainnet requires the mainnet default port, testnet and regtest refuse it.
+// The network comes from -testnet and -regtest, so each case sets those arguments.
+class ScopedNetworkArgs
+{
+    std::map<std::string, std::string> saved;
+public:
+    explicit ScopedNetworkArgs(const std::string& flag) : saved(mapArgs)
+    {
+        mapArgs.erase("-testnet");
+        mapArgs.erase("-regtest");
+        if (!flag.empty()) mapArgs[flag] = "1";
+    }
+    ~ScopedNetworkArgs() { mapArgs = saved; }
+};
+
+BOOST_AUTO_TEST_CASE(zeronode_port_rule)
+{
+    BOOST_CHECK_EQUAL(ZeronodeMainnetPort(), 23801);
+    {
+        ScopedNetworkArgs net("");
+        BOOST_CHECK(IsValidZeronodePort(23801));
+        for (int port : {23802, 23803, 8233, 0})
+            BOOST_CHECK(!IsValidZeronodePort(port));
+    }
+    for (const std::string flag : {"-testnet", "-regtest"}) {
+        ScopedNetworkArgs net(flag);
+        BOOST_CHECK(!IsValidZeronodePort(23801));
+        for (int port : {23802, 23803, 8233})
+            BOOST_CHECK(IsValidZeronodePort(port));
+    }
+}
+
+// zeronode.conf lines are checked against the rule when the file is read at startup.
+static bool ReadZeronodeConf(int port, std::string& strErr, int& nEntries)
+{
+    boost::filesystem::path path = boost::filesystem::temp_directory_path() / boost::filesystem::unique_path("zeronode-%%%%%%%%.conf");
+    {
+        boost::filesystem::ofstream f(path);
+        f << "zn1 127.0.0.1:" << port << " 93HaYBVUCYjEMeeH1Y4sBGLALQZE1Yc1K64xiqgX37tGBDQL8Xg "
+          << std::string(64, '0') << " 0\n";
+    }
+    std::string savedConf = mapArgs.count("-znconf") ? mapArgs["-znconf"] : "";
+    mapArgs["-znconf"] = path.string();
+    CZeronodeConfig config;
+    bool fRead = config.read(strErr);
+    nEntries = (int)config.getEntries().size();
+    if (savedConf.empty()) mapArgs.erase("-znconf"); else mapArgs["-znconf"] = savedConf;
+    boost::filesystem::remove(path);
+    return fRead;
+}
+
+BOOST_AUTO_TEST_CASE(zeronode_conf_port)
+{
+    std::string strErr;
+    int nEntries = 0;
+    {
+        ScopedNetworkArgs net("");
+        BOOST_CHECK(ReadZeronodeConf(23801, strErr, nEntries));
+        BOOST_CHECK_EQUAL(nEntries, 1);
+        BOOST_CHECK(!ReadZeronodeConf(23802, strErr, nEntries));
+        BOOST_CHECK(strErr.find("(must be 23801 for mainnet)") != std::string::npos);
+    }
+    {
+        ScopedNetworkArgs net("-regtest");
+        BOOST_CHECK(!ReadZeronodeConf(23801, strErr, nEntries));
+        BOOST_CHECK(strErr.find("(23801 could be used only on mainnet)") != std::string::npos);
+        BOOST_CHECK(ReadZeronodeConf(23803, strErr, nEntries));
+        BOOST_CHECK_EQUAL(nEntries, 1);
+    }
+}
+
+// A signed broadcast from a peer passes CheckAndUpdate only on an allowed port; a refused
+// port is rejected without a misbehavior score.
+static bool CheckBroadcastPort(int port, int& nDos)
+{
+    CKey keyCollateral, keyZeronode;
+    keyCollateral.MakeNewKey(true);
+    keyZeronode.MakeNewKey(true);
+    CService service(("1.2.3.4:" + std::to_string(port)).c_str());
+    CTxIn vin(COutPoint(uint256S("01"), 0));
+    CZeronodeBroadcast znb(service, vin, keyCollateral.GetPubKey(), keyZeronode.GetPubKey(), PROTOCOL_VERSION);
+    BOOST_REQUIRE(znb.Sign(keyCollateral));
+    nDos = 0;
+    return znb.CheckAndUpdate(nDos);
+}
+
+BOOST_AUTO_TEST_CASE(zeronode_broadcast_port)
+{
+    int nDos = 0;
+    {
+        ScopedNetworkArgs net("");
+        BOOST_CHECK(CheckBroadcastPort(23801, nDos));
+        BOOST_CHECK(!CheckBroadcastPort(23802, nDos));
+        BOOST_CHECK_EQUAL(nDos, 0);
+    }
+    {
+        ScopedNetworkArgs net("-regtest");
+        BOOST_CHECK(!CheckBroadcastPort(23801, nDos));
+        BOOST_CHECK_EQUAL(nDos, 0);
+        BOOST_CHECK(CheckBroadcastPort(23803, nDos));
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

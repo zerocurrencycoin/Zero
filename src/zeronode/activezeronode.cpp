@@ -74,14 +74,11 @@ void CActiveZeronode::ManageStatus()
 
         LogPrintf("CActiveZeronode::ManageStatus() - Checking inbound connection to '%s'\n", service.ToString());
 
-        if(NetworkIdFromCommandLine() == CBaseChainParams::MAIN) {
-            if(service.GetPort() != 23801) {
-                notCapableReason = strprintf("Invalid port: %u - only 23801 is supported on mainnet.", service.GetPort());
-                LogPrintf("CActiveZeronode::ManageStatus() - not capable: %s\n", notCapableReason);
-                return;
-            }
-        } else if(service.GetPort() == 23801) {
-            notCapableReason = strprintf("Invalid port: %u - 23801 is only supported on mainnet.", service.GetPort());
+        if (!IsValidZeronodePort(service.GetPort())) {
+            if (NetworkIdFromCommandLine() == CBaseChainParams::MAIN)
+                notCapableReason = strprintf("Invalid port: %u - only %d is supported on mainnet.", service.GetPort(), ZeronodeMainnetPort());
+            else
+                notCapableReason = strprintf("Invalid port: %u - %d is only supported on mainnet.", service.GetPort(), ZeronodeMainnetPort());
             LogPrintf("CActiveZeronode::ManageStatus() - not capable: %s\n", notCapableReason);
             return;
         }
@@ -240,14 +237,11 @@ bool CActiveZeronode::Register(std::string strService, std::string strKeyZeronod
     CService service;
     if (!Lookup(strService.c_str(), service, 0, false))
         return LogPrintf("Invalid address %s for zeronode.", strService);
-    if(NetworkIdFromCommandLine() == CBaseChainParams::MAIN) {
-        if (service.GetPort() != 23801) {
-            errorMessage = strprintf("Invalid port %u for zeronode %s - only 23801 is supported on mainnet.", service.GetPort(), strService);
-            LogPrintf("CActiveZeronode::Register() - %s\n", errorMessage);
-            return false;
-        }
-    } else if (service.GetPort() == 23801) {
-        errorMessage = strprintf("Invalid port %u for zeronode %s - 23801 is only supported on mainnet.", service.GetPort(), strService);
+    if (!IsValidZeronodePort(service.GetPort())) {
+        if (NetworkIdFromCommandLine() == CBaseChainParams::MAIN)
+            errorMessage = strprintf("Invalid port %u for zeronode %s - only %d is supported on mainnet.", service.GetPort(), strService, ZeronodeMainnetPort());
+        else
+            errorMessage = strprintf("Invalid port %u for zeronode %s - %d is only supported on mainnet.", service.GetPort(), strService, ZeronodeMainnetPort());
         LogPrintf("CActiveZeronode::Register() - %s\n", errorMessage);
         return false;
     }

@@ -25,6 +25,9 @@
 #define SWIFTTX_SIGNATURES_REQUIRED 6
 #define SWIFTTX_SIGNATURES_TOTAL 10
 
+/** Minimum fee of a SwiftTX collateral transaction: 0.0001 ZER. */
+static const CAmount SWIFTTX_MIN_COLLATERAL_FEE = COIN / 10000;
+
 using namespace std;
 using namespace boost;
 

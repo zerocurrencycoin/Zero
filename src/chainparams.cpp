@@ -135,7 +135,6 @@ public:
         pchMessageStart[1] = 0x45; // E
         pchMessageStart[2] = 0x52; // R
         pchMessageStart[3] = 0x4F; // O
-        vAlertPubKey = ParseHex("73B0");
         nDefaultPort = 23801;
         //nMaxTipAge = 24 * 60 * 60;
         nPruneAfterHeight = 100000;
@@ -306,7 +305,6 @@ public:
         pchMessageStart[1] = 0x46; // E+1
         pchMessageStart[2] = 0x53; // R+1
         pchMessageStart[3] = 0x50; // O+1
-        vAlertPubKey = ParseHex("73B0");
         nDefaultPort = 23802;
         //nMaxTipAge = 1000000000;
         nPruneAfterHeight = 1000;
@@ -461,7 +459,6 @@ public:
         pchMessageStart[1] = 0x47; // E+2
         pchMessageStart[2] = 0x54; // R+2
         pchMessageStart[3] = 0x51; // O+2
-        vAlertPubKey = ParseHex("73B0");
         nDefaultPort = 23803;
         //nMaxTipAge = 24 * 60 * 60;
         nPruneAfterHeight = 1000;

@@ -13,7 +13,6 @@ calls within one test would return a soft continue.
 Run: ./qa/pull-tester/rpc-tests.sh getalldata_scenario
 """
 
-from __future__ import print_function
 
 from decimal import Decimal
 

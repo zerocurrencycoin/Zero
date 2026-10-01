@@ -121,8 +121,7 @@ TEST(founders_reward_test, general) {
 
     int maxHeight = GetLastFoundersRewardHeight(params.GetConsensus());
 
-    // If the block height parameter is out of bounds, functions now return safe fallback values
-    // instead of crashing (improved error handling)
+    // Out-of-range heights return the fallback address "0" and an OP_RETURN script.
     EXPECT_EQ(params.GetFoundersRewardAddressAtHeight(0), "0");
     EXPECT_EQ(params.GetFoundersRewardAddressAtHeight(maxHeight+1), "0");
     

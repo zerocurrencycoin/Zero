@@ -13,6 +13,9 @@ from test_framework.util import (
 
 from decimal import Decimal
 
+# Blossom activates at H; run_test mines to H - 5 before the boundary checks.
+BLOSSOM_HEIGHT = COINBASE_MATURITY + 100
+
 # Test mempool behaviour around network upgrade activation
 class MempoolUpgradeActivationTest(BitcoinTestFramework):
 
@@ -20,7 +23,7 @@ class MempoolUpgradeActivationTest(BitcoinTestFramework):
 
     def setup_network(self):
         args = ["-checkmempool", "-debug=mempool", "-blockmaxsize=4000",
-            "-nuparams=2bb40e60:200", # Blossom
+            "-nuparams=2bb40e60:%d" % BLOSSOM_HEIGHT,
         ]
         self.nodes = []
         self.nodes.append(start_node(0, self.options.tmpdir, args))
@@ -173,9 +176,9 @@ class MempoolUpgradeActivationTest(BitcoinTestFramework):
             self.sync_all()
 
         print('Testing Sapling -> Blossom activation boundary')
-        # Current height = 195
+        assert_equal(self.nodes[0].getblockcount(), BLOSSOM_HEIGHT - 5)
         nu_activation_checks()
-        # Current height = 205
+        assert_equal(self.nodes[0].getblockcount(), BLOSSOM_HEIGHT + 5)
 
 if __name__ == '__main__':
     MempoolUpgradeActivationTest().main()

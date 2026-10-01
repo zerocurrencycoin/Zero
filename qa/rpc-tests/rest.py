@@ -158,8 +158,7 @@ class RESTTest (BitcoinTestFramework):
         output.write(bin_response)
         output.seek(0)
         chainHeight = struct.unpack("i", output.read(4))[0]
-        # uint256 is 64 hex chars; zfill(65) (and the Py2 "L" suffix strip) were a
-        # port bug that made this never equal the 64-char getbestblockhash().
+        # uint256 is 64 hex chars, the length getbestblockhash() returns.
         hashFromBinResponse = hex(deser_uint256(output))[2:].zfill(64)
 
         assert_equal(bb_hash, hashFromBinResponse) # check if getutxo's chaintip during calculation was fine

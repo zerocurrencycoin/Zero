@@ -189,7 +189,7 @@ UniValue getsaplingwitnessatheight(const UniValue& params, bool fHelp) {
     uint256 hash(uint256S(strHash));
 
     CBlock block;
-    CBlockIndex* pblockindex = mapBlockIndex[hash];
+    CBlockIndex* pblockindex = LookupBlockIndex(hash);
 
     if (fHavePruned && !(pblockindex->nStatus & BLOCK_HAVE_DATA) && pblockindex->nTx > 0)
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not available (pruned data)");
@@ -265,7 +265,7 @@ UniValue getsaplingblocks(const UniValue& params, bool fHelp)
       uint256 hash(uint256S(strHash));
 
       CBlock block;
-      CBlockIndex* pblockindex = mapBlockIndex[hash];
+      CBlockIndex* pblockindex = LookupBlockIndex(hash);
 
       if (fHavePruned && !(pblockindex->nStatus & BLOCK_HAVE_DATA) && pblockindex->nTx > 0)
           throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not available (pruned data)");

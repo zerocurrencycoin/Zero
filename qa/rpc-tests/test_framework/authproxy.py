@@ -34,18 +34,12 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 """
 
-try:
-    import http.client as httplib
-except ImportError:
-    import httplib
+import http.client as httplib
 import base64
 import decimal
 import json
 import logging
-try:
-    import urllib.parse as urlparse
-except ImportError:
-    import urlparse
+import urllib.parse as urlparse
 
 USER_AGENT = "AuthServiceProxy/0.1"
 

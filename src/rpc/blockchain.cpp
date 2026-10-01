@@ -1216,16 +1216,13 @@ UniValue getmempoolinfo(const UniValue& params, bool fHelp)
     return mempoolInfoToJSON();
 }
 
-static UniValue LevelDBCacheObj(size_t budgetBytes, size_t blockCacheCap, size_t blockCacheUse,
+static UniValue LevelDBCacheObj(size_t budgetBytes, size_t blockCacheCap,
                                 size_t writeBufferBudget, const std::string& stats,
                                 const std::string& filesL0)
 {
     UniValue o(UniValue::VOBJ);
     o.push_back(Pair("budget_bytes", (int64_t)budgetBytes));
     o.push_back(Pair("block_cache_capacity_bytes", (int64_t)blockCacheCap));
-    o.push_back(Pair("block_cache_usage_bytes", (int64_t)blockCacheUse));
-    double fill = blockCacheCap ? (100.0 * (double)blockCacheUse / (double)blockCacheCap) : 0.0;
-    o.push_back(Pair("block_cache_fill_pct", fill));
     o.push_back(Pair("write_buffer_budget_bytes", (int64_t)writeBufferBudget));
     if (!filesL0.empty())
         o.push_back(Pair("num_files_at_level0", atoi(filesL0.c_str())));
@@ -1239,8 +1236,8 @@ UniValue getdbinfo(const UniValue& params, bool fHelp)
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "getdbinfo\n"
-            "Returns -dbcache slice budgets and live fill for the in-memory UTXO cache\n"
-            "and LevelDB block caches (blocks/index and chainstate).\n"
+            "Returns -dbcache slice budgets, live fill of the in-memory UTXO cache, and\n"
+            "LevelDB block-cache capacity and statistics (blocks/index and chainstate).\n"
             "\nResult:\n"
             "{\n"
             "  \"dbcache_mib\": n,                 (numeric) -dbcache argument (MiB)\n"
@@ -1249,8 +1246,8 @@ UniValue getdbinfo(const UniValue& params, bool fHelp)
             "  \"utxo_cache\": {                   (object) in-memory CoinsTip cache\n"
             "    \"bytes\": n, \"entries\": n, \"budget_bytes\": n, \"fill_pct\": n\n"
             "  },\n"
-            "  \"block_index\": { ... },           (object) LevelDB block-cache fill + stats\n"
-            "  \"chainstate\": { ... }             (object) LevelDB block-cache fill + stats\n"
+            "  \"block_index\": { ... },           (object) LevelDB block-cache capacity + stats\n"
+            "  \"chainstate\": { ... }             (object) LevelDB block-cache capacity + stats\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getdbinfo", "")
@@ -1288,7 +1285,6 @@ UniValue getdbinfo(const UniValue& params, bool fHelp)
     obj.push_back(Pair("block_index", LevelDBCacheObj(
         nBlockTreeDBCacheBytes,
         pblocktree->GetBlockCacheCapacity(),
-        pblocktree->GetBlockCacheUsage(),
         pblocktree->GetWriteBufferBudget(),
         biStats, biL0)));
 
@@ -1299,7 +1295,6 @@ UniValue getdbinfo(const UniValue& params, bool fHelp)
         obj.push_back(Pair("chainstate", LevelDBCacheObj(
             nCoinDBCacheBytes,
             pcoinsdbview->GetLevelDBBlockCacheCapacity(),
-            pcoinsdbview->GetLevelDBBlockCacheUsage(),
             pcoinsdbview->GetLevelDBWriteBufferBudget(),
             csStats, csL0)));
     }

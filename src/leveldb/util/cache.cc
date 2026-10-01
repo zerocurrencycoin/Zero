@@ -147,7 +147,6 @@ class LRUCache {
   Cache::Handle* Lookup(const Slice& key, uint32_t hash);
   void Release(Cache::Handle* handle);
   void Erase(const Slice& key, uint32_t hash);
-  size_t TotalCharge();
 
  private:
   void LRU_Remove(LRUHandle* e);
@@ -265,11 +264,6 @@ void LRUCache::Erase(const Slice& key, uint32_t hash) {
   }
 }
 
-size_t LRUCache::TotalCharge() {
-  MutexLock l(&mutex_);
-  return usage_;
-}
-
 static const int kNumShardBits = 4;
 static const int kNumShards = 1 << kNumShardBits;
 
@@ -319,13 +313,6 @@ class ShardedLRUCache : public Cache {
   virtual uint64_t NewId() {
     MutexLock l(&id_mutex_);
     return ++(last_id_);
-  }
-  virtual size_t TotalCharge() {
-    size_t total = 0;
-    for (int s = 0; s < kNumShards; s++) {
-      total += shard_[s].TotalCharge();
-    }
-    return total;
   }
 };
 

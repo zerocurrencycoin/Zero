@@ -9,7 +9,6 @@
 #   ./contrib/stats/chain_stats.py --verify
 #   ./contrib/stats/chain_stats.py --scan 2471200 200
 
-from __future__ import print_function
 
 import argparse
 import json

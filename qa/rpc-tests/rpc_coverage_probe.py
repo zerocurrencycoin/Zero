@@ -19,7 +19,6 @@ Run:
   ZERO_RPC_PROBE_ALL=1 ./qa/pull-tester/rpc-tests.sh rpc_coverage_probe
 """
 
-from __future__ import print_function
 
 import os
 import re

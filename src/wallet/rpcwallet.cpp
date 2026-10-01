@@ -2850,6 +2850,9 @@ UniValue zc_benchmark(const UniValue& params, bool fHelp)
     return results;
 }
 
+// Sprout raw JoinSplit RPCs (zcrawkeygen, zcrawjoinsplit, zcrawreceive), removed
+// from zcashd in v5.4.0. Compiled only with -DENABLE_ZCRAW_RPC.
+#ifdef ENABLE_ZCRAW_RPC
 UniValue zc_raw_receive(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp)) {
@@ -3166,7 +3169,7 @@ UniValue zc_raw_keygen(const UniValue& params, bool fHelp)
     result.push_back(Pair("zcviewingkey", EncodeViewingKey(viewing_key)));
     return result;
 }
-
+#endif // ENABLE_ZCRAW_RPC
 
 UniValue z_getnewaddress(const UniValue& params, bool fHelp)
 {
@@ -4251,10 +4254,10 @@ UniValue z_getmigrationstatus(const UniValue& params, bool fHelp) {
                 unfinalizedMigratedAmount -= tx.valueBalance;
             }
             // If the transaction is in the mempool it will not be associated with a block yet
-            if (tx.hashBlock.IsNull() || mapBlockIndex[tx.hashBlock] == nullptr) {
+            CBlockIndex* blockIndex = tx.hashBlock.IsNull() ? nullptr : LookupBlockIndex(tx.hashBlock);
+            if (blockIndex == nullptr) {
                 continue;
             }
-            CBlockIndex* blockIndex = mapBlockIndex[tx.hashBlock];
             //  The value of "time_started" is the earliest Unix timestamp of any known
             // migration transaction involving this wallet; if there is no such transaction,
             // then the field is absent.
@@ -5047,9 +5050,11 @@ static const CRPCCommand commands[] =
     { "wallet",             "walletpassphrasechange",   &walletpassphrasechange,   true  },
     { "wallet",             "walletpassphrase",         &walletpassphrase,         true  },
     { "wallet",             "zcbenchmark",              &zc_benchmark,             true  },
+#ifdef ENABLE_ZCRAW_RPC
     //{ "wallet",             "zcrawkeygen",              &zc_raw_keygen,            true  },
     { "wallet",             "zcrawjoinsplit",           &zc_raw_joinsplit,         true  },
     { "wallet",             "zcrawreceive",             &zc_raw_receive,           true  },
+#endif
     { "wallet",             "zcsamplejoinsplit",        &zc_sample_joinsplit,      true  },
     { "wallet",             "z_listreceivedbyaddress",  &z_listreceivedbyaddress,  false },
     { "wallet",             "z_listunspent",            &z_listunspent,            false },

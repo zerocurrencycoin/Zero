@@ -203,7 +203,7 @@ bool IsIXTXValid(const CTransaction& txCollateral)
         return true;
     }
 
-    if (nValueIn - nValueOut < COIN * 0.0001) {
+    if (nValueIn - nValueOut < SWIFTTX_MIN_COLLATERAL_FEE) {
         LogPrint("swiftx", "IsIXTXValid - did not include enough fees in transaction %d\n%s\n", nValueOut - nValueIn, txCollateral.ToString().c_str());
         return false;
     }

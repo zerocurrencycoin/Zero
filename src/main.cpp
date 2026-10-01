@@ -8,7 +8,6 @@
 #include "sodium.h"
 
 #include "addrman.h"
-#include "alert.h"
 #include "arith_uint256.h"
 #include "chainparams.h"
 #include "checkpoints.h"
@@ -77,6 +76,16 @@ static int64_t nTimeBestReceived = 0;
 CWaitableCriticalSection csBestBlock;
 CConditionVariable cvBlockChange;
 int nScriptCheckThreads = 0;
+
+int GetScriptCheckThreads(int nPar, int nCores)
+{
+    int nThreads = nPar;
+    if (nThreads <= 0)
+        nThreads += nCores;
+    if (nThreads <= 1)
+        return 0;
+    return std::min(nThreads, MAX_SCRIPTCHECK_THREADS);
+}
 bool fExperimentalMode = false;
 bool fImporting = false;
 bool fReindex = false;
@@ -97,7 +106,6 @@ size_t nCoinCacheUsage = 5000 * 300;
 size_t nBlockTreeDBCacheBytes = 0;
 size_t nCoinDBCacheBytes = 0;
 uint64_t nPruneTarget = 0;
-bool fAlerts = DEFAULT_ALERTS;
 /* If the tip is older than this (in seconds), the node is considered to be in initial block download.
  */
 int64_t nMaxTipAge = DEFAULT_MAX_TIP_AGE;
@@ -1456,6 +1464,60 @@ CAmount GetMinRelayFee(const CTransaction& tx, unsigned int nBytes, bool fAllowF
 }
 
 
+/** Log why a candidate mempool transaction was refused by policy and return
+ *  false. Peers relay such transactions routinely (already mined, double
+ *  spends, below fee or standardness policy), so the per-transaction line is
+ *  under -debug=mempool; NoteRelayReject reports counts in the default log. */
+static bool MempoolPolicyReject(const char* func, const CTransaction& tx, const std::string& msg)
+{
+    LogPrint("mempool", "%s: %s %s\n", func, tx.GetHash().ToString(), msg);
+    return false;
+}
+
+/** Name the first unmet shielded requirement of tx in view, for the
+ *  -debug=mempool line. */
+static std::string ShieldedRequirementDetail(const CCoinsViewCache& view, const CTransaction& tx)
+{
+    for (const JSDescription& joinsplit : tx.vJoinSplit) {
+        for (const uint256& nf : joinsplit.nullifiers)
+            if (view.GetNullifier(nf, SPROUT))
+                return "Sprout nullifier " + nf.ToString() + " already spent";
+    }
+    for (const SpendDescription& spend : tx.vShieldedSpend) {
+        if (view.GetNullifier(spend.nullifier, SAPLING))
+            return "Sapling nullifier " + spend.nullifier.ToString() + " already spent";
+        SaplingMerkleTree tree;
+        if (!view.GetSaplingAnchorAt(spend.anchor, tree))
+            return "Sapling anchor " + spend.anchor.ToString() + " unknown";
+    }
+    return "Sprout anchor unknown";
+}
+
+/** Count transactions from peers that AcceptToMemoryPool refused, by reject
+ *  reason, and log the counts at most once per RELAY_REJECT_SUMMARY_INTERVAL
+ *  seconds, when the next refusal arrives. */
+static void NoteRelayReject(const std::string& reason)
+{
+    static CCriticalSection csRelayReject;
+    static std::map<std::string, int> mapCounts;
+    static int64_t nWindowStart = 0;
+
+    LOCK(csRelayReject);
+    int64_t nNow = GetTime();
+    if (nWindowStart == 0)
+        nWindowStart = nNow;
+    mapCounts[reason]++;
+    if (nNow - nWindowStart < RELAY_REJECT_SUMMARY_INTERVAL)
+        return;
+    std::string strCounts;
+    for (const auto& item : mapCounts)
+        strCounts += strprintf("%s%s=%d", strCounts.empty() ? "" : ", ", item.first, item.second);
+    LogPrintf("Relayed transactions refused in the last %d s: %s (per transaction: -debug=mempool)\n",
+              nNow - nWindowStart, strCounts);
+    mapCounts.clear();
+    nWindowStart = nNow;
+}
+
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,
                         bool* pfMissingInputs, bool fRejectAbsurdFee)
 {
@@ -1499,7 +1561,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     // Note that if a valid transaction belonging to the wallet is in the mempool and the node is shutdown,
     // upon restart, CWalletTx::AcceptToMemoryPool() will be invoked which might result in rejection.
     if (IsExpiringSoonTx(tx, nextBlockHeight)) {
-        return state.DoS(0, error("AcceptToMemoryPool(): transaction is expiring soon"), REJECT_INVALID, "tx-expiring-soon");
+        return state.DoS(0, MempoolPolicyReject(__func__, tx, "transaction is expiring soon"), REJECT_INVALID, "tx-expiring-soon");
     }
 
     // Coinbase is only valid in a block, not as a loose transaction
@@ -1511,7 +1573,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     string reason;
     if (Params().RequireStandard() && !IsStandardTx(tx, reason, Params(), nextBlockHeight))
         return state.DoS(0,
-                         error("AcceptToMemoryPool: nonstandard transaction: %s", reason),
+                         MempoolPolicyReject(__func__, tx, "nonstandard transaction: " + reason),
                          REJECT_NONSTANDARD, reason);
 
     // Only accept nLockTime-using transactions that can be mined in the next
@@ -1578,12 +1640,13 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
 
         // are the actual inputs available?
         if (!view.HaveInputs(tx))
-            return state.Invalid(error("AcceptToMemoryPool: inputs already spent"),
+            return state.Invalid(MempoolPolicyReject(__func__, tx, "inputs already spent"),
                                  REJECT_DUPLICATE, "bad-txns-inputs-spent");
 
         // are the joinsplits' and sapling spends' requirements met in tx(valid anchors/nullifiers)?
         if (!view.HaveShieldedRequirements(tx))
-            return state.Invalid(error("AcceptToMemoryPool: shielded requirements not met"),
+            return state.Invalid(MempoolPolicyReject(__func__, tx, "shielded requirements not met: " +
+                                     (LogAcceptCategory("mempool") ? ShieldedRequirementDetail(view, tx) : std::string())),
                                  REJECT_DUPLICATE, "bad-txns-shielded-requirements-not-met");
 
         // Bring the best block into scope
@@ -1597,7 +1660,8 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
 
         // Check for non-standard pay-to-script-hash in inputs
         if (Params().RequireStandard() && !AreInputsStandard(tx, view, consensusBranchId))
-            return error("AcceptToMemoryPool: nonstandard transaction input");
+            return state.DoS(0, MempoolPolicyReject(__func__, tx, "nonstandard transaction input"),
+                             REJECT_NONSTANDARD, "bad-txns-nonstandard-inputs");
 
         // Check that the transaction doesn't have an excessive number of
         // sigops, making it impossible to mine. Since the coinbase transaction
@@ -1608,8 +1672,8 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
         nSigOps += GetP2SHSigOpCount(tx, view);
         if (nSigOps > MAX_STANDARD_TX_SIGOPS)
             return state.DoS(0,
-                             error("AcceptToMemoryPool: too many sigops %s, %d > %d",
-                                   hash.ToString(), nSigOps, MAX_STANDARD_TX_SIGOPS),
+                             MempoolPolicyReject(__func__, tx, strprintf("too many sigops %d > %d",
+                                   nSigOps, MAX_STANDARD_TX_SIGOPS)),
                              REJECT_NONSTANDARD, "bad-txns-too-many-sigops");
 
         CAmount nValueOut = tx.GetValueOut();
@@ -1642,8 +1706,8 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
             // Don't accept it if it can't get into a block
             CAmount txMinFee = GetMinRelayFee(tx, nSize, true);
             if (fLimitFree && nFees < txMinFee)
-                return state.DoS(0, error("AcceptToMemoryPool: not enough fees %s, %d < %d",
-                                        hash.ToString(), nFees, txMinFee),
+                return state.DoS(0, MempoolPolicyReject(__func__, tx, strprintf("not enough fees %d < %d",
+                                        nFees, txMinFee)),
                                 REJECT_INSUFFICIENTFEE, "insufficient fee");
         }
 
@@ -1670,7 +1734,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
             // -limitfreerelay unit is thousand-bytes-per-minute
             // At default rate it would take over a month to fill 1GB
             if (dFreeCount >= GetArg("-limitfreerelay", 15)*10*1000)
-                return state.DoS(0, error("AcceptToMemoryPool: free transaction rejected by rate limiter"),
+                return state.DoS(0, MempoolPolicyReject(__func__, tx, "free transaction rejected by rate limiter"),
                                  REJECT_INSUFFICIENTFEE, "rate limited free transaction");
             LogPrint("mempool", "Rate limit dFreeCount: %g => %g\n", dFreeCount, dFreeCount+nSize);
             dFreeCount += nSize;
@@ -1878,7 +1942,7 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
 
             // are the actual inputs available?
             if (!view.HaveInputs(tx))
-                return state.Invalid(error("AcceptableInputs : inputs already spent"),
+                return state.Invalid(MempoolPolicyReject(__func__, tx, "inputs already spent"),
                                      REJECT_DUPLICATE, "bad-txns-inputs-spent");
 
             // Bring the best block into scope
@@ -1905,8 +1969,7 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
         nSigOps += GetP2SHSigOpCount(tx, view);
         if (nSigOps > nMaxSigOps)
             return state.DoS(0,
-                error("AcceptableInputs : too many sigops %s, %d > %d",
-                    hash.ToString(), nSigOps, nMaxSigOps),
+                MempoolPolicyReject(__func__, tx, strprintf("too many sigops %d > %d", nSigOps, nMaxSigOps)),
                 REJECT_NONSTANDARD, "bad-txns-too-many-sigops");
 
         CAmount nValueOut = tx.GetValueOut();
@@ -1939,8 +2002,8 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
           } else {
             CAmount txMinFee = GetMinRelayFee(tx, nSize, true);
             if (fLimitFree && nFees < txMinFee)
-                return state.DoS(0, error("AcceptableInputs : not enough fees %s, %d < %d",
-                                          hash.ToString(), nFees, txMinFee),
+                return state.DoS(0, MempoolPolicyReject(__func__, tx, strprintf("not enough fees %d < %d",
+                                          nFees, txMinFee)),
                                  REJECT_INSUFFICIENTFEE, "insufficient fee");
 
             // Require that free transactions have sufficient priority to be mined in the next block.
@@ -1966,7 +2029,7 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
                 // -limitfreerelay unit is thousand-bytes-per-minute
                 // At default rate it would take over a month to fill 1GB
                 if (dFreeCount >= GetArg("-limitfreerelay", 30) * 10 * 1000)
-                    return state.DoS(0, error("AcceptableInputs : free transaction rejected by rate limiter"),
+                    return state.DoS(0, MempoolPolicyReject(__func__, tx, "free transaction rejected by rate limiter"),
                                      REJECT_INSUFFICIENTFEE, "rate limited free transaction");
                 LogPrint("mempool", "Rate limit dFreeCount: %g => %g\n", dFreeCount, dFreeCount+nSize);
                 dFreeCount += nSize;
@@ -2209,6 +2272,28 @@ bool IsInitialBlockDownload(const CChainParams& chainParams)
     return false;
 }
 
+void AlertNotify(const std::string& strMessage, bool fThread)
+{
+    std::string strCmd = GetArg("-alertnotify", "");
+    if (strCmd.empty()) return;
+
+    // The message comes from this node, but strip anything outside safeChars
+    // and single-quote it before passing it to the shell.
+    std::string singleQuote("'");
+    std::string safeStatus = SanitizeString(strMessage);
+    safeStatus = singleQuote+safeStatus+singleQuote;
+    boost::replace_all(strCmd, "%s", safeStatus);
+
+#ifdef ENABLE_SYSTEM_COMMAND
+    if (fThread)
+        boost::thread t(runCommand, strCmd); // thread runs free
+    else
+        runCommand(strCmd);
+#else
+    LogPrintf("Alert notification skipped: %s\nTo enable, rebuild with: ./configure CXXFLAGS=\"-DENABLE_SYSTEM_COMMAND\"\n", strCmd);
+#endif
+}
+
 bool fLargeWorkForkFound = false;
 bool fLargeWorkInvalidChainFound = false;
 static CBlockIndex *pindexBestForkTip = NULL;
@@ -2233,7 +2318,7 @@ void CheckForkWarningConditions(const CChainParams& chainParams)
         {
             std::string warning = std::string("'Warning: Large-work fork detected, forking after block ") +
                 pindexBestForkBase->phashBlock->ToString() + std::string("'");
-            CAlert::Notify(warning, true);
+            AlertNotify(warning, true);
         }
         if (pindexBestForkTip && pindexBestForkBase)
         {
@@ -2246,7 +2331,7 @@ void CheckForkWarningConditions(const CChainParams& chainParams)
         {
             std::string warning = std::string("Warning: Found invalid chain at least ~6 blocks longer than our best chain.\nChain state database corruption likely.");
             LogPrintf("%s: %s\n", warning.c_str(), __func__);
-            CAlert::Notify(warning, true);
+            AlertNotify(warning, true);
             fLargeWorkInvalidChainFound = true;
         }
     }
@@ -2930,7 +3015,7 @@ void PartitionCheck(bool (*initialDownloadCheck)(const CChainParams&),
     if (!strWarning.empty())
     {
         strMiscWarning = strWarning;
-        CAlert::Notify(strWarning, true);
+        AlertNotify(strWarning, true);
         lastAlertTime = now;
     }
 }
@@ -3909,13 +3994,23 @@ bool ReconsiderBlock(CValidationState& state, CBlockIndex *pindex) {
     return true;
 }
 
+CBlockIndex* LookupBlockIndex(const uint256& hash)
+{
+    BlockMap::const_iterator it = mapBlockIndex.find(hash);
+    return it == mapBlockIndex.end() ? nullptr : it->second;
+}
+
 CBlockIndex* AddToBlockIndex(const CBlockHeader& block)
 {
-    // Check for duplicate
+    // Check for duplicate. A null entry (left by mapBlockIndex[hash] on an unknown hash)
+    // counts as absent and is replaced.
     uint256 hash = block.GetHash();
     BlockMap::iterator it = mapBlockIndex.find(hash);
-    if (it != mapBlockIndex.end())
-        return it->second;
+    if (it != mapBlockIndex.end()) {
+        if (it->second)
+            return it->second;
+        mapBlockIndex.erase(it);
+    }
 
     // Construct new block index object
     CBlockIndex* pindexNew = new CBlockIndex(block);
@@ -4542,7 +4637,7 @@ static bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state
     uint256 hash = block.GetHash();
     BlockMap::iterator miSelf = mapBlockIndex.find(hash);
     CBlockIndex *pindex = NULL;
-    if (miSelf != mapBlockIndex.end()) {
+    if (miSelf != mapBlockIndex.end() && miSelf->second) {
         // Block header is already known.
         pindex = miSelf->second;
         if (ppindex)
@@ -5779,11 +5874,6 @@ void static CheckBlockIndex(const Consensus::Params& consensusParams)
     assert(nNodes == forward.size());
 }
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// CAlert
-//
-
 std::string GetWarnings(const std::string& strFor)
 {
     int nPriority = 0;
@@ -5812,23 +5902,6 @@ std::string GetWarnings(const std::string& strFor)
     {
         nPriority = 2000;
         strStatusBar = strRPC = _("Warning: We do not appear to fully agree with our peers! You may need to upgrade, or other nodes may need to upgrade.");
-    }
-
-    // Alerts
-    {
-        LOCK(cs_mapAlerts);
-        BOOST_FOREACH(PAIRTYPE(const uint256, CAlert)& item, mapAlerts)
-        {
-            const CAlert& alert = item.second;
-            if (alert.AppliesToMe() && alert.nPriority > nPriority)
-            {
-                nPriority = alert.nPriority;
-                strStatusBar = alert.strStatusBar;
-                if (alert.nPriority >= ALERT_PRIORITY_SAFE_MODE) {
-                    strRPC = alert.strRPCError;
-                }
-            }
-        }
     }
 
     if (strFor == "statusbar")
@@ -6291,13 +6364,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             }
         }
 
-        // Relay alerts
-        {
-            LOCK(cs_mapAlerts);
-            BOOST_FOREACH(PAIRTYPE(const uint256, CAlert)& item, mapAlerts)
-                item.second.RelayTo(pfrom);
-        }
-
         pfrom->fSuccessfullyConnected = true;
 
         string remoteAddr;
@@ -6716,6 +6782,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             LogPrint("mempool", "%s from peer=%d %s was not accepted into the memory pool: %s\n", tx.GetHash().ToString(),
                 pfrom->id, pfrom->cleanSubVer,
                 state.GetRejectReason());
+            NoteRelayReject(state.GetRejectReason());
             pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
                                state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
             if (nDoS > 0)
@@ -6938,37 +7005,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         }
         if (bPingFinished) {
             pfrom->nPingNonceSent = 0;
-        }
-    }
-
-
-    else if (fAlerts && strCommand == "alert")
-    {
-        CAlert alert;
-        vRecv >> alert;
-
-        uint256 alertHash = alert.GetHash();
-        if (pfrom->setKnown.count(alertHash) == 0)
-        {
-            if (alert.ProcessAlert(chainparams.AlertKey()))
-            {
-                // Relay
-                pfrom->setKnown.insert(alertHash);
-                {
-                    LOCK(cs_vNodes);
-                    BOOST_FOREACH(CNode* pnode, vNodes)
-                        alert.RelayTo(pnode);
-                }
-            }
-            else {
-                // Small DoS penalty so peers that send us lots of
-                // duplicate/expired/invalid-signature/whatever alerts
-                // eventually get banned.
-                // This isn't a Misbehaving(100) (immediate ban) because the
-                // peer might be an older or different implementation with
-                // a different signature key, etc.
-                Misbehaving(pfrom->GetId(), 10);
-            }
         }
     }
 

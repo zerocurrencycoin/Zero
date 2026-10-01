@@ -12,7 +12,6 @@
 Functionality to build scripts, as well as SignatureHash().
 """
 
-from __future__ import absolute_import, division, print_function, unicode_literals
 
 from test_framework.mininode import CTransaction, CTxOut, hash256
 
@@ -691,7 +690,7 @@ class CScript(bytes):
             def coerce_iterable(iterable):
                 for instance in iterable:
                     yield cls.__coerce_instance(instance)
-            # Annoyingly on both python2 and python3 bytes.join() always
+            # bytes.join() always
             # returns a bytes instance even when subclassed.
             return super(CScript, cls).__new__(cls, b''.join(coerce_iterable(value)))
 

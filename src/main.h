@@ -61,10 +61,6 @@ static const unsigned int DEFAULT_BLOCK_MAX_SIZE = MAX_BLOCK_SIZE;
 static const unsigned int DEFAULT_BLOCK_MIN_SIZE = 0;
 /** Default for -blockprioritysize, maximum space for zero/low-fee transactions **/
 static const unsigned int DEFAULT_BLOCK_PRIORITY_SIZE = DEFAULT_BLOCK_MAX_SIZE / 2;
-/** Default for accepting alerts from the P2P network. */
-static const bool DEFAULT_ALERTS = true;
-/** Minimum alert priority for enabling safe mode. */
-static const int ALERT_PRIORITY_SAFE_MODE = 4000;
 /** Maximum reorg length we will accept before we shut down and alert the user. */
 static const unsigned int MAX_REORG_LENGTH = 100 - 1; //COINBASE_MATURITY of 720 is too much
 /** Maximum number of signature check operations in an IsStandard() P2SH script */
@@ -86,8 +82,12 @@ static const unsigned int MAX_BLOCKFILE_SIZE = 0x8000000; // 128 MiB
 static const unsigned int BLOCKFILE_CHUNK_SIZE = 0x1000000; // 16 MiB
 /** The pre-allocation chunk size for rev?????.dat files (since 0.8) */
 static const unsigned int UNDOFILE_CHUNK_SIZE = 0x100000; // 1 MiB
-/** Maximum number of script-checking threads allowed */
-static const int MAX_SCRIPTCHECK_THREADS = 16;
+/** Maximum number of script-checking threads allowed. Shielded proof
+ *  verification, which runs outside the script-check pool, bounds block
+ *  validation, so participants beyond four add threads, not throughput. */
+static const int MAX_SCRIPTCHECK_THREADS = 4;
+/** Seconds between default-log summaries of transactions refused from peers */
+static const int64_t RELAY_REJECT_SUMMARY_INTERVAL = 60 * 60;
 /** -par default (number of script-checking threads, 0 = auto) */
 static const int DEFAULT_SCRIPTCHECK_THREADS = 0;
 /** Number of blocks that can be requested at any given time from a single peer. */
@@ -134,6 +134,8 @@ extern CCriticalSection cs_main;
 extern CTxMemPool mempool;
 typedef boost::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
 extern BlockMap mapBlockIndex;
+/** Block index entry for hash, or nullptr; never inserts (unlike mapBlockIndex[hash]). Caller holds cs_main. */
+CBlockIndex* LookupBlockIndex(const uint256& hash);
 extern uint64_t nLastBlockTx;
 extern uint64_t nLastBlockSize;
 extern const std::string strMessageMagic;
@@ -143,6 +145,11 @@ extern bool fExperimentalMode;
 extern bool fImporting;
 extern bool fReindex;
 extern int nScriptCheckThreads;
+/** Resolve -par to the number of script-check participants. nPar 0 uses
+ *  nCores; a negative nPar leaves that many cores free. The result is
+ *  capped at MAX_SCRIPTCHECK_THREADS; 0 means the connecting thread runs
+ *  the checks inline. */
+int GetScriptCheckThreads(int nPar, int nCores);
 extern bool fTxIndex;
 
 extern bool fZindex;
@@ -183,8 +190,10 @@ extern size_t nCoinCacheUsage;
 extern size_t nBlockTreeDBCacheBytes;
 extern size_t nCoinDBCacheBytes;
 extern CFeeRate minRelayTxFee;
-extern bool fAlerts;
 extern std::map<uint256, int64_t> mapRejectedBlocks;
+
+/** Run -alertnotify with the sanitized, single-quoted message (deprecation and long-fork warnings). */
+void AlertNotify(const std::string& strMessage, bool fThread);
 extern int64_t nMaxTipAge;
 
 /** Best header we've seen so far (used for getheaders queries' starting points). */

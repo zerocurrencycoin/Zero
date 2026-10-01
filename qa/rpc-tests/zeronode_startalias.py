@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026 The Zero developers
+# Copyright 2026 Zero Developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 
@@ -10,9 +10,15 @@ A successful startalias needs an exact 10000 ZER collateral UTXO. With halvings 
 150 blocks, total regtest miner emission is about 3000 ZER, too little to form that UTXO
 without a premine or a regtest-only collateral amount. This test covers the reachable
 path: znsync to 999, zeronode.conf load, and startalias without a valid vin.
+
+Port rule: on mainnet a zeronode must use the mainnet default P2P port; on other networks
+that port is refused. Two regtest checks reach it without collateral: zerod refuses a
+zeronode.conf line on the mainnet port at startup, and a zeronode announcing the mainnet
+port (-zeronodeaddr) reports "not capable" once its wallet holds mature coins.
 """
 
 import os
+import subprocess
 import time
 
 from test_framework.authproxy import JSONRPCException
@@ -20,6 +26,7 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     connect_nodes_bi,
     initialize_chain_clean,
+    mature_height,
     mine_to_height,
     p2p_port,
     start_node,
@@ -29,6 +36,10 @@ from test_framework.util import (
 
 SYNC_TIMEOUT = 180
 ZN_ARGS = ['-debug=zeronode', '-txindex=1']
+MAINNET_PORT = 23801
+CONF_PORT_ERROR = '(%d could be used only on mainnet)' % MAINNET_PORT
+STATUS_PORT_ERROR = ('Not capable zeronode: Invalid port: %d - %d is only supported on mainnet.'
+                     % (MAINNET_PORT, MAINNET_PORT))
 
 
 def wait_zn_synced(node, timeout=SYNC_TIMEOUT):
@@ -84,6 +95,35 @@ class ZeronodeStartaliasTest(BitcoinTestFramework):
         except JSONRPCException as e:
             msg = e.error.get('message', '')
             assert 'Failed to start alias' in msg, e.error
+
+        # zeronode.conf on the mainnet port: zerod exits before starting.
+        stop_node(self.nodes[0], 0)
+        with open(conf_path, 'w') as f:
+            f.write('zn1 127.0.0.1:%d %s %s 0\n' % (MAINNET_PORT, privkey, dummy_txid))
+        binary = os.getenv("BITCOIND", "zerod")
+        datadir = os.path.join(self.options.tmpdir, 'node0')
+        proc = subprocess.run([binary, '-datadir=' + datadir], capture_output=True, text=True, timeout=120)
+        assert proc.returncode != 0, 'zerod started with a mainnet-port zeronode.conf'
+        assert CONF_PORT_ERROR in proc.stderr, proc.stderr
+        os.remove(conf_path)
+
+        # A zeronode announcing the mainnet port is not capable. ManageStatus checks the
+        # port after the wallet holds a mature balance.
+        zn_args = ZN_ARGS + ['-zeronode=1', '-zeronodeprivkey=' + privkey,
+                             '-zeronodeaddr=127.0.0.1:%d' % MAINNET_PORT]
+        self.nodes[0] = start_node(0, self.options.tmpdir, extra_args=zn_args)
+        connect_nodes_bi(self.nodes, 0, 1)
+        node = self.nodes[0]
+        mine_to_height(node, self.nodes, mature_height(5))
+        wait_zn_synced(node)
+        deadline = time.time() + SYNC_TIMEOUT
+        status = None
+        while time.time() < deadline:
+            status = node.zeronodedebug()
+            if 'Invalid port' in status:
+                break
+            time.sleep(1)
+        assert status == STATUS_PORT_ERROR, status
 
 
 if __name__ == '__main__':

@@ -20,12 +20,11 @@ LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
 
 . "$REPO_ROOT/qa/zcash/test_filters.sh"
 
-# Tier A basenames for --jobs=N; must match testScriptsTierA in qa/pull-tester/rpc-tests.sh.
-PYTHON_PASSING=(
-    blockchain disablewallet httpbasics reindex decodescript keypool
-    paymentdisclosure
-    getchaintips rewind_index p2p_nu_peer_management
-)
+# Tier A basenames for --jobs=N, read from the arrays in qa/pull-tester/rpc-tests.sh.
+PYTHON_PASSING=()
+while IFS= read -r t; do
+    PYTHON_PASSING+=("$t")
+done < <("$REPO_ROOT/qa/pull-tester/rpc-tests.sh" -list-csv | awk -F, '$1 == "A" { sub(/\.py$/, "", $3); print $3 }')
 
 echo "Zero test validation - $TIMESTAMP"
 echo "Logs: $LOG_DIR"

@@ -166,6 +166,28 @@ BOOST_AUTO_TEST_CASE(subsidy_limit_test)
 bool ReturnFalse() { return false; }
 bool ReturnTrue() { return true; }
 
+BOOST_AUTO_TEST_CASE(script_check_threads)
+{
+    // -par=0 follows the core count up to the cap
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(0, 2), 2);
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(0, 3), 3);
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(0, MAX_SCRIPTCHECK_THREADS), MAX_SCRIPTCHECK_THREADS);
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(0, 14), MAX_SCRIPTCHECK_THREADS);
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(0, 64), MAX_SCRIPTCHECK_THREADS);
+    // One core, or one requested thread, runs the checks inline
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(0, 1), 0);
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(1, 14), 0);
+    // Explicit values are capped
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(2, 14), 2);
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(16, 14), MAX_SCRIPTCHECK_THREADS);
+    // Negative values leave that many cores free
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(-2, 4), 2);
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(-3, 4), 0);
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(-8, 4), 0);
+    BOOST_CHECK_EQUAL(GetScriptCheckThreads(-2, 14), MAX_SCRIPTCHECK_THREADS);
+    BOOST_CHECK_EQUAL(MAX_SCRIPTCHECK_THREADS, 4);
+}
+
 BOOST_AUTO_TEST_CASE(test_combiner_all)
 {
     boost::signals2::signal<bool (), CombinerAll> Test;

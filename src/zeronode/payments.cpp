@@ -384,7 +384,7 @@ void CZeronodePayments::ProcessMessageZeronodePayments(CNode* pfrom, std::string
             return;
         }
 
-        int nFirstBlock = nHeight - (znodeman.CountEnabled() * 1.25);
+        int nFirstBlock = ZeronodePaymentWindowStart(nHeight, znodeman.CountEnabled());
         if (winner.nBlockHeight < nFirstBlock || winner.nBlockHeight > nHeight + 20) {
             LogPrint("znpayments", "znw - winner out of range - FirstBlock %d Height %d bestHeight %d\n", nFirstBlock, winner.nBlockHeight, nHeight);
             return;
@@ -639,7 +639,7 @@ void CZeronodePayments::CleanPaymentList()
     }
 
     //keep up to five cycles for historical sake
-    int nLimit = std::max(int(znodeman.size() * 1.25), 1000);
+    int nLimit = std::max(ZeronodeCountWithMargin(znodeman.size()), 1000);
 
     std::map<uint256, CZeronodePaymentWinner>::iterator it = mapZeronodePayeeVotes.begin();
     while (it != mapZeronodePayeeVotes.end()) {
@@ -797,7 +797,7 @@ void CZeronodePayments::Sync(CNode* node, int nCountNeeded)
         nHeight = chainActive.Tip()->nHeight;
     }
 
-    int nCount = (znodeman.CountEnabled() * 1.25);
+    int nCount = ZeronodeCountWithMargin(znodeman.CountEnabled());
     if (nCountNeeded > nCount) nCountNeeded = nCount;
 
     int nInvCount = 0;

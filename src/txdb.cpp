@@ -463,8 +463,8 @@ bool CBlockTreeDB::ReadTimestampIndex(unsigned int high, unsigned int low,
             break;
         }
         if (fActiveOnly) {
-            CBlockIndex* pblockindex = mapBlockIndex[key.second.blockHash];
-            if (chainActive.Contains(pblockindex)) {
+            CBlockIndex* pblockindex = LookupBlockIndex(key.second.blockHash);
+            if (pblockindex && chainActive.Contains(pblockindex)) {
                 hashes.push_back(std::make_pair(key.second.blockHash, key.second.timestamp));
             }
         } else {
@@ -503,6 +503,15 @@ bool CBlockTreeDB::ReadFlag(const std::string &name, bool &fValue) {
     if (!Read(std::make_pair(DB_FLAG, name), ch))
         return false;
     fValue = ch == '1';
+    return true;
+}
+
+bool CBlockTreeDB::UpdateFlag(const std::string &name, bool fDesired, bool &fStored) {
+    fStored = false;
+    ReadFlag(name, fStored);
+    if (fStored == fDesired)
+        return false;
+    WriteFlag(name, fDesired);
     return true;
 }
 

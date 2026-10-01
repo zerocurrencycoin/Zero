@@ -1,125 +1,106 @@
 # TODO
 
-Open follow-ups for the Zero **full node** (`zerod`). Commands and inventory: **TEST_ZERO.md**. Chain economics: **ZERO_COIN.md**. Build: **BUILD_ZERO.md**.
+Open follow-ups for the Zero full node (`zerod`).
 
 ---
 
-## Labels
+## Tracking rules
 
-| Prefix | Meaning |
-|--------|---------|
-| **CON-*** | Consensus / engineering invariant |
-| **WAL-*** | Wallet / RPC |
-| **OPS-*** | Ops / DB / notify / build surface |
-| **EXT-*** | Extended harness |
-| **TST-*** | Test / gate work |
+**Names.** Each item has a title of one to three words, in bold at the start of its entry, followed by `--` and imperative sentences. Titles carry no ID, prefix, or number.
+
+**One definition.** An item is described in one place: here, as a one-line entry with an optional Full description.
+
+**Status is the section.**
+
+- **Ordered next** -- the next steps, in order; at most five.
+- **Active** -- in progress or scheduled.
+- **Research** -- needs study, experiments, a documented plan, and validation design before it can be scheduled.
+- **Pending** -- accepted, not scheduled. Two parts, each grouped by subject: **Contributor-ready** items have a clear scope and need no keys, hosting, data, or product decision; **Maintainer** items need one of those or change node behavior. A short status note (postponed, does not gate a release, decide after X) is allowed.
+- **Done** -- remove the entry. The outcome lives in the code, the documentation of the behavior, and the release notes; no completed-items lists.
 
 ---
 
 ## Ordered next
 
-1. **WAL-GETALLDATA-W5** -- tip poll split (balances vs History); revisit after current getalldata soak.
-2. **TST-01** remainder / **TST-05** / **TST-03** / **TST-09** notify half -- harness gaps in Full descriptions.
-3. Release / docs track -- Linux `--strict` + `--suite`; Windows MXE **never executed** in this program; supply review (~20M ZER target). **Signing / checksums during release prep** (REL-01/02). Receipts: **`.build/`** via `zcutil/check-setup.sh` and `zcutil/check-release.sh`. Python floor remains **3.10+** (not 3.11). Ops smoke and ZeroPerf pull-in (one or two increments): **TEST_ZERO.md** §8.
-4. Postponed bucket: see **Pending** (not scheduled).
+1. **Linux build** -- Build, run `./contrib/run-tests.sh --all`, and package with `./zcutil/release-linux.sh` on the Ubuntu 24.04 build host at the release commit.
+2. **Windows build** -- Build with MXE (`./zcutil/build.sh -win`), package with `./zcutil/release-win.sh` on the Linux build host, and start `zerod.exe` once on Windows; without that run, Windows archives leave v4.1.0.
+3. **Release signing** -- Decide checksums and signing per platform; method in progress.
+4. **Release tags** -- Tag the release candidate and the release; merge into `master`.
 
 ---
 
 ## Active
 
-- Node setup and maintenance docs: keep user-facing instructions accurate
-- Chain bootstrap: end-user import path (`-loadblock` / auto-import); linearize in `contrib/linearize/`
-- Total supply discrepancy: arithmetic vs ~20M ZER target
-- RPC coverage matrix: `RPCs.csv` vs harness depth
-- **TST-01** -- exclusive getalldata + Ext `getalldata_scenario` working; under development: `getsupply` / `zs_*` / sapling depth
-- **TST-03** -- `zeronodestats` + zeronode/budget subcmds; arg validation
-- **TST-05** -- (48,5) CreateNewBlock live in `miner_tests`; genesis (192,7) KATs in `equihash_tests`
-- **TST-09** -- alertnotify working; `-blocknotify` / `-walletnotify` open
-- **WAL-GETALLDATA-W5** -- revisit soon
-- macOS datadir: prefer `Application Support/zero/` for wallet
-- Fuzz harness setup
-- macOS libtool `-bind_at_load` -- ensure `MACOSX_DEPLOYMENT_TARGET` from build system
+- **RPC dispositions** -- Decide the Sprout RPCs and record test depth per RPC from the harness in `doc/RPCs.csv`; the accounts RPCs stay deprecated until Zerowallet lists transparent addresses with `listreceivedbyaddress`.
+- **Zeronode validation** -- Pass `zeronode_coinbase.py` and `zeronode_startalias.py` at the release commit; after v4.1.0, in order: registration success path on regtest, reorg test, automated `chainActive` checks, mainnet payment scan, public operator section in BUILD_ZERO.
+- **Branch cleanup** -- Squash commits before the `master` merge; list each branch with its merge and tag status before deletion.
+- **Comment rules** -- Adopt the documentation and comment rules into the contributor instruction file. Postponed: retitle maintainer-document items to these titles and retire their IDs.
 
 ---
 
 ## Pending
 
-- OPS-REINDEX remainder -- refuse / `-reindexforce`; skip-wallet below H
-- OPS-ALERT-STRIP -- gut P2P `alert.cpp` after TST-09 slim
-- TST-SAPLING-ROOT -- `finalsaplingroot.py` (Bfail)
-- TST-WITNESS-REINDEX -- witness rebuild / CleanIndex coverage
-- OPS-CACHE-METRICS -- tunable cache metrics
-- WAL-GETALLDATA-CACHE (W6), W1, W4, ARG2-DEFAULT, HELPERS -- after W5 / soak
-- WAL-GETALLDATA-LEGACY-SCOPE -- which 2018--2020 surface can shrink
-- WAL-RPC-ACCOUNTS -- postponed; product decision required
-- WAL-LOCKEDPOOL -- LockedPool / `getmemoryinfo`
-- OPS-TXINDEX-DEFAULT / OPS-AT-HEIGHT -- postponed
-- OPS-TOR-COMPILE-OUT -- optional `--disable-tor`
-- OPS-I2P -- ecosystem track only; no Zero implementation scheduled
-- OPS-DEBUGLOG-TIMING -- filter/process `debug.log` timing tooling
-- EXT-INSIGHT-SUPERSET -- postponed
-- `txindex.py` -- promote after green
-- P2P logging after zn dispatch -- **done** (TNT-01)
-- Params archival / Windows hardening / branch-id CI / OpenSSL 3 / SwiftTX strip / Debian packaging
+After v4.1.0 unless noted.
 
----
+### Contributor-ready
 
-## Completed (summary)
+Wallet:
 
-- WAL-WTXORDERED + Assure-4; getalldata S4--S8 + W2/W3 exclusive; `getalldata_scenario` Ext
-- Founders regtest window + `founders_window.py`; Tier B wallet Sapling port
-- Integer subsidy: `GetBlockSubsidy` in zats; founders **`GetFoundersRewardAmount` = `subsidy * 75 / 1000`** (miner, `ConnectBlock`, GBT, metrics). Naming (`developmentfee` vs founders) still **DOC-FR-NAMING**. Supply vs ~20M target still open.
-- ZERO_COIN consolidation; shell-notify compile gate; LevelDB `max_open_files`; reindex markers/resume
-- Insight-oriented Tier B scripts promoted when green; longpoll funded-node pin; workqueue 503 + once-per-episode WARNING
-- Harness exit-code / getchaintips / zeronode null guards
+- **Const wallet reads** -- Continue const conversion on wallet-tx read paths.
+
+Build:
+
+- **Toolchain versions** -- Verify GCC, Rust, Python, and autotools versions per supported build OS, record them in BUILD_ZERO, and check them in `zcutil/check-setup.sh`.
+- **macOS deployment target** -- Export `MACOSX_DEPLOYMENT_TARGET` from the build system (libtool `-bind_at_load` warning).
+- **Windows hardening** -- Pass `--enable-hardening` in `build-win.sh`; needs the MXE build host.
+
+Tests:
+
+- **Zero RPC depth** -- Test shielded outputs and filter types for the zs_* RPCs, `getsupply` values against the emission schedule, Sapling witness RPCs, and mined-transaction History in `getalldata`.
+- **Fuzz harness** -- Add libFuzzer targets under `src/fuzz/`.
+- **Python cleanup** -- Adopt a format and lint check for Zero's Python files, share helpers in `contrib/stats` and `contrib/tools`, and unify script names and headers; postponed.
+- **Sapling root test** -- Fix `finalsaplingroot.py` and promote it from Bfail.
+
+### Maintainer
+
+RPC:
+
+- **getalldata cost** -- Measure poll cost on a large wallet first, then the steps in Full descriptions.
+- **RPC removal** -- Remove the code of RPCs that leave Zero, starting with the compiled-out Sprout raw JoinSplit RPCs; postponed; follows RPC dispositions.
+
+Node operation:
+
+- **Reindex safeguards** -- Refuse a `reindex=` line in `zero.conf` and an unforced `DB_FLAG` mismatch unless `-reindexforce`; skip the wallet replay below a height.
+- **Tor compile-out** -- Add a `--disable-tor` configure option that compiles out Tor control; runtime onion is already off by default; keep it separate from I2P.
+- **Address rate limit** -- Port the per-peer `addr` rate limit with its `getpeerinfo` counters from zcashd, as Pirate did, and add an RPC test; feelers and test-before-evict follow from Bitcoin Core.
+- **Peer monitoring** -- Evaluate the monitoring examples and code of Bitcoin Core (tracepoints, message capture, log rate limit, `logging` RPC), zcashd (`setlogfilter`), and bmon first. Report connections and peer interactions for monitoring: counts by direction, connect, disconnect, and ban events with reasons, per-peer message and byte counters, and address-manager health, through RPC and a periodic summary line; per-event lines stay under `-debug=net`. Keep the `receive version message` line and `-logips` as they are.
+
+Build, packaging, and release:
+
+- **Params mirror** -- Verify file names and URLs of `fetch-params.sh`, record checksums, and keep a Zero-controlled copy.
+- **Chain bootstrap** -- Document the end-user import path (`-loadblock`, auto-import), snapshot sourcing, and verification; linearize in `contrib/linearize/`.
+- **Peer discovery** -- Review and improve how a new node finds peers: the DNS seed names in `vSeeds` (`src/chainparams.cpp`) and their records, a crawling seeder that publishes only live nodes, and the fixed-seed fallback (`contrib/seeds`, `chainparamsseeds.h`) filled from long-running nodes and refreshed each release.
+- **CI workflows** -- Run the CI workflow on the release branch, run the full test set, and add macOS and Windows cross-build jobs; postponed.
+- **LevelDB update** -- Update `src/leveldb` to LevelDB 1.22 as in Bitcoin Core and zcashd; restores block-cache usage in `getdbinfo`. Set 32 MiB table files (`max_file_size`, as Bitcoin Core and zcashd `DBWRAPPER_MAX_FILE_SIZE`) so the block index and chain state fit the table cache.
+
+Documentation:
+
+- **Setup runbook** -- Write the operator runbook in BUILD_ZERO: build, `fetch-params`, `zero.conf` RPC credentials, launch, ports.
+
+Tests:
+
+- **TENT test review** -- Adapt the restored fork-warning tests `hardforkdetection.py` and `forknotify.py` (Efail) to Zero's block version floor and to warnings checked without `-alertnotify`; postponed.
+- **Witness rebuild coverage** -- Test witness rebuild and `CachedWitnessesCleanIndex`.
 
 ---
 
 ## Full descriptions
 
-### Stable subsidy arithmetic
+### getalldata cost
 
-**Done in tree.** `GetBlockSubsidy` uses integer zats (10 ZER pre fee-start; `108 * COIN / 10` after). Founders **`GetFoundersRewardAmount(subsidy)` = `subsidy * 75 / 1000`** (trunc toward 0), used by miner, `ConnectBlock`, GBT, zeronode payments/budget, and metrics. Tests: `main_tests.cpp`, `test_foundersreward.cpp`. Schedule text: **ZERO_COIN.md**. Remaining: **DOC-FR-NAMING**; supply-target review (not the helper).
+**Problem.** `getalldata` is the wallet client's single refresh call. Argument 1 (datatype) selects the payload: **0** addresses, balances, transactions, and chain info; **1** addresses, balances, and chain info; **2** transactions and chain info. Argument 2 is the day window (default 7 days), argument 3 the transaction count, argument 4 watch-only. Each call walks every wallet address and transaction (`mapWallet` plus the transaction archive), decrypts shielded notes, sorts history, and builds JSON; on wallets with long history that takes seconds, and clients poll every few seconds. In tree: the soft **-34** coalesce, the 7-day default window, const wallet walks, sort-key collision detection, and one parse/filter path for window, count, watch-only, and datatype (`IsGetAllDataTxTooOld`).
 
-### WAL-WTXORDERED / const policy
-
-**Done:** Incremental `wtxOrdered`; Assure-4. Continue const conversion on wallet-tx **read** paths. Line-by-line Zcash `wtxOrdered` type match stays with postponed **WAL-RPC-ACCOUNTS**.
-
-### Helpers design (`getalldata`)
-
-One parse/filter path for day window, `nCount`, watchonly, and datatype gates (`rpczerowallet`). `IsGetAllDataTxTooOld` shipped; remaining helpers listed under Pending **WAL-GETALLDATA-HELPERS**.
-
-### WAL-GETALLDATA-ARG2-DEFAULT (postponed)
-
-When arg2 omitted, today ~30y window. Proposed default **2** (7 days). Release-note risk for scripts that omitted arg2.
-
-### WAL-GETALLDATA-W5
-
-Split tip poll: balances (datatype **1**) on timer; full History on user action or every Nth tick. Complementary to soft **-34** coalesce. Revisit after soak; decide before W6.
-
-### WAL-GETALLDATA-CACHE (W6) / W1 / W4
-
-In-process tip+dirty cache (after W5). W1: merge History key insert into balance walk. W4: IVK decrypt review.
-
-### WAL-GETALLDATA-LEGACY-SCOPE
-
-Keep RPC; do not grow kitchen-sink without datatype gates. Do not undo S4--S8 / W2 / const walks without replacement.
-
-### TST-01 / `getalldata_scenario`
-
-Exclusive Boost: empty-wallet gates. Ext scenario: populated wallet. Further: `getsupply` / `zs_*`.
-
-### OPS-TOR-COMPILE-OUT (postponed)
-
-Optional compile-out of Tor control. Runtime onion already off by default. Do not couple to I2P.
-
-### OPS-I2P (postponed)
-
-Track ecosystem only. No Zero implementation in this stage.
-
-### Upstream PR ideas (node)
-
-| Candidate | Note |
-|-----------|------|
-| Longpoll funded-node pin | Zero Ext already pins; useful upstream pattern |
-| Work-queue reject logging | Zero: **503** + WARNING once per full episode |
+- **Poll cost** -- the split itself (balances on a timer, History on user action or every Nth tick) is a client change, outside this repository. The desktop wallet polls every 30 s but calls `getalldata 0 2 50 true` (datatype 0, 7-day window, 50 transactions, watch-only) only when a new block arrives; no other known client uses the RPC, and the node keeps no per-datatype statistics. Node side: measure both datatypes on a wallet with many transactions and archived entries (wall time, `getalldata` -34 rate under a fixed poll interval), then document the cadence. Complements the soft **-34** coalesce. Decides whether the tip cache is needed.
+- **Tip cache** -- in-process tip and dirty cache, after poll cost. **Single walk**: merge History key insert into the balance walk. **Decrypt review**: IVK decryption cost.
+- **Helpers** -- the remaining shared parse and filter helpers.
+- **Address keys** -- key `addressBalances` by destination and encode once at JSON emit.

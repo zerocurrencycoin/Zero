@@ -12,6 +12,7 @@ ZEROTX=${ZEROTX:-$SRCDIR/zero-tx}
 
 # The autodetected version git tag can screw up manpage output a little bit
 ZECVERSTR=$($ZEROCLI --version | head -n1 | awk '{ print $NF }')
+ZECVERSTR=${ZECVERSTR%-dirty}
 ZECVER=$(echo $ZECVERSTR | awk -F- '{ OFS="-"; NF--; print $0; }')
 ZECCOMMIT=$(echo $ZECVERSTR | awk -F- '{ print $NF }')
 
@@ -24,7 +25,7 @@ $ZEROD --version | sed -n '1!p' >> footer.h2m
 for cmd in $ZEROD $ZEROCLI $ZEROTX; do
   cmdname="${cmd##*/}"
   help2man -N --version-string=$ZECVER --include=footer.h2m -o ${MANDIR}/${cmdname}.1 ${cmd}
-  sed -i "s/\\\-$ZECCOMMIT//g" ${MANDIR}/${cmdname}.1
+  sed -i.bak -e "s/\\\-$ZECCOMMIT//g" -e "s/\\\-dirty//g" ${MANDIR}/${cmdname}.1 && rm -f ${MANDIR}/${cmdname}.1.bak
 done
 
 rm -f footer.h2m

@@ -6,6 +6,8 @@ README0.md
 .claude
 .codex
 .codess
+.doc/
+__pycache__/
 
 throw/
 *.tar.gz
@@ -128,5 +130,3 @@ qa/pull-tester/test.*/*
 
 /doc/doxygen/
 
-contrib/debian/files
-contrib/debian/substvars
