@@ -82,7 +82,7 @@ def cmd_add(args):
         "note": args.note or "",
         "source": args.json,
     }
-    # Same rule as the throughput ledger (docs/TASKS.md F1b): stamp at the
+    # Same rule as the throughput ledger: stamp at the
     # single write point so an unstamped row cannot exist.
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

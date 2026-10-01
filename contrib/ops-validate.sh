@@ -45,9 +45,9 @@
 #                      live uses SRC conf rpcport (mainnet default 23811).
 #   ZERO_OPS_WAIT      seconds to wait (default 1800)
 #   ZERO_OPS_LEDGER    append-only JSONL
-#   ZERO400            extra refuse path for LAB
+#   ZERO_PRODUCT_TREE  refuse path for LAB (default: the tree this is a worktree of)
 #   LINEARIZE_DIR      out-of-tree linearize dir holding the original bootstrap.dat
-#                      (default ~/Work/ZK/linearize)
+#                      (default: linearize/ beside this tree or the product tree)
 set -euo pipefail
 ME="ops-validate"
 # shellcheck disable=SC1091
@@ -59,8 +59,26 @@ ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
 LAB="${ZERO_OPS_LAB:-/tmp/zero-ops-validate}"
 RPCPORT="${ZERO_RPCPORT:-23941}"
 WAIT_S="${ZERO_OPS_WAIT:-1800}"
-ZERO400="${ZERO400:-$HOME/Work/ZK/Zero400}"
-LINEARIZE_DIR="${LINEARIZE_DIR:-$HOME/Work/ZK/linearize}"
+# Product tree a LAB must not live under. Explicit env wins; otherwise the
+# parent of this checkout's common git dir (the tree this is a worktree of),
+# so renaming that tree keeps it protected.
+_product_tree() {
+  local common top
+  common="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 0
+  top="$(git -C "$REPO_ROOT" rev-parse --show-toplevel 2>/dev/null)" || return 0
+  [[ "$(dirname "$common")" != "$top" ]] && dirname "$common"
+  return 0
+}
+PRODUCT_TREE="${ZERO_PRODUCT_TREE:-$(_product_tree)}"
+# Original bootstrap.dat location: explicit, else a linearize checkout beside
+# this tree or beside the product tree (as depends finds uniblake). Empty when
+# none is found; the bootstrap command then says so instead of skipping its check.
+if [[ -z "${LINEARIZE_DIR:-}" ]]; then
+  for _d in "$REPO_ROOT/../linearize" "${PRODUCT_TREE:+$PRODUCT_TREE/../linearize}"; do
+    [[ -n "$_d" && -f "$_d/bootstrap.dat" ]] && { LINEARIZE_DIR="$(cd "$_d" && pwd)"; break; }
+  done
+fi
+LINEARIZE_DIR="${LINEARIZE_DIR:-}"
 SRC="${ZERO_OPS_SRC:-$HOME/Library/Application Support/zero}"
 SNAP="${ZERO_OPS_SNAP:-tiny}"
 WALLET_FILE="${ZERO_OPS_WALLET:-${ZERO_PERF_WALLET_FILE:-}}"
@@ -175,7 +193,7 @@ Env
   ZERO_OPS_LEDGER           append-only JSONL
   ZEROD / ZERO_CLI          binaries (default src/zerod, src/zero-cli)
   TEST_BITCOIN              Boost runner (default src/test/test_bitcoin)
-  ZERO400                   extra refuse path for LAB
+  ZERO_PRODUCT_TREE         refuse path for LAB (default: the tree this is a worktree of)
   LINEARIZE_DIR             original bootstrap.dat (must pass a copy, not this file)
 EOF
 }
@@ -227,15 +245,15 @@ refuse_lab() {
       exit 1
     fi
   fi
-  if [[ -d "$ZERO400" ]]; then
+  if [[ -n "$PRODUCT_TREE" && -d "$PRODUCT_TREE" ]]; then
     local z4
-    z4="$(resolve "$ZERO400")"
+    z4="$(resolve "$PRODUCT_TREE")"
     case "$d" in
       "$z4"|"$z4"/*)
         if [[ "$FORCE" == "1" ]]; then
-          echo "WARNING: LAB is under Zero400: $d (--force)" >&2
+          echo "WARNING: LAB is under the product tree $z4: $d (--force)" >&2
         else
-          echo "ERROR: LAB must not be under Zero400: $d (pass --force)" >&2
+          echo "ERROR: LAB must not be under the product tree $z4: $d (pass --force)" >&2
           exit 1
         fi
         ;;
@@ -603,13 +621,15 @@ unpack_snap() {
   rm -rf "$LAB"
   mkdir -p "$LAB"
   case "$SNAP" in
-    tiny)
-      [[ -f "$SRC/chainblocks-tiny.tgz" ]] || { echo "ERROR: missing $SRC/chainblocks-tiny.tgz" >&2; exit 1; }
-      tar -xzf "$SRC/chainblocks-tiny.tgz" -C "$LAB"
-      ;;
-    short)
-      [[ -f "$SRC/chainblocks-short.tgz" ]] || { echo "ERROR: missing $SRC/chainblocks-short.tgz" >&2; exit 1; }
-      tar -xzf "$SRC/chainblocks-short.tgz" -C "$LAB"
+    tiny|short)
+      # Same search order as perflib.sh snap_archive: SRC, then SRC.save (the
+      # previous datadir, which still holds the archives after a re-import).
+      local arc="" d
+      for d in "$SRC" "$SRC.save"; do
+        [[ -f "$d/chainblocks-$SNAP.tgz" ]] && { arc="$d/chainblocks-$SNAP.tgz"; break; }
+      done
+      [[ -n "$arc" ]] || { echo "ERROR: missing chainblocks-$SNAP.tgz in $SRC or $SRC.save" >&2; exit 1; }
+      tar -xzf "$arc" -C "$LAB"
       ;;
     full)
       mkdir -p "$LAB/blocks"
@@ -951,7 +971,9 @@ case "$CMD" in
       echo "ERROR: set ZERO_OPS_BOOTSTRAP or LOADBLOCK to a bootstrap.dat copy" >&2
       exit 1
     }
-    if [[ "$(resolve_file "$BOOTSTRAP")" == "$(resolve_file "$LINEARIZE_DIR/bootstrap.dat")" ]]; then
+    if [[ -z "$LINEARIZE_DIR" || ! -f "$LINEARIZE_DIR/bootstrap.dat" ]]; then
+      echo "WARNING: original bootstrap.dat not found (LINEARIZE_DIR unset, no linearize/ beside this tree or the product tree); cannot check that BOOTSTRAP is a copy. The file is copied into LAB before -loadblock either way." >&2
+    elif [[ "$(resolve_file "$BOOTSTRAP")" == "$(resolve_file "$LINEARIZE_DIR/bootstrap.dat")" ]]; then
       echo "ERROR: pass a copy of bootstrap.dat, not the lab original" >&2
       exit 1
     fi

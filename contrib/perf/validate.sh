@@ -137,7 +137,7 @@ else
 fi
 
 # --- stage 3: product harness (opt-in) --------------------------------------
-# Zero400 owns contrib/run-tests.sh; this composes it rather than editing it.
+# Zero owns contrib/run-tests.sh; this composes it rather than editing it.
 if [ "$WITH_HARNESS" -eq 1 ]; then
   echo
   echo "=== validate: harness ==="

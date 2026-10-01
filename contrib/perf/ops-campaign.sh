@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZeroPerf cycle rematch dispatcher. Not a product ops check (that is
-# contrib/ops-validate.sh). ZeroPerf-only; do not copy into a GA Zero400 tree.
+# contrib/ops-validate.sh). ZeroPerf-only; do not copy into a GA Zero tree.
 #
 # One restartable trial per invocation. Does not batch long runs.
 #
@@ -21,7 +21,7 @@
 #     capture_sequence / prep_lab_datadir, witness_lab flag A/B
 #     (dirty-cont, rebuild, noteidx, ibd-defer, tip-rebuild).
 #   Merge into ops-campaign only if the body is a thin wrapper (no).
-#   Do not copy any of this set into GA Zero400 except ops-validate.sh.
+#   Do not copy any of this set into GA Zero except ops-validate.sh.
 #
 # Usage (repo root):
 #   contrib/perf/ops-campaign.sh list

@@ -68,7 +68,7 @@ RULE_TEXT = re.compile(r"Never write|must not|do not (?:write|put)|prohibit",
 # purpose: a citation four paragraphs away is not a citation.
 CONTEXT = 6
 
-SKIP_DIR = re.compile(r"contrib/perf/(keep|zcash-lint|mine|groth16-batch-poc)/")
+SKIP_DIR = re.compile(r"contrib/perf/(retired|zcash-lint|mine|groth16-batch-poc)/")
 
 
 def owned_docs():

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Historical ZERO_FDCACHE A/B. ZeroPerf-only; do not copy into a GA Zero400 tree.
+# Historical ZERO_FDCACHE A/B. ZeroPerf-only; do not copy into a GA Zero tree.
 # Product bootstrap: contrib/ops-validate.sh bootstrap.
 # Stock post-Sapling rematch: contrib/perf/postsapling_reindex.sh.
 #

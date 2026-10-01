@@ -14,6 +14,10 @@
 #   stock / nofdcache -> -reindex only (preferred for measure campaigns)
 #   defaultbuf        -> -reindex -perffdcache=1          (ZERO_FDCACHE build)
 #   1mbbuf            -> ... -perfbufsize=1048576         (ZERO_FDCACHE build)
+#   parN              -> -reindex -par=N                  (script-check width A/B)
+#
+# INTERLEAVE=1 runs trial-major (every condition once per round) instead of
+# condition-major, so drift over a long campaign spreads across all arms.
 #
 # Usage (repo root):
 #   ZERO_PERF_SRC_DATADIR="$HOME/Library/Application Support/zero" \
@@ -69,8 +73,9 @@ condition_args() {
     stock|nofdcache) echo "" ;;
     defaultbuf) echo "-perffdcache=1" ;;
     1mbbuf) echo "-perffdcache=1 -perfbufsize=1048576" ;;
+    par-[0-9]*|par[0-9]*) echo "-par=${1#par}" ;;
     *)
-      echo "ERROR: unknown condition '$1' (stock|nofdcache|defaultbuf|1mbbuf)" >&2
+      echo "ERROR: unknown condition '$1' (stock|nofdcache|defaultbuf|1mbbuf|parN)" >&2
       exit 1
       ;;
   esac
@@ -147,10 +152,19 @@ sample_util() {
       if (v ~ /K/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v/1024; exit }
     }')
   fi
-  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+  # Thermal/performance warning state (K3). macOS records a level only once
+  # one has been raised, so "none" is the normal reading; a whole-trial
+  # slowdown at unchanged process CPU is what this column exists to explain.
+  local therm="NA"
+  if command -v pmset >/dev/null 2>&1; then
+    therm=$(pmset -g therm 2>/dev/null \
+      | awk '/level|Limit/ && !/No / {gsub(/[ \t]+/, ""); printf "%s;", $0}')
+    therm="${therm:-none}"
+  fi
+  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
     "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$phase" "${height:-}" \
-    "$pct_cpu" "$pct_mem" "$rss_kb" "${phys_mb:-}" "$pid" >> "$UTIL_TSV"
-  log "util phase=$phase h=${height:-NA} cpu%=$pct_cpu cpu_rate=${cpu_rate:-NA} mem%=$pct_mem rss_kb=$rss_kb phys_mb=${phys_mb:-NA}"
+    "$pct_cpu" "$pct_mem" "$rss_kb" "${phys_mb:-}" "$pid" "$therm" >> "$UTIL_TSV"
+  log "util phase=$phase h=${height:-NA} cpu%=$pct_cpu cpu_rate=${cpu_rate:-NA} mem%=$pct_mem rss_kb=$rss_kb phys_mb=${phys_mb:-NA} therm=$therm"
 }
 
 kill_pid_hard() {
@@ -164,8 +178,10 @@ reset_scratch() {
   log "reset scratch (rsync blocks, exclude chainstate; source read-only)"
   # Honours ZERO_PERF_DATADIR_POLICY (default: set aside, then recreate).
   dispose_datadir "$SCRATCH" SCRATCH
+  # bootstrap.dat*: a plain bootstrap.dat would be imported at startup, and
+  # a .old copy is gigabytes the reindex never reads.
   rsync -a --exclude='chainstate' --exclude='wallet.zero' --exclude='wallet.zero*' \
-    --exclude='debug*.log' --exclude='.lock' \
+    --exclude='debug*.log' --exclude='.lock' --exclude='bootstrap.dat*' \
     "$SRC_DATADIR/" "$SCRATCH/"
   {
     echo "listen=0"
@@ -184,7 +200,7 @@ run_one() {
   mkdir -p "$trial_dir"
   UTIL_TSV="$trial_dir/util.tsv"
   if [ "$SAMPLE_UTIL" = "1" ]; then
-    printf "utc\tphase\theight\tpct_cpu\tpct_mem\trss_kb\tphys_footprint_mb\tpid\n" > "$UTIL_TSV"
+    printf "utc\tphase\theight\tpct_cpu\tpct_mem\trss_kb\tphys_footprint_mb\tpid\ttherm\n" > "$UTIL_TSV"
   fi
   reset_scratch
 
@@ -296,9 +312,17 @@ run_one() {
   if [ "$SAMPLE_UTIL" = "1" ] && [ -f "$UTIL_TSV" ]; then
     notes="${notes};util=$(basename "$trial_dir")/util.tsv"
   fi
+  # Record only what the node actually applied (runtime_record, perflib.sh).
+  if ! runtime_record "$trial_dir/debug.log" "$SCRATCH/zero.conf" "-disablewallet -reindex ${extra}"; then
+    log "ERROR: runtime mismatch for condition=$condition trial=$trial; row not recorded"
+    "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" stop >/dev/null 2>&1 || kill_pid_hard "$pid"
+    return 1
+  fi
+  notes="${notes};observed=${RUNTIME_OBSERVED}"
   python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" \
     --store-dir "$STORE_DIR" \
     --record \
+    "${RUNTIME_ARGS[@]}" \
     --campaign "$CAMPAIGN" \
     --run-id "$RUN_ID" \
     --mode "$MODE" \
@@ -327,13 +351,23 @@ run_one() {
   sleep 1
 }
 
-for condition in "${COND_ARR[@]}"; do
-  condition="${condition// /}"
-  [ -n "$condition" ] || continue
+if [ "${INTERLEAVE:-0}" = "1" ]; then
   for trial in $(seq 1 "$N_TRIALS"); do
-    run_one "$condition" "$trial" || exit 1
+    for condition in "${COND_ARR[@]}"; do
+      condition="${condition// /}"
+      [ -n "$condition" ] || continue
+      run_one "$condition" "$trial" || exit 1
+    done
   done
-done
+else
+  for condition in "${COND_ARR[@]}"; do
+    condition="${condition// /}"
+    [ -n "$condition" ] || continue
+    for trial in $(seq 1 "$N_TRIALS"); do
+      run_one "$condition" "$trial" || exit 1
+    done
+  done
+fi
 
 log "done. per-run=$RESULTS ledger=$STORE_DIR/ledger.tsv"
 cat "$RESULTS"

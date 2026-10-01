@@ -80,7 +80,7 @@ def cited_names():
     docs = [os.path.join(TEST_LOGS, "DATA_INDEX.md")]
     # Recurse: subdirectories hold evidence citations too (equ/, mine/), and
     # listing only the top two silently marked eight cited artifacts
-    # reclaimable. keep/ is archived and cites nothing current, but scanning it
+    # reclaimable. retired/ is archived and cites nothing current, but scanning it
     # costs nothing and a false PROTECTED is the cheap error.
     for dirpath, _dirs, files in os.walk(HERE):
         docs += [os.path.join(dirpath, f) for f in files if f.endswith(".md")]

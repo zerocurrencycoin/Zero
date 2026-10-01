@@ -176,18 +176,17 @@ run_check() {
                   | sed 's|^|contrib/perf/|' ;;
     citations)  # Measurement figures must name a source, and no tracked
                 # document may carry an absolute path (docs/POLICY.md S7.1,
-                # S7.3). Scoped to docs/: Perf.md is legacy pending retirement
-                # and would swamp the signal.
+                # S7.3). Scoped to docs/.
                 contrib/perf/check_citations.py \
                   $(git ls-files 'contrib/perf/docs/*.md') 2>/dev/null ;;
     unicode-docs) # Owned documents only. Inherited src/ and root-level
-                  # Zero400-owned docs are out of scope for this gate; run
+                  # Zero-owned docs are out of scope for this gate; run
                   # fix_ascii.py with no args to see the whole tree.
-                  # keep/ is archived point-in-time notes: kept as written,
-                  # not maintained (docs/POLICY.md S5), so not gated.
+                  # retired/ holds documents awaiting deletion after content
+                  # extraction: not maintained, so not gated.
                   contrib/perf/fix_ascii.py \
                     $(git ls-files 'contrib/perf/*.md' 'contrib/perf/**/*.md' \
-                      | grep -v '^contrib/perf/keep/') 2>/dev/null ;;
+                      | grep -v '^contrib/perf/retired/') 2>/dev/null ;;
     json)       # Tracked JSON must parse. recbench/features.json is read by
                 # every launcher through recbench/stamp.py, so a syntax error
                 # there fails a campaign after the run rather than before it.

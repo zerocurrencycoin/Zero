@@ -225,7 +225,7 @@ def self_test():
 
     classify() is five lines, but every CPU share in the ledger comes out of
     it, and it is order-sensitive: first match wins on any frame in the stack.
-    Four figures have been wrong because of that (docs/FINDINGS.md S3.3), so
+    Four figures have been wrong because of that (docs/HOWTO.md "Traps that produced published wrong numbers"), so
     each is pinned here as an executable assertion rather than a comment.
     """
     ok = True

@@ -15,7 +15,7 @@
 #
 # Example (this investigation's actual parameters, run from repo root):
 #   contrib/perf/prep_lab_datadir.sh   # or dispose_datadir via perflib.sh
-#   rsync -a --exclude='chainstate' "/Users/walter/Library/Application Support/Zero/" reindex-profile/datadir/
+#   rsync -a --exclude='chainstate' "$HOME/Library/Application Support/zero/" reindex-profile/datadir/
 #   contrib/perf/capture_sequence.sh reindex-profile/datadir reindex-profile/captures 1200 300
 #
 # [template] selects the xctrace Instruments template (default: 'Time Profiler',

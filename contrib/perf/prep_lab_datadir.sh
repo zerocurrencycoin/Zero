@@ -11,7 +11,7 @@
 # Env:
 #   LAB       dest datadir (default reindex-profile/mainnet-p2p-23911)
 #   ARCHIVE   .tgz with top-level blocks/ and chainstate/ (unroll default:
-#             $HOME/Library/Application Support/zero/chainblocks812-clean.tgz)
+#             chainblocks812-clean.tgz, found by snap_archive in perflib.sh)
 #   SRC       source datadir used only when ARCHIVE is set to empty
 #             (default reindex-profile/fulltip-812-datadir)
 
@@ -21,10 +21,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck disable=SC1091
 . "$REPO_ROOT/contrib/perf/datadir_guard.sh"
+# shellcheck source=/dev/null
+. "$REPO_ROOT/contrib/perf/perflib.sh"
 CMD="${1:-all}"
 LAB="${LAB:-$REPO_ROOT/reindex-profile/mainnet-p2p-23911}"
 SRC="${SRC:-$REPO_ROOT/reindex-profile/fulltip-812-datadir}"
-DEFAULT_ARCHIVE="$HOME/Library/Application Support/zero/chainblocks812-clean.tgz"
+# snap_archive (perflib.sh) searches ZERO_PERF_ARCHIVE_DIR, the default
+# datadir and its .save sibling.
+DEFAULT_ARCHIVE="$(snap_archive chainblocks812-clean.tgz 2>/dev/null || true)"
 # Unset -> default tgz. ARCHIVE="" -> unroll from SRC.
 if [ "${ARCHIVE+set}" != "set" ]; then
   ARCHIVE="$DEFAULT_ARCHIVE"

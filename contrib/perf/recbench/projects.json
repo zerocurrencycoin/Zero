@@ -1,5 +1,5 @@
 {
-  "_comment": "Projects RecBench can record for. Selected by RB_PROJECT (default: 'default'). 'root' is the project tree; paths are relative to it. Adding a project means adding an entry here, not editing a module.",
+  "_comment": "Projects RecBench can record for. Selected by RB_PROJECT (default: 'default'). 'root' is the project tree; paths are relative to it. Adding a project means adding an entry here, not editing a module. 'root_env' names an environment variable that overrides 'root' (the same variable the build uses), and a root that does not exist is an error.",
   "default": "zero",
   "projects": {
     "zero": {
@@ -12,11 +12,12 @@
       }
     },
     "uniblake": {
-      "root": "~/Work/ZK/uniblake",
+      "root": "../../../../uniblake",
       "store": "bench-summaries",
       "paths": {
         "binary": "build/libuniblake.a"
-      }
+      },
+      "root_env": "UNIBLAKE_SRC"
     }
   }
 }

@@ -3,7 +3,7 @@
 #
 #   refuse_live_datadir LABEL PATH
 #   is_default_datadir PATH   # exit 0 if default runtime
-#   is_live_datadir PATH      # exit 0 if runtime or Zero400
+#   is_live_datadir PATH      # exit 0 if runtime or Zero
 #
 # Override (can destroy the live node):
 #   ZERO_PERF_ALLOW_LIVE_DATADIR=1

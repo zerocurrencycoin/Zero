@@ -346,7 +346,7 @@ def existing_fps(store_dir: Path) -> set[str]:
 def _stamp(row: dict) -> dict:
     """Attach platform / build / features to ROW if absent.
 
-    Stamped HERE rather than in each launcher (docs/TASKS.md F1b): every row
+    Stamped HERE rather than in each launcher: every row
     reaches a ledger through this function, so an unstamped row becomes
     unrepresentable. Doing it per launcher would be ten chances to forget with
     nothing noticing, and back-filling later records a guess rather than an
@@ -1025,6 +1025,15 @@ def self_test() -> int:
     ok &= rejects({"n_reps": 4, "warmup_dropped": 4}, "drops every rep")
     ok &= rejects({"n_reps": "many"}, "non-numeric n_reps")
 
+    # --superseded without a writer must refuse, not silently succeed.
+    import subprocess
+    with tempfile.TemporaryDirectory() as td:
+        r = subprocess.run([sys.executable, os.path.abspath(__file__), "--store-dir", td,
+                            "--superseded", "0000000000000000"],
+                           capture_output=True, text=True)
+        check(r.returncode == 2 and "--superseded" in r.stderr,
+              "--superseded without --record/--import-tsv exits 2")
+
     print("self-test OK" if ok else "self-test FAILED", file=sys.stderr)
     return 0 if ok else 1
 
@@ -1093,6 +1102,14 @@ def main() -> int:
     ap.add_argument("--md", type=Path, help="Write markdown report path")
     ap.add_argument("--json", type=Path, help="Write collation JSON path")
     args = ap.parse_args()
+
+    # --superseded is an attribute of a row being written; it retires the named
+    # row only through the row that replaces it. Accepted without a writer it
+    # did nothing and said nothing, which reads as success.
+    if args.superseded and not (args.record or args.import_tsv):
+        print("error: --superseded names the row a new row replaces; use it with "
+              "--record or --import-tsv", file=sys.stderr)
+        return 2
 
     store = args.store_dir
     if store is None:

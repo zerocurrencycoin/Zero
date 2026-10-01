@@ -20,7 +20,6 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 . "$REPO_ROOT/contrib/perf/datadir_guard.sh"
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
 ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
-ZERO_HOME="${ZERO_PERF_ARCHIVE_DIR:-$HOME/Library/Application Support/zero}"
 OUT_DIR="${ZERO_PERF_OUT_DIR:-$REPO_ROOT/test-logs}"
 RPCPORT="${ZERO_PERF_RPCPORT:-23925}"
 # Poll pacing. Defaults chosen from M-LAB-POLL-COST: 5 s while far cuts polling
@@ -43,11 +42,10 @@ if [ ! -x "$ZEROD" ]; then
   echo "ERROR: missing $ZEROD" >&2
   exit 1
 fi
-ARCHIVE_PATH="$ZERO_HOME/$ARCHIVE"
-if [ ! -f "$ARCHIVE_PATH" ]; then
-  echo "ERROR: missing archive $ARCHIVE_PATH" >&2
-  exit 1
-fi
+ARCHIVE_PATH="$(snap_archive "$ARCHIVE")" || exit 1
+# Identify the input, not just its name: two archives called chainblocks-tiny
+# can differ in blocks and in the zero.conf they carry.
+ARCHIVE_SHA="$(shasum -a 256 "$ARCHIVE_PATH" | cut -c1-16)"
 
 RUN_ID="${SNAP}-$(date -u +%Y%m%dT%H%M%SZ)"
 # Only OUT_DIR here: creating LAB first would make dispose_datadir always
@@ -76,6 +74,17 @@ if ! tar -xzf "$ARCHIVE_PATH" -C "$LAB"; then
   die "unpack failed: $ARCHIVE_PATH"
 fi
 log "unpack complete"
+
+# Standard lab config (PLAN.md decision 9): minimal, no Insight indexes, no
+# dbcache override. The tiny/short archives carry their own zero.conf with
+# insightexplorer=1 and dbcache=512, which costs ~9% and quadruples spread;
+# it is replaced unless ZERO_PERF_ARCHIVE_CONF=1 asks for the historical setup.
+if [ "${ZERO_PERF_ARCHIVE_CONF:-0}" = "1" ] && [ -f "$LAB/zero.conf" ]; then
+  log "using the archive's own zero.conf (ZERO_PERF_ARCHIVE_CONF=1)"
+else
+  printf 'server=1\nlisten=0\nconnect=0\nmaxconnections=0\ndisablewallet=1\ngen=0\n' > "$LAB/zero.conf"
+  log "wrote standard lab zero.conf (decision 9: no Insight, default dbcache)"
+fi
 
 # Ensure offline / no sticky reindex in conf if present
 if [ -f "$LAB/zero.conf" ]; then
@@ -191,7 +200,17 @@ print("LR_START=%d LR_END=%d LR_BLOCKS=%d LR_WALL=%s LR_HPS=%s"
 EOF
 )" || LEDGER_VARS=""
 
-if [ -n "$LEDGER_VARS" ]; then
+# Runtime as the node ran it: the archive's own zero.conf may set Insight
+# indexes or dbcache, which change the result and were previously unrecorded.
+RUNTIME_OK=1
+if ! runtime_record "$LAB/debug.log" "$LAB/zero.conf" \
+     "-disablewallet -reindex -listen=0 -maxconnections=0 -connect=0"; then
+  RUNTIME_OK=0
+fi
+
+if [ -n "$LEDGER_VARS" ] && [ "$RUNTIME_OK" = 0 ]; then
+  warn "runtime mismatch; ledger row NOT appended"
+elif [ -n "$LEDGER_VARS" ]; then
   eval "$LEDGER_VARS"
   # Prefer the launcher's millisecond span over the log-derived whole-second
   # wall time. Both measure the same interval; only one can resolve better
@@ -217,8 +236,8 @@ if [ -n "$LEDGER_VARS" ]; then
     --binary "$ZEROD" \
     --workload "op=reindex" \
     --workload "snap=$SNAP" \
-    --runtime "disablewallet=1" \
-    --notes "snap=$SNAP" >/dev/null; then
+    "${RUNTIME_ARGS[@]}" \
+    --notes "snap=$SNAP;archive_sha256=$ARCHIVE_SHA;observed=$RUNTIME_OBSERVED" >/dev/null; then
     log "ledger row appended (campaign=$CAMPAIGN)"
   else
     warn "ledger append failed; artifacts are still in $OUT_DIR"

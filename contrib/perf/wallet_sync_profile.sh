@@ -126,10 +126,10 @@ prepare_scratch() {
   dispose_datadir "$SCRATCH" SCRATCH
   case "$SNAP" in
     tiny)
-      tar -xzf "$SRC_DATADIR/chainblocks-tiny.tgz" -C "$SCRATCH"
+      tar -xzf "$(snap_archive chainblocks-tiny.tgz)" -C "$SCRATCH"
       ;;
     short)
-      tar -xzf "$SRC_DATADIR/chainblocks-short.tgz" -C "$SCRATCH"
+      tar -xzf "$(snap_archive chainblocks-short.tgz)" -C "$SCRATCH"
       ;;
     full)
       rsync -a --exclude='chainstate' --exclude='wallet.zero' --exclude='wallet.zero*' \

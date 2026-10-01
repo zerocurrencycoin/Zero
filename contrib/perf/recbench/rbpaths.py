@@ -12,7 +12,7 @@ Two roots, deliberately separate, because they move independently:
                including out of this repository, changes nothing here.
 
   PROJECT_ROOT The tree being measured. Selected by name from projects.json,
-               so one RecBench serves Zero400, ZeroPerf, zerowallet, uniblake
+               so one RecBench serves Zero, ZeroPerf, zerowallet, uniblake
                and any other target without a module edit.
 
 Design decisions, alternatives weighed and identifiers rejected: RecBench.md.
@@ -61,11 +61,25 @@ def _abs(base, rel):
 
 
 def project_root():
+    """The selected project's tree: RB_PROJECT_ROOT, then the project's own
+    root_env variable (the one its build uses, e.g. UNIBLAKE_SRC), then the
+    configured root. A root that does not exist is an error, not a path that
+    silently stamps nothing."""
     env = os.environ.get("RB_PROJECT_ROOT")
     if env:
         return _abs(os.getcwd(), env)
-    rel = _project().get("root")
-    return _abs(RB_ROOT, rel) if rel else None
+    proj = _project()
+    var = proj.get("root_env")
+    if var and os.environ.get(var):
+        root = _abs(os.getcwd(), os.environ[var])
+    else:
+        rel = proj.get("root")
+        root = _abs(RB_ROOT, rel) if rel else None
+    if root is not None and not os.path.isdir(root):
+        hint = "RB_PROJECT_ROOT" + (" or " + var if var else "")
+        raise SystemExit("recbench: project %r root does not exist: %s (set %s)"
+                         % (project_name(), root, hint))
+    return root
 
 
 def store_dir():

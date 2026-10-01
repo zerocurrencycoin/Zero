@@ -58,7 +58,7 @@ def covered(rel, section):
     """True if a row names REL by basename, or by a directory wildcard row.
 
     A directory only counts when the map names it as a wildcard -- `equ/`,
-    `keep/*.md`, `mine/*.md`. Matching a bare `docs/` substring would let any
+    `retired/*.md`, `mine/*.md`. Matching a bare `docs/` substring would let any
     row mentioning `docs/POLICY.md` cover every future file in docs/, which is
     the accretion this check exists to stop.
     """

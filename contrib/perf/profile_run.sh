@@ -37,6 +37,14 @@ PID="$(pgrep -x zerod | head -1)"
 if [ -z "$DATADIR" ]; then
   DATADIR="$(ps -o command= -p "$PID" | sed -n 's/.*-datadir=\([^ ]*\).*/\1/p')"
 fi
+
+# Output and helper paths are repo-root-relative; resolve a relative datadir
+# first so the cd does not change what it names.
+if [ -n "$DATADIR" ] && [ -d "$DATADIR" ]; then
+  DATADIR="$(cd "$DATADIR" && pwd)"
+fi
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_ROOT" || exit 1
 [ -n "$DATADIR" ] || { echo "cannot determine datadir; pass it explicitly" >&2; exit 1; }
 
 LOG="$DATADIR/debug.log"

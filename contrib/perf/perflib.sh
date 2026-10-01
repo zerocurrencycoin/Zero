@@ -172,7 +172,7 @@ EOF
 # forced through.
 #
 # Live-datadir refusal still applies first: dispose_datadir never operates on a
-# runtime or Zero400 path unless ZERO_PERF_ALLOW_LIVE_DATADIR is set.
+# runtime or Zero path unless ZERO_PERF_ALLOW_LIVE_DATADIR is set.
 dispose_datadir() {
   local path="${1:?usage: dispose_datadir PATH [LABEL]}"
   local label="${2:-LAB}"
@@ -386,4 +386,51 @@ elapsed_s() {
   local t0="${1:-}" t1="${2:-$(now_ms)}"
   case "$t0$t1" in ''|*[!0-9]*) echo "0"; return 1 ;; esac
   python3 -c "print(f'{($t1-$t0)/1000.0:.3f}')"
+}
+
+# runtime_record LOG CONF "ZEROD_ARGS"
+#   Derive the runtime a trial ran with from the zero.conf the node read plus
+#   its command line, and check it against the node's own log (wallet, script
+#   threads, dbcache). Sets RUNTIME_ARGS (--runtime k=v ... for recbench.py) and
+#   RUNTIME_OBSERVED (k=v,... for row notes). Returns 1 on a mismatch, so a
+#   caller can refuse to record a row whose declared runtime is not the fact.
+#   One implementation for every launcher: see debuglog.py --check-runtime.
+runtime_record() {
+  local logf="${1:?log}" conf="${2:?conf}" zargs="${3:-}" out errf rc line
+  # shellcheck disable=SC2034  # both are outputs, read by the caller
+  RUNTIME_ARGS=()
+  # shellcheck disable=SC2034
+  RUNTIME_OBSERVED=""
+  errf="$(mktemp)"
+  out="$(python3 "$_PERFLIB_DIR/debuglog.py" --check-runtime "$logf" \
+           --conf "$conf" --zerod-args "$zargs" 2>"$errf")"
+  rc=$?
+  while IFS= read -r line; do
+    [ -n "$line" ] && RUNTIME_ARGS+=(--runtime "$line")
+  done <<< "$out"
+  # shellcheck disable=SC2034
+  RUNTIME_OBSERVED="$(python3 "$_PERFLIB_DIR/debuglog.py" --observed-runtime "$logf" \
+                        | paste -sd, -)"
+  if [ "$rc" -ne 0 ]; then
+    while IFS= read -r line; do warn "$line"; done < "$errf"
+  fi
+  rm -f "$errf"
+  return "$rc"
+}
+
+# snap_archive NAME
+#   Print the path of a snapshot archive (chainblocks-tiny.tgz, ...). Searched
+#   in $ZERO_PERF_ARCHIVE_DIR, the platform default datadir, then its ".save"
+#   sibling -- the previous datadir, renamed when the chain was re-imported,
+#   still holds the archives. One lookup for every launcher; returns 1 with the
+#   searched list when absent.
+snap_archive() {
+  local name="${1:?archive name}" dd d
+  dd="$(python3 -c "import sys; sys.path.insert(0, '$_PERFLIB_DIR'); import zeropaths; print(zeropaths.default_datadir())" 2>/dev/null)" \
+    || dd="$HOME/Library/Application Support/zero"
+  for d in ${ZERO_PERF_ARCHIVE_DIR:+"$ZERO_PERF_ARCHIVE_DIR"} "$dd" "$dd.save"; do
+    if [ -f "$d/$name" ]; then printf '%s\n' "$d/$name"; return 0; fi
+  done
+  warn "snapshot archive $name not found in: ${ZERO_PERF_ARCHIVE_DIR:+$ZERO_PERF_ARCHIVE_DIR, }$dd, $dd.save"
+  return 1
 }

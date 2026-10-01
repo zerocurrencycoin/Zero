@@ -128,7 +128,7 @@ def self_test():
 
     This tool has damaged content before: run tree-wide, its U+00B7 -> '-'
     mapping turned products into apparent subtraction in a Groth16 pairing
-    equation, and it rewrote eight Zero400-owned documents this tree does not
+    equation, and it rewrote eight Zero-owned documents this tree does not
     own. Both failures are silent -- the file still parses. So the scope guard
     and the risky mappings are asserted here.
     """
@@ -193,7 +193,7 @@ def self_test():
 
     # SCOPE GUARD, tested by BEHAVIOUR not by source text: --fix must not
     # write outside contrib/perf/ without --all-paths. This is the guard that
-    # was missing when eight Zero400-owned documents were rewritten.
+    # was missing when eight Zero-owned documents were rewritten.
     with tempfile.TemporaryDirectory() as d:
         cwd = os.getcwd()
         os.chdir(d)
@@ -309,7 +309,7 @@ def main(argv):
         paths = [f for f in tracked_files()
                  if CHECK_EXT.search(f) and not SKIP_PATH.match(f)]
 
-    # --fix is scoped to ZeroPerf-owned files. Zero400 owns the root documents
+    # --fix is scoped to ZeroPerf-owned files. Zero owns the root documents
     # and src/; rewriting them from this tree contradicts the ownership rule
     # (contrib/perf/docs/POLICY.md S7) and has silently damaged content before:
     # the U+00B7 -> '-' mapping turned products into apparent subtraction in a

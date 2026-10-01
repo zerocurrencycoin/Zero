@@ -317,5 +317,20 @@ expect_fail "elapsed_s rejects unparseable input" \
 ok_if "now_ms returns a millisecond-scale integer" \
   bash -c ". '$HERE/perflib.sh'; n=\$(now_ms); [ \"\${#n}\" -ge 13 ]"
 
+# --- runtime_record: conf + command line, checked against the node's log ---
+RT="$(mktemp -d)"
+printf 'rpcuser=x\ninsightexplorer=1\ndbcache=512\n' > "$RT/zero.conf"
+printf 't Zero version v1\nt Using 4 threads for script verification\nt Cache configuration:\nt * Using 384.0MiB for block index database\nt * Using 40.0MiB for chain state database\nt * Using 88.0MiB for in-memory UTXO set\nt Wallet disabled!\n' > "$RT/debug.log"
+ok_if "runtime_record accepts a run that applied what was set" \
+  bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/debug.log' '$RT/zero.conf' '-disablewallet -par=4' 2>/dev/null"
+eq "$(bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/debug.log' '$RT/zero.conf' '-disablewallet -par=4' 2>/dev/null; printf '%s ' \"\${RUNTIME_ARGS[@]}\"")" \
+   "--runtime dbcache=512 --runtime disablewallet=1 --runtime insightexplorer=1 --runtime par=4 " \
+   "runtime_record declares conf keys and command-line flags"
+expect_fail "runtime_record refuses a -par width the node did not apply" \
+  bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/debug.log' '$RT/zero.conf' '-disablewallet -par=7' 2>/dev/null"
+expect_fail "runtime_record refuses -disablewallet the node did not apply" \
+  bash -c ". '$HERE/perflib.sh'; grep -v 'Wallet disabled' '$RT/debug.log' > '$RT/w.log'; runtime_record '$RT/w.log' '$RT/zero.conf' '-disablewallet' 2>/dev/null"
+rm -rf "$RT"
+
 if [ "$FAILED" -eq 0 ]; then echo "self-test OK" >&2; else echo "self-test FAILED" >&2; fi
 exit "$FAILED"
