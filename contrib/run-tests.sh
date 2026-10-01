@@ -1,20 +1,5 @@
 #!/usr/bin/env bash
-# Run Zero tests. Modes:
-# passing (default): pass-only C++ + Tier A RPC. GTest exclude: CachedWitnessesCleanIndex.
-#   --fail: ONLY that excluded GTest (canonical list: qa/zcash/test_filters.sh).
-#   --all: same C++ filters as default + rpc-tests.sh -all (-A -B -E pass tiers).
-#   --rpcfail: rpc-tests.sh -rpcfail (-Bfail -Efail diagnostic; no C++, no util).
-#
-# Usage: ./contrib/run-tests.sh [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|-all|--rpcfail|--suite] [rpc_test]
-# --strict: after all selected steps, exit 1 if any failed (default: exit 0 with WARNING if any failed).
-# Env: ZERO_MINE_COINBASE=1 to mine 1000 blocks for get_coinbase_address tests (slow).
-# --quick: skip zero-gtest and test_bitcoin (run only quick: bitcoin-util-test, secp256k1, univalue, check-symbols, check-security)
-# --no-python: skip Python RPC tests (qa/rpc-tests); superset of --quick (adds C++ layers per mode).
-# --build-checks: run make check-security (requires python on PATH)
-# --jobs=N: Tier A RPC only, default pass-only mode. Serial (N=1) is the supported path (CI / contributor gate).
-# --suite: run qa/zcash/full_test_suite.py only (ordered stages; not --all, not default).
-# rpc_test: basename of one qa/rpc-tests script (e.g. proxy_test or proxy_test.py).
-#   Runs ONLY that script via rpc-tests.sh (skips C++/util/gtest). Preferred single-test entry.
+# Run Zero C++ and RPC test tiers. --help for options.
 
 set -e
 if [ -z "${BASH_VERSION:-}" ]; then
@@ -33,11 +18,9 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
 
-# Default exclude: qa/zcash/test_filters.sh (GTest CachedWitnessesCleanIndex). --fail runs GTEST_FAIL_ONLY.
 . "$REPO_ROOT/qa/zcash/test_filters.sh"
 
-# Tier A basenames for --jobs=N parallel runs only. Canonical list: testScriptsTierA in qa/pull-tester/rpc-tests.sh.
-# Serial gate uses: rpc-tests.sh -A
+# Tier A basenames for --jobs=N; must match testScriptsTierA in qa/pull-tester/rpc-tests.sh.
 PYTHON_PASSING=(
     blockchain disablewallet httpbasics reindex decodescript keypool
     paymentdisclosure
@@ -57,8 +40,32 @@ PYTHON_JOBS=1
 STRICT=0
 OVERALL_FAIL=0
 RPC_SINGLE=""
+usage() {
+    cat <<'USAGE'
+Usage: contrib/run-tests.sh [options] [rpc_test]
+
+Modes (default: pass-only C++ filters + Tier A RPC)
+  --fail        only the C++ tests excluded from the gate (qa/zcash/test_filters.sh)
+  --all | -all  default C++ filters + rpc-tests.sh -all (Tier A, B pass, Ext pass)
+  --rpcfail     rpc-tests.sh -rpcfail (Bfail + Efail diagnostic; no C++, no util)
+  --suite       qa/zcash/full_test_suite.py only
+  rpc_test      one qa/rpc-tests script by basename; skips C++ and util
+
+Options
+  --strict        exit 1 if any step failed (default: exit 0 with WARNING)
+  --quick         util, secp256k1, univalue, check-symbols, check-security only
+  --no-python     skip Python RPC tests
+  --build-checks  run make check-security
+  --jobs=N        parallel Tier A RPC (default 1; serial is the supported gate)
+  -h | --help     this text
+
+Env
+  ZERO_MINE_COINBASE=1  mine 1000 blocks for get_coinbase_address tests (slow)
+USAGE
+}
 for arg in "$@"; do
     case "$arg" in
+        -h|--help) usage; exit 0 ;;
         --quick) QUICK=1 ;;
         --no-python) NO_PYTHON=1 ;;
         --build-checks) BUILD_CHECKS=1 ;;
@@ -70,7 +77,7 @@ for arg in "$@"; do
         --jobs=*) PYTHON_JOBS="${arg#--jobs=}" ;;
         -*)
             echo "Unknown option: $arg" >&2
-            echo "Usage: $0 [--quick] [--no-python] [--build-checks] [--jobs=N] [--strict] [--fail|--all|-all|--rpcfail|--suite] [rpc_test.py]" >&2
+            usage >&2
             exit 2
             ;;
         *)

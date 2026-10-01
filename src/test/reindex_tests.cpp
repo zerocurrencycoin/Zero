@@ -7,10 +7,7 @@
 
 #include <boost/test/unit_test.hpp>
 
-/**
- * Reindex progress markers (DB_REINDEX_FLAG / LASTFILE / LASTBLOCK)
- * and resume start-file selection (OPS-REINDEX-RESUME + telemetry inputs).
- */
+/** Reindex progress markers (R, L, H) and resume start-file selection. */
 BOOST_FIXTURE_TEST_SUITE(reindex_tests, BasicTestingSetup)
 
 BOOST_AUTO_TEST_CASE(reindex_lastfile_marker_roundtrip)
@@ -93,10 +90,7 @@ BOOST_AUTO_TEST_CASE(reindex_resume_start_file)
     BOOST_CHECK_EQUAL(ReindexResumeStartFile(2, 8, nullptr), 3);
 }
 
-/**
- * Simulate interrupted reindex state in blocks/index: 'R' set, L/H written.
- * Resume cursor must be L+1; clearing 'R' must leave L/H (post-finish semantics).
- */
+/** Interrupted reindex: resume starts at L+1; clearing R keeps L and H. */
 BOOST_AUTO_TEST_CASE(reindex_interrupted_state_resume_cursor)
 {
     CBlockTreeDB db(1 << 20, /*fMemory=*/true);
@@ -129,9 +123,7 @@ BOOST_AUTO_TEST_CASE(reindex_interrupted_state_resume_cursor)
     BOOST_CHECK_EQUAL(nLastBlock, 12345);
 }
 
-/**
- * Fresh wipe / empty index: no L -> resume helper starts at 0 (full import).
- */
+/** Empty index (no L): resume starts at file 0. */
 BOOST_AUTO_TEST_CASE(reindex_fresh_index_no_lastfile)
 {
     CBlockTreeDB db(1 << 20, /*fMemory=*/true);
@@ -145,9 +137,7 @@ BOOST_AUTO_TEST_CASE(reindex_fresh_index_no_lastfile)
     BOOST_CHECK(reason.find("absent") != std::string::npos);
 }
 
-/**
- * DB_FLAG round-trip for insight/txindex (mismatch detect inputs; wipe not exercised here).
- */
+/** DB_FLAG round trip for insightexplorer / txindex (wipe not exercised). */
 BOOST_AUTO_TEST_CASE(reindex_db_flag_insight_txindex)
 {
     CBlockTreeDB db(1 << 20, /*fMemory=*/true);

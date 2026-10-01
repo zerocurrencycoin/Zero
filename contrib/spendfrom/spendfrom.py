@@ -1,16 +1,6 @@
 #!/usr/bin/env python3
-#
-# Use the raw transactions API to spend coins received on particular addresses,
-# and send any change back to that same address.
-#
-# Example usage:
-#  spendfrom.py  # Lists available funds
-#  spendfrom.py --from=ADDRESS --to=ADDRESS --amount=11.00
-#
-# Assumes it will talk to zerod running on localhost (reads zero.conf).
-#
-# Depends on jsonrpc
-#
+# Spend coins received on given addresses via the raw tx API; change returns to the sender.
+# Usage: spendfrom.py [--from=ADDRESS --to=ADDRESS --amount=N]. Needs jsonrpc and local zerod.
 
 from decimal import *
 import getpass

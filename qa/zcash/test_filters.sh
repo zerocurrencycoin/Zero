@@ -1,7 +1,5 @@
-# Canonical C++ pass-only / fail-only filters for Zero harness.
-# Sourced by contrib/run-tests.sh; read by qa/zcash/full_test_suite.py.
-# Boost: no working-gate exclude.
-# GTest: CachedWitnessesCleanIndex held (reindex-style harness: pcoinsTip anchors + ReadBlockFromDisk).
+# C++ gate filters, sourced by contrib/run-tests.sh and read by full_test_suite.py.
+# CachedWitnessesCleanIndex needs pcoinsTip anchors and disk blocks the gtest fixture lacks.
 BOOST_PASS_EXCLUDE=''
 BOOST_FAIL_ONLY=''
 GTEST_PASS_EXCLUDE='-WalletTests.CachedWitnessesCleanIndex'

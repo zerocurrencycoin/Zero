@@ -3,13 +3,13 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 
-"""TNT-12 Phase C: two-node znsync and startalias.
+"""
+Two-node znsync and startalias.
 
-A successful startalias needs an exact 10000 ZER collateral UTXO. Regtest
-halves every 150 blocks, so total miner emission is ~3000 ZER -- not enough
-to form that UTXO without a premine or a regtest-only collateral amount.
-This script covers the path that is reachable: znsync to 999, zeronode.conf
-load, startalias without a valid vin.
+A successful startalias needs an exact 10000 ZER collateral UTXO. With halvings every
+150 blocks, total regtest miner emission is about 3000 ZER, too little to form that UTXO
+without a premine or a regtest-only collateral amount. This test covers the reachable
+path: znsync to 999, zeronode.conf load, and startalias without a valid vin.
 """
 
 import os

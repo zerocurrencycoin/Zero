@@ -6,8 +6,8 @@
 #
 # Test txindex generation and fetching
 #
-# Harness: Bfail Debug (rpc-tests.sh).
-# "txindex.py debug" -- Py3 Decimal nValue; Bitcoin 50-ZER asserts vs Zero 10 ZER.
+# Known failures on Zero: Python 3 Decimal nValue handling, and asserts that expect
+# Bitcoin's 50-coin subsidy instead of Zero's 10 ZER.
 #
 
 import time

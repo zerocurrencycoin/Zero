@@ -280,11 +280,8 @@ TEST(equihash_tests, check_optimised_solver_cancelled) {
         }), EhSolverCancelledException);
     }
 
-    // PartialEnd is only reached if a partial solution survives full
-    // reconstruction without hitting invalidsolution. This is input-dependent;
-    // for Equihash<48,5> with input 0x00 on some platforms all partial
-    // solutions are invalid, so PartialEnd is never reached and no exception
-    // is thrown. Accept either outcome.
+    // PartialEnd needs a partial solution that survives reconstruction; for some (48,5)
+    // inputs none does; both outcomes are valid.
     {
         try {
             Eh48_5.OptimisedSolve(state, [](std::vector<unsigned char> soln) {

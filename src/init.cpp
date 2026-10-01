@@ -463,7 +463,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-walletbroadcast", _("Make the wallet broadcast transactions") + " " + strprintf(_("(default: %u)"), true));
     strUsage += HelpMessageOpt("-walletnotify=<cmd>", _("Execute command when a wallet transaction changes (%s in cmd is replaced by TxID)"));
     strUsage += HelpMessageOpt("-walletwitness=<mode>", _("Opt-in witness cache policy: default (build during IBD); ibd-defer (skip per-block BuildWitnessCache during IBD/reindex, rebuild once after import -- z_sendmany/getalldata unavailable until rebuild finishes); rebuild (force tip rebuild after import)"));
-    strUsage += HelpMessageOpt("-walletwitnessnote", strprintf(_("Opt-in: witness scan uses note-bearing txs only (NOTEIDX; default: %u)"), false));
+    strUsage += HelpMessageOpt("-walletwitnessnote", strprintf(_("Opt-in: witness scan visits only note-bearing transactions (default: %u)"), false));
     strUsage += HelpMessageOpt("-walletwitnessstats", _("Debug: log per-Verify note visit / early-continue / full-work counts"));
     strUsage += HelpMessageOpt("-zapwallettxes=<mode>", _("Delete all wallet transactions and only recover those parts of the blockchain through -rescan on startup") +
         " " + _("(1 = keep tx meta data e.g. account owner and payment request information, 2 = drop tx meta data)"));
@@ -710,9 +710,8 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
             LogPrintf("Reindexing block file blk%05u.dat...\n", (unsigned int)nFile);
             LoadExternalBlockFile(chainparams, file, &pos);
             if (ShutdownRequested()) {
-                // Do not advance lastfile -- L means last *completed* blk file.
-                // Mid-file interrupt leaves L at the previous completed file so
-                // resume restarts this file (may redo already-connected blocks).
+                // L is the last completed blk file and a mid-file interrupt leaves it unchanged; resume
+                // restarts this file and may reconnect blocks already connected.
                 LogPrintf("Reindexing interrupted by shutdown request during/after blk%05u.dat (last completed file unchanged)\n",
                           (unsigned int)nFile);
                 return;
@@ -766,9 +765,8 @@ void ThreadImport(std::vector<boost::filesystem::path> vImportFiles)
     }
 
 #ifdef ENABLE_WALLET
-    // Fat-wallet IBD deferral: rebuild witnesses once after import/reindex completes.
-    // Historical tips often remain in IsInitialBlockDownload, so ChainTip never takes
-    // the near-tip BuildWitnessCache(false) path without this hook.
+    // IBD-deferred witnesses: rebuild once after import/reindex. A historical tip can remain
+    // in IBD, and ChainTip then never reaches the near-tip BuildWitnessCache path.
     {
         const std::string witnessMode = GetArg("-walletwitness", "");
         if (pwalletMain && !ShutdownRequested() &&
@@ -1565,8 +1563,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     fReindex = GetBoolArg("-reindex", false);
     if (fReindex) {
         LogPrintf("Reindex source: -reindex argument\n");
-        // Prefer one-shot CLI; sticky reindex= in conf wipes again every restart.
-        // Warn loudly (InitWarning + log); do not refuse -- OPS-REINDEX-CONF refuse postponed.
+        // Sticky reindex= wipes on every restart; warn (do not refuse) and recommend CLI -reindex.
         boost::filesystem::ifstream streamConfig(GetConfigFile());
         if (streamConfig.good()) {
             std::string line;

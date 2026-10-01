@@ -230,10 +230,9 @@ bool CWallet::AddSaplingFullViewingKey(const libzcash::SaplingExtendedFullViewin
         return true;
     }
 
-    // During EncryptWallet a DB transaction is open on pwalletdbEncryption;
-    // opening a second CWalletDB on the same file would self-deadlock on the
-    // BDB page lock (encrypt-hang class: WriteCryptedSaplingZkey*,
-    // rpc_wallet_encrypted_wallet_sapzkeys).
+    // Inside EncryptWallet a DB transaction is open on pwalletdbEncryption; a second
+    // CWalletDB on the same file would self-deadlock on the BDB page lock
+    // (regression tests: WriteCryptedSaplingZkey*, rpc_wallet_encrypted_wallet_sapzkeys).
     if (pwalletdbEncryption) {
         return pwalletdbEncryption->WriteSaplingExtendedFullViewingKey(extfvk);
     }
@@ -1346,7 +1345,7 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
   int nMinimumHeight = pindex->nHeight;
   bool walletHasNotes = false; //Use to enable z_sendmany when no notes are present
 
-  // NOTEIDX (-walletwitnessnote=1): note-bearing txs only.
+  // With -walletwitnessnote=1, visit note-bearing txs only.
   std::vector<std::pair<const uint256, CWalletTx>*> wtxScan;
   SelectWalletTxsForWitnessScan(wtxScan);
   int nWitnessTotalTxCount = (int)wtxScan.size();
@@ -1690,7 +1689,7 @@ void CWallet::BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, con
   fBuildingWitnessCache = true;
   initWitnessesBuilt = false;
 
-  // NOTEIDX: select once under cs_wallet (held for whole rebuild); reuse each height.
+  // Note-bearing index: select once under cs_wallet (held for the whole rebuild); reuse at each height.
   std::vector<std::pair<const uint256, CWalletTx>*> wtxScan;
   SelectWalletTxsForWitnessScan(wtxScan);
   LogPrintf("BuildWitnessCache height-walk begin scan_txs=%d mapWallet=%d noteidx=%d startHeight=%d tip=%d\n",
@@ -1903,7 +1902,7 @@ CWallet::TxItems CWallet::OrderedTxItems(std::list<CAccountingEntry>& acentries,
     AssertLockHeld(cs_wallet); // mapWallet / wtxOrdered
     CWalletDB walletdb(strWalletFile);
 
-    // WAL-WTXORDERED: start from incremental tx index; merge account entries for this query.
+    // Start from the incremental tx index; merge accounting entries for this query.
     TxItems txOrdered = wtxOrdered;
 
     acentries.clear();
@@ -2185,10 +2184,10 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFromLoadWallet, CWalletD
                     int64_t latestNow = wtx.nTimeReceived;
                     int64_t latestEntry = 0;
                     {
-                        // Tolerate times up to the last timestamp in the wallet not more than 5 minutes into the future.
-                        // Walk incremental wtxOrdered (tx pointers only); do not OrderedTxItems-copy + lacentry merge.
-                        // Prefer const over Zcash line-for-line identity (operational S7 style). Exact wtxOrdered
-                        // type match remains postponed with WAL-RPC-ACCOUNTS.
+                        // Tolerate times up to 5 minutes past the latest wallet timestamp. Walk the incremental
+                        // wtxOrdered (tx pointers) instead of copying OrderedTxItems and merging accounting entries.
+                        // Const access is preferred over line-for-line Zcash identity; matching Zcash's
+                        // pointer-only wtxOrdered type requires removing the account RPCs first.
                         int64_t latestTolerated = latestNow + 300;
                         const TxItems& txOrdered = wtxOrdered;
                         for (TxItems::const_reverse_iterator it = txOrdered.rbegin(); it != txOrdered.rend(); ++it)

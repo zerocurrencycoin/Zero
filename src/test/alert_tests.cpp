@@ -472,10 +472,8 @@ BOOST_AUTO_TEST_CASE(PartitionAlertBlossomOnly)
 
 BOOST_AUTO_TEST_CASE(PartitionAlertBlossomActivates)
 {
-    // Zero regtest: 120s pre / 60s post. Blossom at 703 => 97 blossom blocks in last 4hr
-    // expectedTotal = 97 + (14400 - 97*60) / 120 = 168
-    // Slow case: 3.5hr gap => 0.5hr of blocks at 60s = 30
-    // Fast case: 2.5x rate, 800 blocks in ~10hr => last 4hr has 348 blocks (from test chain geometry)
+    // Regtest spacing 120s, 60s after Blossom (703): expectedTotal = 97 + (14400 - 97*60) / 120 = 168.
+    // Slow case: 3.5h gap leaves 30 blocks; fast case: 2.5x rate leaves 348 blocks in the last 4h.
     const Consensus::Params& params = RegtestActivateBlossom(false, 799 - 96);
     int nBlossomBlocks = 97;
     int blossomBlockTime = nBlossomBlocks * params.nPostBlossomPowTargetSpacing;

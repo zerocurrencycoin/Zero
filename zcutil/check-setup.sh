@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Machine setup receipt: toolchain + Sapling params. Not git identity and not a compile.
-# Other scripts call this (or run_check_setup) instead of repeating probes.
-#   zcutil/check-setup.sh
-#   zcutil/check-setup.sh --win
-#   zcutil/check-setup.sh --levels=toolchain
+# Host setup receipt: toolchain and Sapling params. --help for options.
 set -euo pipefail
 ME="check-setup"
 # shellcheck disable=SC1091

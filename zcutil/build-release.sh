@@ -1,17 +1,5 @@
 #!/usr/bin/env bash
-# Setup check, product receipt, then zcutil/build.sh (depends + autogen + configure + make).
-# Does not run --strict. After this: contrib/run-tests.sh --strict
-#
-#   zcutil/build-release.sh
-#   zcutil/build-release.sh --exact -- -j4
-#   zcutil/build-release.sh --win -- -j4
-#
-# Args before -- go to check-release.sh. Args after -- go to build.sh.
-# --win is setup + build-win (not a check-release flag).
-# There is no --skip-depends: build.sh always runs make -C depends, then
-# autogen, configure, make. Warm depends cache skips package compiles.
-# Incremental object rebuild without re-running depends/autogen/configure:
-#   make -j   (already-configured tree)
+# Run check-setup.sh, check-release.sh, then build.sh; not a test runner. --help for options.
 set -euo pipefail
 ME="build-release"
 # shellcheck disable=SC1091
@@ -33,10 +21,12 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -h|--help)
-      echo "Usage: zcutil/build-release.sh [check-release options] [-- build.sh args]"
+      echo "Usage: zcutil/build-release.sh [check-release options] [--win] [-- build.sh args]"
       echo "Runs zcutil/check-setup.sh, zcutil/check-release.sh, then zcutil/build.sh."
-      echo "Not a test runner. Default check pin: v4.0.1 at-least."
+      echo "Not a test runner; follow with contrib/run-tests.sh --strict."
       echo "--win: check-setup --win and build.sh -win."
+      echo "build.sh always runs depends, autogen, configure, make; for an incremental"
+      echo "rebuild of a configured tree run make -j directly."
       exit 0
       ;;
     *)

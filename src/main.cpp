@@ -1788,10 +1788,8 @@ bool GetAddressUnspent(const uint160& addressHash, int type,
     return true;
 }
 
-// Zeronode collateral acceptance (src/zeronode/). Duplicates AcceptToMemoryPool
-// but is deliberately more permissive: -relaypriority defaults true (not false)
-// and -limitfreerelay 30 (not 15), since collateral is checked, not relayed.
-// Keep the defaults distinct from ATMP's.
+// Zeronode collateral check: an ATMP copy with looser defaults (-relaypriority true,
+// -limitfreerelay 30) because collateral is checked, not relayed. Keep them distinct.
 bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransaction& tx, bool fLimitFree, bool* pfMissingInputs, bool fRejectInsaneFee)
 {
     AssertLockHeld(cs_main);
@@ -4514,11 +4512,9 @@ bool ContextualCheckBlock(
         }
     }
 
-    // Coinbase transaction must include an output sending 20% of
-    // the block reward to a founders reward script, until the last founders
-    // reward block is reached, with exception of the genesis block.
-    // The last founders reward block is defined as the block just before the
-    // first subsidy halving block, which occurs at halving_interval + slow_start_shift
+    // Coinbase transaction must include an output paying the founders share (7.5% of the
+    // block subsidy, GetFoundersRewardAmount) to the founders reward script, from fee-start
+    // through the last founders reward block.
     if ((nHeight >= consensusParams.nFeeStartBlockHeight) && (nHeight <= consensusParams.GetLastFoundersRewardBlockHeight(nHeight))) {
         bool found = false;
 
@@ -4911,9 +4907,8 @@ bool static LoadBlockIndexDB()
     boost::this_thread::interruption_point();
 
     // Calculate nChainWork
-    // Poll shutdown inside these loops: AppInit runs here on the main thread
-    // before DetectShutdownThread can interrupt workers, and a multi-million-block
-    // index can spend tens of minutes with only the interruption_point above.
+    // Poll shutdown here: AppInit runs on the main thread before DetectShutdownThread,
+    // and a long index load otherwise reaches only the interruption_point above.
     vector<pair<int, CBlockIndex*> > vSortedByHeight;
     vSortedByHeight.reserve(mapBlockIndex.size());
     size_t nLoadIndexPoll = 0;

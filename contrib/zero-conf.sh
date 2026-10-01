@@ -1,18 +1,5 @@
 #!/usr/bin/env bash
-# Write a zero.conf from contrib/conf-templates/.
-# Default: template prod, file /tmp/zero.conf
-#
-# Port defaults:
-#   prod / node / zerowallet / insight / full -> 23811 (deployment RPC)
-#   lab / test                                -> 23941 (isolated; not 23801-23820)
-#
-#   contrib/zero-conf.sh
-#   contrib/zero-conf.sh lab -dir /tmp/zero-ops-validate
-#   contrib/zero-conf.sh insight -dir ~/.zero -force
-#
-# -dir DIR     directory (default /tmp)
-# -out NAME    filename (default zero.conf)
-# -force       overwrite; also allow ~/.zero, Application Support/zero|Zero, and the repo
+# Write a zero.conf from contrib/conf-templates/. --help for options.
 set -euo pipefail
 ME="zero-conf"
 # shellcheck disable=SC1091
@@ -33,9 +20,14 @@ gen_rpc_password() {
 }
 
 usage() {
-  echo "Usage: contrib/zero-conf.sh [template] [-dir DIR] [-out NAME] [-force]"
-  echo "Templates: prod (default), test, lab, node, zerowallet, insight, full"
-  echo "Default path: /tmp/zero.conf"
+  cat <<'USAGE'
+Usage: contrib/zero-conf.sh [template] [-dir DIR] [-out NAME] [-force]
+Templates: prod (default), test, lab, node, zerowallet, insight, full
+RPC port: 23811 for prod/node/zerowallet/insight/full; 23941 for lab/test (outside 23801-23820)
+  -dir DIR     directory (default /tmp)
+  -out NAME    filename (default zero.conf)
+  -force       overwrite; also allow ~/.zero, Application Support/zero|Zero, and the repo
+USAGE
 }
 
 while [[ $# -gt 0 ]]; do

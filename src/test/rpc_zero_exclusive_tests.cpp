@@ -27,7 +27,7 @@ extern void ResetRpcDataContinueState();
 extern void SetGetAllDataInFlightForTest(bool inFlight);
 extern bool IsGetAllDataTxTooOld(int64_t blockTime, int64_t now, int dayDays);
 
-/** Like CallRPC, but goes through CRPCTable::execute (warmup / S5 / witness-cache gates). */
+/** CallRPC through CRPCTable::execute, where the warmup, coalesce, and witness-cache gates apply. */
 static UniValue CallRPCExecute(string args)
 {
     vector<string> vArgs;
@@ -103,7 +103,7 @@ BOOST_AUTO_TEST_CASE(rpc_getalldata_param_validation)
     BOOST_CHECK(r.isObject());
 }
 
-// S4 / param matrix: datatype 0/1/2, nCount clamp, 4-arg watchonly (Zerowallet shape).
+// Param matrix: datatype 0/1/2, nCount clamp, 4-arg watchonly (Zerowallet call shape).
 BOOST_AUTO_TEST_CASE(rpc_getalldata_ncount_datatype_watchonly)
 {
     ResetRpcDataContinueState();
@@ -150,7 +150,7 @@ BOOST_AUTO_TEST_CASE(rpc_getalldata_ncount_datatype_watchonly)
     ResetRpcDataContinueState();
 }
 
-// S5: gate is in CRPCTable::execute (CallRPC bypasses it).
+// Warmup gate lives in CRPCTable::execute; CallRPC bypasses it.
 BOOST_AUTO_TEST_CASE(rpc_getalldata_s5_witness_gate)
 {
     ResetRpcDataContinueState();
@@ -203,7 +203,7 @@ BOOST_AUTO_TEST_CASE(rpc_getalldata_data_continue)
     ResetRpcDataContinueState();
 }
 
-// S6 in-flight: second getalldata while gate held returns soft continue.
+// A second getalldata while the first is in flight returns a soft continue.
 BOOST_AUTO_TEST_CASE(rpc_getalldata_s6_inflight)
 {
     ResetRpcDataContinueState();
@@ -223,8 +223,7 @@ BOOST_AUTO_TEST_CASE(rpc_getalldata_s6_inflight)
     ResetRpcDataContinueState();
 }
 
-// S7: walks use const refs / pointers; assert stable shape and repeatable success
-// (no dedicated "zero copies" assert). Empty wallet is enough for crash/shape.
+// Wallet walks use const refs; shape and repeated success on an empty wallet.
 BOOST_AUTO_TEST_CASE(rpc_getalldata_s7_shape)
 {
     ResetRpcDataContinueState();
@@ -241,7 +240,7 @@ BOOST_AUTO_TEST_CASE(rpc_getalldata_s7_shape)
     BOOST_CHECK(b.exists("addressbalance"));
     BOOST_CHECK_EQUAL(a["listtransactions"].size(), b["listtransactions"].size());
 
-    // listsinceblock also uses const CWalletTx& after S7 follow-on
+    // listsinceblock also walks const CWalletTx&.
     UniValue ls;
     BOOST_CHECK_NO_THROW(ls = CallRPC("listsinceblock"));
     BOOST_CHECK(ls.isObject());
@@ -253,7 +252,7 @@ BOOST_AUTO_TEST_CASE(rpc_getalldata_s7_shape)
 
 BOOST_AUTO_TEST_CASE(rpc_getalldata_w3_day_cutoff_helper)
 {
-    // W3: 7-day window -- block 8 days ago is too old; 6 days ago is not
+    // 7-day window: a block 8 days old is excluded, 6 days old is included.
     const int64_t now = 1700000000;
     const int64_t day = 60 * 60 * 24;
     BOOST_CHECK(IsGetAllDataTxTooOld(now - 8 * day, now, 7));
@@ -277,7 +276,7 @@ BOOST_AUTO_TEST_CASE(rpc_getsupply_param_validation)
     BOOST_CHECK(r.exists("supply"));
 }
 
-// Witness / IBD-defer corner cases and DoS gates (FIX-WAL-WITNESS-*)
+// Witness / IBD-defer corner cases and DoS gates.
 BOOST_AUTO_TEST_CASE(rpc_witness_building_cache_blocks_all_rpc)
 {
     // While fBuildingWitnessCache: wallet/spend/data blocked (-33); status/ops allowlisted.
@@ -287,7 +286,7 @@ BOOST_AUTO_TEST_CASE(rpc_witness_building_cache_blocks_all_rpc)
     const bool savedInit = initWitnessesBuilt;
     initWitnessesBuilt = true;
     fBuildingWitnessCache = true;
-    // TST-08 / PIR-03: spend path must see -33 (message), not only -31.
+    // Spend path returns -33 with its message while the witness cache rebuilds, not only -31.
     CheckRPCExecuteThrows("z_sendmany",
         "RPC interface disabled while building witness cache. Check debug.log for progress.");
     CheckRPCExecuteThrows("getsupply 0",

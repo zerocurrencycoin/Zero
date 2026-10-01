@@ -184,7 +184,7 @@ struct evhttp* eventHTTP = 0;
 static std::vector<CSubNet> rpc_allow_subnets;
 //! Work queue for handling longer requests off the event loop thread
 static WorkQueue<HTTPClosure>* workQueue = 0;
-/** S8: edge-trigger WARNING once per work-queue-full episode */
+/** Log one WARNING per work-queue-full episode. */
 static bool fHttpWorkQueueFullWarned = false;
 //! Handlers for (sub)paths
 std::vector<HTTPPathHandler> pathHandlers;
@@ -292,7 +292,7 @@ static void http_request_cb(struct evhttp_request* req, void* arg)
         assert(workQueue);
         if (workQueue->Enqueue(item.get())) {
             item.release(); /* if true, queue took ownership */
-            // S8: allow one WARNING the next time the queue fills again
+            // Re-arm the WARNING for the next time the queue fills.
             fHttpWorkQueueFullWarned = false;
         } else {
             // Soft reject -- HTTP 503. Log once per full episode (not every reject).

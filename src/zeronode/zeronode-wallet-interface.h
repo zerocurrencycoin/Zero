@@ -210,7 +210,7 @@ public:
      * 
      * Used by: Zeronode registration and activation
      * Thread-safe: Requires wallet critical section lock
-     * Requirements: Exactly 1000 ZERO UTXO for collateral, wallet unlocked
+     * Requirements: Exactly 10000 ZER UTXO for collateral, wallet unlocked
      */
     virtual bool GetZeronodeVinAndKeys(CTxIn& txin, CPubKey& pubKeyCollateralAddress, 
                                       CKey& keyCollateralAddress, std::string& strTxHash, 

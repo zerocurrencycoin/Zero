@@ -133,16 +133,15 @@ NU_TEST_ARGS = [
     '-nuparams=7361707a:1',  # Sapling (Zero branch ID)
 ]
 
-# Lean harness defaults (CLI). Intentionally not set here (operator / zero.conf):
-#   -dbcache     -- product default 800 MiB; Linux runs keep that
-#   zk params    -- ZC_LoadParams always maps Sapling+Sprout at startup (C++; no flag)
-#   node count   -- initialize_chain still freezes 4 wallets; per-test start_nodes may use 1-3
-# Tor: DEFAULT_LISTEN_ONION=false; datadir conf also sets listenonion=0. No compile-out.
-# I2P: not in this tree (PIR-08 deferred).
-# Do NOT set -rpcthreads=1: getblocktemplate longpoll holds one worker; a single
-# thread starves concurrent RPC (generate / getnewaddress) and times out.
-# Tests that need consistency checks pass -checkmempool / -checkblockindex=1.
-# -maxconnections=64 >> p2p_nu_peer_management (12 inbound mininodes).
+# Harness defaults. Deliberately not set here:
+#   -dbcache: the node default (800 MiB) applies.
+#   Proving params: ZC_LoadParams always loads Sapling and Sprout at startup.
+#   Node count: initialize_chain caches 4 wallets; tests may start 1-3 nodes.
+# Tor: onion listening is off by default, and the datadir conf also sets listenonion=0.
+# Do not set -rpcthreads=1: a getblocktemplate longpoll holds one worker, and a single
+# thread starves concurrent RPC (generate, getnewaddress) until it times out.
+# Tests that need consistency checks pass -checkmempool / -checkblockindex=1 themselves.
+# -maxconnections=64 leaves room for p2p_nu_peer_management (12 inbound mininodes).
 TEST_NODE_ARGS = [
     '-par=1',
     '-maxconnections=64',
@@ -177,8 +176,7 @@ def _rpc_cache_is_current(cache_root, expected_tip):
         return False
     marker = _rpc_cache_tip_marker_path(cache_root)
     if not os.path.isfile(marker):
-        # Pre-CACHE_TIP archives (e.g. Testing/cache400*.tgz) look present but
-        # are treated as stale -- unpack and write CACHE_TIP, or rebuild.
+        # A cache without CACHE_TIP is stale; add the marker or rebuild.
         print("initialize_chain: WARNING: cache at %s has no CACHE_TIP "
               "(expected tip %d); will rebuild unless marker is added"
               % (cache_root, expected_tip))

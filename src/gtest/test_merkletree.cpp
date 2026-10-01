@@ -287,10 +287,8 @@ TEST(merkletree, testZeroElements) {
     }
 }
 
-// Regression test for the root() cache added in IncrementalMerkleTree:
-// repeated root() calls, cache invalidation on append(), and preservation
-// of a correct root across a serialize/deserialize round-trip (regardless
-// of whether the source tree's cache happened to be warm or cold).
+// root() cache: repeated calls, invalidation on append(), and a correct root after
+// serialize/deserialize whether the source cache was warm or cold.
 TEST(merkletree, RootCacheConsistency) {
     SaplingMerkleTree tree;
 

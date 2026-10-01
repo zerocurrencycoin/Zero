@@ -12,8 +12,8 @@
 # in the next block are accepted into the memory pool,
 # but less mature coinbase spends are NOT.
 #
-# Uses the shared initialize_chain cache (tip = COINBASE_MATURITY + 5),
-# so the spendable-boundary coinbases are in node 0's first mining round.
+# Uses the shared initialize_chain cache (tip = COINBASE_MATURITY + 5), which puts the
+# spendable-boundary coinbases in node 0's first mining round.
 #
 
 from decimal import Decimal
@@ -48,9 +48,8 @@ class MempoolSpendCoinbaseTest(BitcoinTestFramework):
         assert_greater_than(chain_height, COINBASE_MATURITY)
         node0_address = self.nodes[0].getnewaddress()
 
-        # Coinbase at height chain_height-COINBASE_MATURITY+1 ok in mempool,
-        # should get mined. Coinbase at height chain_height-COINBASE_MATURITY+2
-        # is too immature to spend.
+        # The coinbase at chain_height-COINBASE_MATURITY+1 is accepted in the mempool and
+        # should be mined; the one at +2 is too immature to spend.
         spendable_height = chain_height - COINBASE_MATURITY + 1
         b = [ self.nodes[0].getblockhash(n) for n in range(spendable_height, spendable_height + 2) ]
         coinbase_txids = [ self.nodes[0].getblock(h)['tx'][0] for h in b ]

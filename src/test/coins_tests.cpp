@@ -683,12 +683,10 @@ BOOST_AUTO_TEST_CASE(chained_joinsplits)
     }
 }
 
-// AcceptToMemoryPool builds a CCoinsViewCache on tip+mempool, calls
-// HaveShieldedRequirements (Get*AnchorAt warms this cache), then
-// SetBackend(dummy) and later ContextualCheckInputs calls
-// HaveShieldedRequirements again. Dummy returns false for every Get*;
-// the second check only works if the first populated the cache.
-// chained_joinsplits alone does not cover this (one backend, one call).
+// ATMP checks shielded requirements on tip+mempool (warming the cache via Get*AnchorAt),
+// then again from ContextualCheckInputs against a dummy backend that returns false for
+// every Get*; the second check passes only from the cache. chained_joinsplits does not
+// cover this (one backend, one call).
 BOOST_AUTO_TEST_CASE(shielded_survive_dummy)
 {
     CCoinsViewTest base;

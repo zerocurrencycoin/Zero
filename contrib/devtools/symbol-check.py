@@ -18,9 +18,7 @@ import re
 import sys
 import os
 
-# Ubuntu 24.04 LTS (Noble) target:
-#   glibc 2.39, libstdc++ (GCC 14) GLIBCXX 3.4.33, CXXABI 1.3.15
-#
+# Ubuntu 24.04 target: glibc 2.39, GLIBCXX 3.4.33, CXXABI 1.3.15.
 MAX_VERSIONS = {
     'GCC':     (4, 4, 0),
     'CXXABI':  (1, 3, 15),

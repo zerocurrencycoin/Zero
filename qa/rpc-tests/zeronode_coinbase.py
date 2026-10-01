@@ -3,7 +3,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 
-"""TNT-12 Phase B: zeronode coinbase with default (off) sporks."""
+"""Zeronode coinbase with default (off) sporks."""
 
 from decimal import Decimal
 

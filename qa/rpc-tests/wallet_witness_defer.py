@@ -3,14 +3,12 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 """
-PROD-WIT-REGTEST: opt-in ibd-defer + NOTEIDX after -reindex.
+Opt-in -walletwitness=ibd-defer and -walletwitnessnote (both default off) after -reindex:
 
-R1/R2: Sapling spend after deferred rebuild.
-R5a: invalidate tip once chain tip restored (around rebuild window), then recover+spend.
-R5b: 1-, 3-, 10-, and 20-block invalidate after witnesses built; remine; spend still works.
-R7b: SIGKILL during -walletwitness=rebuild; restart; eventually spend.
-
-Tier: B pass. Opt-in `-walletwitness=ibd-defer` / `-walletwitnessnote`; flags default off.
+- Sapling spend after the deferred witness rebuild.
+- Invalidate the tip once it is restored, around the rebuild window; recover; spend.
+- Invalidate 1, 3, 10, and 20 blocks after witnesses are built; remine; spend.
+- SIGKILL during -walletwitness=rebuild; restart; spend.
 """
 
 import time
@@ -36,7 +34,7 @@ def reorg_n_blocks(node, n):
     tip = node.getblockcount()
     assert_greater_than(tip, n - 1)
     deep_hash = node.getblockhash(tip - n + 1)
-    print("R5b-%d: invalidate height %d (%s) then remine %d" % (n, tip - n + 1, deep_hash, n))
+    print("reorg %d: invalidate height %d (%s) then remine %d" % (n, tip - n + 1, deep_hash, n))
     node.invalidateblock(deep_hash)
     assert_equal(node.getblockcount(), tip - n)
     node.generate(n)
@@ -123,9 +121,9 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
             tip_after = node.getblockcount()
         assert_equal(tip_after, tip_before)
 
-        # R5a: tip restored; poke reorg around post-import rebuild window.
+        # Reorg one block around the post-import rebuild window.
         tip_hash = node.getbestblockhash()
-        print("R5a: invalidateblock %s (tip restored)" % tip_hash)
+        print("invalidateblock %s (tip restored)" % tip_hash)
         node.invalidateblock(tip_hash)
         assert_equal(node.getblockcount(), tip_before - 1)
         assert_greater_than(node.getblockcount(), 0)
@@ -139,7 +137,7 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
         wi2 = node.getwalletinfo()
         assert_greater_than(wi2.get("note_tx_count", 0), 0)
         print(
-            "Post-reindex+defer+noteidx+R5a: tip=%d z_balance=%s note_tx_count=%s"
+            "Post-reindex defer + note index: tip=%d z_balance=%s note_tx_count=%s"
             % (tip_after, bal_after, wi2.get("note_tx_count"))
         )
 
@@ -153,11 +151,11 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
         assert_equal(Decimal(node.z_getbalance(zaddr2)), send_amt)
         expected_change = amount - send_amt - fee
         assert_equal(Decimal(node.z_getbalance(zaddr)), expected_change)
-        print("Success: R1/R2/R5a defer+NOTEIDX shielded spend after -reindex")
+        print("Success: shielded spend after -reindex with defer + note index")
 
-        # R5b: post-build reorgs inside WITNESS_CACHE_SIZE (100) / MAX_REORG (99).
-        # 1 and 3 are tip-poke / short multi-pop. 10 and 20 exercise deeper Decrement
-        # still well below the 99 policy cap (excessive reject is TNT-02 / R5d).
+        # Post-build reorgs inside WITNESS_CACHE_SIZE (100) and MAX_REORG_LENGTH (99).
+        # 1 and 3 poke the tip or pop a few entries; 10 and 20 exercise deeper decrements.
+        # Reorgs beyond 99 are refused by node policy and are not tested here.
         reorg_n_blocks(node, 1)
         node.generate(3)
         reorg_n_blocks(node, 3)
@@ -174,10 +172,10 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
         wait_and_assert_operationid_status(node, opid3)
         node.generate(1)
         assert_equal(Decimal(node.z_getbalance(zaddr3)), send2)
-        print("Success: R5b 1/3/10/20-block spend after post-build reorg")
+        print("Success: spend after 1/3/10/20-block reorgs")
 
-        # R7b: SIGKILL during forced tip rebuild; restart and spend.
-        print("R7b: restart with -walletwitness=rebuild then SIGKILL")
+        # SIGKILL during a forced rebuild; restart and spend.
+        print("restart with -walletwitness=rebuild then SIGKILL")
         stop_node(node, 0)
         wait_bitcoinds()
         self.nodes[0] = start_node(
@@ -194,7 +192,7 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
         proc.kill()
         proc.wait()
         bitcoind_processes.pop(0, None)
-        print("R7b: killed pid; restart with defer+noteidx")
+        print("killed pid; restart with defer + note index")
         self.nodes[0] = start_node(
             0,
             self.options.tmpdir,
@@ -216,7 +214,7 @@ class WalletWitnessDeferTest(BitcoinTestFramework):
         wait_and_assert_operationid_status(node, opid4)
         node.generate(1)
         assert_equal(Decimal(node.z_getbalance(zaddr4)), send3)
-        print("Success: R7b spend after kill mid-rebuild restart")
+        print("Success: spend after kill mid-rebuild restart")
 
 
 if __name__ == "__main__":

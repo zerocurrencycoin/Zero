@@ -52,35 +52,25 @@ analyze_build_log() {
   grep -iE "warning:" "$f" 2>/dev/null | tail -15 || echo "(none)" >&2
 }
 
-# Start logging: tee all output to LOG_FILE. Default is a fresh timestamped file so prior
-# runs are preserved; -L / --log overrides the path. Call once, right after parse.
-#
-# Log retention: .build/ is gitignored and not pruned. Once a build flow is reliable, keep
-# only the newest N per script instead of accumulating (a depends build log is large):
-#     ls -tp .build/<ME>-*.log | tail -n +6 | xargs -r rm --   # keep newest 5
-# Or set ZERO_LOG_KEEP=N and call prune_logs after init_logging (see below). Default: no prune.
-# Older runs may still live under gitignored logs/.
+# Tee stdout+stderr to LOG_FILE (default: new timestamped .build/<ME>-*.log; -L overrides).
+# Call once after arg parsing; ZERO_LOG_KEEP=N prunes to the newest N logs (default: none).
+# Because the whole script is teed, build commands run without per-command pipes, which
+# would double-log and put pipefail on the critical path; entry scripts trap ERR instead.
 init_logging() {
   LOG_FILE="${LOG_FILE:-$REPO_ROOT/.build/${ME}-$(date +%Y%m%d-%H%M%S).log}"
   mkdir -p "$(dirname "$LOG_FILE")"
   exec > >(tee -a "$LOG_FILE") 2>&1
   notice "Log: $LOG_FILE"
-  # Must not be the trailing statement: a false test returns 1 and, as the last command,
-  # would make init_logging return 1 and abort the caller under set -e.
+  # Not the last statement: a false test would return 1 and abort callers under set -e.
   if [ -n "${ZERO_LOG_KEEP:-}" ]; then prune_logs "${ZERO_LOG_KEEP}"; fi
 }
 
-# Keep only the newest N logs for this script (ME); opt-in via ZERO_LOG_KEEP or explicit call.
-# Solves "huge accumulating logs once the build is reliable" without deleting a run mid-flight.
+# Keep the newest N logs for this script (ME).
 prune_logs() {
   local keep="${1:-5}" dir
   dir="$(dirname "${LOG_FILE:-$REPO_ROOT/.build/x}")"
   ls -tp "$dir/${ME}-"*.log 2>/dev/null | tail -n +"$((keep + 1))" | xargs -r rm -- 2>/dev/null || true
 }
-
-# init_logging tees the whole script (stdout+stderr) to LOG_FILE, so build commands are
-# run directly -- no per-command pipe. (A pipe here would double-log and reintroduce a
-# pipefail-in-critical-path.) Failures are caught by the ERR trap in the entry scripts.
 
 # Call on build failure: analyze log if set, then err.
 build_fail() {
@@ -299,4 +289,15 @@ cleanup_secp256k1_la() {
       rm -f "$REPO_ROOT/src/secp256k1/libsecp256k1.la" "$REPO_ROOT/src/secp256k1/config.status"
     fi
   fi
+}
+
+# Release version from the configured tree (src/config/bitcoin-config.h PACKAGE_VERSION,
+# e.g. 4.1.0-rc1). Works for cross builds whose binaries cannot run on the build host.
+zero_package_version() {
+  sed -n 's/^#define PACKAGE_VERSION "\(.*\)"$/\1/p' "$REPO_ROOT/src/config/bitcoin-config.h" 2>/dev/null | head -1
+}
+
+# SHA-256 in sha256sum output format: sha256sum on Linux, shasum -a 256 on macOS.
+sha256_cmd() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi
 }
