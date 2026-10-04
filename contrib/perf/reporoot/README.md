@@ -8,8 +8,7 @@ Z tracks them.
 
 | Draft | Zero target |
 |-------|-------------|
-| `MAINTREE_CHANGES.md` | `src/` and `qa/` changes made in this tree |
-| `LAYOUT.md` | Root documents and inherited `contrib/` |
-| `TODO.review.md` | `TODO.md` |
-| `DOC-CONVENTIONS.md` | `UpdateZero.md` DOC-CONVENTIONS |
-| `MIGRATION_PLAN.md` | Satellite repositories (owner decision) |
+| `MAINTREE_CHANGES.md` | `src/` and `qa/` changes made in this tree, for review |
+| `TODO.proposals.md` | `TODO.md` entries |
+| `DOC-CONVENTIONS.md` | Replacement for the `UpdateZero.md` DOC-CONVENTIONS entry |
+| `MIGRATION_PLAN.md` | Satellite repositories; owner note, not a `TODO.md` item |

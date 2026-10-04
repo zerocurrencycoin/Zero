@@ -557,7 +557,7 @@ values to `M-*` citations.
 | REL | Release, CI, packaging; Zero's REL | F5, F10, Q8 |
 | TST | Test suites and build configuration | G1-G3 |
 | DOC | Documentation set | D1-D3, D6, D8, D11, D15 |
-| ZERO | Handoff to Zero | Z2, Z5-Z10 |
+| ZERO | Handoff to Zero | Z2, Z5-Z8, Z10 |
 
 Moves that change grouping, not only ids: K3 to LAB (a sampling feature of
 the launchers), K4 and K10 to NET, B4, B6 and C5 to WAL (wallet RPC
@@ -573,11 +573,10 @@ and kept to what is still pending.
 | Id | Item | Kanban | Disp |
 |----|------|--------|------|
 | Z6 | `reporoot/MAINTREE_CHANGES.md`: `src/` and `qa/` changes for Zero to review and apply, with release notes for behaviour changes | ToDo | Open |
-| Z8 | `reporoot/LAYOUT.md`: `AtHeight.md` and `WitnessReindex.md` to `doc/design/`; stray `concept` on `README.md` line 1; delete `contrib/spendfrom/`; keep and rename `contrib/qos/` | ToDo | Open |
-| Z9 | `reporoot/TODO.review.md`: three measurement items from `TODO.md` into this register | ToDo | Open |
-| Z5 | `reporoot/DOC-CONVENTIONS.md`: writing rules proposed for DOC-CONVENTIONS | ToDo | Open |
-| Z10 | `reporoot/MIGRATION_PLAN.md`: satellite repositories; commit uniblake's cited docs first | ToDo | Open -- decision: owner |
+| Z8 | `reporoot/TODO.proposals.md`: REL-05 (`contrib/spendfrom/`, `contrib/qos/`), DOC-ROOT-PLANNING, three items out of `TODO.md` | ToDo | Open |
+| Z5 | `reporoot/DOC-CONVENTIONS.md`: replacement for the DOC-CONVENTIONS entry, approved 2026-10-03 | ToDo | Open -- Zero applies it |
+| Z10 | `reporoot/MIGRATION_PLAN.md`: `insight` to the organisation when convenient; nothing else moves | ToDo | Postponed -- not urgent |
 | Z2 | Zeronode test track, now Zero ZN-01 and DOC-02: argument validation on existing Boost; founders window; two-node `startalias`; zeronode `invalidateblock` after A5 | ToDo | Open |
 | Z7 | Root documents here are older than Zero's (`UpdateZero.md` has no DOC-CONVENTIONS here); refresh them from Zero by merge, not by edit | ToDo | Open |
 
-Finished: Z1 and Z4, fixed in Zero; P26 merged into Z8.
+Finished: Z1 and Z4, fixed in Zero; P26 (stray `concept` on `README.md` line 1), fixed in both trees 2026-10-03; Z9 merged into Z8.
