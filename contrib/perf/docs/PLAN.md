@@ -21,40 +21,50 @@ item it governs: its Disp reads `decision:` and states the options.
 
 ## Pick up here
 
-Release build; `zero-gtest`, Boost and `validate.sh` gates green.
+State: release build; `zero-gtest`, Boost, `lint-perf.sh` and `validate.sh`
+green. Documentation pass committed (`0ee0673a5`, `9fd2b8eb9`).
 
-**Sequence.** Steps 1-3 approved 2026-09-30. Measurements wait for a fresh
-session after these changes are built, committed and released.
+**Sequence.** Steps 1-3 approved 2026-09-30.
 
-1. *Records:* N21 steps 1-2, `runtime_record` in the remaining launchers
-   with an audit of their rows; N15 original-archive n=4 (short; runs with
-   N21's checks).
-2. *Correctness:* P13 two missing tests -- each must fail with the skip
-   reverted or the disk re-check removed, and pass now.
-3. *Recording coverage:* N21 steps 3-6, witness and wallet runs into
-   RecBench and one copy of each launcher helper. N25 and N20 alongside.
-4. *Measurements, postponed to a fresh session:* P20 `-par=4` rerun with
-   thermal sampling, K8 remeasures -- one idle-host slot, standard lab config.
-5. *Needs inputs this host lacks:* A4, A3, A10, A12 need the golden fat and
-   p1 wallets; A9 needs `fulltip-812-datadir`, which `prep_lab_datadir.sh`
-   recreates from `chainblocks812-clean.tgz`.
+0. *Commit* the `README.md` line 1 fix here and in Zero, and this section.
+1. *Records:* N21 steps 2-3; N15 original-archive n=4.
+2. *Correctness:* P13 two missing tests -- each fails with the skip reverted
+   or the disk re-check removed, and passes now.
+3. *Recording coverage:* N21 steps 4-5.
+4. *Documentation:* D15 values stated once; D3 checks (headings, `M-*` ids,
+   paths, flags) into `check_citations.py`; D10 manifest; D8 per-file pass.
+5. *Measurements, a fresh session on an idle host:* P20 `-par=4` rerun with
+   thermal sampling; K8.
+6. *Needs inputs this host lacks:* A4, A3, A10, A12 need the golden fat and
+   p1 wallets; A9 needs `fulltip-812-datadir` (`prep_lab_datadir.sh`).
 
-Parked: group Q, Y1, group F (no Linux host), P18.
+For Zero: Z5, Z6, Z8, then Z7. Postponed: H3 and H4, `TOOLING_FAILURES.md`,
+Z10. Parked: group Q, Y1, group F (no Linux host), P18.
 
-**Needs a scheduled slot:** A4 overnight `-rescan` remeasure, which finishes
-A1 -- F2 a first non-macOS capture, which needs a Linux host -- A3's
-disposable tip above height 492,850 with notes in range 
+**Needs a scheduled slot:** A4 overnight `-rescan`, which finishes A1; F2,
+which needs a Linux host; A3's disposable tip above height 492,850 with
+notes in range.
 
-**Settled, do not re-derive.** The lock instrument's 2.9M and 4.46M totals
-were acquisition counts; the real figure is six recursive sites at 5.92 per
-block, all inherited lock-per-function composition (`LOCKS.md` "What
-recursion actually exists").
+**Settled, do not re-derive.** Recursion is six inherited
+lock-per-function sites (M-LOCK-ATTR, `LOCKS.md` "What recursion actually
+exists"); the instrument's earlier totals were acquisition counts.
+
+**Restart prompt.**
+
+```
+ZeroPerf, branch perf_b1b2. Read contrib/perf/docs/PLAN.md "Pick up here"
+and contrib/perf/docs/POLICY.md; start at the first unfinished step.
+Run contrib/perf/lint-perf.sh and validate.sh before and after a change.
+Root and Zero-owned files are read-only; proposals go to
+contrib/perf/reporoot/. Writing rules: reporoot/DOC-CONVENTIONS.md.
+```
 
 **Harness rules.** Rebuild clean after `./configure` -- it regenerates
 makefiles without invalidating objects, so an incremental build carries new
 flags only in recompiled units; check with `nm src/zerod` and the binary
-timestamp. Never compare debug and release timings. Run the test suites sequentially. `validate.sh` fails
-`buildconfig` while a debug binary is in the tree.
+timestamp. Never compare debug and release timings. Run the test suites
+sequentially. `validate.sh` fails `buildconfig` while a debug binary is in
+the tree.
 
 ---
 
@@ -459,8 +469,8 @@ tight documents in `docs/`, each owning one module or subject.
 |----|------|--------|------|--------|
 | D1 | Merge to the target shape, one absorbed file per commit, each net-negative; `TOOLING_FAILURES.md` left as it is | InProgress | Open; `TOOLING_FAILURES.md` postponed 2026-10-01 | -- |
 | D2 | Confirm the reorganisation: `SYNC.md` and `WITNESS.md` own their modules; this file is the one register | InTest | Open | -- |
-| D6 | Rules in one place per scope: `POLICY.md` keeps the perf-specific rules; general writing rules defer to Zero's DOC-CONVENTIONS once adopted | InTest | Open | below |
-| D8 | Writing-rules pass per file: narration, transient counts, deleted-file mentions, restated values. Done for `PLAN.md` | InProgress | Open | below |
+| D6 | Rules in one place per scope: `POLICY.md` keeps the perf-specific rules; general writing rules defer to Zero's DOC-CONVENTIONS | InTest | Open -- done here; waits on Z5 | below |
+| D8 | Writing-rules pass per file: narration, transient counts, deleted-file mentions, restated values. Done for `PLAN.md` and `POLICY.md` | InProgress | Open | below |
 | D10 | One manifest per kind of list, read by every script and document that needs it | ToDo | Open | below |
 | D15 | `M-*` values stated once: in `Measures.md` | ToDo | Open | below |
 | D3 | Section-number citations to heading titles; `check_citations.py` fails on section numbers, bare file names, a cited heading that does not exist, an `M-*` id with no row, and a path or script flag the tree lacks | ToDo | Blocked on D1 | -- |
