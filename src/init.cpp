@@ -433,7 +433,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-consolidation", _("Enable auto Sapling note consolidation"));
     strUsage += HelpMessageOpt("-consolidatesaplingaddress=<zaddr>", _("Specify Sapling Address to Consolidate. (default: all)"));
     strUsage += HelpMessageOpt("-consolidationtxfee", strprintf(_("Fee amount in Satoshis used send consolidation transactions. (default %i)"), DEFAULT_CONSOLIDATION_FEE));
-    strUsage += HelpMessageOpt("-deletetx", _("Enable Old Transaction Deletion"));
+    strUsage += HelpMessageOpt("-deletetx", _("Delete old, spent transactions from the wallet file (see -keeptxnum, -keeptxfornblocks); the zs_* history RPCs and getalldata still list them through the transaction archive"));
     strUsage += HelpMessageOpt("-deleteinterval", strprintf(_("Delete transaction every <n> blocks during inital block download (default: %i)"), DEFAULT_TX_DELETE_INTERVAL));
     strUsage += HelpMessageOpt("-keeptxnum", strprintf(_("Keep the last <n> transactions (default: %i)"), DEFAULT_TX_RETENTION_LASTTX));
     strUsage += HelpMessageOpt("-keeptxfornblocks", strprintf(_("Keep transactions for at least <n> blocks (default: %i)"), DEFAULT_TX_RETENTION_BLOCKS));
@@ -1887,7 +1887,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 InitWarning(msg);
             }
             else if (nLoadWalletRet == DB_TOO_NEW)
-                strErrors << _("Error loading wallet.zero: Wallet requires newer version of Bitcoin Core") << "\n";
+                strErrors << _("Error loading wallet.zero: Wallet requires a newer version of Zero") << "\n";
 
             else if (nLoadWalletRet == DB_NEED_REWRITE)
             {

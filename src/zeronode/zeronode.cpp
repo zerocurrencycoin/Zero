@@ -203,7 +203,7 @@ void CZeronode::Check(bool forceCheck)
             return;
         }
 
-        CTxOut vout = CTxOut(9999.99 * COIN, scriptPubKey);
+        CTxOut vout = CTxOut(ZERONODE_COLLATERAL_CHECK_VALUE, scriptPubKey);
         tx.vin.push_back(vin);
         tx.vout.push_back(vout);
 
@@ -257,7 +257,7 @@ int64_t CZeronode::GetLastPaid()
 
     const CBlockIndex* BlockReading = pindexPrev;
 
-    int nMnCount = znodeman.CountEnabled() * 1.25;
+    int nMnCount = ZeronodeCountWithMargin(znodeman.CountEnabled());
     int n = 0;
     for (unsigned int i = 1; BlockReading && BlockReading->nHeight > 0; i++) {
         if (n >= nMnCount) {
@@ -568,7 +568,7 @@ bool CZeronodeBroadcast::CheckInputsAndAdd(int& nDoS)
         return false;
     }
 
-    CTxOut vout = CTxOut(9999.99 * COIN, scriptPubKey);
+    CTxOut vout = CTxOut(ZERONODE_COLLATERAL_CHECK_VALUE, scriptPubKey);
     tx.vin.push_back(vin);
     tx.vout.push_back(vout);
 

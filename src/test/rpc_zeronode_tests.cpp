@@ -10,6 +10,9 @@
 #include "amount.h"
 #include "chainparams.h"
 #include "zeronode/spork.h"
+#include "zeronode/swifttx.h"
+#include "zeronode/zeronode.h"
+#include "wallet/wallet.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/test/unit_test.hpp>
@@ -195,6 +198,31 @@ BOOST_AUTO_TEST_CASE(getzeronodepayment_sporks)
     BOOST_CHECK_EQUAL(GetZeronodePayment(0, 10 * COIN), 10 * COIN * 20 / 100);
     BOOST_CHECK_EQUAL(GetZeronodePayment(interval, 10 * COIN), 10 * COIN * 25 / 100);
     mapSporksActive = saved;
+}
+
+// Amount constants written as decimal fractions of COIN fold to exact integers at
+// compile time; a rounding change would fail the build.
+static_assert(nHighTransactionFeeWarning == 1000000, "0.01 * COIN");
+static_assert(DEFAULT_TRANSACTION_MAXFEE == 10000000, "0.1 * COIN");
+static_assert(nHighTransactionMaxFeeWarning == 100000000, "100 * 0.01 * COIN");
+static_assert(ZERONODE_COLLATERAL_CHECK_VALUE == 999999000000LL, "9999.99 ZER");
+static_assert(SWIFTTX_MIN_COLLATERAL_FEE == 10000, "0.0001 ZER");
+
+// Integer forms of former floating-point expressions: identical results over the
+// whole range of zeronode counts and heights the network can reach.
+BOOST_AUTO_TEST_CASE(zeronode_integer_math)
+{
+    for (int n = 0; n <= 200000; ++n) {
+        BOOST_REQUIRE_EQUAL(ZeronodeCountWithMargin(n), int(n * 1.25));
+        for (int nHeight : {0, 1, 1000, 2500000, 50000000}) {
+            BOOST_REQUIRE_EQUAL(ZeronodePaymentWindowStart(nHeight, n), int(nHeight - (n * 1.25)));
+        }
+    }
+    BOOST_CHECK_EQUAL(ZERONODE_COLLATERAL_CHECK_VALUE, CAmount(9999.99 * COIN));
+    BOOST_CHECK_EQUAL(ZERONODE_COLLATERAL_CHECK_VALUE, CAmount(999999000000LL));
+    BOOST_CHECK_EQUAL(SWIFTTX_MIN_COLLATERAL_FEE, CAmount(COIN * 0.0001));
+    BOOST_CHECK_EQUAL(SWIFTTX_MIN_COLLATERAL_FEE, CAmount(10000));
+    BOOST_CHECK_EQUAL(CAmount(COIN / 10), CAmount(0.1 * COIN));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

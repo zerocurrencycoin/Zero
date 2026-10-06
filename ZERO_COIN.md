@@ -39,7 +39,7 @@ Chain economics, consensus parameters, operational facts, and where Zero differs
 | **Reindex** / **Rescan** | Chain index rebuild vs wallet rescan. |
 | **Params** | Proving keys; **fetch-params** scripts. |
 | **MAX_MONEY** | Caps **single-output** amounts; total issued supply is a separate concept (**Total supply**). |
-| **Deprecation** | Mainnet may shut down after a long release window; see [README -- Security Warnings](README.md) and `getdeprecationinfo`. |
+| **Deprecation** | Mainnet nodes shut down at an end-of-support height; `getdeprecationinfo` reports it. |
 | **P2P subver** | Peer user-agent subversion. |
 | **Mempool** | Unconfirmed txs awaiting blocks. |
 
@@ -181,7 +181,7 @@ Total supply is targeted at some **20M ZER**. **`MAX_MONEY`** in **`src/amount.h
 
 ### Integer arithmetic
 
-Subsidy and founders amounts must match in miner, `ConnectBlock`, GBT, and RPC. Mixing `double` with `CAmount` (`10.8 * COIN`, `* 0.075`, `* 7.5 / 100`) can diverge by path after many halvings. **Target:** one integer rule -- base subsidy in zats; founders **`subsidy * 75 / 1000`** (trunc toward 0); same helper everywhere. Zeronode share already uses integer percent (`blockValue * N / 100`). **In tree:** `GetFoundersRewardAmount` / integer `GetBlockSubsidy`. Remaining naming: **DOC-FR-NAMING** (TODO). Supply vs ~20M target: TODO, not this helper.
+Subsidy is computed in integer zatoshis (`GetBlockSubsidy`); founders are `subsidy * 75 / 1000`, truncated toward zero (`GetFoundersRewardAmount`); the zeronode share uses integer percent (`blockValue * N / 100`). Miner, `ConnectBlock`, block templates, and RPC use the same helpers.
 
 ---
 
@@ -213,13 +213,13 @@ Mainnet donation address published with the desktop wallet project: `t1fDbALrS7t
 
 ## Operational reference
 
-- **Default RPC port:** **23811** (P2P is **23801**; see [README -- Running Zero](README.md#-running-zero), `src/chainparamsbase.cpp`).
+- **Default RPC port:** **23811** (P2P is **23801**; `src/chainparamsbase.cpp`).
 - **Datadir / wallet:** see table below; wallet file **`wallet.zero`** -- **back up** before upgrades.
-- **Proving params:** `zcutil/fetch-params.sh`; see [BUILD_ZERO.md](BUILD_ZERO.md) (`.zero` directory / params).
+- **Proving params:** `zcutil/fetch-params.sh`.
 
 ### Default data paths
 
-Replace **`USERNAME`** with your OS login. Platform setup examples: [README](README.md#data-directory).
+Replace **`USERNAME`** with your OS login.
 
 | Platform | Data directory | Proving params |
 |----------|----------------|----------------|
@@ -236,7 +236,7 @@ Mainnet: [https://insight.zeromachine.io/](https://insight.zeromachine.io/) -- p
 
 ## Security
 
-The node is **experimental**; use at your own risk. Back up keys and wallet files. See [README -- Security Warnings](README.md) and [Zcash security information](https://z.cash/support/security/).
+The node is **experimental**; use at your own risk. Back up keys and wallet files. See [Zcash security information](https://z.cash/support/security/).
 
 ---
 

@@ -56,7 +56,6 @@ Maintainers merge once review concerns are resolved and the merge gate passes.
 3. Run the merge gate: `./contrib/run-tests.sh --strict`. Without `--strict` the runner may exit 0 after a failed step.
 4. Push the branch and open the pull request.
 
-Open work is listed in [TODO.md](TODO.md).
 
 ---
 

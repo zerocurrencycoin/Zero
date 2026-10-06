@@ -1,6 +1,6 @@
 # Zero Nodes -- zeronode operator guide
 
-How to run a zeronode on mainnet or testnet: collateral, configuration, sporks, coinbase payments, and node behavior on a deep reorg. Source for the public operator section in BUILD_ZERO (ZN-01 in ZeroNodeDev.md).
+How to run a zeronode on mainnet or testnet: collateral, configuration, sporks, coinbase payments, and node behavior on a deep reorg. Source for the public operator section in BUILD_ZERO (ZN-01).
 
 ---
 
@@ -26,7 +26,7 @@ Payee amounts must match exactly; overpayment to the winner is logged as `OVERPA
 
 ## 3. Sporks
 
-Sporks are network-wide switches signed with the spork key. The unsigned default for the IDs below is off (timestamp `4070908800`); mainnet uses signed values. Regtest tests that need payees activate sporks with `createsporkkeys` and `spork`. Mechanics and key status: ZeroNodeDev.md section 6.
+Sporks are network-wide switches signed with the spork key. The unsigned default for the IDs below is off (timestamp `4070908800`); mainnet uses signed values. Regtest tests that need payees activate sporks with `createsporkkeys` and `spork`.
 
 | Spork | Effect |
 |-------|--------|
@@ -73,7 +73,7 @@ Then start it with `./src/zero-cli zeronode startalias MN1` (or `startzeronode "
 
 A node refuses to apply a reorg, or an unintended rewind at startup, deeper than 99 blocks. Instead it logs the event, shows a modal, and shuts down; the competing fork is not connected. Coinbase maturity (720 blocks) is a separate rule.
 
-A reorg of 100 to 719 blocks therefore takes the zeronode off the network while its collateral may still be immature. The 99-block bound is tied to the size of the shielded witness cache; following unbounded reorgs, as TENT does, is rejected. Analysis and options: UpdateZero section 8.3.
+A reorg of 100 to 719 blocks therefore takes the zeronode off the network while its collateral may still be immature. The 99-block bound is tied to the size of the shielded witness cache; following unbounded reorgs, as TENT does, is rejected.
 
 ---
 

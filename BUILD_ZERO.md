@@ -199,13 +199,13 @@ Default builds are **not** stripped. The packaging scripts strip the staged copi
 
 Tag `vMAJOR.MINOR.PATCH` from the release line after a clean build and contributor gate. Archives: `Zero-<ver>-<target>-<triplet>.<ext>`.
 
-**Build and test.** Build per section 2. Confirm the machine with `zcutil/check-setup.sh` and identity with `zcutil/check-release.sh --exact` when tagging (clean tree; HEAD must equal `--release`, default **v4.1.0-rc1**). Then `zcutil/build-release.sh` if you still need a compile, and:
+**Build and test.** Build per section 2. Confirm the machine with `zcutil/check-setup.sh` and identity with `zcutil/check-release.sh --exact` when tagging (clean tree; HEAD must equal `--release`, default **v4.1.0-rc1**; the version `configure.ac` produces and `zerod -version` must match it). Then `zcutil/build-release.sh` if you still need a compile, and:
 
 ```bash
 ./contrib/run-tests.sh --strict
 ```
 
-Or `./contrib/run-tests.sh --strict` if a receipt already exists. Logs: `.build/test-logs/`. Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`. On failure: [TEST_ZERO.md](TEST_ZERO.md).
+Or `./contrib/run-tests.sh --strict` if a receipt already exists. Logs: `.build/test-logs/`. Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`.
 
 **Package.** Run the packaging script for each shipped platform (section 2.5). `contrib/devtools/split-debug.sh` exists for separate debuginfo but is not wired in.
 
@@ -514,7 +514,7 @@ Or run **`./zcutil/build.sh`**, which does this automatically. Do **not** use **
 
 **Mutex crash (macOS):** `rm -rf "$HOME/Library/Application Support/zero/database"` and restart.
 
-**`-bind_at_load` linker warning (macOS):** Manual **`make`** or **`make check-symbols`** without **`MACOSX_DEPLOYMENT_TARGET`** can print **`ld: warning: -bind_at_load is deprecated on macOS`**. GNU libtool adds the flag when the env var is unset (defaults to **`10.0`**). **`./zcutil/build.sh`** exports **`MACOSX_DEPLOYMENT_TARGET=15.0`**; for manual builds run **`export MACOSX_DEPLOYMENT_TARGET=15.0`** first. Build still succeeds; warning is cosmetic. Permanent Makefile/configure export: postponed (**TODO** OPS-MACOS-DEPLOY-TARGET).
+**`-bind_at_load` linker warning (macOS):** Manual **`make`** or **`make check-symbols`** without **`MACOSX_DEPLOYMENT_TARGET`** can print **`ld: warning: -bind_at_load is deprecated on macOS`**. GNU libtool adds the flag when the env var is unset (defaults to **`10.0`**). **`./zcutil/build.sh`** exports **`MACOSX_DEPLOYMENT_TARGET=15.0`**; for manual builds run **`export MACOSX_DEPLOYMENT_TARGET=15.0`** first. Build still succeeds; warning is cosmetic. Permanent Makefile/configure export: postponed (OPS-MACOS-DEPLOY-TARGET).
 
 ### 6.3 Boost / GCC
 

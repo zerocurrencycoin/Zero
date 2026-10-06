@@ -3929,13 +3929,23 @@ bool ReconsiderBlock(CValidationState& state, CBlockIndex *pindex) {
     return true;
 }
 
+CBlockIndex* LookupBlockIndex(const uint256& hash)
+{
+    BlockMap::const_iterator it = mapBlockIndex.find(hash);
+    return it == mapBlockIndex.end() ? nullptr : it->second;
+}
+
 CBlockIndex* AddToBlockIndex(const CBlockHeader& block)
 {
-    // Check for duplicate
+    // Check for duplicate. A null entry (left by mapBlockIndex[hash] on an unknown hash)
+    // counts as absent and is replaced.
     uint256 hash = block.GetHash();
     BlockMap::iterator it = mapBlockIndex.find(hash);
-    if (it != mapBlockIndex.end())
-        return it->second;
+    if (it != mapBlockIndex.end()) {
+        if (it->second)
+            return it->second;
+        mapBlockIndex.erase(it);
+    }
 
     // Construct new block index object
     CBlockIndex* pindexNew = new CBlockIndex(block);
@@ -4562,7 +4572,7 @@ static bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state
     uint256 hash = block.GetHash();
     BlockMap::iterator miSelf = mapBlockIndex.find(hash);
     CBlockIndex *pindex = NULL;
-    if (miSelf != mapBlockIndex.end()) {
+    if (miSelf != mapBlockIndex.end() && miSelf->second) {
         // Block header is already known.
         pindex = miSelf->second;
         if (ppindex)

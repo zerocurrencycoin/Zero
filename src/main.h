@@ -130,6 +130,8 @@ extern CCriticalSection cs_main;
 extern CTxMemPool mempool;
 typedef boost::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
 extern BlockMap mapBlockIndex;
+/** Block index entry for hash, or nullptr; never inserts (unlike mapBlockIndex[hash]). Caller holds cs_main. */
+CBlockIndex* LookupBlockIndex(const uint256& hash);
 extern uint64_t nLastBlockTx;
 extern uint64_t nLastBlockSize;
 extern const std::string strMessageMagic;

@@ -19,7 +19,7 @@ This map covers the project's internal documents only; the public documents are 
 
 Removed in 4.1.0: ExtTests.md (superseded by TEST_ZERO) and `zcutil/check-host.sh` (former alias for `zcutil/check-setup.sh`). Documents kept outside this repository, referred to by name: Comparison.md (cross-fork source comparison, indexers, reorg family), ZeroC.md (zerocurrencycoin GitHub org audit), StatusTransitions.md (node readiness states and UI status map), and the Insight explorer runbooks (InsightBlock.md, InsightPort.md).
 
-**ID prefixes.** Rules and statuses: TODO.md "Tracking rules". Items owned here: CON, PIR, TNT, DOC, REL, TST, DEF; ZeroNodeDev.md: ZN; ZeroStruct.md: INT.
+**ID prefixes.** Rules and statuses: TODO.md "Tracking rules". Items owned here: CON, PIR, TNT, BTC, ZEC, CLN, DOC, REL, TST, DEF, and the RE- details (section 8); ZeroNodeDev.md: ZN; ZeroStruct.md: INT.
 
 **Scope rules.** Ubuntu 18.04 / glibc compatibility stays internal (section **3.6**) until its timeline relative to the next release is decided; public documents say only that the build OS sets the binary floor. Insight host installation is a specialty track, and Insight or bitcore pull requests are not node merge work. DevFee UTXO tooling and key inventory stay out of this repository.
 
@@ -76,7 +76,7 @@ These fixes are on the integration line; check that upstream merges do not rever
 
 ### 3.2 Using the upstream catalogs
 
-Pirate (sections **3.4**, **5**) and TENT (section **3.5**) are separate catalogs. **Reject**, **Skip**, and **Keep current** rows are settled. **Port**, **Review**, **Hold**, **Defer**, and **Implement** rows compete with Zcash and Bitcoin ports and Zero-local work for the next TODO slot. Prefer the Zcash fix when one exists; use Pirate or TENT only as a zcashd-shaped diff reference, or where Zero regressed upstream behavior. Commit ids in the catalogs identify the upstream change to port.
+Pirate (sections **3.4**, **5**), TENT (section **3.5**), and Bitcoin, Zcash, and clone features (section **3.7**) are separate catalogs. **Reject**, **Skip**, and **Keep current** rows are settled. **Port**, **Review**, **Hold**, **Defer**, and **Implement** rows compete with Zcash and Bitcoin ports and Zero-local work for the next TODO slot. Prefer the Zcash fix when one exists; use Pirate or TENT only as a zcashd-shaped diff reference, or where Zero regressed upstream behavior. Commit ids in the catalogs identify the upstream change to port.
 
 ### 3.3 Open build question
 
@@ -108,11 +108,11 @@ TENT (`TENTOfficial/TENT`, inactive since 2021) is the direct upstream of Zero's
 |----|------|------------|----------|
 | TNT-04 | Zeronode payee amount | Exact match (`==`); logs `OVERPAY` when a payee receives more than required | **Hold `>=`**; port only if OVERPAY lines appear (below) |
 | TNT-07 | Testnet min-difficulty after height 13000 | None | Consensus decision |
-| TNT-09 | LWMA3 difficulty | Zcash 17-block window | **Defer** |
+| TNT-09 | LWMA3 difficulty | Zcash 17-block window | **Defer**; CH-01 |
 | TNT-12 | Zeronode tests | Phases A, B, C (partial), E in tree | **Implement**; ZN-01 |
 | TNT-13 | Operator setup scripts | None | ZN-01 |
 | TNT-14 | libsnark `-march` (`db81202`) | Absent | Review only if a libsnark cross-build fails |
-| TNT-18 | `AcceptableInputs`, the collateral-only ATMP copy in `main.cpp` | Reads `-relaypriority` / `-limitfreerelay` with looser defaults than ATMP | **Postpone**; the looser collateral path is deliberate. Do not merge the flags into one global. Resolve with the wider ATMP duplication question |
+| TNT-18 | `AcceptableInputs`, the collateral-only ATMP copy in `main.cpp` | Reads `-relaypriority` / `-limitfreerelay` with looser defaults than ATMP | **Postpone**; the looser collateral path is deliberate. Do not merge the flags into one global. Resolve with the wider ATMP duplication question; CH-04 |
 | TNT-19 | Budget proposal end block (`e082fd4`, `fb8e2c0`) | `nBlockEnd` computed as `start + cycle * count` in `rpc/zeronode-budget.cpp` and `(cycle + 1) * count` in `budget.cpp` | **Review** before any superblock activation; TENT moved to `start + cycle * count + 1`. Superblocks are off on mainnet |
 
 Settled: TNT-01 done. TNT-02 and TNT-03 follow the reorg bound in section **2**. TNT-05 is **Skip** with a condition; TNT-06 is adopted:
@@ -159,6 +159,30 @@ docker run --rm -v "$PWD:/work" -w /work ubuntu:22.04 bash -lc '
 '
 python3 contrib/devtools/symbol-check.py src/zerod src/zero-cli src/zero-tx
 ```
+
+### 3.7 Bitcoin, Zcash, and clone feature catalog
+
+Features of Bitcoin Core (BTC), zcashd or Zebra (ZEC), and other clones (CLN) that Zero lacks or differs on, with a decision per row (TODO "Tracking rules"). Facts and sources: Comparison.md section 17.
+
+| ID | Feature | Zero today | Decision |
+|----|---------|------------|----------|
+| BTC-01 | `assumevalid` (skip scripts below one hash, no fork rejection) | Absent | **Review**; CH-05; must cover shielded proofs to matter |
+| BTC-02 | Headers presync (PR #25717) | Absent | **Hold**; CH-05; only relevant if checkpoints are dropped |
+| BTC-03 | assumeutxo snapshots | Absent | **Defer**; CH-05; needs shielded state in the snapshot |
+| BTC-04 | Checkpoint removal (PR #31649) | Checkpoints to 700,000 | **Hold**; RE-03 keeps consensus checkpoints for coordinated upgrades |
+| BTC-05 | Dead large-fork warning removed (#19905) | Dead branch present | **Port**; RE-02 |
+| BTC-06 | Partition check removed (#8275) | Present | **Review**; CH-01 replay decides |
+| BTC-07 | Pruning with wallet (0.12) and manual pruning (0.14) | Pruning disabled | **Hold**; section 8.10 |
+| ZEC-01 | Zebra 1000-block rollback window, stays up | 99, halts | **Review**; RE-01 |
+| ZEC-02 | Per-release end-of-support height | Set 2022, 520 weeks, ends about April 2032 | **Hold**; decided 2026-10-06 (section 8.6) |
+| ZEC-03 | Checkpoint list generation (`zebra-checkpoints`) | Manual | **Review**; RE-03 tooling |
+| CLN-01 | Flux header-level reorg bound with planned height windows | Halt after the fact | **Review**; RE-01 |
+| CLN-02 | Horizen delay penalty, `getblockfinalityindex`, `getglobaltips` | Absent | **Review** as monitoring only; RE-05. Consensus use: **Reject** |
+| CLN-03 | Horizen future-time limit against median-time-past | Bitcoin 2-hour limit | **Review**; CH-06 |
+| CLN-04 | TENT minimum spacing (block time at least parent + spacing / 3) | Absent | **Review**; CH-06 |
+| CLN-05 | TENT shielded-pool closure (t-to-z rejected, then all shielded transactions after 7 days) | -- | **Reject**; input to the Sprout wind-down: never close a pool to spends |
+| CLN-06 | Pirate `rescan` RPC with a start height | Startup `-rescan` only | **Port**; RE-07 step 5 |
+| CLN-07 | Bitcoin ABC and Gold `finalizeblock`, `parkblock`, minimum finalization age | Absent | **Review**; RE-04 tools, RE-06 |
 
 ---
 
@@ -290,20 +314,19 @@ Remaining work: one commented canonical `zero.conf` under `contrib/`, with the o
 
 *`-port` and `-rpcport` help.* `init.cpp` prints `(default: 23801 or testnet: 23802)` and `(default: 23811 or testnet: 23812)` from integer literals. The same numbers are defined once per network in the chain parameters: P2P in `CChainParams::nDefaultPort` (`chainparams.cpp`, read with `GetDefaultPort()`), RPC in `CBaseChainParams::nRPCPort` (`chainparamsbase.cpp`, read with `RPCPort()`). Zcash builds the help from them, for example `Params(CBaseChainParams::MAIN).GetDefaultPort()` and `Params(CBaseChainParams::TESTNET).GetDefaultPort()`, with `BaseParams`-style accessors for RPC. Doing the same removes the risk of help text drifting from the real defaults. Behavior does not change; validation is `zerod -help` output before and after, plus the existing RPC and P2P tests.
 
-**DOC-CONVENTIONS -- Documentation and comment rules.** Draft rules below, collected from review of the documentation passes. Target: the agent and contributor instruction files (AGENTS.md and the global agent configuration), aggregated with the wider LLM coding configuration effort so one rule set applies across Zero repositories. Until adopted there, these are guidance.
+**DOC-CONVENTIONS -- Rules not yet in AGENTS.md.** Code-comment and document rules to adopt into AGENTS.md; the documentation rules already there (filler, partitioning, references, ASCII, headings) are not repeated here.
 
-- *Sizing.* Content drives length: include what a reader needs to use, change, or validate the code or decision; drop what goes stale. No fixed line limits.
-- *Inline code comments.* Explain why: invariants, cross-component constraints, consensus and locking requirements. No task ids, status notes, dates, change history, personal paths, or references to planning documents.
-- *Function and class documentation.* Doxygen `/** ... */` on interfaces and non-trivial functions: purpose, parameters, returns, preconditions, locking and thread safety, failure behavior; as long as the interface requires.
+- *Sizing.* Content drives length: what a reader needs to use, change, or validate the code or decision; nothing that goes stale.
+- *Inline code comments.* Explain why: invariants, cross-component constraints, consensus and locking requirements. No task IDs, status notes, dates, change history, personal paths, or references to planning documents.
+- *Function and class documentation.* Doxygen `/** ... */` on interfaces and non-trivial functions: purpose, parameters, returns, preconditions, locking and thread safety, failure behavior.
 - *File headers.* Copyright and license; optionally a short purpose. No change logs.
-- *Tests.* More latitude than production code: scenario, choice of heights and amounts, known failures, how to run. Python tests open with a docstring.
-- *Scripts.* Shebang, copyright for Zero-authored scripts, one-line purpose. Scripts with options provide `usage()` behind `-h` / `--help` (Usage, Modes or commands, Options, Env) and the header refers to it; scripts without options state usage on one header line.
-- *Upstream, vendored, ported code.* Keep original comments even when moved or lightly edited; correct only factual errors; keep diffs minimal.
-- *Public documents.* README is the public map. No references to internal documents or external files. ASCII, `##` headings, no parenthetical headings, repo-relative paths, current state only, no transient values.
-- *Internal documents.* This file's section 1 is the internal map. External documents by name, never by filesystem path; other Zero repositories by repo-relative path only when necessary. History only where a decision's rationale depends on it. Transient counts only in section 7 Validation counts.
-- *Reference records* (for example ZcashFixes) keep their comparisons, timelines, and third-party detail; restructure for readers, do not cut. Verify factual claims and link sources inline and in a references section.
-- *No filler.* Every sentence states a fact, a decision, or an action. Cut generic, non-committal, conversational text a reader cannot act on: vague hedges, feel-good assessment, and fill-in placeholders. Tracking item status (postponed, not scheduled, does not gate a release, decide after X) stays. Applies to documents, comments, and help text.
-- *Streamlining.* Classify a document before cutting it; move unique facts rather than delete them; verify done / open claims against the code.
+- *Tests.* Scenario, choice of heights and amounts, known failures, how to run. Python tests open with a docstring.
+- *Scripts.* Shebang, copyright for Zero-authored scripts, one-line purpose; `usage()` behind `-h` / `--help` (Usage, Modes or commands, Options, Env) when the script takes options.
+- *Upstream, vendored, ported code.* Keep original comments, including copyright notices; correct only factual errors; keep diffs minimal.
+- *Public documents.* No references to internal documents or external files; current state only; no transient values.
+- *Internal documents.* External documents by name, never by filesystem path. History only where a decision's rationale depends on it. Transient counts only in section 7 Validation counts.
+- *Reference records* (for example ZcashFixes, Comparison.md): keep comparisons, timelines, and third-party detail; link sources inline.
+- *Cutting.* Move unique facts rather than delete them; verify done and open claims against the code.
 
 **DOC-FR-NAMING.** Reconcile `vFoundersReward`, FoundersReward, `developmentfee`, and GBT `founders` naming across code and ZERO_COIN. Founders destination options (FR-ROTATE, FR-TADDR, FR-Z) are product decisions, not release gates.
 
@@ -318,7 +341,7 @@ Remaining work: one commented canonical `zero.conf` under `contrib/`, with the o
 3. macOS: Apple Developer Program enrollment; first `release-macos.sh --sign --notarize` run (`codesign`, `xcrun notarytool`, stapling).
 4. Windows: first MXE build packaged by `release-win.sh` with Authenticode signing.
 
-**REL-03 -- Params archival.** `fetch-params.sh` uses upstream Zcash file names and mirrors; audit the names against `zerod` startup and verify the URLs.
+**REL-03 -- Params archival.** Postponed until after v4.1.0. `fetch-params.sh` uses upstream Zcash file names and mirrors; audit the names against `zerod` startup and verify the URLs.
 
 **REL-04 -- Chain bootstrap.** Document snapshot sourcing, verification, and datadir placement for end users. Operators validate with `contrib/ops-validate.sh bootstrap` against a copy, never the original file; packed snapshots stay outside git.
 
@@ -337,9 +360,7 @@ Remaining work: one commented canonical `zero.conf` under `contrib/`, with the o
 
 **REL-07 -- Windows hardening.** `build-win.sh` does not pass `--enable-hardening`. Test which hardening flags MXE `x86_64-w64-mingw32-g++` accepts (`-z relro` and `-z now` are Linux-only), add the flag in `run_configure_win()`, build `zerod.exe` and confirm the stack protector, then record the result in BUILD_ZERO.
 
-**REL-08 -- Fixed seeds.** Mainnet has ten DNS seeds (`seed0`..`seed9.zerocurrency.io`) but `src/chainparamsseeds.h` has empty `pnSeed6_main` and `pnSeed6_test` arrays, and `contrib/seeds/nodes_main.txt` still holds a single address from 2017. A node whose DNS lookups fail and whose `peers.dat` is empty cannot find peers. Steps: collect addresses of long-running public nodes on port 23801 (from `getpeerinfo` on well-connected nodes or a crawl of the DNS seeds); keep those with a protocol version at or above `MIN_PEER_PROTO_VERSION` and good uptime; write them to `contrib/seeds/nodes_main.txt` and `nodes_test.txt`; run `contrib/seeds/generate-seeds.py contrib/seeds > src/chainparamsseeds.h`; refresh before each release. Validation: start with an empty datadir and `-dnsseed=0` and confirm the node connects from the fixed seeds alone.
-
-**REL-09 -- Version consistency check.** `zcutil/check-release.sh` checks the git tag but not that `configure.ac` produces the same version. Proposal: compute the version from `_CLIENT_VERSION_*` (build below 25 beta, 25-49 `rc<build-24>`, 50 final) and fail the receipt when it differs from `--release`; also confirm `zerod --version` of the built binary. Today the check is manual: `zerod --version` on the tagged clean tree must print exactly the tag.
+**REL-08 -- Fixed seeds.** Postponed until after v4.1.0. Mainnet has ten DNS seeds (`seed0`..`seed9.zerocurrency.io`) but `src/chainparamsseeds.h` has empty `pnSeed6_main` and `pnSeed6_test` arrays, and `contrib/seeds/nodes_main.txt` still holds a single address from 2017. A node whose DNS lookups fail and whose `peers.dat` is empty cannot find peers. Steps: collect addresses of long-running public nodes on port 23801 (from `getpeerinfo` on well-connected nodes or a crawl of the DNS seeds); keep those with a protocol version at or above `MIN_PEER_PROTO_VERSION` and good uptime; write them to `contrib/seeds/nodes_main.txt` and `nodes_test.txt`; run `contrib/seeds/generate-seeds.py contrib/seeds > src/chainparamsseeds.h`; refresh before each release. Validation: start with an empty datadir and `-dnsseed=0` and confirm the node connects from the fixed seeds alone.
 
 **Release flag proposals.** Gate `-g` behind `ZERO_DEBUG=1`; evaluate `-O2`; decouple `CXXFLAGS_overridden` from a bare `-g`; add `split-debug.sh` output as a `-dbg` package.
 
@@ -349,13 +370,14 @@ Remaining work: one commented canonical `zero.conf` under `contrib/`, with the o
 
 Items marked **contributor-ready** have clear scope and need no signing keys or consensus decisions.
 
-**TST-01 -- zero_exclusive and experimental RPC scenarios.** Contributor-ready. `getalldata` is fully covered for empty-wallet gates and by the Ext `getalldata_scenario`; its remaining gap is mined-transaction History and balance depth. The others need at least three cases each (valid, boundary, error) using the `TestingSetup` fixture; implementations are in `src/wallet/rpczerowallet.cpp`.
+**TST-07 -- Zero RPC depth.** Contributor-ready. Follows TST-01, which closed with the coverage below; implementations are in `src/wallet/rpczerowallet.cpp`.
 
-| RPC | File | Today |
-|-----|------|-------|
-| `zs_listtransactions`, `zs_gettransaction`, `zs_listspentbyaddress`, `zs_listreceivedbyaddress`, `zs_listsentbyaddress` | `rpc_zero_exclusive_tests.cpp` | Parameter count only |
-| `getsupply` | same | Parameter count and fields |
-| `getsaplingwitness`, `getsaplingwitnessatheight`, `getsaplingblocks` | `rpc_zero_experimental_tests.cpp` | Parameter count only |
+| RPC | Covered | Open |
+|-----|---------|------|
+| `getalldata` | Empty-wallet gates (`rpc_zero_exclusive_tests.cpp`); populated wallet (`getalldata_scenario.py`) | Mined-transaction History and balance depth |
+| `zs_listtransactions`, `zs_gettransaction`, `zs_listspentbyaddress`, `zs_listreceivedbyaddress`, `zs_listsentbyaddress` | Parameter counts; on a populated wallet, transparent spends and archived transactions after `-deletetx`, `-rescan`, `-reindex`, `-zapwallettxes`, and a reorg (`wallet_archive.py`) | Shielded outputs; filter types 1-3; watch-only |
+| `getsupply` | Parameter count and fields; called at a populated tip | Values against the emission schedule at fixed heights |
+| `getsaplingwitness`, `getsaplingwitnessatheight`, `getsaplingblocks` | Parameter count (`rpc_zero_experimental_tests.cpp`) | Results on a chain with Sapling notes |
 
 **TST-06 -- Fuzz harness.** Contributor-ready. Zero has no coverage-guided fuzzing; `CNode::Fuzz` (`-fuzzmessagestest`) only flips bits in outgoing messages. Add `src/fuzz/` with libFuzzer targets (`LLVMFuzzerTestOneInput`) built with `-fsanitize=fuzzer,address`, following Bitcoin Core `src/test/fuzz/`. Targets, in order: `CTransaction`, `CBlock`, and `CBlockHeader` deserialization; `CScript` / `EvalScript`; `Equihash<192,7>::IsValidSolution` on arbitrary bytes; `DecodeDestination`. Seed the corpus from regtest `getblock <hash> 0`. Acceptance: two targets run 60 seconds without a crash, with documented build steps.
 
@@ -393,6 +415,33 @@ Implementation outline: one `testScriptsExcluded` array with `name:reason` entri
 
 Regtest mines with `generate` (`setgenerate` waits for peers on mainnet and testnet). Network upgrades activate with `-nuparams=<branchHex>:<height>`. The shared RPC cache stops at tip 725 (`COINBASE_MATURITY` plus 5). Zero has no testnet minimum-difficulty rule (TNT-07). With halvings every 150 blocks, total regtest miner emission is about 3000 ZER, below the 10000 ZER zeronode collateral. Regtest sporks default to off.
 
+### Wallet: transaction archive
+
+Facts: ZeroStruct.md section 9.1. Covered by `wallet_archive.py`: history after `-deletetx`, after `-rescan`, `-reindex`, `-zapwallettxes`, and after a reorg.
+
+| ID | Kind | Item |
+|----|------|------|
+| WAL-ARCHIVE-07 | Fix, research | During `-reindex` the history RPCs report archived, confirmed transactions as `orphan` until their block reconnects; gate the history RPCs during import or mark the state |
+| WAL-ARCHIVE-04 | Research | Cost on large wallets: history RPC time against archive size (one disk read per entry and per transparent input); decide whether to cache input data in the archive record |
+| WAL-ARCHIVE-05 | Research | Coexistence with pruning: block pinning, stored display data, or pruning only without a wallet; depends on OPS-TXINDEX-DEFAULT |
+
+### Wallet file
+
+Review of wallet load, read, and write (2026-10-06). Load (`CWalletDB::LoadWallet`) classifies every record failure as corrupt, non-critical, too new, or needing a rewrite, catches exceptions from deserialization, and `AppInit2` reports each case and stops startup on the fatal ones.
+
+| ID | Kind | Item |
+|----|------|------|
+| WAL-FILE-01 | Fix | `CWallet::ScanForWalletTransactions` asserts that each block's Sprout and Sapling anchors exist in the chain state; a damaged chain state aborts the node during `-rescan` instead of reporting an error |
+| WAL-FILE-02 | Fix | `CWallet::ReorderWalletTransactions` callers ignore the `WriteToDisk` result, so a failed order update is silent |
+| WAL-FILE-03 | Review | Per-record range checks in `ReadKeyValue` (heights, indexes, note positions), archive records pointing at unknown blocks, encryption-state combinations, disk-full and lock errors on write |
+| WAL-FILE-04 | Test | Damaged wallet files: truncated file, unknown record type, corrupt key, mismatched encryption; the node reports and stops, never crashes |
+
+### RPC
+
+**RPC-02 -- Server handling and parameters.** Research. Work queue size and reject behavior, client and server timeouts, `-rpcdatacontinue`, the list of RPCs allowed during witness rebuild, error codes for ignored or refused calls. Depends on RPC-01 (TODO).
+
+**RPC-04 -- Chain-safety RPCs.** Research. Fork tips, extra `getchaintips` fields, a finality index (section 8.9). Depends on RE-05.
+
 ### Deferred
 
 **Third-party upgrades not possible now.**
@@ -400,22 +449,22 @@ Regtest mines with `generate` (`setgenerate` waits for peers on mainnet and test
 - OpenSSL: stay on 1.1.1w (end of life) until 3.x is audited or OpenSSL is removed; it serves RPC TLS and legacy EVP call sites. Zcash and Bitcoin removed it. Path: audit `EVP_*`, `SSL_*`, and `RAND_*` call sites, add TLS regression tests, then upgrade or remove.
 - Boost above 1.88 and GTest 1.17+: require C++17. Path: C++17 readiness of `src/`, revalidated `ax_boost_*` macros, full depends rebuild.
 
-**DEF-06 -- SwiftTX.** Mainnet `SPORK_2_SWIFTTX` and `SPORK_3_SWIFTTX_BLOCK_FILTERING` are active (signed 1558907000). `swifttx.cpp`, `ix`, and `txlvote` stay until a signed spork turns them off or a network upgrade removes them. The hidden options `-enableswifttx` (default true) and `-swifttxdepth` (default 5) go with them. `-deleteconflicttx` (default true; with `-deletetx`, removes conflicted wallet transactions after reorgs or double spends) is unrelated and stays. Budget superblocks are off (`SPORK_9`, `SPORK_13` = 4070908800).
+**DEF-06 -- SwiftTX.** Never used on mainnet, although its sporks are on. Mainnet `SPORK_2_SWIFTTX` and `SPORK_3_SWIFTTX_BLOCK_FILTERING` are active (signed 1558907000). `swifttx.cpp`, `ix`, and `txlvote` stay until a signed spork turns them off or a network upgrade removes them. The hidden options `-enableswifttx` (default true) and `-swifttxdepth` (default 5) go with them. `-deleteconflicttx` (default true; with `-deletetx`, removes conflicted wallet transactions after reorgs or double spends) is unrelated and stays. Budget superblocks are off (`SPORK_9`, `SPORK_13` = 4070908800).
 
 ### Reference
 
-**CSV inventories.** `RPCs.csv`, `RPCs_extended.csv`, `Options.csv`, `Options_extended.csv`, and `Reindex_Rescan.csv`. Update base and extended files together when adding or removing an RPC or option. The `*-hidden` category in `Options.csv` lists options parsed in `init.cpp` but absent from `--help`. A `zero_missing_sources` value of **B** marks RPCs listed only for cross-chain comparison (`dumptxoutset`, `scantxoutset`, descriptor RPCs); they are not planned ports.
+**CSV inventories.** `RPCs.csv`, `RPCs_extended.csv`, `Options.csv`, `Options_extended.csv`, and `Reindex_Rescan.csv`. `Reindex_Rescan.csv` cites code as `file:function[token]` (a string to search for inside that function), never as line numbers, so references survive code movement. Update base and extended files together when adding or removing an RPC or option. The `*-hidden` category in `Options.csv` lists options parsed in `init.cpp` but absent from `--help`. A `zero_missing_sources` value of **B** marks RPCs listed only for cross-chain comparison (`dumptxoutset`, `scantxoutset`, descriptor RPCs); they are not planned ports.
 
 ### Validation counts
 
-The only place in the documentation where test and RPC counts are recorded; update it when tiers or RPC tables change, and use it to check that a run covered what it should. Recorded 2026-09-30.
+The only place in the documentation where test and RPC counts are recorded; update it when tiers or RPC tables change, and use it to check that a run covered what it should. Recorded 2026-10-05.
 
 | Set | Count | Regenerate |
 |-----|------:|-----------|
 | Tier A (gate) | 10 | `./qa/pull-tester/rpc-tests.sh -list-csv` |
-| Tier B pass | 31 invocations (30 scripts; `txn_doublespend` twice) | same |
+| Tier B pass | 33 invocations (32 scripts; `txn_doublespend` twice) | same |
 | Ext pass | 8 | same |
-| `-all` total | 49 invocations | same |
+| `-all` total | 51 invocations | same |
 | Bfail debug / retired | 28 / 8 | same |
 | Efail | 5 | same |
 | `RPCs.csv` rows / `zero=y` | 278 / 172 | count rows in `RPCs.csv` |
@@ -424,7 +473,7 @@ The only place in the documentation where test and RPC counts are recorded; upda
 
 ## 8. Chain safety
 
-How `zerod` detects, reports, and reacts to abnormal chain conditions: a reorg deeper than the local bound, a heavier chain that this node considers invalid, an abnormal block rate, and the end-of-support height. Tracked as **CON-04** (TODO). Mainnet values: 120-second blocks (Blossom is not active, so 720 blocks per day), `COINBASE_MATURITY` 720, `MAX_REORG_LENGTH` 99, last checkpoint at height 700,000.
+How `zerod` detects, reports, and reacts to abnormal chain conditions, and what Zero should change: reorgs beyond the local bound, heavier invalid chains, abnormal block rates, end of support, checkpoints, recovery operations, and pruning. Mainnet values: 120-second blocks (Blossom is not active, so 720 blocks per day), `COINBASE_MATURITY` 720, `MAX_REORG_LENGTH` 99, checkpoints every 100,000 blocks to 700,000. Cross-project facts and history: Comparison.md section 17; this section keeps Zero facts, options, and decisions. Tracking: RE- items (section 8.13).
 
 ### 8.1 Summary
 
@@ -440,52 +489,42 @@ How `zerod` detects, reports, and reacts to abnormal chain conditions: a reorg d
 
 - **Log.** Every mechanism writes to `debug.log`. Messages raised through `ThreadSafeMessageBox` also go to stderr on a daemon (`src/noui.cpp`).
 - **RPC.** `GetWarnings("statusbar")` feeds `errors` in `getinfo` and `getmininginfo` and `warnings` in `getnetworkinfo`. It carries the invalid-chain warning and the block-rate warning (`strMiscWarning`, which is never cleared until restart). The reorg-bound shutdown does not appear there, because the node stops.
-- **`-alertnotify`.** Runs only in builds with `ENABLE_SYSTEM_COMMAND` (BUILD_ZERO section 4.6.1); release builds log the skip. It fires for deprecation, the invalid-chain warning, and the block-rate warning. It does **not** fire for the reorg-bound shutdown.
+- **`-alertnotify`.** Runs only in builds with `ENABLE_SYSTEM_COMMAND`; release builds log the skip. It fires for deprecation, the invalid-chain warning, and the block-rate warning. It does **not** fire for the reorg-bound shutdown.
 - **Gap.** A release binary has no push channel. Monitoring must poll the RPC warning fields or watch `debug.log` and process exit.
 
 ### 8.3 Reorg bound
 
-**Mechanism.** Before disconnecting any block, `ActivateBestChainStep` computes the reorg length from the old tip to the fork point. Above `MAX_REORG_LENGTH` it logs the old tip, the new tip, and the fork point, shows "the node is shutting down for your safety", and calls `StartShutdown()`; the competing chain is not applied. The same check runs at startup for a rewind caused by insufficiently validated blocks. `intendedRewind` exempts two Zcash testnet heights (252500, 584000) that do not exist on Zero's networks. After a restart, peers offer the same heavier chain and the node stops again, so recovery is manual.
+**Mechanism.** Before disconnecting any block, `ActivateBestChainStep` computes the reorg length from the old tip to the fork point. If it exceeds `MAX_REORG_LENGTH` (99), the node logs the old tip, new tip, and fork point, prints "the node is shutting down for your safety", and calls `StartShutdown()` without applying the chain. The same check runs at startup for a rewind of insufficiently validated blocks; `intendedRewind` exempts two Zcash testnet heights that do not exist on Zero's networks. After a restart peers offer the same heavier chain and the node stops again.
 
-**Origin.** zcashd PR [#2463](https://github.com/zcash/zcash/pull/2463) (str4d, merged 2018-02-21, v1.0.15): "a larger reorg would crash their nodes. It has the additional economic side-effect of ensuring that by default, nodes do not accept re-orgs that delete currently-spendable coinbase". The crash was the wallet witness cache running empty ([#1302](https://github.com/zcash/zcash/issues/1302)); `WITNESS_CACHE_SIZE = MAX_REORG_LENGTH + 1`. The review noted that "all forks would require an upgrade in order to be resolved under this policy"; a configurable `chainforkdecision` was dropped. In zcashd the bound is `COINBASE_MATURITY - 1` = 99. Zero raised maturity to 720 but kept 99 (`src/main.h` comment: "COINBASE_MATURITY of 720 is too much"), so on Zero the bound protects the witness cache only; a reorg of 100 to 719 blocks cannot unwind a spendable coinbase anyway. The check is `reorgLength > MAX_REORG_LENGTH`: a reorg of 100 or more blocks stops the node. zcashd (`src/main.cpp`, January 2026 checkout), Ycash, TENT, and Zclassic use the same 99 and the same shutdown.
+**Origin on Zero.** Inherited from zcashd, where the bound equals `COINBASE_MATURITY - 1` and protects the wallet witness cache (`WITNESS_CACHE_SIZE = MAX_REORG_LENGTH + 1`). Zero raised maturity to 720 and kept 99 (`src/main.h`: "COINBASE_MATURITY of 720 is too much"), so on Zero the bound guards the witness cache only.
 
-**Field.** Comparison.md section 14.5 surveys the zcashd lineage; summary:
+**Assessment.** Bitcoin follows the most-work chain at any depth; every bound is a deviation that must justify itself, and halting is the costliest form.
 
-| Project | Bound | On breach |
-|---------|-------|-----------|
-| zcashd, Ycash, Zero | 99 | Shut down |
-| TENT | none on the live path since `6f64bb7` (2021) | Follows the fork past the witness cache |
-| Pirate, Hush (Komodo) | 99, `-maxreorg=N` | Refuses and invalidates forks below the last dPoW notarization; above it, a reorg over the bound shuts down and the log suggests restarting with `-maxreorg=<length+10>` |
-| Flux | 40; 5000 while the tip is at heights 2,020,000 to 2,025,000 (`GetMaxReorgDepth`) | `ContextualCheckBlockHeader` rejects a header that forks 40 or more blocks below the tip (`bad-fork-prior-to-maxreorgdepth`, misbehavior 10); the node stays up on its chain; the startup rewind check still exits |
-| Zclassic | 99 and `-maxreorgdepth` 10 | Finalizes at 10, shuts down at 99 |
-| Horizen | none | Delay penalty (`GetBlockDelay`, `src/main.cpp`): a block arriving more than 5 blocks below the active height (`PENALTY_THRESHOLD`) gives its chain a delay equal to the gap; the delay grows by the gap for each further late block and falls by 1 for each block above the active height. Chain selection ranks lower total delay before more work, so a withheld chain must out-mine the public chain by its delay before it can win ([Decrypt](https://decrypt.co/3650/horizen-new-bitcoin-consensus)) |
-| Bitcoin Core, Litecoin, Bitcoin SV | none | Follows the most-work chain at any depth; a pruned node cannot reorg below its kept blocks (`MIN_BLOCKS_TO_KEEP` 288) |
-| Bitcoin Gold | auto-finalization 9 blocks (`-minfinalizationdepth`, ABC code) | Blocks finalized after 9 confirmations and a minimum age; deeper forks rejected |
-| Firo | 5 blocks within an enforcement height window | Invalidates the deeper chain and stays up; `-allowdeepreorg` overrides |
-| Zebra | 1000 since 5.2.0 | Finalizes older blocks and stays up ([ZF](https://zfnd.org/zebra-5-2-0-wider-rollback-window/), [#10650](https://github.com/ZcashFoundation/zebra/pull/10650)) |
-| zcashd sidecar | raising 99 to 1000 | Witness cache and wallet checkpoints grow about tenfold ([#11403](https://github.com/ZcashFoundation/zebra/issues/11403)) |
+- **What triggers it.** In Nakamoto's model, a miner with hashrate share q < 1/2 catches up from z blocks behind with probability (q/(1-q))^z (Bitcoin whitepaper, section 11). For z = 100: q = 0.30 gives 1.6e-37, q = 0.40 gives 2.5e-18, q = 0.45 gives 1.9e-9, q = 0.49 gives 0.018. A reorg of 100 or more blocks therefore means a majority miner, a miner very close to half, or an honest split (a validity disagreement or a long partition); it is never ordinary chance.
+- **What halting does to the majority rule.** If a fraction h of the honest hashrate runs on nodes that halt (pools run `zerod`), honest block production drops to (1 - h) of what it was, and the attacker's share of the remaining production becomes q / (q + (1 - h)(1 - q)). With every pool halting (h = 1) the attacker produces 100% of new blocks. Halting removes honest participants at the moment the most-work rule needs them, which converts a temporary, rented majority into the only growing chain.
+- **Who follows which chain.** Halted nodes stay on the original chain but stop serving it; nodes that start or sync afterwards (new installs, explorers, light-wallet servers) see only the attacker's heavier chain and follow it. The network is split until operators coordinate.
+- **Duration.** The attacker needs at least 100 honest blocks after the fork point, about 3.3 hours at 120-second spacing once the public chain's difficulty has adjusted to the withdrawn hashrate (17-block window, at most 30% easier per block).
+- **What halting protects.** A halted node never applies the attacker's history, so it never reverses deposits it already credited. That protection exists only locally; the organization still has to choose a chain to rejoin, and every halted node needs manual action.
+- **Record.** zcashd's recovery path, a release with a checkpoint, was used only for planned testnet rollbacks (heights 252,500 and 584,000); no mainnet use is recorded. Zebra moved to a 1000-block window that stays up.
 
-Outside the lineage: Bitcoin Cash ABC finalized blocks after 10 confirmations (rolling checkpoints, 0.18.5, 2018), criticized for raising the chain-split risk ([BitMEX Research](https://www.bitmex.com/blog/bitcoin-cash-abcs-rolling-10-block-checkpoints)); Ethereum Classic used MESS, a scoring penalty on late large reorgs (ECIP-1100, 2020, replaced 2024) ([ECIP-1100](https://ecips.ethereumclassic.org/ECIPs/ecip-1100)); Dash ChainLocks have a masternode quorum sign the first block seen at each height ([Dash docs](https://dash-user-docs.readthedocs.io/projects/core/en/20.1.0/docs/guide/dash-features-chainlocks.html)); Komodo dPoW notarizes block hashes on another chain ([Komodo](https://komodoplatform.com/delayed-proof-of-work/)). Recent incidents: Horizen's 38-block reorg in June 2018, Monero's 18-block reorg by the Qubic pool at about a third of the hashrate in September 2025 ([The Block](https://www.theblock.co/post/370628/monero-shaken-by-block-reorg-reviving-tensions-with-qubic)).
+**Options for RE-01.**
 
-**Assessment.** The bound prevents a deep double spend against nodes that saw the original chain, but it turns the attack into a halt: an attacker who publishes a heavier private chain more than 99 blocks deep (about 3.3 hours of majority hashrate) stops every synced node, while nodes that sync from scratch follow the attacker's chain. The result is a split that needs coordinated manual recovery, and the shutdown sends no notification. The last checkpoint (700,000) gives no protection near the tip.
+1. **Follow most work, as Bitcoin does.** Remove the halt. When a reorg exceeds the witness cache, clear the cache and rebuild it from the chain (`RebuildWitnessCacheForChainTip`, the path behind `-walletwitness=rebuild`); wallet RPCs are already gated during a rebuild. Raise an RPC warning and `-alertnotify` for any reorg deeper than a reporting threshold. Verify first how `DecrementNoteWitnesses` behaves when the rewind passes the cached depth; Zero's code differs from the zcashd assertion that caused #1302.
+2. **Reject and stay up** (Flux, Zebra): keep a bound, refuse the deeper chain, keep serving the current one, warn persistently. Still a deviation from most work, without the halt.
+3. **Raise the bound to at most 719.** A reorg deeper than coinbase maturity can delete a coinbase whose outputs were already spent; every transaction descending from it becomes permanently invalid and cannot be re-mined. Zero's maturity is 720, so a bound up to 719 never reaches that case, and the witness cache grows with the bound (about 200 KiB per note at 100 entries, about 1.4 MiB at 720). zcashd derivatives with maturity 100 cannot raise their bound past 99 without accepting such losses; Zebra's 1000-block window does accept them, which Zero should not copy. Combinable with options 1 and 2.
+4. **Keep the halt, add notification and a runbook.** Minimum change; keeps the defect described above.
+5. **Finality mechanisms** (delay penalty, rolling finalization, quorum signing): consensus changes, only with a coordinated network upgrade.
 
-**Options.**
+Current behavior has no runtime or compile-time option to stay up: `MAX_REORG_LENGTH` is a compile-time constant, and the witness cache size follows it. After a halt the operator can restart and `invalidateblock` the competing branch's first block; the node then stays on its chain, which is option 2 done by hand. A runtime option is possible (Pirate's `-maxreorg` pattern, bounded at 719 here, with the cache sized from it, or a policy switch between halt, reject, and follow) and belongs with RE-01.
 
-1. Keep shut-down, add observability: call `AlertNotify` and log a fixed marker before `StartShutdown()`; document recovery (inspect `getchaintips`, choose the chain, `invalidateblock` or `reconsiderblock`, restart).
-2. Reject and stay up (Flux, Zebra): keep the 99-block bound but refuse the fork without exiting, keep serving the current chain, and raise a persistent RPC warning and `-alertnotify`. A split then persists until operators act, so it needs monitoring.
-3. Raise the bound toward 719 (Zebra direction): grow the witness cache with it; measure wallet memory and file size first.
-4. External finality: a delay penalty (Horizen) or quorum signing (ChainLocks over zeronodes) are consensus changes and belong with a planned fork.
-
-**Checkpoints are not a reorg defense here.** A checkpoint makes the node reject any chain that conflicts with a hard-coded block hash, so it finalizes history only below the checkpoint. Bitcoin Core stopped adding checkpoints after 2014, moved their remaining roles to `nMinimumChainWork` (2016), `assumevalid` (2017), and headers presync (PR #25717, 2022), and removed them in PR [#31649](https://github.com/bitcoin/bitcoin/pull/31649) (merged 2025-03-14): "The headers presync logic ... should be enough to prevent memory DoS using low-work headers. Therefore, we no longer have any use for checkpoints." The objection throughout was that developer-chosen hashes put history under release control. The Zcash ecosystem still maintains them: zcashd added height 3,000,000 in July 2025, and Zebra ships 14,049 mainnet checkpoints up to height 3,373,206 to validate settled network upgrades ([Zebra checkpoints](https://github.com/ZcashFoundation/zebra/blob/main/zebra-chain/src/parameters/checkpoint/README.md)). Zero's last checkpoint is 700,000 (block time October 2019). In Zero a checkpoint does four things: blocks that are ancestors of the last checkpoint skip script checks and Sprout and Sapling proof verification in `ConnectBlock` (`fExpensiveChecks`), which shortens sync and `-reindex`; forks below it are rejected (`ContextualCheckBlockHeader`); its height and transaction counts drive `verificationprogress` and rescan progress; and its height gates inventory relay during initial download. Zero has no `assumevalid`. A refresh therefore speeds sync and reindex and finalizes history below the new height; it does nothing near the tip. Zebra generates checkpoints with `zebra-checkpoints` from a synced node at most 400 blocks or 32 MiB apart, and its checkpoint verifier accepts each segment as a hash chain to the next checkpoint, skipping most contextual checks, up to a mandatory checkpoint at Canopy activation.
-
-**Proposal.** Now: option 1 and a working `reorg_limit.py`. Then decide between options 2 and 3 with measured witness-cache cost.
+Recommendation: option 1, after the witness-cache verification and the recovery tests in section 8.8, with the reporting threshold and witness cache sized per option 3; option 4's notification first, because it is small and helps under every option.
 
 ### 8.4 Heavier chain and large fork warnings
 
 **Mechanism.** Two branches in `CheckForkWarningConditions`, both suppressed during initial block download:
 
 - **Invalid chain.** `pindexBestInvalid` tracks the most-work block that failed validation (`InvalidChainFound`). When it has more than 6 blocks of work above the tip, the node logs "Found invalid chain at least ~6 blocks longer than our best chain. Chain state database corruption likely.", runs `-alertnotify`, and sets `fLargeWorkInvalidChainFound`. `GetWarnings` then reports "We do not appear to fully agree with our peers! You may need to upgrade, or other nodes may need to upgrade." Causes: miners follow rules this node lacks (an outdated binary or a missed upgrade), this node follows rules they lack, or local corruption.
-- **Large valid fork.** Intended to warn about a valid competing chain of 7 or more blocks within 72 blocks of the tip. `CheckForkWarningConditionsOnNewFork` is called only after a connect failure, with `vpindexToConnect.back()`, the first block above the fork point; its work above the fork is about one block, never the required 7. The branch, `pindexBestForkTip`, and `fLargeWorkForkFound` are dead. Bitcoin Core found the same and removed it ([#19905](https://bitcoincore.reviews/19905), 2020); the feature dates from the 2013 split (BIP 50) and PR #2658.
+- **Large valid fork.** Intended to warn about a valid competing chain of 7 or more blocks within 72 blocks of the tip. `CheckForkWarningConditionsOnNewFork` is called only after a connect failure, with `vpindexToConnect.back()`, the first block above the fork point; its work above the fork is about one block, never the required 7. The branch, `pindexBestForkTip`, and `fLargeWorkForkFound` are dead. Bitcoin Core found the same and removed it.
 
 **Recovery.** Compare versions (`getpeerinfo` `subver`), inspect `getchaintips` (`invalid` status), upgrade if behind; `-reindex` when corruption is suspected.
 
@@ -495,7 +534,7 @@ Outside the lineage: Bitcoin Cash ABC finalized blocks after 10 confirmations (r
 
 **Mechanism.** Every 60 seconds, after initial download and at most once per 24 hours, `PartitionCheck` counts best-header blocks with timestamps in the last 4 hours and compares the count with the Poisson expectation (120 at 120-second spacing). It warns when the probability of the exact count is at most one in 109,500, which the code describes as one false positive per 50 years: 77 or fewer blocks ("check your network connection") or 167 or more ("abnormally high number of blocks generated"). The warning goes to `strMiscWarning` and `-alertnotify`; details are in the `partitioncheck` debug category.
 
-**Meaning on Zero.** The count depends on hashrate and on the difficulty adjustment as much as on connectivity. Zero uses the zcashd averaging-window retarget: a 17-block window over median-time-past, the timespan dampened by 1/4, bounded to at most 10% harder and 30% easier per block (`nPowMaxAdjustUp` 10, `nPowMaxAdjustDown` 30; zcashd uses 16 and 32). Comparison.md section 4 compares this algorithm with LWMA, RT_CST_RST, and the other lineage retargets, with Zawy's analyses ([zawy12/difficulty-algorithms](https://github.com/zawy12/difficulty-algorithms), local checkout in ZKs). A deterministic simulation of that retarget after a sudden hashrate step gives the first-4-hour counts:
+**Meaning on Zero.** The count depends on hashrate and on the difficulty adjustment as much as on connectivity. Zero uses the zcashd averaging-window retarget: a 17-block window over median-time-past, the timespan dampened by 1/4, bounded to at most 10% harder and 30% easier per block (`nPowMaxAdjustUp` 10, `nPowMaxAdjustDown` 30; zcashd uses 16 and 32). A deterministic simulation of that retarget after a sudden hashrate step gives the first-4-hour counts:
 
 | Hashrate step | Blocks in the first 4 hours | Check fires |
 |---------------|-----------------------------|-------------|
@@ -508,9 +547,7 @@ Outside the lineage: Bitcoin Cash ABC finalized blocks after 10 confirmations (r
 
 The adjustment absorbs smaller steps within the window, so without noise the check fires only for a drop of about 65% or more, or a rise to about three times the hashrate. Poisson noise then widens the trigger band somewhat. A rise of that size is what a rented-hashrate attack looks like; because the count uses best-header timestamps, a released private chain mined that fast can also trigger it. Header timestamps are miner-set, within the median-time-past and 2-hour future limits.
 
-**History.** Added in Bitcoin Core PR [#5947](https://mirror.b10c.me/bitcoin-bitcoin/5947/) (Gavin Andresen, 2015), switched to header timestamps in #6256, disabled in 0.12.1, and removed in [#8275](https://mirror.b10c.me/bitcoin-bitcoin/8275/) (2016) for false positives. zcashd kept it and added the Blossom spacing adjustment that Zero inherited.
-
-**Proposals.** Replay mainnet history (block timestamps from the index or `chain_stats.py`) through the same 4-hour window and record how often each threshold would have fired, together with the hashrate swings behind them. Record a year of mainnet block counts per 4-hour window (`chain_stats.py` or the block index) and count how often the thresholds would have fired. Then keep it with the warning cleared when the rate returns to normal, or remove it as Bitcoin Core did. Test instance: regtest with mock time, a burst of blocks inside 4 hours, then check `getnetworkinfo` `warnings`.
+**Proposals.** Replay mainnet history through the same 4-hour window with `contrib/stats/block_rate_replay.py` and record how often each threshold would have fired, together with the difficulty and gaps behind them (CH-01). Then keep it with the warning cleared when the rate returns to normal, or remove it as Bitcoin Core did. Test instance: regtest with mock time, a burst of blocks inside 4 hours, then check `getnetworkinfo` `warnings`.
 
 ### 8.6 End of support
 
@@ -519,99 +556,176 @@ The adjustment absorbs smaller steps within the window, so without noise the che
 **Current values.** `APPROX_RELEASE_HEIGHT` 1,385,000 corresponds to about May 2022 and has not been raised since. With the tip near 2.55M (September 2026), the halt is about 1.46M blocks away, around April 2032. The 520-week window therefore runs from 2022, not from the v4.1.0 release.
 
 **History on Zero.** Through 2019 merges carried zcashd's per-release values; CryptoForge set a 13-week window in 2018 and new heights in 2019 and 2020, and a 2021 commit added a year. Commit `5f9c6a410` (2022-05-30) moved the window to 520 weeks ("Push deprecation out 10 years"), when v3.3.0 was about to halt; it has not been refreshed since.
+**Decision (2026-10-06).** v4.1.0 keeps `APPROX_RELEASE_HEIGHT` 1,385,000 and the 520-week window: end of support stays at height 4,005,800, about April 2032. Revisit with the next release that should force an upgrade.
 
-**Field.** Values from local checkouts in ZKs:
+### 8.7 Checkpoints
 
-| Project | Checkout | Release height | Window | Warning | Policy |
-|---------|----------|----------------|--------|---------|--------|
-| zcashd | 2026-01 | 3,198,076 | 16 weeks (`RELEASE_TO_DEPRECATION_WEEKS`) | 2 weeks | Raised at every release (127 commits since 2017); window shortened for RCs and upgrades |
-| Zebra | 2026-06 | 3,382,189 (`ESTIMATED_RELEASE_HEIGHT`) | 37 days (`EOS_PANIC_AFTER`, cut for NU7) | 14 days before | Panics at the end-of-support height |
-| Ycash | 2026-04 | 2,244,000 | Disabled (`INT_MAX - 1`) | 2 weeks | Turned off |
-| Zclassic | 2024-12 | 99,235,543 | 70 weeks | 2 weeks | Effectively off: release height far beyond the chain |
-| Horizen | 2025-07 | 1,775,300 | 24 weeks | 2 weeks | History not in the shallow checkout |
-| Flux | 2025-12 | 2,127,000 | 104 weeks | 4 weeks | History not in the shallow checkout |
-| Pirate | 2026-01 | from `DEPRECATION_HEIGHT` 4,820,333 | 52 weeks | 2 months | Halt height set directly; 38 updates through 2024 |
-| TENT | 2021-11 | 1,870,000 | 100 weeks | 96 days (comment says 4 weeks) | Inactive since 2021 |
+**What a checkpoint does in Zero.** Four effects, all keyed on the highest checkpoint already in the block index (`GetLastCheckpoint`): its ancestors skip script checks and Sprout and Sapling proof verification in `ConnectBlock` (`fExpensiveChecks`), which shortens sync and `-reindex`; headers forking below it are rejected with a 100-point peer penalty (`ContextualCheckBlockHeader`); its height and transaction counts drive `verificationprogress` and rescan progress; its height gates inventory relay during initial download. Zero has no `assumevalid`.
 
-zcashd releases about every 6 weeks and supports each for about 16 weeks; at its end-of-support height the binary halts and refuses to restart ([zcashd release support](https://zcash.github.io/zcash/user/release-support.html)). The field splits between short windows with frequent releases (zcashd, Zebra), long windows (Flux, Pirate, TENT, Zero), and disabling (Ycash, Zclassic).
+**Trust.** Skipping checks below a checkpoint trusts that exactly that history, committed by the hash chain, was validated when mined and by every node synced before, and that release reviewers checked the hash. Zero's pre-Sapling Sprout proofs (PHGR, BCTV14, before height 492,850) are never verified, as in zcashd; the ZIP 209 turnstile bounds the Sprout pool balance. Zero never activated Canopy, so ZIP 212 does not apply.
 
-**Proposals.** Set `APPROX_RELEASE_HEIGHT` to the tip at each release tag and check it in `zcutil/check-release.sh` (with REL-09). Choose the window deliberately: a long window lowers upgrade pressure, a short one keeps old binaries from lingering through consensus changes.
+**Older checkpoints.** They act only during initial sync, before the newest checkpoint's header arrives; with headers-first sync that window is short. Keeping the existing ones costs nothing and changes nothing; new releases need not add intermediate ones.
 
-### 8.7 Finality and fork-choice designs
+**Policy (RE-03).** A checkpoint changes which chains a node accepts, so a consensus checkpoint is a consensus change: ship one only with a coordinated network upgrade, when operators and pools are watching the transition. Between upgrades, use **advisory checkpoints**: expected hashes at intermediate heights that the node compares and reports on (log, RPC warning, `-alertnotify`), that validate indexes and reindex progress, and that serve as named restart points, without rejecting chains or skipping checks. A sync speed-up without the consensus effect is `assumevalid`-style skipping, which would have to cover shielded proofs to matter for Zero.
 
-Background for the decision in section 8.3, from the source of each project (checkouts in ZKs) and published reviews.
+**Refresh procedure** (for the next coordinated upgrade, and for advisory checkpoints each release):
 
-**Horizen delay penalty.** Mechanism in section 8.3. Introduced after the June 2018 38-block attack ([Horizen proposal](https://blog.horizen.io/zencash-leads-the-fight-against-the-51-attack/)). Daira Hopwood's critique: after a temporary two-sided network partition, each side sees the other's blocks as late and penalizes them, so the partition can become permanent; Horizen answered that a penalty decays by one per block on the accepted chain ([CoinDesk](https://www.coindesk.com/tech/2018/10/10/a-solution-to-cryptos-51-attack-fine-miners-before-it-happens)). Further limits: "late" is judged against each node's own view, so nodes with different connectivity can disagree; startup sync is exempt; an attacker who publishes each block on time but outpaces the network gains nothing from it, while one who withholds loses. No other project in the ZKs checkouts adopted it.
+1. Height: the highest multiple of 10,000 at least 30 days (21,600 blocks) below the tip.
+2. Data from a synced node: `getblockhash`, `getblock` (`time`, `chainwork`), `getchaintxstats 4096 <hash>` (transaction count and rate for `nTimeLastCheckpoint`, `nTransactionsLastCheckpoint`, `fTransactionsPerDay`); `nMinimumChainWork` from the block's `chainwork`.
+3. The same values from a second, independently synced node and the explorer.
+4. Validation: `Checkpoints_tests`, `verificationprogress` near 1, a timed `-reindex` of a copied datadir before and after.
+5. Testnet likewise.
+6. Tooling: a `zcutil/` script that prints the `chainparams.cpp` lines from two nodes and fails on mismatch.
 
-**Peer penalties.** A peer that sends a block or header conflicting with local finality is scored, and at 100 points disconnected and banned:
+### 8.8 Recovery operations
 
-| Trigger | Score | Projects |
-|---------|-------|----------|
-| Header forks below the last checkpoint | 100 | zcashd, Ycash, Zclassic, Horizen, TENT, Firo, Zero (`ContextualCheckBlockHeader`); Bitcoin Core until checkpoints were removed |
-| Block below the last dPoW notarization | 100 | Pirate, Hush |
-| Spork with a bad signature | 100 | Zero, TENT, Dash lineage |
-| Block conflicting with a finalized block | 20 | Zclassic |
-| Header deeper than the reorg bound | 10 | Flux |
-| Block conflicting with a finalized block | none (cached invalid) | Bitcoin Gold |
+**Recovery steps.** Witness rebuild, rescan, and reindex nest: each includes the previous. Their code paths and startup order: ZeroStruct.md section 11.2a.
 
-Banning makes the node stop hearing the conflicting chain, which is the intent against an attacker and a risk during an honest split: the node cannot learn that it is on the minority side.
+**Witness cache.** Up to 100 witnesses per note, at most about 2 KiB each, so about 200 KiB per note in memory and in the wallet file. A reorg deeper than the cache cannot rewind witnesses; they are rebuilt from the chain. Any wider window (option 2 or a temporary window) needs a larger cache or a planned rebuild.
 
-**Rolling finalization (Bitcoin ABC, Bitcoin Gold, Zclassic).** Bitcoin ABC 0.18.5 (November 2018) finalizes the block 10 below the tip (`-maxreorgdepth`, -1 disables) and refuses any chain conflicting with it; `finalizeblock`, `parkblock`, and `unparkblock` let operators override, and deep reorgs are parked until enough extra work accumulates ([release notes](https://bitcoinabc.org/doc/release-notes/release-notes-0.18.5.html)). Bitcoin Gold carries the same code with depth 9 (`-minfinalizationdepth`) and an 80-minute minimum age (`-minfinalizationage`): a block is finalized only after its header has been known for that long, so an attacker cannot force finalization by releasing a deep chain quickly. In the BTG checkout the code arrived in a December 2024 merge; during its July 2020 attack BTG instead shipped an emergency checkpoint. Zclassic carries the ABC code with depth 10 and a 20-point peer penalty. Reception: BitMEX Research judged that rolling checkpoints defend against deep hostile reorgs but raise the chain-split risk, because an attacker who reorgs 9 blocks while the network finds the 10th can split nodes by timing ([BitMEX Research](https://www.bitmex.com/blog/bitcoin-cash-abcs-rolling-10-block-checkpoints)). MIT DCI research on BTG's 2020 attacks found double-spend counterattacks by victims in the wild, an alternative defense that needs no protocol change ([MIT DCI](https://dci.mit.edu/dci-news/2020/5/4/reorgs-on-bitcoin-gold-counterattacks-in-the-wild-medium-post-by-james-lovejoy)). The ABC age rule is the main difference: it ties finality to observed time, not only to depth.
+**Runbook outline** (published with DOC-02; Zero tools only):
 
-**Avalanche post-consensus (eCash).** Since September 2022, eCash nodes holding staked coins poll each other with the Avalanche protocol about each new PoW block and finalize it once the poll converges, usually within one block interval; a finalized block cannot be reorged regardless of work, and exchanges credit after one confirmation. Pre-consensus on transactions followed in November 2025 ([eCash post-consensus](https://e.cash/blog/post-consensus)). It replaces depth with a stake-weighted vote, a subsystem comparable in size to Dash ChainLocks.
+1. Detect: RPC warning fields, `getchaintips` (`valid-fork`, `invalid`), `debug.log` reorg and shutdown lines, explorer and pool reports.
+2. Confirm: compare tips and versions across several nodes (`getchaintips`, `getpeerinfo` `subver`); classify as attack, honest split (validity disagreement or partition), or local fault.
+3. Decide: which branch is canonical; for an attack, the branch seen first by most honest nodes; for a validity split, the branch following the current rules.
+4. Act on nodes: `invalidateblock` on the rejected branch's first block, `reconsiderblock` to undo; restart after a halt with the same; `-reindex` for local corruption.
+5. Coordinate: pools and exchanges raise confirmation counts or pause deposits; a release with an advisory or, at a coordinated upgrade, a consensus checkpoint.
+6. Recover wallets: witness rebuild, rescan, or reindex as needed; verify balances.
 
-**Flux.** Rejects headers 40 or more blocks deep at header acceptance, stays up, and widened the bound to 5000 for a planned upgrade window (section 8.3). For: no shutdown, no download of the deep fork, a per-height override for planned events. Against: a split persists silently; the bound is enforced before the fork is even downloaded, so the node cannot evaluate it; 40 blocks at Flux's 30-second Proof-of-Node spacing (`nPonTargetSpacing`) is 20 minutes, shorter than Zero's 99 blocks at 2 minutes. Relevance to Zero: the header-level check and the height-window override are the parts worth considering for option 2; the bound itself would follow from Zero's witness cache, not from Flux.
+**Recovery tests.**
 
-**Configurable bounds and recovery.** zcashd dropped a configurable `chainforkdecision` during review of #2463 and kept a fixed bound with recovery by software upgrade. Projects that made it configurable: Pirate and Hush (`-maxreorg`, with a restart hint), Zclassic and Bitcoin ABC (`-maxreorgdepth`), Bitcoin Gold (`-minfinalizationdepth`, `-minfinalizationage`), Firo (`-allowdeepreorg` to bypass). Recovery tools in those trees: `finalizeblock`, `parkblock`, `unparkblock`, plus the Bitcoin-era `invalidateblock` and `reconsiderblock`, which Zero has. A configurable bound helps recovery only together with a deep enough witness cache; on Zero a value above 99 would empty the cache.
+1. `reorg_limit.py` repaired: a 100-block reorg, then the chosen behavior (halt and restart with `invalidateblock`, or follow with witness rebuild).
+2. `invalidateblock` and `reconsiderblock` between two regtest branches.
+3. A deep reorg with shielded notes, then witness rebuild; balances and `getalldata` match.
+4. Timed `-reindex` of a mainnet copy with and without a newer checkpoint.
+5. The warning tests in sections 8.4 and 8.5 and the monitoring test in section 8.9.
+6. Attack simulation: three regtest nodes, one mining a private chain with more work, released at depths 6, 50, 150; record warnings, behavior, and recovery.
 
-**Reorgs deeper than coinbase maturity.** A coinbase output becomes spendable after `COINBASE_MATURITY` blocks. A reorg deeper than that can remove a coinbase whose outputs were already spent; every transaction descending from it becomes permanently invalid and cannot be re-mined on the new chain, unlike ordinary transactions that return to the mempool. This is why Bitcoin set maturity to 100 and why zcashd tied its bound to `COINBASE_MATURITY - 1`. Zebra's 1000-block window exceeds Zcash's maturity of 100, and Comparison.md section 14.5 notes that it accepts such losses inside the window. Zero's maturity of 720 is far above its bound of 99, so the coinbase rule is not the binding constraint; the witness cache is, and it is recoverable by rebuilding (`-walletwitness=rebuild`, `-rescan`, or `-reindex`), at a time cost.
+### 8.9 Monitoring
 
-### 8.8 Sync and reindex acceleration
+1. Notification before the reorg-bound shutdown (`AlertNotify` and a fixed log marker), whatever RE-01 decides.
+2. Late-block tracking without consensus effect: record each header's arrival time and the active height at arrival; compute lateness and a Horizen-style score per fork tip; expose them in `getchaintips` and a fork-tips RPC modeled on Horizen's `getglobaltips`; warn on a late fork near the tip's work and on any reorg deeper than 6 blocks. Test: two regtest nodes, a private chain on one, reconnect, check fields and warnings.
+3. External monitoring: a script polling several Zero nodes (`getchaintips`, warning fields, best hash per height), in the spirit of ForkMonitor.
 
-| Mechanism | What it does | Trust | Projects |
-|-----------|--------------|-------|----------|
-| Checkpoints | Below the last checkpoint, skip scripts and proofs (`fExpensiveChecks`); reject forks below it | Hard-coded hashes | zcashd (3,000,000, July 2025), Ycash, Pirate (3,817,031), Flux, Zclassic, Horizen, TENT, Firo, Zero (700,000, last updated `724cd577f`, 2019-12-21); Bitcoin Core removed 2025 |
-| `nMinimumChainWork` | Treat the node as syncing, and ignore chains, below a hard-coded work total | Hard-coded work | Bitcoin Core and the zcashd lineage, Zero |
-| `assumevalid` | Skip script checks for ancestors of one hard-coded block; all other validation runs | Hard-coded hash | Bitcoin Core (block 912,683 in the October 2025 checkout), Bitcoin Gold, Firo; not zcashd or Zero |
-| Headers presync | Before storing a peer's headers, check in compressed form that they reach `nMinimumChainWork`, then re-download and store them | None | Bitcoin Core since PR #25717 (2022) |
-| assumeutxo | Load a UTXO-set snapshot at a hard-coded height, sync from there, validate history in the background | Hard-coded snapshot hash | Bitcoin Core 28 (mainnet snapshot at 840,000) |
-| Zebra checkpoint verifier | Accept segments of at most 400 blocks or 32 MiB as hash chains to the next checkpoint; mandatory up to Canopy | Hard-coded hashes | Zebra (14,049 mainnet checkpoints, last 3,373,206) |
+### 8.10 Pruning
 
-**Bitcoin Core.** Checkpoints were replaced, not `assumevalid`: `assumevalid` is still raised every release. Presync ([PR #25717](https://github.com/bitcoin/bitcoin/pull/25717)) closed the remaining checkpoint role, the memory exhaustion from low-work headers. A node first downloads a peer's headers without storing them, keeping only the running work and a small salted commitment for every few hundred headers; once the work passes `nMinimumChainWork`, it downloads the headers again, checks them against the commitments, and stores them. Its tests: the unit test `headers_sync_chainwork_tests` drives the state machine with a low-work chain (rejected) and a sufficient one (accepted); the functional test `p2p_headers_sync_with_minchainwork.py` shows that nodes with a work requirement keep no headers from a short chain, accept them once the chain is long enough, report presync height in `getpeerinfo`, and still complete a 2000-block reorg; the fuzz target `p2p_headers_presync` feeds random header sequences. With those in place, PR #31649 removed checkpoints.
+**State.** `-prune` and its checks are commented out in `init.cpp` (CryptoForge, 2020-11-19, `cf2282a1f`, the same day `txindex` became mandatory); the pruning code stays compiled and dormant; `getblockchaininfo` reports `pruned: false`; `pruning.py` is in the extended fail list.
 
-**Zebra.** Checkpoints are the sync method below the mandatory height, not only a speed-up. Zebra checkpoint-verifies everything before Canopy because it does not implement some older rules: it never verifies Sprout-on-BCTV14 proofs, and it cannot check the ZIP 212 note-plaintext grace period after Canopy with librustzcash, so the mandatory height sits after that period ([zebra_consensus](https://doc-internal.zebra.zfnd.org/zebra_consensus/index.html), [#8430](https://github.com/ZcashFoundation/zebra/issues/8430)). Above the last checkpoint, blocks are fully verified and kept in the non-finalized state, the 1000-block rollback window. The two do not interact in practice: checkpoints are generated from a synced node and shipped with releases months behind the tip, so the rollback window always lies above them; a reorg cannot cross a checkpoint.
+**Node and wallet.** Pruning is a node behavior: once blocks are validated it deletes old block and undo files, keeping the UTXO set, the block index, and the most recent blocks. The wallet keeps working forward, because it follows blocks as they connect. Everything that reads a deleted block fails:
 
-**Zero.** zcashd lineage: checkpoints, `nMinimumChainWork`, no `assumevalid`, no presync. Zero also skips PHGR (BCTV14) Sprout proof verification, as zcashd does (ZcashFixes.md). Checkpoints stopped at 700,000 when per-release maintenance ended with the 2019 maintainer, not by decision. Opportunities, cheapest first:
+| Operation | Why it reads old blocks | Result on a pruned node |
+|-----------|-------------------------|-------------------------|
+| `-rescan`, key imports with rescan | Replays blocks from genesis or a birthday | Refused (zcashd: "Rescans are not possible in pruned mode") |
+| Witness rebuild | Replays blocks from each note's creation to rebuild witnesses | Fails for notes older than the kept blocks |
+| Transaction archive and zs_* history | `GetTransaction` reads the block holding each archived transaction and its inputs | Fails for pruned blocks; `txindex` is unavailable anyway |
+| `getblock`, `getrawtransaction` for old data | Read block files | "Block not available (pruned data)" |
+| Serving peers | Initial sync of other nodes needs old blocks | The node stops advertising full block service |
+| Reorg deeper than the kept blocks | Needs undo data | Impossible; requires a reindex, which re-downloads everything |
 
-1. Refresh checkpoints and `nMinimumChainWork` every release: sync and `-reindex` skip script and proof checks up to the new height.
-2. Port `assumevalid`: skips scripts without rejecting forks, so it speeds sync without the finality side effect; shielded proofs would need the same treatment to matter for Zero.
-3. Presync and assumeutxo: large ports from a much newer Bitcoin Core; assumeutxo would also need the shielded state (note commitment trees, nullifier sets) in the snapshot.
+**Decisions.**
 
-### 8.9 Related items and tests
+1. Keep pruning disabled. The chain is about 8 GB, so the saving is small; the transaction archive, which is always on, reads old blocks through `txindex` (ZeroStruct.md section 9.1 describes it and its coexistence options); and a pruned wallet cannot rescan or rebuild witnesses below its kept blocks, which conflicts with the recovery steps in section 8.8 and with option 1 in section 8.3.
+2. Leave the dormant code in place (upstream proximity, no runtime effect).
+3. Keep `pruning.py` listed as failing, with its reason; `pruning_disabled.py` (Tier B) pins the disabled contract: `-prune=550` accepted and ignored, `pruned` false, every block readable after `-reindex`, no `pruneblockchain`.
+4. Phases, each only if the previous shows demand:
+   1. **Now:** disabled, contract pinned by `pruning_disabled.py`.
+   2. **Measure:** disk use per component on a mainnet node (block files, undo files, chain state, `txindex`, Insight indexes, wallet) and operator demand. The chain is about 8 GB, so the case for pruning is weaker than for Zcash (141 GB in 2022).
+   3. **Nodes without a wallet:** allow `-prune` only with `-disablewallet`, `txindex` off (needs OPS-TXINDEX-DEFAULT), and no Insight indexes. No archive, witness, or rescan conflict exists there. `MIN_BLOCKS_TO_KEEP` = 1440 (two days at 120-second blocks); a Zero-sized replacement for `pruning.py`.
+   4. **Wallets:** only with archive coexistence (WAL-ARCHIVE-05) and with rescan and witness rebuild refused below the kept blocks, as zcashd does.
 
-| Mechanism | Items | Tests | Documents |
-|-----------|-------|-------|-----------|
-| Reorg bound | CON-04; DOC-02 (operator runbook); ZN-01 phase D (applied reorgs, ZeroNodeDev.md section 3); TST-WITNESS-REINDEX (witness rebuild) | `reorg_limit.py` (Tier B fail, cache-tip heights); `wallet_witness_defer.py` | ZeroNodes.md section 5; WitnessReindex.md |
-| Heavier invalid chain | CON-04 | None; proposed in section 8.4 (`invalidateblock` on one node, extension on another) | -- |
-| Large valid fork | CON-04 (remove dead code) | None | -- |
-| Block rate | CON-04; TNT-09 (LWMA3 retarget, deferred) | None; proposed in section 8.5 | Comparison.md section 4 |
-| End of support | CON-04; REL-09 (release check) | `DeprecationTest.*` (12 GTests), including `AlertNotify` | BUILD_ZERO section 4.6.1 (`-alertnotify` build flag) |
-| All, reporting | OPS-CONF-UNIFY (`-alertnotify` text); DOC-02 | `DeprecationTest.AlertNotify`, `BlockNotifyDefaultSkipsShell`, `WalletNotifyDefaultSkipsShell` | -- |
+### 8.11 Related items and tests
 
-### 8.10 Actions
+| Area | Items | Tests |
+|------|-------|-------|
+| Reorg bound | RE-01; DOC-02; ZN-01 phase D; TST-WITNESS-REINDEX | `reorg_limit.py` (Tier B fail); `wallet_witness_defer.py` |
+| Warnings | RE-02 | None yet (sections 8.4, 8.5) |
+| Checkpoints | RE-03 | `Checkpoints_tests` |
+| Recovery and monitoring | RE-04, RE-02 | Section 8.8 list |
+| Block rate, difficulty | RE-02; CH-01 | None yet |
+| End of support | Decision in section 8.6 | `DeprecationTest.*` (12 GTests) |
+| Pruning | OPS-TXINDEX-DEFAULT | `pruning.py` (Efail) |
 
-1. Observability: `AlertNotify` and a log marker before the reorg-bound shutdown; list the RPC fields monitors should poll.
-2. Tests: make `reorg_limit.py` pass and move it into a tier; add the invalid-chain test (section 8.4) and the block-rate test (section 8.5).
-3. Code: remove the dead large-fork branch; clear `strMiscWarning` when the block rate is normal again, or remove the check after the replay in section 8.5.
-4. Release: raise `APPROX_RELEASE_HEIGHT` at every tag and check it with REL-09; refresh checkpoints and `nMinimumChainWork` for sync, not as reorg protection.
-5. Operator runbook for all four events, published with DOC-02.
-6. Decisions: reorg-bound behavior (section 8.3 options 2 and 3) and the end-of-support window.
+### 8.12 References
 
-### 8.11 References
+Sources: zcashd [#2463](https://github.com/zcash/zcash/pull/2463) and [#1302](https://github.com/zcash/zcash/issues/1302), the origin of the bound and the witness cache; [zawy12/difficulty-algorithms](https://github.com/zawy12/difficulty-algorithms) for the retarget analysis.
 
-- zcashd reorg limit: [PR #2463](https://github.com/zcash/zcash/pull/2463), [issue #1302](https://github.com/zcash/zcash/issues/1302); end of support: [release support](https://zcash.github.io/zcash/user/release-support.html); `zcraw*` removal: commit `37921677e` (v5.4.0).
-- Zebra: [5.2.0 rollback window](https://zfnd.org/zebra-5-2-0-wider-rollback-window/), [PR #10650](https://github.com/ZcashFoundation/zebra/pull/10650), [issue #11403](https://github.com/ZcashFoundation/zebra/issues/11403), [checkpoints](https://github.com/ZcashFoundation/zebra/blob/main/zebra-chain/src/parameters/checkpoint/README.md).
-- Bitcoin Core: fork warnings [review of #19905](https://bitcoincore.reviews/19905); partition check [#5947](https://mirror.b10c.me/bitcoin-bitcoin/5947/), [#8275](https://mirror.b10c.me/bitcoin-bitcoin/8275/); checkpoint removal [#31649](https://github.com/bitcoin/bitcoin/pull/31649); alert retirement [bitcoin.org](https://bitcoin.org/en/posts/alert-key-and-vulnerabilities-disclosure).
-- Other chains: [BitMEX Research on ABC rolling checkpoints](https://www.bitmex.com/blog/bitcoin-cash-abcs-rolling-10-block-checkpoints); [ECIP-1100 MESS](https://ecips.ethereumclassic.org/ECIPs/ecip-1100); [Horizen delay penalty](https://decrypt.co/3650/horizen-new-bitcoin-consensus); [Dash ChainLocks](https://dash-user-docs.readthedocs.io/projects/core/en/20.1.0/docs/guide/dash-features-chainlocks.html); [Komodo dPoW](https://komodoplatform.com/delayed-proof-of-work/); [Monero reorg, September 2025](https://www.theblock.co/post/370628/monero-shaken-by-block-reorg-reviving-tensions-with-qubic).
-- Difficulty: [zawy12/difficulty-algorithms](https://github.com/zawy12/difficulty-algorithms).
-- Local: Comparison.md sections 4 and 14.5; checkouts of zcash, zebra, ycash, zclassic, zen, fluxd, pirate, TENT, and bitcoin-src in ZKs.
+### 8.13 Items
+
+**Status (2026-10-06): postponed until after v4.1.0.** Resume in this order:
+
+1. RE-02: `AlertNotify` and a fixed log marker before `StartShutdown()` in the reorg-bound check (`ActivateBestChainStep[MAX_REORG_LENGTH]`, and the startup rewind check); remove `CheckForkWarningConditionsOnNewFork`, `pindexBestForkTip`, `pindexBestForkBase`, `fLargeWorkForkFound`; regtest test for the invalid-chain warning.
+2. RE-04: repair `reorg_limit.py` (hard-coded heights against the cache tip); add the branch-switch and witness-rebuild recovery tests (section 8.8).
+3. RE-01 prerequisite: a regtest test that rewinds a wallet with Sapling notes past `WITNESS_CACHE_SIZE` and records what `DecrementNoteWitnesses` and the RPCs do; then choose among the section 8.3 options, including a runtime bound up to 719.
+4. RE-05 with CH-06: header arrival tracking and the fast-block and coinbase-only flags, after the CH-01 replay results.
+5. RE-03 and RE-06 stay research.
+
+| ID | Status | Item |
+|----|--------|------|
+| RE-01 | Research | Reorg-bound behavior (section 8.3): follow most work with witness rebuild, reject and stay up, or keep the halt; first verify `DecrementNoteWitnesses` on rewinds past the cache |
+| RE-02 | Active | Notification and warning fixes: `-alertnotify` and a log marker before the reorg-bound shutdown; remove the dead large-fork branch; invalid-chain warning test (section 8.4) |
+| RE-03 | Research | Checkpoint policy (section 8.7): consensus checkpoints only with coordinated upgrades, advisory checkpoints between, refresh procedure and tooling |
+| RE-04 | Active | Recovery runbook and tests (section 8.8), published with DOC-02 |
+| RE-05 | Research | Monitoring (section 8.9): late-block tracking, fork-tip RPC (RPC-04), external multi-node monitor, fast-block runs and empty blocks (CH-06) |
+| RE-06 | Research | Finality mechanisms: evaluation only; adoption only with a coordinated network upgrade |
+| RE-07 | Research | Recovery-step harmonization (below) |
+
+**RE-07 -- Recovery-step harmonization.** Witness rebuild, rescan, and reindex (ZeroStruct.md section 11.2a) become explicit, observable, testable stages.
+
+*Ready now* (design, implementation, validation in the current release line; no behavior change):
+
+1. **Observe.** One log line per stage start and end, same format for all three: `Recovery stage <reindex|rescan|witness> start from=<height> to=<height>` and `... end blocks=<n> ms=<t>`. Status fields: `reindex_progress` (current file, height) in `getblockchaininfo`; `rescan_progress` and `witness_build` (height, done) in `getwalletinfo`. Tests read the log lines and fields.
+2. **Validate**, new tests on the existing behavior:
+
+| Test | Setup | Pass condition |
+|------|-------|----------------|
+| `rescan_equivalence` | Regtest wallet with transparent and Sapling activity; record balances, `getalldata 0 0`, unspent notes | After `-rescan`, after `-reindex`, and after `-walletwitness=rebuild`: identical results, notes spendable |
+| `rescan_interrupt` | Start `-rescan` on a wallet with 2000 blocks of history; SIGKILL midway | Restart without flags completes; results match the baseline |
+| `reindex_rescan_combined` | `-reindex -rescan` together | One replay (log shows reindex, rescan clears witnesses only), results match the baseline |
+| `reindex_interrupt_resume` | Needs a test-only cap on block-file size so regtest spans several files | Restart after SIGKILL logs `Reindex resume:` with the expected start file; tip and wallet match |
+
+*Following steps* (each after the previous, guarded by the tests above):
+
+3. **Compose.** One startup function decides the stages from the flags and logs the plan ("reindex -> wallet replay -> witness build"); the stages keep their code.
+4. **Resume rescan.** Write the wallet locator periodically during `ScanForWalletTransactions`, so an interrupted rescan continues instead of restarting.
+5. **Select.** Rescan from a height and witness rebuild at runtime, as RPCs gated like the startup paths (Pirate has a `rescan` RPC with a start height).
+
+**Reindex resume: validation and learning.** Covered by seven Boost tests (`reindex_tests.cpp`: marker round trips, resume start file, interrupted-state cursor, fresh index, `DB_FLAG` handling) and by the manual mainnet lab (AtHeight.md section 4.1 C: interrupt a short-snapshot reindex, restart without `-reindex`, check `Reindex source: resume`). The automated end-to-end test needs small block files (Bitcoin's `-fastprune` serves the same purpose). To learn more on real data: run the lab with `-debug=reindex`, record the `Reindex progress:` and `Reindex resume:` lines, time a full reindex against an interrupted and resumed one, and try the lab's edge cases (wrong flags force a wipe; a missing middle file ends the import).
+
+---
+
+## 9. Chain behavior
+
+Changes to how the chain is produced, relayed, and synced, short of consensus rule changes unless stated. All Research. Cross-project facts: Comparison.md sections 2 (P2P), 4 (difficulty), 5 (coin selection), 17 (chain safety).
+
+| ID | Item |
+|----|------|
+| CH-01 | Difficulty adjustment: the retarget algorithm and bounds (TNT-09 LWMA3 candidate) and the mainnet replay, first year, last 365 days, and full chain, with `contrib/stats/block_rate_replay.py` (`--first-year`, `--last-days 365`, `--all`; `--miners` for same-miner runs, `--csv` for difficulty and gaps per block) |
+| CH-02 | P2P policy: peer penalty scores for conflicting chains, address relay (addrv2), ASMap, I2P (ecosystem track only; PIR-06..08) |
+| CH-03 | Coin selection: which selection behavior is mandatory, which optional, and how operators choose |
+| CH-04 | Mempool and relay policy: standardness, fees, the zeronode collateral acceptance path (TNT-18) |
+| CH-05 | Sync acceleration: `assumevalid` covering scripts and shielded proofs, headers presync, assumeutxo (BTC-01..03); related to advisory checkpoints (RE-03) |
+| CH-06 | Block timestamp spacing (below) |
+
+**CH-06 -- Block timestamp spacing.** Research; reevaluate after the CH-01 mainnet replay, at the next coordinated upgrade planning, and after any fast-block incident.
+
+*Rules elsewhere.* TENT Wakanda (`CheckBlockTimestamp`, [TENT main.cpp](https://github.com/TENTOfficial/TENT/blob/master/src/main.cpp)) rejects a block whose time is less than the parent's time plus one third of the target spacing; Horizen fork 6 ([fork6_timeblockfork.cpp](https://github.com/HorizenOfficial/zen/blob/master/src/zen/forks/fork6_timeblockfork.cpp)) limits block time against median-time-past instead of wall clock; Bitcoin's testnet4 timewarp fix ([BIP 94](https://github.com/bitcoin/bips/blob/master/bip-0094.mediawiki)) bounds the first block of a difficulty period against the previous one. Zero has only the Bitcoin rules: time above median-time-past of 11 blocks, at most 2 hours ahead of adjusted time.
+
+*Honest frequencies at 120-second spacing* (exponential solve times):
+
+| Interval below | Per block | Per day |
+|----------------|-----------|---------|
+| 1 s | 0.83% | 6.0 |
+| 2 s | 1.65% | 11.9 |
+| 10 s | 8.0% | 58 |
+| 40 s (TENT rule at Zero's spacing) | 28.4% | 204 |
+
+Two consecutive intervals under 2 s occur about every 5 days, three about every 308 days, four about every 51 years.
+
+*Assessment.* A spacing/3 rule would make 28% of honest blocks invalid unless templates push timestamps forward, which moves chain time ahead of real time and interacts with the retarget; it limits how fast a withheld chain can be released only through the 2-hour future limit. A 1-2 s gap is not suspicious by itself (about 12 per day); runs are. Timestamps are miner-set within median-time-past and the future limit, so header arrival time at the node is the better signal.
+
+*Decision (2026-10-06).* No consensus rule. Detection and reporting under RE-05:
+
+- Flag two consecutive blocks from the same miner, each arriving within 2 s of its parent; the miner is identified by the coinbase payout script (and the pool tag in the coinbase input when present). Honest frequency of two consecutive sub-2 s gaps on the network is about one every 5 days; requiring the same miner makes a flag rarer still.
+- Flag blocks with no transactions besides the coinbase when the mempool held transactions that fit.
+- Thresholds are runtime options, for example `-fastblockgap=2` (seconds) and `-fastblockrun=2` (blocks), so operators can tune them without a release.
+- Report through the RPC warning fields, a `forks` or `mining` debug category, and `-alertnotify`.

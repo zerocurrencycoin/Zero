@@ -36,7 +36,7 @@ Run **zebrad** beside Zero for cross-checking on **Zcash** (not ZER chain):
 
 Zero already uses `ProofVerifier::Strict()` on connect. Adopt **Zebra-style explicit verifier routing** without Rust:
 
-- Height -> Sprout/Sapling verify policy table (like Zebra's `verifier_for(network_upgrade)`, **`ZcashFixes.md`** section **2.4**)
+- Height -> Sprout/Sapling verify policy table (like Zebra's `verifier_for(network_upgrade)`)
 - Pin Groth16 params hash in release notes
 - Regression tests that fail if ConnectBlock skips JoinSplit verify
 
@@ -58,7 +58,7 @@ If Zero ever adds Orchard, follow the Zebra 4.5.3 / 5.0.0 pattern (emergency con
 
 Zebra and Zero were both unaffected by the Sprout `fChecked` CVE. **Do not port `fChecked` from upstream zcashd.** Diff `ConnectBlock` on each zcashd security tag. Zero analysis and the Sprout wind-down proposal: **`ZcashFixes.md`** sections **7**-**8**.
 
-P2P features Zero lacks (addrv2, ASMap, I2P) are catalogued as PIR-06..08 in **UpdateZero.md** section **3.4**.
+P2P features Zero lacks (addrv2, ASMap, I2P) are catalogued as PIR-06..08.
 
 ---
 
@@ -74,7 +74,7 @@ P2P features Zero lacks (addrv2, ASMap, I2P) are catalogued as PIR-06..08 in **U
 
 1. Sidecar `zebrad` on **Zcash** mainnet (no Zero code change)
 2. ConnectBlock JoinSplit verify regression test
-3. Sprout wind-down proposal (**`ZcashFixes.md`** section **8**)
+3. Sprout wind-down proposal
 4. Rust FFI only if Orchard approved
 
 ---
@@ -132,7 +132,7 @@ No shared C++ with Zero. Useful as a **reference architecture** for leaving zcas
 |-------|--------|
 | Equihash 192,7 | YEC and Zero share PoW shape; Ycash did not adopt Pirate's Zawy RT_CST_RST |
 | Node strategy | Ycash bet on **zebrad + lightwalletd**; Zero stays on **zerod + zeronode + Insight** |
-| Sprout audit | Ycash preserved Sprout; high priority for zcashd security backports (**`ZcashFixes.md`** section **6**) |
+| Sprout audit | Ycash preserved Sprout; high priority for zcashd security backports |
 | Orchard | YEC zcashd path stops at Sapling-era upgrades in tree sampled; no Zero Orchard either |
 
 Zero cannot run `ycash-zebra` against ZER chain without a full parameter port. Sidecar **`zebrad`** remains **Zcash-only** for security monitoring.

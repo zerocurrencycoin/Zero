@@ -1,12 +1,12 @@
-feature,type,category,zero,bitcoin,zcash,pirate,primary_files,doc_zerod1,doc_init,test_exists,test_type,test_feasibility,test_complexity,priority,effort,gap
-reindex,option,chain,y,y,y,y,"init.cpp:382,497,610-674,1479; main.cpp:5050,5425,5454,5500,5562",y,y,y,Python RPC reindex.py,done,low,-,-,-
-rescan,option,wallet,y,y,y,y,"init.cpp:450,951-959,1864,1884; wallet.cpp:3578,3616; walletdb.cpp:1016,1308; rpcdump.cpp:84-188,582-719",y,y,n,RPC import param,indirect; P1: add rescan test,easy,low,P1,P2,low
-deletetx,option,wallet,y,n,n,n,"init.cpp:437,497,1825; wallet.cpp:3317-3533",n,y,n,none,medium,medium,P2,P3,low
-consolidation,option,wallet,y,n,y,y,"init.cpp:434-437,1810-1825; wallet.cpp:608,694,762,784; asyncrpcoperation_saplingconsolidation.cpp:92",n,y,n,none,hard,high,P2,P3,low
-consolidationtxfee,option,wallet,y,n,y,y,init.cpp:436,1811,n,y,n,none,medium,medium,P2,low,low
-consolidatesaplingaddress,option,wallet,y,n,y,y,init.cpp:435,1812-1815,n,y,n,none,medium,medium,P2,low,low
-deleteinterval,option,wallet,y,n,n,n,init.cpp:438,1828-1830,n,y,n,none,medium,medium,P3,medium,low
-keeptxnum,option,wallet,y,n,n,n,init.cpp:439,1832-1834,n,y,n,none,medium,medium,P3,medium,low
-keeptxfornblocks,option,wallet,y,n,n,n,init.cpp:440,1836-1838,n,y,n,none,medium,medium,P3,medium,low
+feature,type,category,zero,bitcoin,zcash,pirate,code_refs,doc_zerod1,doc_init,test_exists,test_type,test_feasibility,test_complexity,priority,effort,gap
+reindex,option,chain,y,y,y,y,init.cpp:HelpMessage[-reindex]; init.cpp:AppInit2[fReindex = GetBoolArg]; init.cpp:ThreadImport[ReindexResumeStartFile]; txdb.cpp:ReindexResumeStartFile; txdb.cpp:CBlockTreeDB::WriteReindexing; main.cpp:LoadExternalBlockFile; main.cpp:LoadBlockIndexDB,y,y,y,Python RPC reindex.py,done,low,-,-,-
+rescan,option,wallet,y,y,y,y,"init.cpp:HelpMessage[-rescan]; init.cpp:AppInit2[ScanForWalletTransactions(pindexRescan]; wallet.cpp:CWallet::ScanForWalletTransactions; walletdb.cpp:CWalletDB::LoadWallet; rpcdump.cpp:importprivkey,importaddress,importwallet_impl,z_importkey,z_importviewingkey[fRescan]",y,y,n,RPC import param,indirect; P1: add rescan test,easy,low,P1,P2,low
+deletetx,option,wallet,y,n,n,n,init.cpp:HelpMessage[-deletetx]; init.cpp:AppInit2[-deletetx]; wallet.cpp:CWallet::DeleteWalletTransactions,n,y,n,none,medium,medium,P2,P3,low
+consolidation,option,wallet,y,n,y,y,init.cpp:HelpMessage[-consolidation]; init.cpp:AppInit2[-consolidation]; wallet.cpp:CWallet::RunSaplingConsolidation; asyncrpcoperation_saplingconsolidation.cpp:AsyncRPCOperation_saplingconsolidation::main_impl,n,y,n,none,hard,high,P2,P3,low
+consolidationtxfee,option,wallet,y,n,y,y,init.cpp:HelpMessage[-consolidationtxfee]; init.cpp:AppInit2[-consolidationtxfee],1811,n,y,n,none,medium,medium,P2,low,low
+consolidatesaplingaddress,option,wallet,y,n,y,y,init.cpp:AppInit2[-consolidatesaplingaddress]; asyncrpcoperation_saplingconsolidation.cpp:AsyncRPCOperation_saplingconsolidation::main_impl,1812-1815,n,y,n,none,medium,medium,P2,low,low
+deleteinterval,option,wallet,y,n,n,n,init.cpp:HelpMessage[-deleteinterval]; init.cpp:AppInit2[fDeleteInterval]; wallet.cpp:CWallet::DeleteWalletTransactions,1828-1830,n,y,n,none,medium,medium,P3,medium,low
+keeptxnum,option,wallet,y,n,n,n,init.cpp:HelpMessage[-keeptxnum]; init.cpp:AppInit2[fKeepLastNTransactions]; wallet.cpp:CWallet::DeleteWalletTransactions,1832-1834,n,y,n,none,medium,medium,P3,medium,low
+keeptxfornblocks,option,wallet,y,n,n,n,init.cpp:HelpMessage[-keeptxfornblocks]; init.cpp:AppInit2[fDeleteTransactionsAfterNBlocks]; wallet.cpp:CWallet::DeleteWalletTransactions,1836-1838,n,y,n,none,medium,medium,P3,medium,low
 rescan,rpc,wallet,n,n,n,y,-,-,-,-,-,-,Pirate has Zero lacks,P4,medium,medium
 consolidationstatus,rpc,wallet,n,n,n,y,-,-,-,-,-,-,Pirate has Zero lacks,P4,low,low

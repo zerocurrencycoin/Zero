@@ -205,6 +205,24 @@ if has_level configure; then
     receipt_fail "config.status missing (configure not run)"
     STEP_CFG="FAIL  no config.status"
   fi
+  # REL-09: the version configure.ac produces must equal --release.
+  cav() { sed -n "s/^define(_CLIENT_VERSION_$1, *\([0-9]*\)).*/\1/p" "$REPO_ROOT/configure.ac"; }
+  CA_MAJ="$(cav MAJOR)"; CA_MIN="$(cav MINOR)"; CA_REV="$(cav REVISION)"; CA_BLD="$(cav BUILD)"
+  if [[ -n "$CA_MAJ" && -n "$CA_BLD" ]]; then
+    if (( CA_BLD < 25 )); then CA_SFX="-beta$((CA_BLD + 1))"
+    elif (( CA_BLD < 50 )); then CA_SFX="-rc$((CA_BLD - 24))"
+    elif (( CA_BLD == 50 )); then CA_SFX=""
+    else CA_SFX="-$((CA_BLD - 50))"; fi
+    CA_VER="v${CA_MAJ}.${CA_MIN}.${CA_REV}${CA_SFX}"
+    receipt_log "configure_ac_version $CA_VER"
+    if [[ "$CA_VER" == "$RELEASE" ]]; then
+      receipt_pass "configure.ac version $CA_VER matches --release"
+    else
+      receipt_fail "configure.ac version $CA_VER != --release $RELEASE"
+    fi
+  else
+    receipt_fail "configure.ac version defines not found"
+  fi
 fi
 
 if has_level build; then
@@ -214,8 +232,15 @@ if has_level build; then
     ZMTIME="$(stat -f '%Sm' -t '%Y-%m-%d' src/zerod 2>/dev/null || stat -c '%y' src/zerod | cut -d' ' -f1)"
     receipt_log "zerod_mtime $(stat -f '%Sm' -t '%Y-%m-%dT%H:%M:%S' src/zerod 2>/dev/null || stat -c '%y' src/zerod)"
     receipt_log "zerod_sha256 $(shasum -a 256 src/zerod | awk '{print $1}')"
-    src/zerod -version 2>/dev/null | head -1 | receipt_cap || true
+    ZVER_LINE="$(src/zerod -version 2>/dev/null | head -1)"
+    printf '%s\n' "$ZVER_LINE" | receipt_cap || true
     receipt_pass "src/zerod executable"
+    # Only a commit hash (and -dirty) may follow the release name.
+    if [[ "$ZVER_LINE" =~ (^|[[:space:]])${RELEASE//./\.}(-[0-9a-f]{7,}(-dirty)?)?$ ]]; then
+      receipt_pass "zerod -version reports $RELEASE"
+    else
+      receipt_fail "zerod -version does not report $RELEASE: $ZVER_LINE"
+    fi
     ZEROD_NOTE="zerod $ZMTIME"
     if HEAD_CT="$(git log -1 --format=%ct 2>/dev/null)"; then
       Z_CT="$(stat -f %m src/zerod 2>/dev/null || stat -c %Y src/zerod)"

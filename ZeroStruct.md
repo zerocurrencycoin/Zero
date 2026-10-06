@@ -256,7 +256,7 @@ du -sh ~/.zero/blocks/index ~/.zero/chainstate ~/.zero/blocks 2>/dev/null
 
 #### 4.3.2a `getmemoryinfo`
 
-In Bitcoin Core and zcashd (4.1.0+), `getmemoryinfo` reports the **locked (mlock) memory pool** used for keys -- not process RSS, not `-dbcache`, not the UTXO cache. Zero and Pirate do not have it. Zero still uses the older `LockedPageManager` / `secure_allocator` (`src/support/pagelocker.h`), whose only statistic is `GetLockedPageCount()` (locked OS pages, not exported over RPC). Porting the RPC means porting `LockedPool` from Bitcoin/Zcash `support/` first; the Zcash `getmemoryinfo` + `RPCLockedMemoryInfo()` is the closest template. Tracked as **WAL-LOCKEDPOOL** (TODO Pending). It would not replace the **4.3.2** checks for cache sizing.
+In Bitcoin Core and zcashd (4.1.0+), `getmemoryinfo` reports the **locked (mlock) memory pool** used for keys -- not process RSS, not `-dbcache`, not the UTXO cache. Zero and Pirate do not have it. Zero still uses the older `LockedPageManager` / `secure_allocator` (`src/support/pagelocker.h`), whose only statistic is `GetLockedPageCount()` (locked OS pages, not exported over RPC). Porting the RPC means porting `LockedPool` from Bitcoin/Zcash `support/` first; the Zcash `getmemoryinfo` + `RPCLockedMemoryInfo()` is the closest template. Tracked as **WAL-LOCKEDPOOL**. It would not replace the **4.3.2** checks for cache sizing.
 
 ### 4.3.3 UTXO cache accounting across forks
 
@@ -266,7 +266,7 @@ In Bitcoin Core and zcashd (4.1.0+), `getmemoryinfo` reports the **locked (mlock
 | **Zcash / Zero / Ycash / ...** | Same Bitcoin-era split; Zero/Zcash tip line `cache=%.1fMiB(%utx)` = UTXO-view **usage** and **entry count** | Same `CCoinsViewCache` model (+ shielded anchors/nullifiers in the same cache machinery on zcashd-lineage) | **Usage only** in `UpdateTip` / verify paths; **no** hit/miss counters |
 | **Pirate** | Same 75% block-tree bump when address **or** spent on; plus LevelDB **DB-knobs** (see **11.3**) | Same coins cache | Same usage-style logging |
 
-**Implication:** you cannot size "MiB per chain UTXO" from docs alone. Raise `-dbcache` when IBD flushes constantly or tip `cache=` rides the allocated ceiling; do not raise it when RSS is high but tip `cache=` is low (wallet/mmap bound). A tunable 75% split and hit/miss counters are **OPS-CACHE-METRICS** (TODO Pending).
+**Implication:** you cannot size "MiB per chain UTXO" from docs alone. Raise `-dbcache` when IBD flushes constantly or tip `cache=` rides the allocated ceiling; do not raise it when RSS is high but tip `cache=` is low (wallet/mmap bound). A tunable 75% split and hit/miss counters are **OPS-CACHE-METRICS**.
 
 ### 4.3.4 `getdbinfo`
 
@@ -431,9 +431,9 @@ Every zerowallet-critical and Insight-critical RPC in section **10** is now ment
 
 | Concern | Structure impact | Direction |
 |---------|------------------|-----------|
-| Tip poll CPU on large `mapWallet` | Full History decrypt + JSON each tick | Datatype split and cache (WAL-GETALLDATA-W5 / W6) |
-| Balance-walk Base58 cost | `addressBalances` keyed by `EncodeDestination` / `EncodePaymentAddress` strings; every credited vout re-encodes | Key by destination, encode once at JSON emit (**WAL-GETALLDATA-ADDRKEY**, below) |
-| Duplicate day / count parsing | Drift between emit and early filter | WAL-GETALLDATA-HELPERS |
+| Tip poll CPU on large `mapWallet` | Full History decrypt + JSON each tick | Datatype split and cache (RPC-03 W5 / W6) |
+| Balance-walk Base58 cost | `addressBalances` keyed by `EncodeDestination` / `EncodePaymentAddress` strings; every credited vout re-encodes | Key by destination, encode once at JSON emit (**RPC-03 address keys**, below) |
+| Duplicate day / count parsing | Drift between emit and early filter | RPC-03 helpers |
 | `wtxOrdered` vs getalldata | Orthogonal: insert-time order vs RPC sort map | section **11.4** |
 
 **Address keying vs Base58 encoding**
@@ -458,7 +458,7 @@ Transparent destinations already carry fixed-size ids:
 
 Shielded entries in the same map need a parallel typed key or tagged binary id (Sapling/Sprout payment-address bytes), not Base58/`zs` strings, if the balance map is unified. Orthogonal to W5/W6 (fewer/cheaper tip polls) and W1 (fewer wallet passes); do after or beside those if tip CPU remains Base58-dominated in samples.
 
-Task id: **WAL-GETALLDATA-ADDRKEY** (node-side fix; the finding lives only here).
+Task id: **RPC-03 address keys** (node-side fix; the finding lives only here).
 
 **Dispatch gates (server):** warmup; witness rebuild; `initWitnessesBuilt` for `getalldata`/`z_sendmany`; HTTP work-queue full -> 503.
 
@@ -554,9 +554,31 @@ No automated tests in **`qa/rpc-tests/`** cover **`-consolidation`** today.
 | Zeronode manager | `zncache.dat` | Persisted broadcast state |
 | Spork | Chain + P2P | Network-wide toggles |
 | Budget | Memory + disk | Proposal/finalization |
-| Transaction archive | `archiverule` in block tree | Optional; toggle triggers reindex |
+| Transaction archive | Wallet `arctx` records; `archiverule` flag in block tree | Always on (section 9.1) |
 
-No Zcash equivalent; ported from the TENT masternode layer.
+Zeronode, spork, and budget have no Zcash equivalent; they are ported from the TENT masternode layer.
+
+### 9.1 Transaction archive
+
+Added by CryptoForge in Zero 3.2.0 (December 2020) and in Pirate the same month; no Zcash equivalent.
+
+**What it stores.** For every transaction added to the wallet (`CWallet::AddToWallet[AddToArcTxs]`), an archive point: block hash and position in the block (`ArchiveTxPoint`), written to the wallet file as an `arctx` record and loaded into `mapArcTxs`. Shielded spends get nullifier-to-outpoint maps (`mapArcJSOutPoints`, `mapArcSaplingOutPoints`).
+
+**What it enables.** Wallet history survives transaction deletion. With `-deletetx`, `CWallet::DeleteWalletTransactions` removes old transactions from `mapWallet` and the wallet file (conflicted ones, and ones whose shielded notes were spent beyond the retention depth and whose parents are gone; defaults: run every 1000 blocks, keep transactions newer than 10,000 blocks, keep the last 200), so the wallet stays small and loads fast; the zs_* history RPCs (`zs_listtransactions`, `zs_gettransaction`, `zs_listspentbyaddress`, `zs_listreceivedbyaddress`, `zs_listsentbyaddress`) and `getalldata` still list the deleted transactions by walking `mapArcTxs`.
+
+**How it reads.** For each archived entry the RPCs fetch the transaction with `GetTransaction(txid, ..., fAllowSlow)`, and for transparent inputs they fetch each spent transaction the same way to show amounts and senders. That needs `txindex` (lookup of any transaction by txid, including transactions that are not the wallet's) and the block files the index points to.
+
+**State and runtime.** `fArchive` is hard-coded true, not an option. The block tree stores an `archiverule` flag; a datadir built before 3.2.0 has a mismatching flag, which forces one `-reindex` at startup (`AppInit2[archiverule]`). `txindex` is likewise forced on, with its own flag and the same one-time reindex. The reindex rebuilds `txindex` over the full chain and replays every block through the wallet, which writes archive points for historical wallet transactions.
+
+**Why pruning was removed.** Pruning deletes old block files; archived transactions and their inputs live in those files and are found through `txindex`, which pruning also forbids. Archive and pruning cannot coexist as built.
+
+**Possible coexistence** (design options, none implemented):
+
+1. Keep the block files that hold archived transactions (a pin list from `mapArcTxs`) and prune the rest; inputs still need `txindex` or stored input data.
+2. Store what the history RPCs display (amounts, addresses, memo indicators) in the archive record at insert time, so no block or index lookup is needed; the wallet file grows by that data per transaction.
+3. Keep pruning off for wallet nodes and allow it only for `-disablewallet` nodes with optional `txindex`.
+
+**Cost on large wallets and slow syncs.** Each archived entry costs one `GetTransaction` disk read per listing, plus one per transparent input; history RPCs scale with total history, not with `mapWallet`. `getalldata` applies its day cutoff before inserting into the sort map, which bounds the work for recent windows. During initial sync and reindex, archive points add a wallet write per wallet transaction; `txindex` adds an index write per transaction in every block, a cost every node pays.
 
 ---
 
@@ -629,7 +651,7 @@ Representative zerod RPC groups: chain/blocks, **`getrawtransaction`**, address-
 
 JSON-RPC only; no zerod REST; no local Insight.
 
-Wallet-critical RPCs include **`getalldata`** (primary UI refresh), chain info RPCs, `getsupply`, send/status RPCs, **`getaddressesbyaccount [""]`** (empty account string required on Zero), zeronode RPCs. Structure notes: **section 6.2**. Open poll/cache tasks: **TODO** WAL-GETALLDATA-*. PirateOcean does not use this RPC (in-process wallet models).
+Wallet-critical RPCs include **`getalldata`** (primary UI refresh), chain info RPCs, `getsupply`, send/status RPCs, **`getaddressesbyaccount [""]`** (empty account string required on Zero), zeronode RPCs. Structure notes: **section 6.2**. Open poll/cache tasks: RPC-03. PirateOcean does not use this RPC (in-process wallet models).
 
 Release couples embedded **`zerod`** binary to wallet tag; exercise **`getalldata`** on release smoke.
 
@@ -789,10 +811,10 @@ zerod -reindex -daemon
 | CLI `-reindex` (one start) | **Wiped**, rebuild from `blk*` | Kept |
 | `reindex=1` left in conf | Wipe **every** restart | Kept |
 | `DB_FLAG` mismatch (today) | Same wipe as `-reindex` | Kept |
-| Interrupt mid-reindex | `'R'` set; `L`/`H` progress markers written; **resume not consumed yet** | Kept |
+| Interrupt mid-reindex | `'R'` set; `L`/`H` progress markers written; next start resumes from file `L+1` (below) | Kept |
 | Clean finish | `'R'` erased; `L`/`H` left as last completed file/tip | Kept |
 
-**Sticky conf `reindex=`** logs a loud `InitWarning` plus `LogPrintf` recommending one-shot CLI `-reindex` (typically with `-disablewallet`). Refusing sticky conf or an unforced `DB_FLAG` mismatch (`-reindexforce`) is the OPS-REINDEX remainder (TODO Pending).
+**Sticky conf `reindex=`** logs a loud `InitWarning` plus `LogPrintf` recommending one-shot CLI `-reindex` (typically with `-disablewallet`). Refusing sticky conf or an unforced `DB_FLAG` mismatch (`-reindexforce`) is the OPS-REINDEX remainder.
 
 #### Progress markers and resume
 
@@ -829,6 +851,28 @@ Log: `Reindex progress: lastfile=... lastblock=...`. Tests: `src/test/reindex_te
 | **Skip chain connect below H** | Validation / UTXO below H | No for those heights | Needs chainstate already at H (snapshot/bootstrap); out of scope |
 
 **Decision (OPS-REINDEX remainder):** implement skip-wallet only; skip-chain is out of scope until the snapshot story is solid.
+
+### 11.2a Witness rebuild, rescan, reindex
+
+Three recovery steps of increasing scope; each includes the work of the previous one.
+
+| Step | Trigger | What it does | Code |
+|------|---------|--------------|------|
+| Witness rebuild | `-walletwitness=rebuild` (after import); `-walletwitness=ibd-defer` (once after import) | Recomputes note witnesses from the note commitment trees for the current tip | `RebuildWitnessCacheForChainTip` -> `BuildWitnessCache(tip, false)`, from `ThreadImport` |
+| Rescan | `-rescan`; implied by `-salvagewallet` and `-zapwallettxes` | Clears the witness cache, replays blocks from genesis through the wallet (transactions, notes, witnesses per block), then a final witness build at the tip; chain state untouched | `ClearNoteWitnessCache`, `ScanForWalletTransactions` in startup step 8 |
+| Reindex | `-reindex`; `DB_FLAG` mismatch | Wipes the block index and chain state, reconnects every block from `blk*.dat`; each connected block reaches the wallet (transactions and per-block witnesses, or deferred), so it implies a rescan and a witness rebuild | Startup step 7 (wipe), step 10 `ThreadImport` |
+
+**Order at startup.** Step 7 loads (or wipes) the chain; step 8 loads the wallet and runs any rescan against the loaded chain; step 10 starts `ThreadImport`, which performs the reindex and, at its end, the witness rebuild for `ibd-defer` or `rebuild`. With `-reindex` the chain is empty at step 8, so a requested rescan only clears the witness cache and the reindex does the replay. The steps are separate code paths; their relationship is documented here, not expressed in one interface.
+
+**Which step to use.** Start with the smallest step that covers the symptom.
+
+| Symptom | Step | Cost | Notes |
+|---------|------|------|-------|
+| Notes unspendable, anchor or witness errors, after a deep reorg | `-walletwitness=rebuild` | Minutes; wallet RPCs gated during the build | Chain and wallet transactions untouched |
+| Transactions missing after a key or viewing-key import, a restored backup, `-zapwallettxes` | `-rescan` | Proportional to chain length; wallet RPCs unavailable during startup | Chain untouched; witnesses rebuilt along the way |
+| Block index or chain-state errors, a changed index flag (`txindex`, `insightexplorer`, `archiverule`), crash with database errors | `-reindex` once on the command line, never in `zero.conf` | Hours for the full chain; resumes by block file after an interruption (section 11.2) | Implies the wallet replay and witness build; `-disablewallet` speeds explorer hosts |
+
+zcashd's help states that `-reindex` implies `-rescan`; Zero's help text does not, although the behavior is the same.
 
 ### 11.3 Pirate index and DB options
 
@@ -893,7 +937,7 @@ Bitcoin and Zcash keep the wallet's ordered tx view in memory (`wtxOrdered`) ins
 
 Pirate took a different shortcut: skip the walk and set `nTimeSmart = nTimeReceived = blocktime`. That is O(1) but loses arrival-time meaning; keep it only as an emergency alternate. PirateOcean (pirate-qt) still rebuilds.
 
-**Remaining gap:** matching Zcash's pointer-only type requires removing the account RPCs (`getaccount`, `listaccounts`, `move`, `sendfrom`, ...). That has a business layer (clients, docs, Zerowallet) and a code-risk layer (BDB `acentry`, account filters, reorder, RPC table): **WAL-RPC-ACCOUNTS**.
+**Remaining gap:** matching Zcash's pointer-only type requires removing the account RPCs (`getaccount`, `listaccounts`, `move`, `sendfrom`, ...). That has a business layer (clients, docs, Zerowallet) and a code-risk layer (BDB `acentry`, account filters, reorder, RPC table): **RPC-01**.
 
 `wtxOrdered` does not change which txs are in the wallet, consensus, LevelDB indexes, or the `GetTxTime` clamp formula; it only changes how prior entries are found for the clamp.
 
@@ -1005,7 +1049,7 @@ Changing **updates** (how often / which slot receives) vs **type** (what script/
 | **FR-TADDR** (B) | Pay a **plain t-addr** (P2PKH) instead of 2-of-3 P2SH | Replace `assert(CScriptID)` + script build; new addresses; custody model | Simpler single-key spend / lower signing friction; easier wallet tooling | **Hard consensus** + key migration; loses multisig quorum; anyone with that key spends all future coinbases to that addr |
 | **FR-Z** (Z) | Coinbase founders output to a **Sapling z-addr** (shielded) | Coinbase rules, miners, Insight (transparent-only indexes), wallet, proving | Privacy for development fee; no transparent UTXO dust on explorers | **Hard consensus**; miner/template + validation; Insight addressindex does not cover z; ops extraction path changes entirely |
 
-**Not the same as wallet "accounts":** Obsolete RPC account labels (**WAL-RPC-ACCOUNTS**) are unrelated to founders **type**. Changing founders type does not require dropping account RPCs.
+**Not the same as wallet "accounts":** Obsolete RPC account labels (**RPC-01**) are unrelated to founders **type**. Changing founders type does not require dropping account RPCs.
 
 **Product order if pursued:** decide custody (2-of-3 vs single t vs z) first, then rotation cadence, then implementation + activation height. Not scheduled; needs consensus review before code.
 

@@ -165,6 +165,8 @@ testScriptsTierBPass=(
     'walletbackup.py'
     'reindex_shielded.py'
     'wallet_witness_defer.py'
+    'pruning_disabled.py'
+    'wallet_archive.py'
 )
 
 # Tier B fail: diagnostic only (-Bfail). Debug: needs porting work (maturity, comptool,

@@ -40,6 +40,8 @@ B,pass,timestampindex.py
 B,pass,walletbackup.py
 B,pass,reindex_shielded.py
 B,pass,wallet_witness_defer.py
+B,pass,pruning_disabled.py
+B,pass,wallet_archive.py
 Bfail,debug,shorter_block_times.py
 Bfail,debug,wallet_changeaddresses.py
 Bfail,debug,wallet_addresses.py

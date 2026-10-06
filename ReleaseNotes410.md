@@ -46,6 +46,7 @@ Zero **v4.1.0** full node (`zerod`, `zero-cli`, `zero-tx`): improvement, bug-fix
 
 ### Wallet
 
+- Fixed a crash: the zs_* history RPCs and `getalldata`, called during `-reindex` or initial sync, could make the node crash later when it imported the blocks holding archived transactions.
 - `getwalletinfo` adds `note_tx_count`, `sprout_note_count`, and `sapling_note_count`.
 - Opt-in witness options `-walletwitness=<mode>` (`ibd-defer`, `rebuild`) and `-walletwitnessnote`; debug option `-walletwitnessstats`. Details: `zerod -help`.
 - While the witness cache rebuilds, `stop`, `help`, `getblockcount`, `getblockchaininfo`, and `getnetworkinfo` remain available.
@@ -58,13 +59,12 @@ Zero **v4.1.0** full node (`zerod`, `zero-cli`, `zero-tx`): improvement, bug-fix
 
 ### Build, release, and tests
 
-- Release archives for Linux, macOS, and Windows with one `SHA256SUMS` file; see BUILD_ZERO.
-- Test gate `./contrib/run-tests.sh --strict` and regtest founders window coverage; see TEST_ZERO.
-- Documentation set: see README.
+- Release archives for Linux, macOS, and Windows with one `SHA256SUMS` file.
+- Test gate `./contrib/run-tests.sh --strict` and regtest founders window coverage.
 
 ### Compatibility
 
-- Linux binaries run on the build OS or newer; see BUILD_ZERO.
+- Linux binaries run on the build OS or newer.
 - Deprecation schedule: `getdeprecationinfo`.
 
 ### Verify download

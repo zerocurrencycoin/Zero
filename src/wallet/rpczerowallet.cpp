@@ -498,14 +498,14 @@ void getRpcArcTx(uint256 &txid, RpcArcTransaction &arcTx, vector<uint256> &ivks,
     uint256 hashBlock;
     //try to find the transaction to pull the hashblock
     GetTransaction(txid, tx, Params().GetConsensus(), hashBlock, true);
-    if (!hashBlock.IsNull() && mapBlockIndex[hashBlock] != nullptr) {
+    if (!hashBlock.IsNull() && LookupBlockIndex(hashBlock) != nullptr) {
         arcTx.blockHash = hashBlock;
 
         int nHeight = chainActive.Tip()->nHeight;
-        int txHeight = mapBlockIndex[hashBlock]->nHeight;
+        int txHeight = LookupBlockIndex(hashBlock)->nHeight;
         arcTx.confirmations = nHeight - txHeight + 1;
 
-        arcTx.nBlockTime = mapBlockIndex[hashBlock]->GetBlockTime();
+        arcTx.nBlockTime = LookupBlockIndex(hashBlock)->GetBlockTime();
 
         if (tx.IsCoinBase())
         {
@@ -516,7 +516,7 @@ void getRpcArcTx(uint256 &txid, RpcArcTransaction &arcTx, vector<uint256> &ivks,
             arcTx.category = "standard";
         }
 
-        CBlockIndex* pblockindex = chainActive[mapBlockIndex[hashBlock]->nHeight];
+        CBlockIndex* pblockindex = chainActive[LookupBlockIndex(hashBlock)->nHeight];
         CBlock block;
         ReadBlockFromDisk(block, pblockindex, Params().GetConsensus());
 
@@ -573,8 +573,8 @@ void getRpcArcTx(const CWalletTx &tx, RpcArcTransaction &arcTx, vector<uint256> 
     arcTx.blockHash = tx.hashBlock;
     arcTx.confirmations = tx.GetDepthInMainChain();
 
-    if (!tx.hashBlock.IsNull() && mapBlockIndex[tx.hashBlock] != nullptr) {
-        arcTx.nBlockTime = mapBlockIndex[tx.hashBlock]->GetBlockTime();
+    if (!tx.hashBlock.IsNull() && LookupBlockIndex(tx.hashBlock) != nullptr) {
+        arcTx.nBlockTime = LookupBlockIndex(tx.hashBlock)->GetBlockTime();
     } else {
         arcTx.nBlockTime = 0;
     }
@@ -954,8 +954,8 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
       ArchiveTxPoint arcTxPt = (*it).second;
       std::pair<int,int> key;
 
-      if (!arcTxPt.hashBlock.IsNull() && mapBlockIndex[arcTxPt.hashBlock] != nullptr) {
-        key = make_pair(mapBlockIndex[arcTxPt.hashBlock]->nHeight, arcTxPt.nIndex);
+      if (!arcTxPt.hashBlock.IsNull() && LookupBlockIndex(arcTxPt.hashBlock) != nullptr) {
+        key = make_pair(LookupBlockIndex(arcTxPt.hashBlock)->nHeight, arcTxPt.nIndex);
         sortedArchive[key] = txid;
       }
     }
@@ -970,8 +970,8 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
         key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
         sortedArchive[key] = wtx.GetHash();
         nPosUnconfirmed++;
-      } else if (!wtx.hashBlock.IsNull() && mapBlockIndex[wtx.hashBlock] != nullptr) {
-        key = make_pair(mapBlockIndex[wtx.hashBlock]->nHeight, wtx.nIndex);
+      } else if (!wtx.hashBlock.IsNull() && LookupBlockIndex(wtx.hashBlock) != nullptr) {
+        key = make_pair(LookupBlockIndex(wtx.hashBlock)->nHeight, wtx.nIndex);
         sortedArchive[key] = wtx.GetHash();
       } else {
         key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
@@ -1020,7 +1020,7 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
                 continue;
 
             //Exclude Transactions older that max days old
-            if (wtx.GetDepthInMainChain() > 0 && nFilterType == 1 && mapBlockIndex[wtx.hashBlock]->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
+            if (wtx.GetDepthInMainChain() > 0 && nFilterType == 1 && LookupBlockIndex(wtx.hashBlock)->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
                 continue;
 
             //Exclude transactions with greater than max confirmations
@@ -1044,11 +1044,11 @@ UniValue zs_listtransactions(const UniValue& params, bool fHelp)
             //Archived Transactions
             getRpcArcTx(txid, arcTx, ivks, ovks, fIncludeWatchonly);
 
-            if (arcTx.blockHash.IsNull() || mapBlockIndex[arcTx.blockHash] == nullptr)
+            if (arcTx.blockHash.IsNull() || LookupBlockIndex(arcTx.blockHash) == nullptr)
                 continue;
 
             //Exclude Transactions older that max days old
-            if (confirms > 0 && nFilterType == 1 && mapBlockIndex[arcTx.blockHash]->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
+            if (confirms > 0 && nFilterType == 1 && LookupBlockIndex(arcTx.blockHash)->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
                 continue;
 
         }
@@ -1335,8 +1335,8 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
       ArchiveTxPoint arcTxPt = (*it).second;
       std::pair<int,int> key;
 
-      if (!arcTxPt.hashBlock.IsNull() && mapBlockIndex[arcTxPt.hashBlock] != nullptr) {
-        key = make_pair(mapBlockIndex[arcTxPt.hashBlock]->nHeight, arcTxPt.nIndex);
+      if (!arcTxPt.hashBlock.IsNull() && LookupBlockIndex(arcTxPt.hashBlock) != nullptr) {
+        key = make_pair(LookupBlockIndex(arcTxPt.hashBlock)->nHeight, arcTxPt.nIndex);
         sortedArchive[key] = txid;
       }
     }
@@ -1351,8 +1351,8 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
         key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
         sortedArchive[key] = wtx.GetHash();
         nPosUnconfirmed++;
-      } else if (!wtx.hashBlock.IsNull() && mapBlockIndex[wtx.hashBlock] != nullptr) {
-        key = make_pair(mapBlockIndex[wtx.hashBlock]->nHeight, wtx.nIndex);
+      } else if (!wtx.hashBlock.IsNull() && LookupBlockIndex(wtx.hashBlock) != nullptr) {
+        key = make_pair(LookupBlockIndex(wtx.hashBlock)->nHeight, wtx.nIndex);
         sortedArchive[key] = wtx.GetHash();
       } else {
         key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
@@ -1401,7 +1401,7 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
                 continue;
 
             //Exclude Transactions older that max days old
-            if (wtx.GetDepthInMainChain() > 0 && nFilterType == 1 && mapBlockIndex[wtx.hashBlock]->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
+            if (wtx.GetDepthInMainChain() > 0 && nFilterType == 1 && LookupBlockIndex(wtx.hashBlock)->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
                 continue;
 
             //Exclude transactions with greater than max confirmations
@@ -1425,11 +1425,11 @@ UniValue zs_listspentbyaddress(const UniValue& params, bool fHelp) {
             //Archived Transactions
             getRpcArcTx(txid, arcTx, ivks, ovks, fIncludeWatchonly);
 
-            if (arcTx.blockHash.IsNull() || mapBlockIndex[arcTx.blockHash] == nullptr)
+            if (arcTx.blockHash.IsNull() || LookupBlockIndex(arcTx.blockHash) == nullptr)
                 continue;
 
             //Exclude Transactions older that max days old
-            if (confirms > 0 && nFilterType == 1 && mapBlockIndex[arcTx.blockHash]->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
+            if (confirms > 0 && nFilterType == 1 && LookupBlockIndex(arcTx.blockHash)->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
                 continue;
 
         }
@@ -1612,8 +1612,8 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
       ArchiveTxPoint arcTxPt = (*it).second;
       std::pair<int,int> key;
 
-      if (!arcTxPt.hashBlock.IsNull() && mapBlockIndex[arcTxPt.hashBlock] != nullptr) {
-        key = make_pair(mapBlockIndex[arcTxPt.hashBlock]->nHeight, arcTxPt.nIndex);
+      if (!arcTxPt.hashBlock.IsNull() && LookupBlockIndex(arcTxPt.hashBlock) != nullptr) {
+        key = make_pair(LookupBlockIndex(arcTxPt.hashBlock)->nHeight, arcTxPt.nIndex);
         sortedArchive[key] = txid;
       }
     }
@@ -1628,8 +1628,8 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
         key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
         sortedArchive[key] = wtx.GetHash();
         nPosUnconfirmed++;
-      } else if (!wtx.hashBlock.IsNull() && mapBlockIndex[wtx.hashBlock] != nullptr) {
-        key = make_pair(mapBlockIndex[wtx.hashBlock]->nHeight, wtx.nIndex);
+      } else if (!wtx.hashBlock.IsNull() && LookupBlockIndex(wtx.hashBlock) != nullptr) {
+        key = make_pair(LookupBlockIndex(wtx.hashBlock)->nHeight, wtx.nIndex);
         sortedArchive[key] = wtx.GetHash();
       } else {
         key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
@@ -1677,7 +1677,7 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
                 continue;
 
             //Exclude Transactions older that max days old
-            if (wtx.GetDepthInMainChain() > 0 && nFilterType == 1 && mapBlockIndex[wtx.hashBlock]->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
+            if (wtx.GetDepthInMainChain() > 0 && nFilterType == 1 && LookupBlockIndex(wtx.hashBlock)->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
                 continue;
 
             //Exclude transactions with greater than max confirmations
@@ -1701,11 +1701,11 @@ UniValue zs_listreceivedbyaddress(const UniValue& params, bool fHelp) {
             //Archived Transactions
             getRpcArcTx(txid, arcTx, ivks, ovks, fIncludeWatchonly);
 
-            if (arcTx.blockHash.IsNull() || mapBlockIndex[arcTx.blockHash] == nullptr)
+            if (arcTx.blockHash.IsNull() || LookupBlockIndex(arcTx.blockHash) == nullptr)
                 continue;
 
             //Exclude Transactions older that max days old
-            if (confirms > 0 && nFilterType == 1 && mapBlockIndex[arcTx.blockHash]->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
+            if (confirms > 0 && nFilterType == 1 && LookupBlockIndex(arcTx.blockHash)->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
                 continue;
 
         }
@@ -1888,8 +1888,8 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
       ArchiveTxPoint arcTxPt = (*it).second;
       std::pair<int,int> key;
 
-      if (!arcTxPt.hashBlock.IsNull() && mapBlockIndex[arcTxPt.hashBlock] != nullptr) {
-        key = make_pair(mapBlockIndex[arcTxPt.hashBlock]->nHeight, arcTxPt.nIndex);
+      if (!arcTxPt.hashBlock.IsNull() && LookupBlockIndex(arcTxPt.hashBlock) != nullptr) {
+        key = make_pair(LookupBlockIndex(arcTxPt.hashBlock)->nHeight, arcTxPt.nIndex);
         sortedArchive[key] = txid;
       }
     }
@@ -1904,8 +1904,8 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
         key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
         sortedArchive[key] = wtx.GetHash();
         nPosUnconfirmed++;
-      } else if (!wtx.hashBlock.IsNull() && mapBlockIndex[wtx.hashBlock] != nullptr) {
-        key = make_pair(mapBlockIndex[wtx.hashBlock]->nHeight, wtx.nIndex);
+      } else if (!wtx.hashBlock.IsNull() && LookupBlockIndex(wtx.hashBlock) != nullptr) {
+        key = make_pair(LookupBlockIndex(wtx.hashBlock)->nHeight, wtx.nIndex);
         sortedArchive[key] = wtx.GetHash();
       } else {
         key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
@@ -1954,7 +1954,7 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
                 continue;
 
             //Exclude Transactions older that max days old
-            if (wtx.GetDepthInMainChain() > 0 && nFilterType == 1 && mapBlockIndex[wtx.hashBlock]->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
+            if (wtx.GetDepthInMainChain() > 0 && nFilterType == 1 && LookupBlockIndex(wtx.hashBlock)->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
                 continue;
 
             //Exclude transactions with greater than max confirmations
@@ -1978,11 +1978,11 @@ UniValue zs_listsentbyaddress(const UniValue& params, bool fHelp) {
             //Archived Transactions
             getRpcArcTx(txid, arcTx, ivks, ovks, fIncludeWatchonly);
 
-            if (arcTx.blockHash.IsNull() || mapBlockIndex[arcTx.blockHash] == nullptr)
+            if (arcTx.blockHash.IsNull() || LookupBlockIndex(arcTx.blockHash) == nullptr)
                 continue;
 
             //Exclude Transactions older that max days old
-            if (confirms > 0 && nFilterType == 1 && mapBlockIndex[arcTx.blockHash]->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
+            if (confirms > 0 && nFilterType == 1 && LookupBlockIndex(arcTx.blockHash)->GetBlockTime() < (t - (nFilter * 60 * 60 * 24)))
                 continue;
 
         }
@@ -2436,12 +2436,12 @@ UniValue getalldata(const UniValue& params, bool fHelp)
           ArchiveTxPoint arcTxPt = (*it).second;
           std::pair<int,int> key;
 
-          if (!arcTxPt.hashBlock.IsNull() && mapBlockIndex[arcTxPt.hashBlock] != nullptr) {
+          if (!arcTxPt.hashBlock.IsNull() && LookupBlockIndex(arcTxPt.hashBlock) != nullptr) {
             //Exclude transactions older than the day window
-            if (IsGetAllDataTxTooOld(mapBlockIndex[arcTxPt.hashBlock]->GetBlockTime(), (int64_t)t, day)) {
+            if (IsGetAllDataTxTooOld(LookupBlockIndex(arcTxPt.hashBlock)->GetBlockTime(), (int64_t)t, day)) {
               continue;
             }
-            key = make_pair(mapBlockIndex[arcTxPt.hashBlock]->nHeight, arcTxPt.nIndex);
+            key = make_pair(LookupBlockIndex(arcTxPt.hashBlock)->nHeight, arcTxPt.nIndex);
             // Count archive vs wallet collisions on the same sort key
             auto coll = sortedArchive.find(key);
             if (coll != sortedArchive.end() && coll->second != txid) {
@@ -2466,8 +2466,8 @@ UniValue getalldata(const UniValue& params, bool fHelp)
               continue;
           if (wtx.GetDepthInMainChain() < 0)
               continue;
-                if (wtx.GetDepthInMainChain() > 0 && mapBlockIndex[wtx.hashBlock] != nullptr
-              && IsGetAllDataTxTooOld(mapBlockIndex[wtx.hashBlock]->GetBlockTime(), (int64_t)t, day)) {
+                if (wtx.GetDepthInMainChain() > 0 && LookupBlockIndex(wtx.hashBlock) != nullptr
+              && IsGetAllDataTxTooOld(LookupBlockIndex(wtx.hashBlock)->GetBlockTime(), (int64_t)t, day)) {
               continue;
           }
 
@@ -2475,8 +2475,8 @@ UniValue getalldata(const UniValue& params, bool fHelp)
             ut = wtx.GetHash();
             key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
             nPosUnconfirmed++;
-          } else if (!wtx.hashBlock.IsNull() && mapBlockIndex[wtx.hashBlock] != nullptr) {
-            key = make_pair(mapBlockIndex[wtx.hashBlock]->nHeight, wtx.nIndex);
+          } else if (!wtx.hashBlock.IsNull() && LookupBlockIndex(wtx.hashBlock) != nullptr) {
+            key = make_pair(LookupBlockIndex(wtx.hashBlock)->nHeight, wtx.nIndex);
           } else {
             key = make_pair(chainActive.Tip()->nHeight + 1,  nPosUnconfirmed);
             nPosUnconfirmed++;
@@ -2521,7 +2521,7 @@ UniValue getalldata(const UniValue& params, bool fHelp)
                     continue;
 
                 //Exclude transactions older than the day window (backstop; already filtered on insert)
-                if (wtx.GetDepthInMainChain() > 0 && mapBlockIndex[wtx.hashBlock]->GetBlockTime() < dayCutoff) {
+                if (wtx.GetDepthInMainChain() > 0 && LookupBlockIndex(wtx.hashBlock)->GetBlockTime() < dayCutoff) {
                     continue;
                 }
 
@@ -2531,7 +2531,7 @@ UniValue getalldata(const UniValue& params, bool fHelp)
                 //Archived Transactions
                 getRpcArcTx(txid, arcTx, ivks, ovks, fIncludeWatchonly);
 
-                if (arcTx.blockHash.IsNull() || mapBlockIndex[arcTx.blockHash] == nullptr)
+                if (arcTx.blockHash.IsNull() || LookupBlockIndex(arcTx.blockHash) == nullptr)
                   continue;
 
                 //Exclude Transactions older that max days old

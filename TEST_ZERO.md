@@ -81,7 +81,7 @@ blockchain, disablewallet, httpbasics, reindex, decodescript, keypool, paymentdi
 
 ### Tier B pass -- `testScriptsTierBPass`
 
-wallet, wallet_anchorfork, wallet_changeindicator, wallet_import_export, wallet_1941, listtransactions, mempool_resurrect_test, mempool_spendcoinbase, mempool_limit, txn_doublespend, txn_doublespend --mineblock, zapwallettxes, proxy_test, signrawtransactions, nodehandling, rescan_startup, getblocktemplate, founders_window, zeronode_coinbase, zeronode_startalias, p2p_txexpiry_dos, p2p_txexpiringsoon, p2p_node_bloom, getrawtransaction_insight, rest, addressindex, spentindex, timestampindex, walletbackup, reindex_shielded, wallet_witness_defer
+wallet, wallet_anchorfork, wallet_changeindicator, wallet_import_export, wallet_1941, listtransactions, mempool_resurrect_test, mempool_spendcoinbase, mempool_limit, txn_doublespend, txn_doublespend --mineblock, zapwallettxes, proxy_test, signrawtransactions, nodehandling, rescan_startup, getblocktemplate, founders_window, zeronode_coinbase, zeronode_startalias, p2p_txexpiry_dos, p2p_txexpiringsoon, p2p_node_bloom, getrawtransaction_insight, rest, addressindex, spentindex, timestampindex, walletbackup, reindex_shielded, wallet_witness_defer, pruning_disabled, wallet_archive
 
 ### Ext pass -- `testScriptsExtPass`
 
@@ -121,7 +121,7 @@ A basename that exits **0** when run alone is **not** in the contributor gate un
 | Comptool P2P | `bip65-cltv-p2p`, `bipdersig-p2p`, `invalidblockrequest`, `p2p-acceptblock` | Comparison-tool block templates; Python Equihash is (48,5) only |
 | Mempool / NU | `mempool_reorg`, `mempool_nu_activation`, `mempool_tx_expiry` | Activation / expiry heights vs Zero NU schedule |
 | GBT proposals | `getblocktemplate_proposals` | Proposal path vs Zero coinbase / founders |
-| Pruning | `pruning` | Multi-GB disk and long wall; Bitcoin-era size assumptions |
+| Pruning | `pruning` | `-prune` is disabled in Zero (option commented out in `init.cpp`; `txindex` is forced on); retire with the option or restore both together |
 | Fee estimate | `smartfees` | Estimator vs Zero fee-start / founders |
 | Retired Sprout | `prioritisetransaction`, `wallet_treestate`, `wallet_overwintertx`, `mergetoaddress_sprout`, `sprout_sapling_migration`, `turnstile`, `zcjoinsplit`, `zcjoinsplitdoublespend` | `zcjoinsplit*` call the `zcraw*` RPCs, compiled out unless built with `-DENABLE_ZCRAW_RPC`; the others are Sprout-era or manual testnet; not a 4.0.1 gate item |
 | GTest | `CachedWitnessesCleanIndex` | Needs reindex-style `pcoinsTip` + disk blocks; run `--fail` |
@@ -208,7 +208,7 @@ Receipts live in gitignored **`.build/`**. Scratch chain data stays outside the 
 
 | Layer | macOS ARM64 | Linux x86_64 (Ubuntu 24.04 class) | Windows |
 |-------|-------------|-----------------------------------|---------|
-| Build | **Done** (`./zcutil/build.sh`) | **Rebuild at the release tip** (recommended next gate) | **Not run.** MXE cross from Linux is documented in BUILD_ZERO; this program has never produced or executed `zerod.exe` |
+| Build | **Done** (`./zcutil/build.sh`) | **Rebuild at the release tip** (recommended next gate) | **Not run.** MXE cross-build from Linux; this program has never produced or executed `zerod.exe` |
 | `./contrib/run-tests.sh --strict` | **Re-run on the tag commit** (last run on an earlier 4.0.1-line commit) | **Not run at current tip.** Recommended before tag; maintainer may ship without it | No native or WSL2 `--strict` |
 | `--suite` (ELF `check-security` / `no-dot-so`, full `rpcbind`) | **N/A** -- Darwin skips ELF stages | **Not run at current tip.** Recommended | N/A for PE |
 | `--all --strict` (Tier A+B+E) | Optional; re-run after tier moves | Optional after `--strict` | Not run |
@@ -229,7 +229,7 @@ Receipts live in gitignored **`.build/`**. Scratch chain data stays outside the 
 | **2 -- node lifecycle** | COLD / RESTART / ATTACH on a scratch datadir | `contrib/ops-validate.sh smoke` |
 | **3 -- clients / mining** | Zerowallet visual; Equihash verify/solve; regtest mine | GUI in the wallet repo. `verifyeq` / `solveeq` / `mine` here |
 
-Receipts: **`.build/`** (`ready-*.txt`, `ready-latest.txt`, build logs, `test-logs/`, `ops-status.jsonl`). Scratch chain data: **`ZERO_OPS_LAB`** (default `/tmp/zero-ops-validate`), never the default user datadir, never this tree unless `--force`. Conf: `contrib/zero-conf.sh` from `contrib/conf-templates/` (default template **prod**, default file `/tmp/zero.conf`). Never sticky `reindex=1`. Sapling params are system setup (`BUILD_ZERO` section 3), not this cycle.
+Receipts: **`.build/`** (`ready-*.txt`, `ready-latest.txt`, build logs, `test-logs/`, `ops-status.jsonl`). Scratch chain data: **`ZERO_OPS_LAB`** (default `/tmp/zero-ops-validate`), never the default user datadir, never this tree unless `--force`. Conf: `contrib/zero-conf.sh` from `contrib/conf-templates/` (default template **prod**, default file `/tmp/zero.conf`). Never sticky `reindex=1`. Sapling params are system setup, not this cycle.
 
 Ports: **23801-23820** are reserved for deployments and tests that use chain defaults (P2P 23801 / RPC 23811 and test/regtest siblings). Isolated ops defaults are RPC **23941** (LAB) and **23951** (`verifyeq` / `solveeq` / `mine`). QA harness uses ephemeral **11000+** / **12000+**. `ops-validate` refuses a LAB rpcport in 23801-23820 unless `--force`. `live` talks to SRC on the operator's configured RPC port.
 

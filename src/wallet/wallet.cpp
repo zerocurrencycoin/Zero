@@ -4534,7 +4534,7 @@ bool CWallet::SelectCoins(const CAmount& nTargetValue, set<pair<const CWalletTx*
         BOOST_FOREACH (CAmount v, obfuScationDenominations) {
             BOOST_FOREACH (const COutput& out, vCoins) {
                 if (out.tx->vout[out.i].nValue == v                                               //make sure it's the denom we're looking for
-                    && nValueRet + out.tx->vout[out.i].nValue < nTargetValue + (0.1 * COIN) + 100 //round the amount up to .1 ZER over
+                    && nValueRet + out.tx->vout[out.i].nValue < nTargetValue + (COIN / 10) + 100 //round the amount up to .1 ZER over
                     ) {
                     CTxIn vin = CTxIn(out.tx->GetHash(), out.i);
                     nValueRet += out.tx->vout[out.i].nValue;

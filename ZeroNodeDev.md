@@ -1,6 +1,6 @@
 # ZeroNodeDev -- zeronode implementation and validation
 
-Zeronode implementation and validation: the wallet abstraction that lets the zeronode layer build without a wallet, remaining call-site cleanup, test phases, manual regtest checks, and the tracking items ZN-01 and ZN-02, and sporks. The operator how-to is ZeroNodes.md.
+Zeronode implementation and validation: the wallet abstraction that lets the zeronode layer build without a wallet, remaining call-site cleanup, test phases, manual regtest checks, and the tracking items ZN-01 and ZN-02, and sporks.
 
 ---
 
@@ -95,7 +95,7 @@ The `chainActive` hardening in the zeronode layer (C-21) has no automated test. 
 5. Operator how-to: public operator section in BUILD_ZERO, drawn from ZeroNodes.md; setup scripts (TNT-13) if written.
 6. Legacy material: archive the `ZeroNodes-UpdatesPending` repository (its install script supports only Ubuntu 16.04 and 18.04, downloads 2019 binaries, and runs as root); retire or banner the [Zero Node Setup wiki page](https://github.com/zerocurrencycoin/Zero-Wallets/wiki/Zero-Node-Setup---English), which points to missing scripts and the old explorer.
 
-**ZN-02 -- Spork future.** Decide which spork-controlled features to keep: zeronode payments and enforcement (SPORK_6, 7, 8), SwiftTX (SPORK_2, 3; DEF-06 in UpdateZero), and budgets and superblocks (SPORK_9, 13). Weigh capability against divergence from the Zcash ecosystem (upstream ports, Zebra) and support load (P2P messages, tests, operator documentation).
+**ZN-02 -- Spork future.** Decide which spork-controlled features to keep: zeronode payments and enforcement (SPORK_6, 7, 8), SwiftTX (SPORK_2, 3; DEF-06), and budgets and superblocks (SPORK_9, 13). Weigh capability against divergence from the Zcash ecosystem (upstream ports, Zebra) and support load (P2P messages, tests, operator documentation).
 
 Background, key status, and options: section 6.
 
@@ -110,7 +110,7 @@ Network-wide switches inherited with the zeronode code from TENT. This section c
 - **Dash, 2014.** Introduced during the June 2014 "RC3" rollout of Darkcoin (later Dash): new code shipped inactive and was switched on by a signed network message once most nodes had upgraded; the community named it the spork ([Dash documentation](https://dash-docs.readthedocs.io/en/0.13.0/introduction/features.html)). Dash later gated masternode payments, budgets and superblocks, and InstantSend the same way.
 - **SnowGem, 2016 to 2019; renamed TENT, later Gemlink.** A Zcash-based chain that took Dash's masternode, budget, and spork code; TENT's `spork.cpp` carries "Copyright (c) 2014-2016 The Dash developers" and "2016-2017 The SnowGem developers".
 - **Zero, 2019.** Commit `20ad58542` ("Zeronodes", 2019-04-24, CryptoForge) ported TENT's masternodes as zeronodes, renamed `mn*` messages to `zn*`, numbered sporks from 10001, and added new mainnet and testnet spork keys. The regtest key is TENT's mainnet key.
-- **License notice.** Commit `a09cea932` (2026-03-26, "Renames and fixes") replaced the Dash and earlier copyright lines in all 24 `src/zeronode/` files with "Copyright 2026 Zero Developers". The MIT license requires keeping the original notices; tracked as DOC-NOTICES (UpdateZero), postponed.
+- **License notice.** Commit `a09cea932` (2026-03-26, "Renames and fixes") replaced the Dash and earlier copyright lines in all 24 `src/zeronode/` files with "Copyright 2026 Zero Developers". The MIT license requires keeping the original notices; tracked as DOC-NOTICES, postponed.
 
 ### 6.2 Mechanics
 
@@ -154,7 +154,7 @@ SPORK_2 and SPORK_3 were set on mainnet with value `1558907000` (2019-05-26); SP
 
 ### 6.6 Key status and options
 
-The mainnet spork private key holder is unknown. It was generated for commit `20ad58542` by CryptoForge, who also has the final commits on many of the project's 2018-2022 repositories (ZeroC.md); no document in this repository or in the TENT material records custody. Without the key, values change only through a release, rolled out like a network upgrade.
+The mainnet spork private key holder is unknown. It was generated for commit `20ad58542` by CryptoForge, who also has the final commits on many of the project's 2018-2022 repositories; no document in this repository or in the TENT material records custody. Without the key, values change only through a release, rolled out like a network upgrade.
 
 1. Ask CryptoForge whether the key exists.
 2. A release with a new `strSporkKey`, with recorded custody (REL-01 signing keys are the model).
