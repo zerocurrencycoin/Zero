@@ -33,9 +33,13 @@ static bool noui_ThreadSafeMessageBox(const std::string& message, const std::str
         strCaption += caption; // Use supplied caption (can be empty)
     }
 
+    // A message that already starts with its caption ("Error: ...") is shown
+    // as is, not as "Error: Error: ...".
+    const std::string line = (message.compare(0, strCaption.size() + 1, strCaption + ":") == 0)
+        ? message : strCaption + ": " + message;
     if (!fSecure)
-        LogPrintf("%s: %s\n", strCaption, message);
-    fprintf(stderr, "%s: %s\n", strCaption.c_str(), message.c_str());
+        LogPrintf("%s\n", line);
+    fprintf(stderr, "%s\n", line.c_str());
     return false;
 }
 

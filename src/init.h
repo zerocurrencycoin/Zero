@@ -24,6 +24,10 @@ extern ZCJoinSplit* pzcashParams;
 
 void StartShutdown();
 bool ShutdownRequested();
+/** Shut down because of a fatal error; the process then exits non-zero.
+ *  Returns true for the first fatal error, false for any after it. */
+bool StartFatalShutdown();
+bool FatalShutdownRequested();
 /** Interrupt threads */
 void Interrupt(boost::thread_group& threadGroup);
 void Shutdown();

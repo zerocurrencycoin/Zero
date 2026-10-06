@@ -125,6 +125,9 @@ static inline bool error(const char* format)
 const boost::filesystem::path &ZC_GetParamsDir();
 
 void PrintExceptionContinue(const std::exception *pex, const char* pszThread);
+/** Report a fatal error to debug.log and stderr, flushed: the process may end
+ *  right after, by exit(), abort() or a crash. */
+void ReportFatalError(const std::string& where, const std::string& what);
 void ParseParameters(int argc, const char*const argv[]);
 void FileCommit(FILE *fileout);
 bool TruncateFile(FILE *file, unsigned int length);

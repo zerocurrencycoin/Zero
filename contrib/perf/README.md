@@ -697,7 +697,7 @@ file that does not exist.
 | `mine/*.md` | Point-in-time records, kept as written | Anything durable | -- |
 | `docs/PerfTimers.md` | Spec for the block-processing phase timers (`IMP-BENCH-ALWAYS`) | Measured results; task state | `SYNC.md` |
 | `docs/PerfPlatforms.md` | What the harness needs per platform, and the Linux/Windows equivalents | Findings taken on any one platform | METHOD (new) |
-| `docs/Stores.md` | Zero's on-disk data structures and local stores | Performance findings about them | `SYNC.md` (block-storage parts) |
+| `docs/Stores.md` | Zero's on-disk data structures and local stores; the runbook for node stops and recovery | Performance findings about them | `SYNC.md` (block-storage parts) |
 | `docs/BUILD_RECONFIG.md` | The autotools re-configure trap and its options | Anything not about configure | `TESTING.md` |
 | `zcash-lint/ZEROPERF.md` | What the vendored Zcash linters are, and which findings are set aside | Lint results | -- |
 | `reporoot/*.md` | Transient drafts and decision papers for Zero-owned material: root-document reviews, migration and cleanup plans | Anything authoritative; disposition is the owner's | -- |

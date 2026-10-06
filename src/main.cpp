@@ -163,11 +163,18 @@ namespace {
     bool AbortNode(const std::string& strMessage, const std::string& userMessage="")
     {
         strMiscWarning = strMessage;
-        LogPrintf("*** %s\n", strMessage);
+        if (!StartFatalShutdown()) {
+            // Already stopping on an earlier fatal error; record this one once.
+            LogPrintf("Fatal error while stopping: %s\n", strMessage);
+            return false;
+        }
+        // The message box reaches debug.log and stderr (noui); log the detail
+        // separately only when the user message does not already carry it.
+        if (userMessage.empty())
+            ReportFatalError("AbortNode", strMessage);
         uiInterface.ThreadSafeMessageBox(
-            userMessage.empty() ? _("Error: A fatal internal error occurred, see debug.log for details") : userMessage,
+            userMessage.empty() ? _("A fatal internal error occurred, see debug.log for details") : userMessage,
             "", CClientUIInterface::MSG_ERROR);
-        StartShutdown();
         return false;
     }
 
@@ -5045,7 +5052,7 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes)
 
     // Check for nMinDiskSpace bytes (currently 50MB)
     if (nFreeBytesAvailable < nMinDiskSpace + nAdditionalBytes)
-        return AbortNode("Disk space is low!", _("Error: Disk space is low!"));
+        return AbortNode("Disk space is low!", _("Disk space is low!"));
 
     return true;
 }

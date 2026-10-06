@@ -10,6 +10,7 @@
 
 #include <boost/optional.hpp>
 #include <stdint.h>
+#include <string>
 
 class CBlockIndex;
 class CChainParams;
@@ -33,6 +34,12 @@ void GetScriptForMinerAddress(boost::shared_ptr<CReserveScript> &script);
 void IncrementExtraNonce(CBlock* pblock, const CBlockIndex* pindexPrev, unsigned int& nExtraNonce);
 /** Run the miner threads */
 void GenerateBitcoins(bool fGenerate, int nThreads, const CChainParams& chainparams);
+/** Default for -equihashsolver. */
+static const char* const DEFAULT_EQUIHASH_SOLVER = "tromp";
+/** The Equihash solver the miner uses for these parameters: -equihashsolver or
+ *  the default, with "tromp" falling back to "default" off the (WN, WK) it is
+ *  compiled for. Empty if -equihashsolver names no known solver. */
+std::string SelectEquihashSolver(const Consensus::Params& params);
 #endif
 
 void UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev);

@@ -521,6 +521,28 @@ static bool ProcessBlockFound(const CBlock* pblock, const CChainParams& chainpar
     return true;
 }
 
+std::string SelectEquihashSolver(const Consensus::Params& params)
+{
+    // Default is tromp: measured 5.69x faster and 3.3 GB peak against the
+    // reference solver's 7.15 GB at (192,7) (ZeroPerf M-EQ-TROMP-SPEEDUP,
+    // M-EQ-PEAK-TROMP, M-EQ-PEAK-DEFAULT). "default" selects the reference
+    // EhOptimisedSolve and remains supported.
+    std::string solver = GetArg("-equihashsolver", DEFAULT_EQUIHASH_SOLVER);
+    if (solver != "tromp" && solver != "default")
+        return "";
+
+    // The vendored tromp solver is compiled for fixed WN/WK (192,7)
+    // (pow/tromp/equi.h) and cannot solve any other parameter set, so fall
+    // back to the reference solver off (192,7) -- regtest is (48,5).
+    if (solver == "tromp" && !(params.nEquihashN == WN && params.nEquihashK == WK)) {
+        LogPrint("pow", "Equihash solver \"tromp\" supports only (%u,%u); "
+                        "using \"default\" for (%u,%u)\n",
+                 WN, WK, params.nEquihashN, params.nEquihashK);
+        solver = "default";
+    }
+    return solver;
+}
+
 void static BitcoinMiner(const CChainParams& chainparams)
 {
     LogPrintf("ZeroMiner started\n");
@@ -536,24 +558,9 @@ void static BitcoinMiner(const CChainParams& chainparams)
     unsigned int n = chainparams.GetConsensus().nEquihashN;
     unsigned int k = chainparams.GetConsensus().nEquihashK;
 
-    // Default is tromp: measured 5.69x faster and 3.3 GB peak against the
-    // reference solver's 7.15 GB at (192,7) (ZeroPerf M-EQ-TROMP-SPEEDUP,
-    // M-EQ-PEAK-TROMP, M-EQ-PEAK-DEFAULT). The shipped zero.conf templates
-    // have specified tromp for years; this aligns the code default with them.
-    // "default" selects the reference EhOptimisedSolve and remains supported.
-    std::string solver = GetArg("-equihashsolver", "tromp");
-    assert(solver == "tromp" || solver == "default");
-
-    // The vendored tromp solver is compiled for fixed WN/WK (192,7)
-    // (pow/tromp/equi.h). It cannot solve any other parameter set, so fall
-    // back to the reference solver when the chain is not (192,7) -- regtest is
-    // (48,5). Without this, defaulting to tromp would silently produce invalid
-    // solutions off mainnet/testnet.
-    if (solver == "tromp" && !(n == WN && k == WK)) {
-        LogPrint("pow", "Equihash solver \"tromp\" supports only (%u,%u); "
-                        "using \"default\" for (%u,%u)\n", WN, WK, n, k);
-        solver = "default";
-    }
+    // Validated at startup (init.cpp), so never empty here.
+    std::string solver = SelectEquihashSolver(chainparams.GetConsensus());
+    assert(!solver.empty());
     LogPrint("pow", "Using Equihash solver \"%s\" with n = %u, k = %u\n", solver, n, k);
 
     std::mutex m_cs;

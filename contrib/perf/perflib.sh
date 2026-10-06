@@ -589,7 +589,7 @@ runtime_record() {
 #   config: no Insight indexes, dbcache, txindex or witness keys unless the
 #   caller names them. Replaces any conf the input carried, so an archive's
 #   zero.conf never decides the runtime. ZERO_PERF_ARCHIVE_CONF=1 keeps an
-#   existing DIR/zero.conf instead. A sticky reindex= is refused or stripped.
+#   existing DIR/zero.conf instead. A sticky reindex= or rescan= is refused or stripped.
 lab_conf() {
   local dir="${1:?usage: lab_conf DIR RPCPORT [KEY=VALUE ...]}"
   local port="${2:?usage: lab_conf DIR RPCPORT [KEY=VALUE ...]}"
@@ -600,13 +600,13 @@ lab_conf() {
   refuse_live_datadir LAB "$dir" || die "lab_conf: refusing to write a conf into $dir"
   for kv in "$@"; do
     case "$kv" in
-      reindex=*) die "lab_conf: reindex is a one-shot command-line flag, not a conf key" ;;
+      reindex=*|rescan=*) die "lab_conf: ${kv%%=*} is a one-shot command-line flag; in a conf it repeats on every start" ;;
       [a-z]*=*) ;;
       *) die "lab_conf: '$kv' is not KEY=VALUE" ;;
     esac
   done
   if [ "${ZERO_PERF_ARCHIVE_CONF:-0}" = "1" ] && [ -f "$conf" ]; then
-    grep -v '^reindex=' "$conf" > "$conf.tmp" || true
+    grep -v -e '^reindex=' -e '^rescan=' "$conf" > "$conf.tmp" || true
     mv "$conf.tmp" "$conf"
     for kv in "$@"; do printf '%s\n' "$kv" >> "$conf"; done
     log "lab conf: kept the input's zero.conf (ZERO_PERF_ARCHIVE_CONF=1)${1:+; added $*}"

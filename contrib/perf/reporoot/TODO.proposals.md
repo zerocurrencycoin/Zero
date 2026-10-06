@@ -14,6 +14,10 @@ Pending, a new Documentation group:
 
 - DOC-ROOT-PLANNING -- move `AtHeight.md` and `WitnessReindex.md` to `doc/design/`
 
+Correct in `AtHeight.md`: `txindex` is always on in Zero (`fTxIndex = true`
+in `main.cpp`; the `-txindex` option is commented out), so lines 16, 82 and
+139 should name only the Insight flags as what must match or forces a wipe.
+
 Remove from Pending; the perf tree tracks them:
 
 - WAL-GETALLDATA W4 (IVK decrypt review) -- a measurement; drop W4 from the WAL-GETALLDATA-CACHE line

@@ -172,6 +172,76 @@ None of these is a deadlock: each ends when the holder finishes. The
 practical failure is a supervisor or front-end that reads a long hold as a
 hung node and kills it mid-rescan.
 
+## Designs for the open work
+
+In the order they pay off. Each states its acceptance check.
+
+**1. Contention counters (B8).** In `CMutexLock::Enter`, the
+`DEBUG_LOCKCONTENTION` path already tries the lock first and logs when it
+fails. Under `ZERO_PERF` instead: on a failed try, time the blocking
+`lock()` with `GetTimeMicros()` and add (count, total, max) to a fixed-size
+table keyed by (lock name, file, line), protected by its own uninstrumented
+mutex or accumulated per thread and merged at shutdown. Report the table
+sorted by total wait to `debug.log` at shutdown and through a perf-build
+RPC, with a reset. Uncontended acquisitions pay one extra try-lock, in perf
+builds only. Check: a unit test holds a mutex in one thread for a known
+time while another waits, and the site shows one event with wait >= that
+time.
+
+**2. Interruptible rescan (A14b; reporting first in A14a).** `ScanForWalletTransactions` returns a
+count; its callers (`init.cpp` startup rescan, `z_importkey`,
+`z_importviewingkey`, `importwallet`) then treat the chain as scanned, and
+the final `BuildWitnessCache(tip, false)` runs only at the end. So an early
+return alone would mark unscanned blocks as scanned. Steps: (1) the scan
+returns an interrupted state with the last fully scanned block; (2) callers
+write that block's locator, not the tip's, and skip the final witness build,
+leaving witnesses unbuilt (`-31`); (3) a restart resumes from the wallet's
+locator through the existing startup path; (4) later, release both locks
+between batches.
+
+Corner cases, each a test:
+
+| Case | Risk | Rule |
+|------|------|------|
+| `rescan=1` in `zero.conf` | every start rescans from genesis; a supervisor that kills slow starts never lets it finish (confirmed on regtest: each start logged a rescan) | `-rescan` belongs on the command line once; the harness refuses `rescan=` (`lab_conf`); a persisted "rescan from height H" wallet record would let `-rescan` resume instead of restart |
+| `stop` or SIGTERM mid-scan | today ignored until the scan ends; the supervisor's kill timeout then SIGKILLs | check `ShutdownRequested()` every N blocks or T seconds, whichever comes first; T well below common supervisor timeouts (90 s for systemd) |
+| SIGKILL mid-scan | progress since the last locator write is lost, never corrupt: the wallet database commits atomically | write the locator every batch, so a kill loses at most one batch |
+| Two rescans at once (two imports, or an import during a startup rescan) | with locks released between batches, two scans interleave and race on the locator | one rescan at a time: a second request fails with "rescan in progress" instead of queueing |
+| Reorg while locks are released | `chainActive.Next(pindex)` returns null for a disconnected block and the scan ends early, reporting success | on re-acquiring, if `chainActive.Contains(pindex)` is false, resume from the fork point |
+| New blocks connected during the scan | the same transactions arrive by the scan and by `SyncTransaction` | `AddToWallet` is idempotent; no rule needed beyond a test |
+| Interrupted import RPC | the client gets an error, the key is already stored, the scan resumes at next start | the error text says the scan resumes on restart |
+
+Check: regtest, a rescan long enough to interrupt; `stop` returns within T;
+the restart resumes; the wallet equals one from an uninterrupted rescan; a
+second import during the scan is refused; a reorg during the scan is
+followed.
+
+**3. Height walk (A6).** Same batch pattern for `BuildWitnessCache(pindex,
+false)`: release both locks every N blocks, abort and restart the walk if
+the tip changed. Check: R5c, a tip change during the walk, completes with
+correct witnesses; `getblockcount` answers during the walk.
+
+**4. Try-lock edges in the order map (B1).** Record (held, try-acquired)
+pairs from `TRY_LOCK` as non-blocking edges in a second map; at shutdown,
+report any blocking edge whose reverse exists only as a try-lock edge. Such a
+pair cannot deadlock today and becomes a deadlock the moment the try-lock is
+made blocking. Check: the 8 zeronode `TRY_LOCK(cs_main)` sites appear in the
+report with their partner locks.
+
+**5. Concurrent coverage run (B1, B6).** A `DEBUG_LOCKORDER` build on
+regtest, blocks generated continuously while a driver issues
+`getblockcount`, `getwalletinfo`, `z_sendmany` and `z_mergetoaddress` in
+parallel. Check: zero `POTENTIAL DEADLOCK` reports, and the order map holds
+pairs a single-worker reindex never produces.
+
+**6. `CDB::Rewrite` wait (A13).** Log the file's use count every 10 s while
+waiting; after a configurable timeout return false so `backupwallet` and
+`encryptwallet` fail with an error instead of hanging. Check: a test holds a
+`CDB` handle and the rewrite fails after the timeout with a log line.
+
+**7. Work-queue rejection (C6).** Put the reason in the HTTP 503 body.
+Check: `zero-cli` prints "Work queue depth exceeded" at depth 1 under load.
+
 ## Open
 
 - Concurrency coverage: every result here comes from a single-worker reindex.

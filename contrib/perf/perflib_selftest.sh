@@ -348,6 +348,8 @@ bash -c ". '$HERE/perflib.sh'; lab_conf '$LC/lab' 23999 par=4 >/dev/null"
 eq "$(tail -1 "$LC/lab/zero.conf")" "par=4" "lab_conf appends the trial's keys"
 expect_fail "lab_conf refuses reindex= as a conf key" \
   bash -c ". '$HERE/perflib.sh'; lab_conf '$LC/lab' 23999 reindex=1"
+expect_fail "lab_conf refuses rescan= as a conf key" \
+  bash -c ". '$HERE/perflib.sh'; lab_conf '$LC/lab' 23999 rescan=1"
 expect_fail "lab_conf refuses a non KEY=VALUE argument" \
   bash -c ". '$HERE/perflib.sh'; lab_conf '$LC/lab' 23999 -par=4"
 printf 'insightexplorer=1\nreindex=1\n' > "$LC/lab/zero.conf"

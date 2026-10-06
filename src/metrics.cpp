@@ -3,6 +3,7 @@
 // file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
 #include "metrics.h"
+#include "miner.h"
 
 #include "chainparams.h"
 #include "checkpoints.h"
@@ -255,7 +256,7 @@ int printMiningStatus(bool mining)
         auto nThreads = miningTimer.threadCount();
         if (nThreads > 0) {
             std::cout << strprintf(_("You are mining with the %s solver on %d threads."),
-                                   GetArg("-equihashsolver", "tromp"), nThreads) << std::endl;
+                                   SelectEquihashSolver(Params().GetConsensus()), nThreads) << std::endl;
         } else {
             bool fvNodesEmpty;
             {

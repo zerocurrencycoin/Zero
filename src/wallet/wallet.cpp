@@ -1259,7 +1259,7 @@ void CWallet::DecrementNoteWitnesses(const CBlockIndex* pindex)
 {
     LOCK(cs_wallet);
     if (!pindex) {
-        LogPrintf("DecrementNoteWitnesses: pindex is null\n");
+        ReportFatalError("DecrementNoteWitnesses", "pindex is null; exiting");
         exit(1);
     }
     for (std::pair<const uint256, CWalletTx>& wtxItem : mapWallet) {
@@ -1325,7 +1325,7 @@ int CWallet::VerifyAndSetInitialWitness(const CBlockIndex* pindex, bool witnessO
   LOCK2(cs_main, cs_wallet);
 
   if (!pindex) {
-    LogPrintf("VerifyAndSetInitialWitness: pindex is null\n");
+    ReportFatalError("VerifyAndSetInitialWitness", "pindex is null; exiting");
     exit(1);
   }
   if (!pcoinsTip && !pblockIn) {
@@ -1670,7 +1670,7 @@ void CWallet::BuildWitnessCache(const CBlockIndex* pindex, bool witnessOnly, con
   LOCK2(cs_main, cs_wallet);
 
   if (!pindex) {
-    LogPrintf("BuildWitnessCache: pindex is null\n");
+    ReportFatalError("BuildWitnessCache", "pindex is null; exiting");
     exit(1);
   }
   int startHeight = VerifyAndSetInitialWitness(pindex, witnessOnly, pblockIn) + 1;

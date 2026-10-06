@@ -170,6 +170,13 @@ bool AppInit(int argc, char* argv[])
             pid_t sid = setsid();
             if (sid < 0)
                 fprintf(stderr, "Error: setsid() returned %d errno %d\n", sid, errno);
+
+            // Detached, stderr still points at the launcher's terminal or
+            // nowhere. Keep it in the datadir so assert and abort text, which
+            // never reaches debug.log, survives a crash.
+            std::string errPath = (GetDataDir() / "stderr.log").string();
+            if (freopen(errPath.c_str(), "a", stderr) != NULL)
+                setvbuf(stderr, NULL, _IONBF, 0);
         }
 #endif
         SoftSetBoolArg("-server", true);
@@ -193,7 +200,8 @@ bool AppInit(int argc, char* argv[])
     }
     Shutdown();
 
-    return fRet;
+    // A fatal error (AbortNode) ends in an orderly shutdown; report it as a failure.
+    return fRet && !FatalShutdownRequested();
 }
 
 int main(int argc, char* argv[])

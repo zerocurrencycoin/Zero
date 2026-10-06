@@ -227,7 +227,7 @@ which pops one witness layer per disconnected block.
 | Process killed mid-rebuild | Restart does not spend until rebuilt | R7b | Covered |
 | Decrement unit edges | Keep last layer; skip above disconnect height | GTest `DecrementNoteWitnessesSkipsAboveHeight` | Covered |
 | Reorg during the height walk | Walk aborts or restarts; `initWitnessesBuilt` never set on a partial walk | R5c | **Not reachable**: the walk holds `LOCK2(cs_main, cs_wallet)` throughout, so a reorg waits for it. Needs `PLAN.md` A6 first |
-| Reorg deeper than `MAX_REORG_LENGTH` | Node stays up, tip unchanged, warning logged | R5d | **Open**: today it calls `StartShutdown()`; reject-and-stay (TNT-02) is not scheduled |
+| Reorg deeper than `MAX_REORG_LENGTH` | Node stops with a message (Zero DEF-07, 99 + exit) | -- | **Settled**: the witness cache is `MAX_REORG_LENGTH + 1` deep, pinned by a `static_assert` in `wallet.h`, so every accepted reorg stays inside it |
 
 **Crash paths.** Chainstate and wallet are separate databases with no
 cross-DB commit. `SetBestChainINTERNAL` writes note-bearing txs,

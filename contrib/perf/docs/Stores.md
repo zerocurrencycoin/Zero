@@ -44,7 +44,7 @@ hard dependency upgrade tied to node, index or performance work.
 
 ## Index Families And Write Lifecycle
 
-`blocks/index/` is the block-tree LevelDB. It holds the always-present block index, `txindex` when enabled, persisted index flags, and the optional Insight address/spent/timestamp/hash indexes. The key-prefix table is in `ZeroStruct.md` "LevelDB key families in `blocks/index/`".
+`blocks/index/` is the block-tree LevelDB. It holds the always-present block index, `txindex` (always on: `fTxIndex = true` in `main.cpp`, and the `-txindex` option is commented out, in this tree and in Zero), persisted index flags, and the optional Insight address/spent/timestamp/hash indexes. The key-prefix table is in `ZeroStruct.md` "LevelDB key families in `blocks/index/`".
 
 `chainstate/` is not an address index. It stores current validation state keyed for consensus checks: UTXOs, Sprout/Sapling anchors, and nullifiers. An existence-only anchor check (`Have*AnchorAt`) was tried and removed: it broke mempool acceptance (`SYNC.md` "Trees and anchors").
 
@@ -106,6 +106,38 @@ Practical Zero guidance:
 - Keep wallet-store migration separate from node-performance, block-index, and Insight-index work.
 - Add reliable export/import paths before changing wallet storage. Key/seed export and verified restore matter more than database fashion.
 - If a new store is introduced, treat it as a wallet architecture change with migration tooling, not a dependency bump.
+
+## Node Stops And Recovery
+
+Runbook for every way the node stops on its own, held here until it moves to
+Zero's operator documents. "Seen" is what `debug.log` and stderr show; under
+`-daemon` stderr is `stderr.log` in the network datadir. Exit status: 0 for a
+normal stop, 1 for a fatal stop, an abort or a refused start.
+
+| Type | Seen | Cause | Mitigation | Recovery |
+|------|------|-------|------------|----------|
+| Disk full | `Error: Disk space is low!` | free space under 50 MB in the datadir | monitor free space; keep `-dbcache` writes in mind | free space, restart |
+| Write failure | `Fatal error: AbortNode: Failed to write ...` (block, undo data, block index, coin database, an index) | I/O error, permissions, full or read-only filesystem | storage health checks | fix storage, restart; `-reindex-chainstate` if the coin database is damaged; `-reindex` if block files are |
+| Read failure | `Fatal error: AbortNode: Failed to read block` | block file damaged or missing | keep `blocks/` on reliable storage | `-reindex` |
+| Flush failure | `Fatal error: AbortNode: System error while flushing: ...` | I/O error during a state flush | as for write failures | as for write failures |
+| Chainstate read error | `Fatal error: chainstate read: ...`, then SIGABRT | LevelDB corruption or I/O error in `chainstate/` | reliable storage | `-reindex-chainstate`; `-reindex` if it repeats |
+| Out of memory | `Error: Out of memory. Terminating.` | allocation failed | lower `-dbcache`; more RAM | restart with less cache |
+| Deep reorg | message ending "Please help, human!" | a reorg deeper than 99 blocks (Zero DEF-07) | -- | investigate the fork; `invalidateblock` / `reconsiderblock` to choose a chain |
+| Deprecated version | "This version has been deprecated as of block height ..." | binary past its deprecation height | upgrade before the height | upgrade |
+| Missing parameters | "Cannot find the Zero network parameters ..." | proving parameters not fetched | -- | `zero-fetch-params` or `zcutil/fetch-params.sh`, restart |
+| Datadir locked | `Error: Cannot obtain a lock on data directory ...` | another `zerod` on the same datadir | one node per datadir | stop the other node |
+| Unknown solver | `Error: Unknown -equihashsolver '...'` | `-equihashsolver` other than `tromp` or `default` | -- | correct the option |
+| Assertion | `Assertion failed: ...` on stderr only, then SIGABRT | an internal invariant broke (397 sites) | -- | restart; report the line from stderr or `stderr.log` with `debug.log` |
+| Wallet witness guard | `Fatal error: <function>: pindex is null; exiting` | a caller passed no block; unreachable from current callers | -- | restart; report it |
+
+Behaviours that look like hangs or loops:
+
+| Symptom | Cause | Remedy |
+|---------|-------|--------|
+| Every start reindexes or rescans | `reindex=1` or `rescan=1` in `zero.conf`; both are one-shot command-line flags | remove the line; pass the flag once on the command line |
+| `stop` takes as long as the rescan | a rescan does not check for shutdown yet (`PLAN.md` A14b) | wait; killing it loses the rescan's progress |
+| RPC calls time out during a rescan or witness build | the scan holds `cs_main` and `cs_wallet` (`LOCKS.md` "Long holds and hang risks") | wait, or raise `-rpcclienttimeout` |
+| Wallet RPCs return `-31` / `-33` | witnesses not yet built / being rebuilt (`WITNESS.md` "Ship state") | retry after the rebuild |
 
 ## Expected Benefits Of The Structured View
 

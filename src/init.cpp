@@ -159,6 +159,21 @@ bool ShutdownRequested()
     return fRequestShutdown;
 }
 
+// Set by AbortNode. The shutdown that follows is orderly, so without this the
+// process would exit 0 and a supervisor could not tell it from a normal stop.
+static std::atomic<bool> fFatalShutdown(false);
+
+bool StartFatalShutdown()
+{
+    const bool first = !fFatalShutdown.exchange(true);
+    StartShutdown();
+    return first;
+}
+bool FatalShutdownRequested()
+{
+    return fFatalShutdown;
+}
+
 class CCoinsViewErrorCatcher : public CCoinsViewBacked
 {
 public:
@@ -168,7 +183,7 @@ public:
             return CCoinsViewBacked::GetCoins(txid, coins);
         } catch(const std::runtime_error& e) {
             uiInterface.ThreadSafeMessageBox(_("Error reading from database, shutting down."), "", CClientUIInterface::MSG_ERROR);
-            LogPrintf("Error reading from database: %s\n", e.what());
+            ReportFatalError("chainstate read", e.what());
             // Starting the shutdown sequence and returning false to the caller would be
             // interpreted as 'entry not found' (as opposed to unable to read data), and
             // could lead to invalid interpretation. Just exit immediately, as we can't
@@ -1261,6 +1276,12 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                 _("Invalid address for -mineraddress=<addr>: '%s' (must be a transparent address)"),
                 mapArgs["-mineraddress"]));
         }
+    }
+    // An unknown solver would otherwise stop the miner thread on an assert.
+    if (SelectEquihashSolver(Params().GetConsensus()).empty()) {
+        return InitError(strprintf(
+            _("Unknown -equihashsolver '%s' (must be \"tromp\" or \"default\")"),
+            GetArg("-equihashsolver", DEFAULT_EQUIHASH_SOLVER)));
     }
 #endif
 

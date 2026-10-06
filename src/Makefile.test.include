@@ -105,7 +105,10 @@ BITCOIN_TESTS =\
   test/sha256compress_tests.cpp
 
 if ENABLE_MINING
-BITCOIN_TESTS += test/miner_tests.cpp
+BITCOIN_TESTS += \
+  test/header_check_tests.cpp \
+  test/miner_tests.cpp \
+  test/regtest_helpers.h
 endif
 
 if ENABLE_WALLET

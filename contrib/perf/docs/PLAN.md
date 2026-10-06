@@ -1,49 +1,44 @@
 # Plan
 
-The single register of perf work, laid out by schedule: what to do now, what
-is ready to start, what waits on which input, what is decided, and what is
-postponed. Analysis lives in the subject document each row points to; this
-file carries one-line state, ordering, and the detail an item needs that no
-subject document owns.
+The single register of perf work. Sections 1-3 are what to do now and what
+needs a decision; sections 4-12 hold every item by subject, each row with
+its schedule state, so a subject can be reviewed in one place. Analysis
+lives in the subject document a row points to; this file carries one-line
+state, order, and detail no subject document owns.
 
-Status carries two ratings (`POLICY.md` "Status"):
-
-| Axis | Values | Means |
-|------|--------|-------|
-| **Kanban** | ToDo, InProgress, InTest, Finished | where the card is |
-| **Disposition** | Open, Blocked, Fixed, Postponed, Aside | what happened to the issue |
-
-A card is not Finished until its result is recorded where the subject lives.
-`P` ids are node code owned by Zero; every other id is lab, harness or
-documentation work in this tree. Items keep their id when they move. A
-pending decision is carried by the item it governs: its Disp reads
-`decision:` and states the options.
+Columns: **When** is the schedule -- *Baseline* (in section 2), *Next*
+(ready, ranked first), *Ready*, *Waits: X*, *Postponed*, *Aside*. **Kanban**
+(ToDo, InProgress, InTest, Finished) and **Disp** (Open, Blocked, Fixed,
+Postponed, Aside) follow `POLICY.md` "Status". A card is not Finished until
+its result is recorded where the subject lives. `P` ids are node code owned
+by Zero; every other id is lab, harness or documentation work in this tree.
+Items keep their id when they move; decisions are per item.
 
 ---
 
 ## 1. Start here
 
-State: release build; Boost (incl. the six P13 tests), `lint-perf.sh`,
-`perflib_selftest.sh` and `validate.sh` green. N21 and the P13 tests are in
-the working tree, uncommitted; the commit sequence is written out in
-`test-logs/commit-steps-20261005.md`.
+State: Boost (incl. the six P13 tests), `lint-perf.sh`, `perflib_selftest.sh`
+and `validate.sh` green. Baseline 1 steps 1-2 done except committing; uncommitted: P13 tests, the A8
+pin, C7, C8, documents, `lint_backlog.json` removal; commands in
+`test-logs/commit-steps-20261006.md`.
 
-Session rules: start at the worktree root, the `ZeroPerf` checkout, and
-never `cd` into a subdirectory; work in Zero's tree from a separate session
-opened in the `Zero401` checkout. Benchmarks only on an idle host: no build,
-test run or other `zerod`. Keep lab inputs out of `/tmp`, whose lab
-directories this host moves into `/tmp/zero_old` at midnight.
+Session rules: start at the worktree root, the `ZeroPerf` checkout, and use
+paths, never `cd`; work in Zero's tree from a session opened in the
+`Zero401` checkout. Benchmarks only on an idle host: no build, test run or
+other `zerod`. Keep lab inputs out of `/tmp`, whose lab directories this
+host moves into `/tmp/zero_old` at midnight.
 
 Restart prompt:
 
 ```
 cd /Users/walter/Work/ZK/ZeroPerf && claude
-ZeroPerf, branch perf_b1b2, worktree root as working directory. Read
-contrib/perf/docs/PLAN.md section 1 and 2, then contrib/perf/docs/POLICY.md;
-start at the first unfinished step of section 2. Do not cd into
-subdirectories. Run contrib/perf/lint-perf.sh and validate.sh before and
-after a change. Root and Zero-owned files are read-only; proposals go to
-contrib/perf/reporoot/. Writing rules: reporoot/DOC-CONVENTIONS.md.
+ZeroPerf, branch perf_b1b2, worktree root; never cd. Read
+contrib/perf/docs/PLAN.md sections 1-3 and contrib/perf/docs/POLICY.md.
+If test-logs/commit-steps-20261006.md has not run, run it first; then the
+first open step of PLAN.md section 2. Gates before and after a change:
+contrib/perf/lint-perf.sh, contrib/perf/validate.sh. Root and Zero-owned
+files are read-only except src/ changes listed in reporoot/MAINTREE_CHANGES.md.
 ```
 
 Harness rules: rebuild clean after `./configure` -- it regenerates makefiles
@@ -54,151 +49,221 @@ Never compare debug and release timings. Run the test suites sequentially.
 
 ---
 
-## 2. Now, in order
+## 2. Baseline 1
 
-1. **Commit** the working tree as five topic commits
-   (`test-logs/commit-steps-20261005.md`), fast-forward `perf-402`, push.
-2. **Close what only needs confirming** -- read, run where stated, then
-   Finished:
+The next consistent point: one commit and one build in which every item is
+implemented, set aside or dropped, its results collected, analysed and
+recorded, and the next phase laid out. Exit when every step is done.
 
-   | Id | Item | Kanban | Exit |
-   |----|------|--------|------|
-   | A2 | Review the note-index specification for redundancy | InTest | Done by the `WITNESS.md` rewrite; confirm on review |
-   | P10 | Explicit parameters at defaulted call sites: the five `GetFilteredNotes` callers, values unchanged | InTest | Full gate green; then hand-off batch 1 (`PRODUCT.md` "P10") |
-   | D2 | Reorganisation: `SYNC.md` and `WITNESS.md` own their modules; this file is the one register | InTest | Confirm on review |
-   | D11 | Reconcile `Stores.md` with this tree; verify the `txindex` default in Zero before stating it for all branches | InTest | Confirm the default in Zero |
-   | N17 | `--enable-perf` configuration in a gate: it builds, and Boost and GTest pass with `ZERO_PERF` defined | InTest | One perf build and both suites, recorded |
-   | N21 | One `perflib.sh` path for every launcher: lab conf, declared runtime, recording, helpers (`README.md` "Lab conf and recorded rows") | InTest | One wallet and one witness trial on a real wallet record through `record_trial`, and an `ops-campaign.sh` cycle reads their row files |
-3. **Hand-off to Zero (Z6),** in a session opened in the `Zero401` checkout,
-   branch from `from-perf-401`, one commit per subject, Zero's gates green
-   after each. Source and per-change review notes:
-   `reporoot/MAINTREE_CHANGES.md`.
-   - Batch 1, correctness, nothing users notice: missing locks in
-     `getspentinfo` / `getblockdeltas` (upstream `14ec1016b`); `src/snark/`
-     deletion (P19); explicit `GetFilteredNotes` arguments (P10); `qa/` test
-     fixes.
-   - Batch 2, speed, default on: P13 skip with its six tests;
-     `IsInitialBlockDownload` hoist; single `CompareTo` comparator;
-     merkle-root latch; note-index invalidation (A1) with its GTest, once A1
-     exits (section 4).
-   - Batch 3, defaults users see, each with a release note: tromp solver
-     default (Q8), after Q3's validation run; uniblake for Equihash hashing,
-     after Zero decides where uniblake lives (`reporoot/MIGRATION_PLAN.md`).
-   - Not handed off: the opt-in witness flags (section 5); perf-only code
-     (`ZERO_PERF`, `ZERO_FDCACHE`, lock attribution); the `ops-validate.sh`
-     runtime field until Zero carries `contrib/perf/debuglog.py`;
-     `EQUIHASH_BATCH_HASH` (section 5).
+| # | Step | Items | Done when |
+|---|------|-------|-----------|
+| 1 | Commit the remaining working-tree changes; fast-forward `perf-402`; push | -- | `git status` clean, both branches pushed |
+| 2 | Close what only needs confirming: done | A2, P10, D2, D11, N17, N21 | closed (section 15) |
+| 3 | Hand-off batches 1 and 2 to Zero, one commit per subject: postponed, batches recorded in `reporoot/MAINTREE_CHANGES.md` "Hand-off batches" | Z6 | when review resumes |
+| 4 | Bring Zero's result back here, so this line differs from Zero only by perf-only code and `contrib/perf`: postponed with step 3 | Z7 | after step 3 |
+| 5 | Clean release build of that commit; full gates: Boost, GTest, `contrib/run-tests.sh --all`, `lint-perf.sh`, `validate.sh` | -- | all green, logs in `test-logs/` |
+| 6 | Measure that build on an idle host | K8, K11, N15 (original archive, n>=6) | rows recorded, `M-*` ids bound |
+| 7 | Analyse and record: `SYNC.md` "Where the time goes" against the new profile; supersede what it replaces | K8, K11 | subject documents cite only current ids |
+| 8 | Every remaining InTest item closed, or carried with a stated reason | A1, P1, P4, N1, D6 | no InTest row without a reason |
+| 9 | Lay out the next phase: section 3 answered, `Next` rows ranked | -- | this file reviewed |
+| 10 | Delete the session documents in `test-logs/` that this file now covers | -- | done |
 
 ---
 
-## 3. Ready to start
+## 3. Needs your call
 
-No external input needed. Ordered by importance within each block.
-
-**Correctness**
-
-| Id | Item | Kanban | Disp | Detail |
-|----|------|--------|------|--------|
-| A5 | Replace the null-`pindex` `exit(1)` paths with rebuild-or-clear recovery | ToDo | Open | `WITNESS.md` "Reorg and crash" |
-| A6 | Height walk drops `cs_main` periodically and aborts on tip change; then the R5c e2e. The walk runs at the tip with stock flags too, so this affects defaults | ToDo | Open | `WITNESS.md` "Reorg and crash" |
-| A8 | Reorg bound versus witness cache (TNT-03). The bound is settled by Zero (DEF-07, section 5) and `WITNESS_CACHE_SIZE` is defined as `MAX_REORG_LENGTH + 1`, so the cache already covers it; what remains is to pin that relation | ToDo | Open | section 7 |
-| Q3 | Revalidate the committed sort fold against the 5-solution baseline (V2); gates the solver row of hand-off batch 3 | ToDo | Open | section 7 |
-| P27 | `-salvagewallet` help and some test fixtures say `wallet.dat`; the runtime default is `wallet.zero` | ToDo | Open | `Stores.md` "Berkeley DB, Wallet Compatibility, And Local DB Direction" |
-| P4 | Witness RPC gate inconsistent | InTest | Open | `PRODUCT.md` "P4. The witness RPC gate is inconsistent, and the family disagrees about it" |
-| A13 | `CDB::Rewrite` spins with no log or timeout; upstream, all Zcash-family forks: report upstream | ToDo | Open | -- |
-| P24 | `getchaintips` is O(chain length) | ToDo | Open | section 7 |
-
-**Records and harness**
-
-| Id | Item | Kanban | Disp | Detail |
-|----|------|--------|------|--------|
-| N28 | Loose files at the top of `test-logs/` | ToDo | Open | section 7 |
-| N27 | `test-logs/` cleanup, validation and reconciliation | ToDo | Open | section 7 |
-| N29 | `debug.log` handling and size, node and lab | ToDo | Open | section 7 |
-| N12 | Extend `check_citations.py` rules 1-2 from `docs/` to every owned document | ToDo | Open | `POLICY.md` "Enforcement" |
-| N2 | Workload classes: `op` enum validated by RecBench and back-annotated with `era` on existing v2 rows; then `wallet_shape`, derived `era`, and a pooling guard on `op` and `era` | ToDo | Open | `SCHEMA.md` "4.3 Workload classes" |
-| N4 | Row identity: a hash of the `zerod` binary in `build` and `build_id`, since two dirty trees on one commit pool as one build; fingerprint v2 with platform | ToDo | Open; the cross-platform pooling guard waits for a second platform | `SCHEMA.md` "2. Version block -- `build`", "6.4 Fingerprint v2" |
-| N7 | State the restartability axis beside the run-length heuristic | ToDo | Open | `POLICY.md` "Lab discipline" |
-| B8 | Lock contention per site: count and total wait time, reported at shutdown and on request, perf builds only. Extends `DEBUG_LOCKCONTENTION`, which logs each contended acquisition by lock name only | ToDo | Open | `LOCKS.md` "Contention" |
-| F11 | Document the `parse()` input contract in `bucket_profile2.py` | ToDo | Open | -- |
-| H2 | A card finishes only with its result recorded; `validate.sh` check | ToDo | Open | section 7 |
-
-**Documentation**
-
-| Id | Item | Kanban | Disp | Detail |
-|----|------|--------|------|--------|
-| D15 | `M-*` values stated once: in `Measures.md` | ToDo | Open | section 7 |
-| D10 | One manifest per kind of list, read by every script and document that needs it | ToDo | Open | section 7 |
-| D8 | Writing-rules pass per file: narration, transient counts, deleted-file mentions, restated values. Done for `PLAN.md` and `POLICY.md` | InProgress | Open | section 7 |
-| D1 | Merge to the target shape, one absorbed file per commit, each net-negative; `TOOLING_FAILURES.md` left as it is | InProgress | Open | `README.md` documentation map, "Merges into" |
-| C6 | Record in `CONCURRENCY.md` the `-rpcthreads` / `-rpcworkqueue` distinction, its measured effect, and what a rejected client sees | ToDo | Open | section 7 |
-
-**Product cleanups and analysis**
-
-| Id | Item | Kanban | Disp | Detail |
-|----|------|--------|------|--------|
-| A7a | Witness flag surface, the parts that need no measurement: `-walletwitness=stock|defer|rebuild` (keep `ibd-defer` as an alias), witness stats under `-debug=witness` instead of `-walletwitnessstats`, one `WitnessReady { NotBuilt, Building, Ready }` replacing `initWitnessesBuilt` + `fBuildingWitnessCache`. RPC codes unchanged; existing gate tests cover it | ToDo | Open | `WITNESS.md` "Ship state" |
-| P5 | `boost::optional` to `std::optional` | ToDo | Open | `PRODUCT.md` "P5. Migrate `boost::optional` to `std::optional`" |
-| P7 | Coin-selection call clarity -- find existing coverage first | ToDo | Open | `PRODUCT.md` "P7. Coin-selection call clarity: adopt Ycash's shape, not TENT's" |
-| K1 | `nNotarizations` can only be 0: implement the heuristic or remove the field | ToDo | Open | `SYNC.md` "Memory" |
-| K2 | Size the ~176 B/block shielded-index layout cost; gate it out of `CBlockIndex` if worthwhile | ToDo | Open | `SYNC.md` "Memory" |
-| C1 | Catalogue log outcomes; propose a disposition per class; inventory from `log_inventory.py --summary`. No owning document yet; C1's output creates one | ToDo | Open | -- |
-| K10 | Port `getaddrmaninfo` / `getrawaddrman` from Bitcoin Core before writing a bespoke `peers.dat` parser | ToDo | Open | `Stores.md` "Peers.dat Decoding And Recovery" |
-| K4 | P2P follow-tip from the archive template (DNS seeds, distinct rpcport); full bootstrap ingest later | ToDo | Open | -- |
-| G1 | Suite plan: maturity constant, `initialize_chain_clean` ratio, 23 failures by mode | ToDo | Open | `TESTING.md` "Suite plan: constants, tiers, failure modes" |
-| G2 | A bare GTest run aborts and prints no summary | ToDo | Open | `TESTING.md` "`CachedWitnessesCleanIndex` is held failing on purpose" |
-| G3 | An autotools re-run inherits no `CONFIG_SITE`; touches Zero-owned `configure.ac` | ToDo | Open | `BUILD_RECONFIG.md` "Hardening options, not implemented" |
-| B1 | Locking validation method: order, balance, races, contention, throughput. Known gaps: `TRY_LOCK` paths are uninstrumented, and all lock results come from a single-worker reindex | ToDo | Open | `CONCURRENCY.md` "Validating locking across the codebase"; `LOCKS.md` "Open" |
-
-**Decisions owed** (each item states its options)
-
-| Id | Item | Kanban | Disp | Detail |
-|----|------|--------|------|--------|
-| B4 | `z_sendmany` does not lock the notes it selects; `z_mergetoaddress` selection can overlap it | ToDo | Open -- decision: explicit locking, or a documented single-worker constraint | `LOCKS.md` "Shielded note selection and the single async worker" |
-| C5 | Gated RPC entry points: one shared guard keyed by RPC name | ToDo | Open -- decision: one shared in-flight slot, or per-method slots | `PRODUCT.md` "Option B -- one shared gate, keyed by RPC name (recommended)" |
-| P1 | Proof-verification counters and phase timers that cover proof work | InTest | Open -- decision: `nTimeVerify` relabelled cumulative, reported exclusive, or both | `PerfTimers.md`; `SYNC.md` "Where the time goes" |
-| P20 | Cap `MAX_SCRIPTCHECK_THREADS`; `-rpcthreads` 4 -> 2; A/B M-PAR-AB-700K | ToDo | Open -- decision: keep 16, cap at 7, or cap at 4; an idle-host `-par=4` rerun settles the cost of 4 | `CONCURRENCY.md` "`-par` sizing: is the default right?" |
+| # | Question | Options | Default if unanswered |
+|---|----------|---------|-----------------------|
+| 1 | B4: note selection in `z_sendmany` | explicit note locking; or a documented single-worker constraint | documented constraint |
+| 2 | C5: gated RPC entry points | one shared in-flight slot keyed by RPC name; or per-method slots | shared slot (`PRODUCT.md` recommends) |
+| 3 | P1: `nTimeVerify` reporting | relabel cumulative; report exclusive; both | both |
+| 4 | P20: script-check thread cap | keep 16; cap at 7; cap at 4 (needs one idle-host `-par=4` rerun) | keep 16 |
+| 5 | F5: propose the workflow change to Zero | now; later | later (Postponed) |
 
 ---
 
-## 4. Waiting on an input
+## 4. A -- Wallet: witnesses, rescan, note selection
 
-| Id | Item | Kanban | Waits on | Detail |
-|----|------|--------|----------|--------|
-| A4a | Bounded fat-wallet rescan of the post-1.6M band: `z_importkey` of one existing fat-wallet key with `rescan=yes` and a `startHeight` 50,000 below the tip, profiled. Exits A1 and unblocks A7b | ToDo | The golden fat wallet on the host; a few idle hours | section 7 |
-| A1 | Invalidate the note index only on membership change | InTest | A4a | `WITNESS.md` "The note index" |
-| A7b | NOTEIDX always on; drop `-walletwitnessnote` | ToDo | A4a | `WITNESS.md` "Ship state" |
-| A4b | Full genesis fat-wallet `-rescan`, overnight, scripted, outside the harness: remeasures M-WAL-RESCAN-FAT; gates nothing | ToDo | The fat wallet; an overnight slot | `WITNESS.md` "Cost" |
-| A3 | Benchmark both witness bottlenecks post-Sapling, on a disposable tip above height 492,850 with fat-wallet notes in range | ToDo | A1; the tip and the fat wallet | `WITNESS.md` "Cost" |
-| A9 | `getalldata` datatype matrix at a quiet full tip (BENCH-GAD-IDX1) | ToDo | `fulltip-812-datadir` | section 7 |
-| A12 | Lab soak under rebuild: status polling, spend storm under -31, `getalldata` after rebuild | ToDo | `fulltip-812-datadir`; the fat wallet | section 7 |
-| A10 | p1 rescan profile; first confirm by timing that p1 runs long enough to profile | ToDo | The p1 wallet | `WITNESS.md` "Cost" |
-| P6 | Anchor depth for shielded spends; subsumes what remains of P4 | ToDo | P5 | `PRODUCT.md` "P6. Anchor depth for shielded spends" |
-| B6 | Async worker experiments: one then several workers, idle and loaded | ToDo | B4 | `CONCURRENCY.md` "Read-only RPC under concurrency" |
-| C2 | Review level and category assignment | ToDo | C1 | section 7 |
-| C4 | Alerting: what an operator must see, and how | ToDo | C2 | -- |
-| N9 | Per-workload utilization profile generated from the ledger, over checkpoint progress series rather than endpoints | ToDo | N2 | section 7 |
-| D3 | Section-number citations to heading titles; `check_citations.py` fails on section numbers, bare file names, a cited heading that does not exist, an `M-*` id with no row, and a path or script flag the tree lacks | ToDo | D1 | -- |
-| D6 | Rules in one place per scope: `POLICY.md` keeps the perf-specific rules; general writing rules defer to Zero's DOC-CONVENTIONS | InTest | Z5 | section 7 |
-| N15 | Lab inputs located and identified: snapshot archives and sibling repositories | InProgress | A height-ordered tiny archive rebuilt with `contrib/linearize` outside `/tmp` | section 7 |
-| K8 | Remeasure on the current build: the six-capture CPU profile (M-CPU-SEQ), which predates uniblake, the Equihash skip and the IBD hoist and overstates Equihash; and stock reindex h600k-900k, n=4, the before/after for M-RX-POSTSAP-STOCK | ToDo | An idle-host slot | `SYNC.md` "Where the time goes"; `README.md` "postsapling_reindex.sh" |
-| N1 | Microbenchmark baseline: the rest of the `zcbenchmark` suite | InTest | A populated wallet for several benchmarks | section 7 |
-| P13 | Redundant Equihash verification: skip landed in `37f3f3459`; per-caller `ZERO_PERF` counters, M-EQ-VERIFY-SITES; pinned by six `miner_tests` cases, each failing under its mutation (`SYNC.md`; `test-logs/p13-tests-20261005/`). `getblock` concurrent with reindex not covered | InTest | Hand-off batch 2 | `SYNC.md` "Equihash verifications per block" |
-| P19 | Delete unbuilt `src/snark/`: done here (`f34332af9`); Zero still carries it | InTest | Hand-off batch 1 | section 7 |
-| Q8 | Release note for the tromp default | ToDo | Hand-off batch 3 | -- |
-| Z5 | `reporoot/DOC-CONVENTIONS.md`: replacement for the DOC-CONVENTIONS entry, approved | ToDo | Zero applies it | -- |
-| Z6 | `reporoot/MAINTREE_CHANGES.md`: `src/` and `qa/` changes for Zero to review and apply, with release notes for behaviour changes | InProgress | Section 2 step 3 | -- |
-| Z8 | `reporoot/TODO.proposals.md`: REL-05 (`contrib/spendfrom/`, `contrib/qos/`), DOC-ROOT-PLANNING, three items out of `TODO.md` | ToDo | Zero | -- |
-| Z2 | Zeronode test track, now Zero ZN-01 and DOC-02: argument validation on existing Boost; founders window; two-node `startalias`; zeronode `invalidateblock` after A5 | ToDo | Zero; A5 for the last part | -- |
-| Z7 | Root documents here are older than Zero's; refresh them from Zero by merge, not by edit | ToDo | Hand-off batch 1 landing | -- |
+Analysis: `WITNESS.md`; wallet code changes: `PRODUCT.md`.
+
+| Id | Item | When | Kanban | Disp | Detail |
+|----|------|------|--------|------|--------|
+| A14a | Rescan detection and reporting: log when `-rescan` comes from `zero.conf`; log a `stop` requested during a rescan with the height reached; rescan progress in `getwalletinfo`; log the end as complete or interrupted | Next | ToDo | Open | section 14, C9 |
+| A14b | Rescan operation and recovery: shutdown check every batch, wallet locator at the last scanned block, resume on restart, one rescan at a time, reorg handling, then lock release between batches | Ready | ToDo | Open -- after A14a | `LOCKS.md` "Designs for the open work" 2 |
+| A15 | Restart detection and reporting: at startup, log why a reindex, rescan or witness rebuild runs (flag and its source, or the wallet locator's gap) and warn on `reindex=` / `rescan=` in `zero.conf` | Next | ToDo | Open | section 14, C9 |
+| A6 | Height walk drops `cs_main` periodically and aborts on tip change; then the R5c e2e. The walk runs at the tip with stock flags too | Next | ToDo | Open | `LOCKS.md` "Designs for the open work" 3 |
+| A5 | Replace the null-`pindex` `exit(1)` paths with rebuild-or-clear recovery: unreachable from current callers; the guards report and exit | Postponed | ToDo | Postponed -- decided 2026-10-06 | section 14, C9 |
+| A7a | Witness flag surface, parts needing no measurement: `-walletwitness=stock|defer|rebuild` (`ibd-defer` kept as an alias), stats under `-debug=witness`, one `WitnessReady { NotBuilt, Building, Ready }` replacing `initWitnessesBuilt` + `fBuildingWitnessCache`; RPC codes unchanged | Ready | ToDo | Open | `WITNESS.md` "Ship state" |
+| A13 | `CDB::Rewrite` spins with no log or timeout; upstream, all Zcash-family forks | Ready | ToDo | Open | `LOCKS.md` "Designs for the open work" 6 |
+| P27 | `-salvagewallet` help and some test fixtures say `wallet.dat`; the runtime default is `wallet.zero` | Ready | ToDo | Open | `Stores.md` "Berkeley DB, Wallet Compatibility, And Local DB Direction" |
+| P5 | `boost::optional` to `std::optional` | Ready | ToDo | Open | `PRODUCT.md` "P5. Migrate `boost::optional` to `std::optional`" |
+| P7 | Coin-selection call clarity -- find existing coverage first | Ready | ToDo | Open | `PRODUCT.md` "P7. Coin-selection call clarity: adopt Ycash's shape, not TENT's" |
+| P4 | Witness RPC gate inconsistent | Baseline | InTest | Open | `PRODUCT.md` "P4. The witness RPC gate is inconsistent, and the family disagrees about it" |
+| A1 | Invalidate the note index only on membership change | Waits: A4a | InTest | Open | `WITNESS.md` "The note index" |
+| A4a | Rescan of the post-1.6M band only: `z_importkey` of one existing fat-wallet key, `rescan=yes`, `startHeight` 50,000 below the tip, profiled. Exits A1, unblocks A7b | Waits: fat wallet, idle hours | ToDo | Open | section 14 |
+| A7b | NOTEIDX always on; drop `-walletwitnessnote` | Waits: A4a | ToDo | Open | `WITNESS.md` "Ship state" |
+| A4b | Full genesis fat-wallet `-rescan`, overnight, outside the harness; refreshes M-WAL-RESCAN-FAT, gates nothing | Waits: fat wallet, overnight | ToDo | Open | `WITNESS.md` "Cost" |
+| A3 | Benchmark both witness bottlenecks post-Sapling, on a disposable tip above height 492,850 with fat-wallet notes in range | Waits: A1, tip, fat wallet | ToDo | Open | `WITNESS.md` "Cost" |
+| A9 | `getalldata` datatype matrix at a quiet full tip (BENCH-GAD-IDX1) | Waits: `fulltip-812-datadir` | ToDo | Open | section 14 |
+| A12 | Lab soak under rebuild: status polling, spend storm under -31, `getalldata` after rebuild | Waits: `fulltip-812-datadir`, fat wallet | ToDo | Open | section 14 |
+| A10 | p1 rescan profile; first confirm by timing that p1 runs long enough to profile | Waits: p1 wallet | ToDo | Open | `WITNESS.md` "Cost" |
+| P6 | Anchor depth for shielded spends; subsumes what remains of P4 | Waits: P5 | ToDo | Open | `PRODUCT.md` "P6. Anchor depth for shielded spends" |
 
 ---
 
-## 5. Decided
+## 5. B -- Locking and concurrency
 
-One line per direction taken or dropped: status, how it is enabled, and what
-it binds later. The reasoning lives in the cited document; a rejected line
-reopens only on the condition given there.
+Analysis: `LOCKS.md` (findings, designs), `CONCURRENCY.md` (pools, queues).
+
+| Id | Item | When | Kanban | Disp | Detail |
+|----|------|------|--------|------|--------|
+| B8 | Lock contention per site: count, total and maximum wait, at shutdown and on request, perf builds only | Next | ToDo | Open | `LOCKS.md` "Designs for the open work" 1 |
+| B1 | Locking validation: order, balance, races, contention, throughput; try-lock edges in the order map; a concurrent coverage run | Ready | ToDo | Open | `LOCKS.md` "Designs for the open work" 4, 5 |
+| B4 | `z_sendmany` does not lock the notes it selects; `z_mergetoaddress` selection can overlap it | Ready | ToDo | Open -- decision: section 3 #1 | `LOCKS.md` "Shielded note selection and the single async worker" |
+| P20 | Cap `MAX_SCRIPTCHECK_THREADS`; `-rpcthreads` 4 -> 2; A/B M-PAR-AB-700K | Ready | ToDo | Open -- decision: section 3 #4 | `CONCURRENCY.md` "`-par` sizing: is the default right?" |
+| B6 | Async worker experiments: one then several workers, idle and loaded | Waits: B4 | ToDo | Open | `CONCURRENCY.md` "Read-only RPC under concurrency" |
+
+---
+
+## 6. C -- Logging, RPC server, operations
+
+| Id | Item | When | Kanban | Disp | Detail |
+|----|------|------|--------|------|--------|
+| C7 | Non-zero exit status after an `AbortNode` shutdown, so supervisors see a fatal stop. Implemented (`StartFatalShutdown`); verified on the binary, exit 1 with it and 0 without (`test-logs/crash-items-20261006/`) | Baseline | InTest | Open | section 14, C9 |
+| C8 | Under `-daemon`, stderr appended to `stderr.log` in the network datadir, so assert and abort text survives. Implemented; verified on the binary (`test-logs/crash-items-20261006/`) | Baseline | InTest | Open | section 14, C9 |
+| C9 | Node termination and crash diagnostics, tracking: A14a, A14b, A15, A5, the runbook | Ready | InProgress | Open | section 14, C9 |
+| C6 | Record in `CONCURRENCY.md` the `-rpcthreads` / `-rpcworkqueue` distinction and its effect; put the reason in the 503 body | Ready | ToDo | Open | section 14; `LOCKS.md` "Designs for the open work" 7 |
+| C1 | Catalogue log outcomes; propose a disposition per class; inventory from `log_inventory.py --summary`. No owning document yet; C1's output creates one | Ready | ToDo | Open | -- |
+| C5 | Gated RPC entry points: one shared guard keyed by RPC name | Ready | ToDo | Open -- decision: section 3 #2 | `PRODUCT.md` "Option B -- one shared gate, keyed by RPC name (recommended)" |
+| C2 | Review level and category assignment | Waits: C1 | ToDo | Open | section 14 |
+| C4 | Alerting: what an operator must see, and how | Waits: C2 | ToDo | Open | -- |
+| P18 | `debug.log` is unbounded: trimmed only at startup, and never with `-debug` | Postponed | ToDo | Postponed | section 14, N29 |
+
+---
+
+## 7. K -- Block validation and import
+
+Analysis: `SYNC.md`.
+
+| Id | Item | When | Kanban | Disp | Detail |
+|----|------|------|--------|------|--------|
+| P13 | Redundant Equihash verification: skip in `37f3f3459`; per-caller `ZERO_PERF` counters (M-EQ-VERIFY-SITES); six `miner_tests` cases, each failing under its mutation; `getblock` concurrent with reindex not covered | Baseline | InTest | Open | `SYNC.md` "Equihash verifications per block" |
+| K8 | Remeasure throughput on the current build: stock reindex h600k-900k, n=4, the before/after for M-RX-POSTSAP-STOCK | Baseline | ToDo | Open | `SYNC.md` "Where the time goes" |
+| K11 | CPU profiles regenerated on the current build, across the board; tracking | Baseline | ToDo | Open | section 14, K11 |
+| P1 | Proof-verification counters and phase timers that cover proof work | Baseline | InTest | Open -- decision: section 3 #3 | `PerfTimers.md`; `SYNC.md` "Where the time goes" |
+| P24 | `getchaintips` is O(chain length) | Ready | ToDo | Open | section 14 |
+| K1 | `nNotarizations` can only be 0: implement the heuristic or remove the field | Ready | ToDo | Open | `SYNC.md` "Memory" |
+| K2 | Size the ~176 B/block shielded-index layout cost; gate it out of `CBlockIndex` if worthwhile | Ready | ToDo | Open | `SYNC.md` "Memory" |
+| K10 | Port `getaddrmaninfo` / `getrawaddrman` from Bitcoin Core before writing a bespoke `peers.dat` parser | Ready | ToDo | Open | `Stores.md` "Peers.dat Decoding And Recovery" |
+| K4 | P2P follow-tip from the archive template (DNS seeds, distinct rpcport); full bootstrap ingest later | Ready | ToDo | Open | -- |
+| K3 | Thermal state over long runs; the `therm` column in `util.tsv` stays | Postponed | ToDo | Postponed | -- |
+| K5 | Era-bounded rematch using shielded density bands (L3) | Postponed | ToDo | Postponed | `Measures.md` M-DENS-* rows |
+| P8 | FDCACHE disposition; cold-cache and Linux/Windows measurement | Postponed | ToDo | Postponed | `SYNC.md` "Disk I/O and FDCACHE" |
+| K6 | Stack-logged allocation window entirely post-Sapling | Aside | ToDo | Aside -- unlikely to change the conclusion | `SYNC.md` "Memory" |
+| K7 | Post-Sapling bootstrap capture | Aside | ToDo | Aside -- bootstrap and reindex agree within ~3 points per bucket | `SYNC.md` "Where the time goes" |
+
+---
+
+## 8. N -- Harness, records, lab inputs, evidence store
+
+Analysis: `HOWTO.md`, `SCHEMA.md`, `recbench/RecBench.md`; lab conf and
+recording in `README.md` "Lab conf and recorded rows".
+
+| Id | Item | When | Kanban | Disp | Detail |
+|----|------|------|--------|------|--------|
+| N15 | Lab inputs located and identified; the layout question needs the height-ordered tiny archive rebuilt with `contrib/linearize` outside `/tmp` | Baseline | InProgress | Open | section 14 |
+| N1 | Microbenchmark baseline: the rest of the `zcbenchmark` suite; several need a populated wallet | Baseline | InTest | Open | section 14 |
+| N28 | Loose files at the top of `test-logs/` | Ready | ToDo | Open | section 14 |
+| N27 | `test-logs/` cleanup, validation and reconciliation | Ready | ToDo | Open | section 14 |
+| N29 | `debug.log` handling and size, node and lab | Ready | ToDo | Open | section 14 |
+| N12 | Extend `check_citations.py` rules 1-2 from `docs/` to every owned document | Ready | ToDo | Open | `POLICY.md` "Enforcement" |
+| N2 | Workload classes: `op` enum validated by RecBench and back-annotated with `era`; then `wallet_shape`, derived `era`, a pooling guard on `op` and `era` | Ready | ToDo | Open | `SCHEMA.md` "4.3 Workload classes" |
+| N4 | Row identity: a hash of the `zerod` binary in `build` and `build_id`; fingerprint v2 with platform | Ready | ToDo | Open; the cross-platform guard waits for a second platform | `SCHEMA.md` "2. Version block -- `build`", "6.4 Fingerprint v2" |
+| N7 | State the restartability axis beside the run-length heuristic | Ready | ToDo | Open | `POLICY.md` "Lab discipline" |
+| F11 | Document the `parse()` input contract in `bucket_profile2.py` | Ready | ToDo | Open | -- |
+| N9 | Per-workload utilization profile from the ledger, over checkpoint progress series | Waits: N2 | ToDo | Open | section 14 |
+
+---
+
+## 9. D -- Documentation
+
+Rules: `POLICY.md` "Documents"; writing rules are Zero's DOC-CONVENTIONS.
+
+| Id | Item | When | Kanban | Disp | Detail |
+|----|------|------|--------|------|--------|
+| D6 | Rules in one place per scope: `POLICY.md` keeps the perf-specific rules; general rules defer to Zero's DOC-CONVENTIONS | Baseline | InTest | Open | section 14 |
+| D15 | `M-*` values stated once: in `Measures.md` | Ready | ToDo | Open | section 14 |
+| D10 | One manifest per kind of list, read by every script and document that needs it | Ready | ToDo | Open | section 14 |
+| D8 | Writing-rules pass per file; done for `PLAN.md` and `POLICY.md` | Ready | InProgress | Open | section 14 |
+| D1 | Merge to the target shape, one absorbed file per commit, each net-negative; `TOOLING_FAILURES.md` left as it is | Ready | InProgress | Open | `README.md` documentation map, "Merges into" |
+| D3 | Section-number citations to heading titles; `check_citations.py` fails on section numbers, bare file names, a missing cited heading, an `M-*` id with no row, a path or flag the tree lacks | Waits: D1 | ToDo | Open | -- |
+
+---
+
+## 10. G and H -- Tests, build, process
+
+| Id | Item | When | Kanban | Disp | Detail |
+|----|------|------|--------|------|--------|
+| H2 | A card finishes only with its result recorded; `validate.sh` check | Ready | ToDo | Open | section 14 |
+| G1 | Suite plan: maturity constant, `initialize_chain_clean` ratio, 23 failures by mode | Ready | ToDo | Open | `TESTING.md` "Suite plan: constants, tiers, failure modes" |
+| G2 | A bare GTest run aborts and prints no summary | Ready | ToDo | Open | `TESTING.md` "`CachedWitnessesCleanIndex` is held failing on purpose" |
+| G3 | An autotools re-run inherits no `CONFIG_SITE`; touches Zero-owned `configure.ac` | Ready | ToDo | Open | `BUILD_RECONFIG.md` "Hardening options, not implemented" |
+| H3 | Item ids, names and status reconciled with Zero's `TODO.md` | Postponed | ToDo | Postponed | section 14 |
+| H4 | Regroup items by module | Postponed | ToDo | Postponed | superseded by this layout; ids remain with H3 |
+
+---
+
+## 11. Z -- Hand-off to Zero
+
+Not performance work. Each proposal is a draft in `reporoot/`, compared
+against a stated Zero commit and kept to what is still pending.
+
+| Id | Item | When | Kanban | Disp | Detail |
+|----|------|------|--------|------|--------|
+| Z6 | `reporoot/MAINTREE_CHANGES.md`: `src/` and `qa/` changes for Zero, with release notes for behaviour changes | Baseline | InProgress | Open | section 14 |
+| Z7 | Root documents here are older than Zero's; refresh them from Zero by merge, not by edit | Baseline | ToDo | Open | -- |
+| P19 | Delete unbuilt `src/snark/`: done here (`f34332af9`); Zero still carries it | Baseline | InTest | Open | section 14 |
+| Q3 | Revalidate the committed sort fold against the 5-solution baseline (V2); gates the solver row of hand-off batch 3 | Ready | ToDo | Open | section 14 |
+| Q8 | Release note for the tromp default | Waits: batch 3 | ToDo | Open | -- |
+| Z5 | `reporoot/DOC-CONVENTIONS.md`: replacement for the DOC-CONVENTIONS entry, approved | Waits: Zero | ToDo | Open | -- |
+| Z8 | `reporoot/TODO.proposals.md`: REL-05 (`contrib/spendfrom/`, `contrib/qos/`), DOC-ROOT-PLANNING, three items out of `TODO.md` | Waits: Zero | ToDo | Open | -- |
+| Z2 | Zeronode test track, now Zero ZN-01 and DOC-02: argument validation on existing Boost; founders window; two-node `startalias`; zeronode `invalidateblock` after A5 | Waits: Zero; A5 | ToDo | Open | -- |
+| Z10 | `reporoot/MIGRATION_PLAN.md`: `insight` to the organisation when convenient | Postponed | ToDo | Postponed | -- |
+
+---
+
+## 12. Parked groups
+
+Not scheduled; each reopens by decision. Analysis stays in the cited
+document.
+
+| Id | Item | When | Detail |
+|----|------|------|--------|
+| Y1 | Groth16 batch verification: Option A (hand-port) or B (adopt `sapling-crypto`) | Postponed | `PerfGroth.md` "4. The decision: Option A vs Option B" |
+| Y2 | Build librustzcash on rustc 1.98.1 | Postponed | `LIBRUSTZCASH.md` "4. Remaining validation, and what it costs" |
+| Y3 | Vendor librustzcash in-tree; then decide the base | Postponed | `LIBRUSTZCASH.md` "3. Recommendation" |
+| R3 | `CBLAKE2bWriter` on uniblake | Postponed | `HASHLIBS.md` "C. `CBLAKE2bWriter` and the four one-shot sites" |
+| Q2 | Measure the threaded tromp solver | Postponed | `equ/PLAN.md` "Queued solver work" |
+| Q4 | Per-phase CPU profile of a mainnet (192,7) solve (G5) | Postponed | `README.md` "mine_bench.sh" |
+| Q5 | Deployment fleet mix (INV-ARM-MIX) | Postponed | -- |
+| Q6 | Solver stages S1-S4 | Postponed | `equ/PLAN.md` "9. Sequencing and honest expectations" |
+| Q9 | Stamp variant and UTC into solver dump paths; `eqbench.sh` wrapper; solver variant registry | Postponed | `equ/PLAN.md` "Queued solver work" |
+| Q10 | Review `equ/` under the writing rules; move its queue into this register; delete `equ/README.md` | Postponed | section 14 |
+| F1 | Linux VPS and Windows/WSL runbook, folding in the platform tool survey | Postponed | `PerfPlatforms.md` "6. Recommendations, ranked" |
+| F2 | First non-macOS capture | Postponed | `PerfPlatforms.md` "3.1 CPU profiling -- the direct xctrace equivalent" |
+| F4 | Re-validate the consolidated tree on another platform | Postponed | -- |
+| F5 | CI: the perf branches in the push trigger; a lint job ahead of the build. Blocked on a Zero proposal, not on settings | Postponed | `TESTING.md` "CI and its components"; section 14 |
+| F6 | Port `res_sample.sh` to `psutil` | Postponed | `PerfPlatforms.md` "3.3 Resource sampling" |
+| F8 | Retest the `--strict` / `--suite` release track on Linux | Postponed | -- |
+| F9 | Windows MXE cross-build, never run here; then hardening and ETW profiling | Postponed | `PerfPlatforms.md` "4. Windows 11" |
+| F10 | Release engineering: params archival, branch-id CI, OpenSSL 3, Debian packaging | Postponed | -- |
+
+---
+
+## 13. Decided
+
+One line per direction taken or dropped: status, how it is enabled, what it
+binds later. Reasoning lives in the cited document.
 
 | Direction | Status | Enabled | Lasting implication | Reasoning |
 |-----------|--------|---------|---------------------|-----------|
@@ -208,10 +273,11 @@ reopens only on the condition given there.
 | `IsInitialBlockDownload` hoist; single `CompareTo`; merkle-root latch | Adopted | default | -- | `LOCKS.md`; `SYNC.md` "Shipped changes" |
 | `-walletwitness=ibd-defer`, `-walletwitnessnote=1` | Adopted, opt-in; default-on not pursued | flags, default off | When on, spends wait for one rebuild after import (`-31`/`-33`) | `WITNESS.md` "Choices" |
 | DIRTY | Rejected | not built | -- | `WITNESS.md` "Choices" |
+| Reorg bound: 99 blocks, then shutdown (TNT-02, A11) | Settled by Zero | default | A deeper reorg stops the node with a message; the witness cache is one block deeper, pinned by a `static_assert` (A8, TNT-03); TENT's unbounded follow is not ported | Zero `UpdateZero.md` DEF-07; `WITNESS.md` "Reorg and crash" |
+| `txindex` always on | Inherited, kept | default; `-txindex` commented out (`fTxIndex = true` in `main.cpp`), in this tree and in Zero | Lookups by txid always work; the index costs disk and write time on every block; turning it off needs code | `Stores.md`; D11 |
 | FDCACHE | Compiled out | `ZERO_FDCACHE` build only | Reopens with cold-cache or Linux data (P8) | `SYNC.md` "Disk I/O and FDCACHE" |
 | Equihash first-list batch hashing (`EQUIHASH_BATCH_HASH`) | Not selected: lower performance | compile-time macro; code kept | Not proposed to Zero | commit `611e9efb7` |
 | Minimal lab conf: no Insight, default `dbcache` | Adopted | harness default; `ZERO_PERF_ARCHIVE_CONF=1` restores an archive's | Compare only rows with equal `features.runtime` | M-RX-TINY-20260930 |
-| Reorg bound: 99 blocks, then shutdown (TNT-02, was A11) | Settled by Zero | default | A deeper reorg stops the node with a message; the witness cache is sized to the bound (A8); TENT's unbounded follow is not ported | Zero `UpdateZero.md` DEF-07 |
 | `reporoot/` stays tracked as it is | Adopted | -- | -- | -- |
 
 Settled, do not re-derive: recursion is six inherited lock-per-function
@@ -220,73 +286,18 @@ totals were acquisition counts.
 
 ---
 
-## 6. Postponed and aside
-
-Not scheduled; each reopens by decision. Analysis stays in the cited
-document.
-
-| Id | Item | Disp | Detail |
-|----|------|------|--------|
-| Y1 | Groth16 batch verification: Option A (hand-port) or B (adopt `sapling-crypto`) | Postponed | `PerfGroth.md` "4. The decision: Option A vs Option B" |
-| Y2 | Build librustzcash on rustc 1.98.1 | Postponed | `LIBRUSTZCASH.md` "4. Remaining validation, and what it costs" |
-| Y3 | Vendor librustzcash in-tree; then decide the base: stay pinned, or a fork's newer base | Postponed | `LIBRUSTZCASH.md` "3. Recommendation" |
-| R3 | `CBLAKE2bWriter` on uniblake | Postponed | `HASHLIBS.md` "C. `CBLAKE2bWriter` and the four one-shot sites" |
-| Q2 | Measure the threaded tromp solver | Postponed | `equ/PLAN.md` "Queued solver work" |
-| Q4 | Per-phase CPU profile of a mainnet (192,7) solve (G5) | Postponed | `README.md` "mine_bench.sh" |
-| Q5 | Deployment fleet mix (INV-ARM-MIX) | Postponed | -- |
-| Q6 | Solver stages S1-S4 | Postponed | `equ/PLAN.md` "9. Sequencing and honest expectations" |
-| Q9 | Stamp variant and UTC into solver dump paths; `eqbench.sh` wrapper; solver variant registry | Postponed | `equ/PLAN.md` "Queued solver work" |
-| Q10 | Review `equ/` under the writing rules; move its queue into this register; delete `equ/README.md` | Postponed | section 7 |
-| K3 | Thermal state over long runs; the `therm` column in `util.tsv` stays | Postponed | -- |
-| K5 | Era-bounded rematch using shielded density bands (L3) | Postponed | `Measures.md` M-DENS-* rows |
-| P8 | FDCACHE disposition; cold-cache (`drop_caches`) and Linux/Windows measurement | Postponed | `SYNC.md` "Disk I/O and FDCACHE" |
-| P18 | `debug.log` is unbounded: trimmed only at startup, and never with `-debug` | Postponed | section 7, N29 |
-| F1 | Linux VPS and Windows/WSL runbook, folding in the platform tool survey | Postponed | `PerfPlatforms.md` "6. Recommendations, ranked" |
-| F2 | First non-macOS capture | Postponed | `PerfPlatforms.md` "3.1 CPU profiling -- the direct xctrace equivalent" |
-| F4 | Re-validate the consolidated tree on another platform | Postponed | -- |
-| F5 | CI: the working branch in the push trigger; a lint job ahead of the 240-minute build | Postponed -- needs repository settings | section 7 |
-| F6 | Port `res_sample.sh` to `psutil` | Postponed | `PerfPlatforms.md` "3.3 Resource sampling" |
-| F8 | Retest the `--strict` / `--suite` release track on Linux | Postponed | -- |
-| F9 | Windows MXE cross-build, never run here; then hardening and ETW profiling | Postponed | `PerfPlatforms.md` "4. Windows 11" |
-| F10 | Release engineering: params archival, branch-id CI, OpenSSL 3, Debian packaging | Postponed | -- |
-| H3 | Item ids, names and status reconciled with Zero's `TODO.md` | Postponed | section 7 |
-| H4 | Regroup items by module, with H3 | Postponed | section 7 |
-| Z10 | `reporoot/MIGRATION_PLAN.md`: `insight` to the organisation when convenient | Postponed | -- |
-| K6 | Stack-logged allocation window entirely post-Sapling | Aside -- unlikely to change the conclusion | `SYNC.md` "Memory" |
-| K7 | Post-Sapling bootstrap capture | Aside -- bootstrap and reindex agree within ~3 points per bucket | `SYNC.md` "Where the time goes" |
-
----
-
-## 7. Item detail
+## 14. Item detail
 
 Only what no subject document owns, by id.
 
-**A8.** Steps: (1) `static_assert(WITNESS_CACHE_SIZE > MAX_REORG_LENGTH)` in
-`wallet/wallet.h`, so changing either constant alone fails the build; (2)
-every use trims witnesses down to `WITNESS_CACHE_SIZE` and never below
-(`wallet.cpp` `DecrementNoteWitnesses`, `BuildWitnessCache`), confirmed;
-(3) state the relation in `WITNESS.md` "Reorg and crash", list the change in
-`reporoot/MAINTREE_CHANGES.md`, close A8. A5 is not involved: it concerns a
-null `pindex`, not reorg depth.
-
-**F5.** `.github/workflows/tests.yml` runs on push to `main`, `master` and
-`develop`, on pull requests, and by hand: one Ubuntu 24.04 job, params fetch,
-`zcutil/build.sh -j2`, `contrib/run-tests.sh --strict`, 240-minute timeout.
-No job runs `lint-perf.sh` or `validate.sh`, and `perf_b1b2` pushes trigger
-nothing, so every perf gate is local. F5 adds the working branch to the
-trigger and a lint job that fails fast before the build; both are workflow
-edits that need repository settings on the Zero repository.
-
-**A4a.** Exits A1 and gives A7b its evidence. The question both ask is
-whether `SelectWalletTxsForWitnessScan` still dominates in the post-1.6M
-band, where each founders coinbase entering the wallet used to rebuild the
-note index; a band of 50,000 blocks there answers it. `z_importkey` with an
-existing key, `rescan=yes` and a `startHeight` runs
-`ScanForWalletTransactions` from that height on a lab node at tip with the
-fat wallet; the key stays out of every document. A4b's genesis run then only
-refreshes M-WAL-RESCAN-FAT. A7b also needs NOTEIDX to produce the same
-witnesses as the full scan, which the gate tests in `WITNESS.md` "Ship state"
-already cover.
+**A4a.** Exits A1 and gives A7b its evidence. Both ask whether
+`SelectWalletTxsForWitnessScan` still dominates in the post-1.6M band, where
+each founders coinbase entering the wallet used to rebuild the note index; a
+band of 50,000 blocks there answers it. `z_importkey` with an existing key,
+`rescan=yes` and a `startHeight` runs `ScanForWalletTransactions` from that
+height on a lab node at tip with the fat wallet; the key stays out of every
+document. A4b's genesis run only refreshes M-WAL-RESCAN-FAT. NOTEIDX
+correctness is covered by the gate tests in `WITNESS.md` "Ship state".
 
 **A9, A12.** Both use `reindex-profile/fulltip-812-datadir`, recreated from
 `chainblocks812-clean.tgz` by `prep_lab_datadir.sh`; the tiny-snap result
@@ -307,23 +318,36 @@ and depth 16 did not. A rejection reaches the client as HTTP 503 and exit 1,
 without the reason ("Work queue depth exceeded"), and the server logs one
 line per episode (`test-logs/c3-workqueue-20260930T082448Z/`).
 
-**P24** (`test-logs/rpc-test-20260917/`). Measure insert and erase
-separately before choosing a fix. The ordered set is maintained continuously
-by its comparator and only 214 survivors need ordering; not materialising
-the full set may remove the cost.
+**F5.** What CI runs and what it leaves out: `TESTING.md` "CI and its
+components". What F5 solves: perf-branch pushes get the same Linux build and
+strict tests that `master` gets, and a lint job runs the perf checks
+(`lint-perf.sh`, `validate.sh`) before the 240-minute build. The workflow
+already runs on `master`, so Actions is enabled; no setting has to change for
+F5. The blocker is ownership: `.github/workflows/tests.yml` is a root file,
+so the change is a Zero proposal (`reporoot/`). Settings matter only for an
+optional rule on `master` that makes the job a required check, which an
+administrator of the Zero repository sets. Steps when reopened: draft the
+workflow change (`perf_*` in `on.push.branches`; a `lint` job, conditional on
+`contrib/perf/` existing; `linux` `needs: lint`); check it locally
+(`actionlint`, `act`); propose it in `reporoot/`; after Zero applies it,
+push a `perf_*` branch and confirm both jobs run.
 
-**P1** gates any phase summary: proof verification sits in no timer, so a
-summary built today omits most post-Sapling cost while appearing complete.
+**K11.** Regenerating CPU profiles on the current build, idle host only,
+one profile per invocation. Each result goes through `profile_collate.py`
+and gets an `M-*` row that names the row it supersedes.
 
-**P19.** In no makefile, no objects, no includes; entered as a subtree in
-`f4d8cd127`. Zcash removed libsnark in `9ce0caf20` (v2.1.0); Pirate, Hush3
-and Firo have too. Zero and Zclassic still carry it; Zero does not compile
-it.
+| Profile | Supersedes | Procedure | Needs |
+|---------|------------|-----------|-------|
+| Reindex, six captures across the chain | M-CPU-SEQ | `capture_sequence.sh` on an rsync of the live `blocks/` (`README.md` "capture_sequence.sh"), then `decode_captures.py` | hours; read-only live `blocks/` |
+| Post-Sapling window | M-CPU-CORR | `HOWTO.md` "1.2 Profile post-Sapling without the 8.5G archive" | `postsapling_reindex.sh` window from 600,000 |
+| Tiny reindex window | M-CPU-TINY-ORIG | `HOWTO.md` "1.1 Profile a reindex (the default case)" | the tiny archive |
+| Wallet-on tiny reindex | M-CPU-WAL0-TINY | `HOWTO.md` "1.1" with `wallet_sync_profile.sh` and `profile_run.sh ... "Main Thread"` | a small wallet |
+| Fat wallet sync | M-CPU-WAL-FAT | `HOWTO.md` "1.3 Profile a wallet rescan" | the golden fat wallet |
+| Bootstrap import | -- | `HOWTO.md` "1.4 Profile bootstrap import" | a `bootstrap.dat` copy |
 
-**Q3.** The fold's speedup was taken on a working-tree patch; no recorded
-run confirms the committed code still produces the five baseline solutions
-(`test-logs/eqvectors/solver_baseline_192_7.txt`, archived and `0444`). One
-run is the exit condition.
+M-CPU-LATCH and the FDCACHE profiles (M-CPU-FD, M-CPU-FD-THR, M-CPU-FS)
+answered closed questions and are not regenerated; M-CPU-LEGACY is
+superseded.
 
 **N15.** Sibling repositories, in test: `ops-validate.sh` finds `linearize/`
 beside this tree or the product tree (`LINEARIZE_DIR` overrides) and warns
@@ -335,6 +359,11 @@ against their recorded sha256, and rows carry the archive's hash. Whether
 block-file layout changes reindex speed is open: run-to-run range is 2-2.5%
 within a sequence and 4.4% across six runs (M-RX-TINY-SEQ), so the ~5% gap
 in M-RX-TINY-ARCHIVE needs both archives interleaved, n>=6 each.
+
+**N1.** Recorded: `verifysaplingspend` / `verifysaplingoutput` and their
+`create` counterparts (M-ZCB-SAP-VERIFY, M-ZCB-SAP-CREATE).
+`parameterloading` fails with RPC error -3. Several of the rest need a
+populated wallet.
 
 **N9.** Columns by class (`SCHEMA.md` "4.3 Workload classes"): A/B -- blk/s,
 CPU% of one core, threads, bucket shares, height window; C -- adds witness
@@ -349,13 +378,11 @@ post-run; one blk/s figure hides the spread across height bands
 (M-LAB-BAND-TINY).
 
 **N27.** Rules: `POLICY.md` "Cleaning up". Tool: `retention.py` classifies
-and never deletes; its self-test runs in `lint-perf.sh`. Missing:
-
-- Reconciliation: a check, run from `validate.sh`, that every run
-  `Measures.md` and `PLAN.md` name exists. M-LAB-REPRO cites a driver log
-  that does not exist.
-- Rules for the store: what a run directory must contain (driver log,
-  measures, recorded rows) before it counts as complete.
+and never deletes; its self-test runs in `lint-perf.sh`. Missing: a check,
+run from `validate.sh`, that every run `Measures.md` and `PLAN.md` name
+exists (M-LAB-REPRO cites a driver log that does not exist); rules for what
+a run directory must contain (driver log, measures, recorded rows) before it
+counts as complete.
 
 **N28.** `retention.py` classifies directories only, so top-level files
 (`validate-*.log`, tiny-baseline `-driver.log` / `.jsonl` / `-progress.tsv`
@@ -379,14 +406,54 @@ into its own directory; existing loose files are grouped by run prefix.
   Trim per-trial `debug.log` to the lines extraction reads once the run's
   rows are in the ledger, and have `retention.py` report the bytes.
 
-**N1.** Recorded: `verifysaplingspend` / `verifysaplingoutput` and their
-`create` counterparts (M-ZCB-SAP-VERIFY, M-ZCB-SAP-CREATE).
-`parameterloading` fails with RPC error -3. Several of the rest need a
-populated wallet.
+**P1** gates any phase summary: proof verification sits in no timer, so a
+summary built today omits most post-Sapling cost while appearing complete.
 
-**H1, H2.** H1 (Finished): formatting changes only inside a hunk already
-changed for a functional reason; `validate.sh` checks it. H2 exists because a
-fix reached the tree with a correct in-code comment and no record anywhere.
+**P19.** In no makefile, no objects, no includes; entered as a subtree in
+`f4d8cd127`. Zcash removed libsnark in `9ce0caf20` (v2.1.0); Pirate, Hush3
+and Firo have too. Zero and Zclassic still carry it; Zero does not compile
+it.
+
+**P24** (`test-logs/rpc-test-20260917/`). Measure insert and erase
+separately before choosing a fix. The ordered set is maintained continuously
+by its comparator and only 214 survivors need ordering; not materialising
+the full set may remove the cost.
+
+**Q3.** The fold's speedup was taken on a working-tree patch; no recorded
+run confirms the committed code still produces the five baseline solutions
+(`test-logs/eqvectors/solver_baseline_192_7.txt`, archived and `0444`). One
+run is the exit condition.
+
+**Z6.** The batches and what is held back: `reporoot/MAINTREE_CHANGES.md`
+"Hand-off batches". Their review is postponed; Baseline 1 steps 3-4 wait
+for it.
+
+**C9.** Tracking for node termination. Runbook: `Stores.md` "Node Stops And
+Recovery"; inventory and evidence: `test-logs/crash-exit-survey-20261005.md`,
+`test-logs/crash-items-20261006/`.
+
+- *Done.* C7 fatal stop exits 1; C8 stderr kept under `-daemon`;
+  `ReportFatalError` (`util.cpp`) writes a fatal reason to `debug.log` and
+  stderr and flushes both, used by the wallet `exit(1)` guards, the chainstate
+  read-error abort and `AbortNode`; `AbortNode` reports the first fatal error
+  once and later ones as "Fatal error while stopping"; a message that already
+  starts with its caption is no longer shown as "Error: Error:" (`noui.cpp`);
+  an unknown `-equihashsolver` is refused at startup instead of stopping the
+  miner thread on an assert (`SelectEquihashSolver`, `miner.cpp`).
+- *A14a, A15, detection and reporting first.* Log lines or an RPC field, no
+  change to what the node does; together they tell an operator whether a
+  restart is redoing work and why.
+- *A14b, operation and recovery.* `ScanForWalletTransactions` returns a
+  count only; its callers then record the tip as scanned, and the final
+  witness build runs only at the end, so an early return alone would mark
+  unscanned blocks as scanned. Steps and corner cases: `LOCKS.md` "Designs
+  for the open work" 2.
+- *A5, postponed.* The three guards were added by Zero in `372b2dd39`; no
+  current caller can pass null. Reopen when a caller can, or a report shows
+  the line.
+- *Not proposed.* A SIGABRT handler writing `debug.log`: not
+  async-signal-safe. Assert text reaches stderr, and `stderr.log` under
+  `-daemon`.
 
 **D6.** The same writing rules are kept in four places: `POLICY.md`
 "Documents", Zero's `UpdateZero.md` DOC-CONVENTIONS, Zero's `AGENTS.md`
@@ -412,48 +479,43 @@ have:
 
 **D15.** `Measures.md` owns each value. Other documents cite the id, and
 restate the value only where the argument uses it; a check compares any
-restated value with the row. Overlaps to fold:
+restated value with the row. Overlaps to fold: `Measures.md` "Ledger
+campaigns" (one `campaign` column in the catalogue instead); "By application
+/ use case" (drop: the subject documents own routing); "Launch and tools
+matrix" (D10); `test-logs/DATA_INDEX.md` (frozen, not cited); lines that
+restate a value beside its id in `SYNC.md`, `WITNESS.md`, `CONCURRENCY.md`,
+`README.md` "Lab wallets".
 
-- `Measures.md` "Ledger campaigns" binds `CAMPAIGN=` to ids that the
-  catalogue rows already carry: one `campaign` column in the catalogue.
-- `Measures.md` "By application / use case" restates subject routing that
-  the subject documents own: drop it.
-- `Measures.md` "Launch and tools matrix": the tools list, D10.
-- `test-logs/DATA_INDEX.md`, untracked, a dated index of numbers with
-  sources and almost no ids: frozen as a point-in-time record, not cited.
-- Subject documents and `README.md`: lines that restate a value beside its
-  id, in `SYNC.md`, `WITNESS.md`, `CONCURRENCY.md`, `README.md` "Lab wallets".
+**H2.** A fix once reached the tree with a correct in-code comment and no
+record anywhere; the check makes that fail.
 
-**H3, H4** (postponed). H4's module regrouping is superseded by this file's
-schedule layout; what remains is ids. Zero labels items by area and name (`WAL-GETALLDATA-W5`,
-`TST-01`; prefixes CON, WAL, OPS, REL, EXT, TST, DOC, TNT) and states status
-by list. The proposal when reopened: area prefix plus number (`WIT-01`),
-Zero's prefix for items handed to Zero, old ids mapped once until the next
-release; one status value mapped to Zero's lists (Next, Active, InTest,
-Pending with its condition, Aside, Finished).
+**H3.** Zero labels items by area and name (`WAL-GETALLDATA-W5`, `TST-01`;
+prefixes CON, WAL, OPS, REL, EXT, TST, DOC, TNT) and states status by list.
+When reopened: area prefix plus number (`WIT-01`), Zero's prefix for items
+handed to Zero, old ids mapped once until the next release; one status value
+mapped to Zero's lists.
 
-**Q10** (postponed). `equ/` holds `README.md` (an index, figures, next
-actions and a dated review), `FINDINGS.md`, `SOLVER.md`, `VENDORED.md`,
-`METHOD.md` and `PLAN.md`. `equ/README.md` goes rather than folding into
-`METHOD.md`: figures and "What this analysis established" to
-`equ/FINDINGS.md`, "Next actions" to this register, the file table to the
-documentation map. `equ/PLAN.md` queue ids D1-D5 collide with group D here.
+**Q10.** `equ/README.md` goes rather than folding into `equ/METHOD.md`:
+figures and "What this analysis established" to `equ/FINDINGS.md`, "Next
+actions" to this register, the file table to the documentation map.
+`equ/PLAN.md` queue ids D1-D5 collide with group D here.
 
 ---
 
-## 8. Closed ids
+## 15. Closed ids
 
-Settled by Zero: A11 (DEF-07, section 5).
+Finished: G4 solver test now calls `SelectEquihashSolver`, the function the miner uses (a mutation removing the (192,7) fallback fails it), N17 perf build gate (`--enable-perf`: builds; Boost passes; GTest 221/221 with the suite filter, as release; `test-logs/n17-perf-gate-20261006/`; a recurring gate is F5), N21 one launcher path (wallet trial through `ops-campaign.sh` with its row file, witness trial with its row, both on a real wallet; the catalog's witness trials need a snapshot with chainstate, which the tiny archive lacks; `test-logs/n21-exit-20261006/`), A2 note-index specification confirmed, D2 module ownership confirmed, D11 `txindex` stated as always on in `Stores.md`, P10 explicit `GetFilteredNotes` arguments (hand-off via Z6), A8 witness cache pinned above the
+reorg bound, B2 `IsInitialBlockDownload` hoist, B3 recursive sites, B5 P25
+claim retracted, C3, D12, E2 non-blake2b libsodium surface, H1 presentation
+edits checked by `validate.sh`, K9 into K8, N10, N11, N13, N14, N18, P17
+out-of-order children (no change needed), P23 comparator single `CompareTo`,
+P26 stray `concept` on `README.md` line 1, Z1, Z4.
 
-Finished: A2 on confirmation (section 2), B2 `IsInitialBlockDownload` hoist,
-B3 recursive sites, B5 P25 claim retracted, C3, D12, E2 non-blake2b
-libsodium surface, H1, K9 into K8, N10, N11, N13, N14, N18, P17 out-of-order
-children (no change needed), P23 comparator single `CompareTo`, P26 stray
-`concept` on `README.md` line 1, Z1, Z4.
+Settled by Zero: A11 (DEF-07, section 13).
 
 Merged: A7 into A7a and A7b; A4 into A4a and A4b; B7 into B1; D4 into D2;
 D5 into F1; D7 into D10; D9 into Q10; D13 and D14 into D8; N3 into N2; N19
 into N4; N8 into N9; N5, N6, N16, N20, N22, N23 into N21; N24, N25 into N15;
 Z9 into Z8.
 
-Rejected: DIRTY (section 5).
+Rejected: DIRTY (section 13).

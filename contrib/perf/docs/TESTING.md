@@ -44,6 +44,30 @@ a product question, tracked in `PRODUCT.md`.
 more than once, at real cost each time. The rule in the gotchas table below --
 a held test is not a failing test -- is the generalisation.
 
+## CI and its components
+
+`.github/workflows/tests.yml` is the only workflow. Triggers: push to
+`main`, `master`, `develop`; pull requests; manual dispatch. One job,
+`linux`, on `ubuntu-24.04`, 240-minute timeout:
+
+| Step | Command | Checks |
+|------|---------|--------|
+| Packages | `apt-get install` of the build toolchain | host can build |
+| Params | `zcutil/fetch-params.sh` | proving parameters download |
+| Build | `zcutil/build.sh -j2` | depends and node compile on Linux |
+| Tests | `contrib/run-tests.sh --strict` | Boost, GTest and the strict RPC tier; exits non-zero on any failure |
+
+Not in CI: `contrib/perf/lint-perf.sh`, `contrib/perf/validate.sh`,
+`perflib_selftest.sh`, the full `--all` RPC suite, any macOS or Windows
+build, any `ZERO_PERF` build. Pushes to perf branches trigger nothing, so all
+of those run only locally.
+
+Checking a workflow change before GitHub: `actionlint` for syntax and
+expressions; `act push -j linux` with image `catthehacker/ubuntu:act-24.04`
+runs the job in Docker; without Docker, run the four steps in an Ubuntu 24.04
+container or VM. The perf checks need no CI emulation: they are the same
+scripts run locally.
+
 ## Suite-run gotchas
 
 Four results that look like platform defects and are not. Each cost time once.

@@ -460,6 +460,13 @@ static std::string FormatException(const std::exception* pex, const char* pszThr
             "UNKNOWN EXCEPTION       \n%s in %s       \n", pszModule, pszThread);
 }
 
+void ReportFatalError(const std::string& where, const std::string& what)
+{
+    LogPrintf("Fatal error: %s: %s\n", where, what);
+    fprintf(stderr, "Fatal error: %s: %s\n", where.c_str(), what.c_str());
+    fflush(stderr);
+}
+
 void PrintExceptionContinue(const std::exception* pex, const char* pszThread)
 {
     std::string message = FormatException(pex, pszThread);
