@@ -2,7 +2,7 @@
 # Source from contrib/perf/*.sh and contrib/ops-validate.sh (after REPO_ROOT).
 #
 #   refuse_live_datadir LABEL PATH
-#   is_default_datadir PATH   # exit 0 if default runtime
+#   is_default_datadir PATH   # exit 0 if any production datadir (perflib.sh)
 #   is_live_datadir PATH      # exit 0 if runtime or Zero
 #
 # Override (can destroy the live node):
@@ -26,8 +26,14 @@ refuse_live_datadir() {
   esac
 }
 
+# One implementation of "is this a production datadir": perflib.sh's, which
+# covers every platform's datadir names (zeropaths.is_protected_datadir).
 is_default_datadir() {
-  python3 "$_DEBUGLOG_PY" --is-runtime "$1"
+  if ! command -v _perflib_is_protected >/dev/null 2>&1; then
+    # shellcheck source=/dev/null
+    . "$(dirname "$_DEBUGLOG_PY")/perflib.sh"
+  fi
+  _perflib_is_protected "$1"
 }
 
 is_live_datadir() {

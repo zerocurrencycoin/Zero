@@ -21,6 +21,11 @@
 #   TARGET_HEIGHT           dirty-cont stop height (default 8000)
 #   ZERO_PERF_RPCPORT       default 23956
 #   ZERO_PERF_SCRATCH_DATADIR  default reindex-profile/witness-lab-datadir
+#   CAMPAIGN / CONDITION    RecBench campaign (default witness-lab) and condition
+#                           (default MODE); timed modes record one wall_s row
+#   ZERO_PERF_RUN_ID        run id (default witness-lab-<mode>-<utc>)
+#   ZERO_PERF_STORE_DIR     RecBench store (default reindex-profile/bench-summaries)
+#   ZERO_PERF_ROW_FILE      if set, the recorded row's run_id, fingerprint and wall_s
 #
 # Automation vs one-time:
 #   dirty-cont -- one-time decision sample is enough (continue_rate); re-run only
@@ -65,7 +70,8 @@ if [ ! -x "$ZEROD" ]; then
   exit 1
 fi
 
-RUN_ID="witness-lab-${MODE}-$(date -u +%Y%m%dT%H%M%SZ)"
+RUN_ID="${ZERO_PERF_RUN_ID:-witness-lab-${MODE}-$(date -u +%Y%m%dT%H%M%SZ)}"
+STORE_DIR="${ZERO_PERF_STORE_DIR:-$REPO_ROOT/reindex-profile/bench-summaries}"
 OUT_DIR="$OUT_ROOT/$RUN_ID"
 mkdir -p "$OUT_DIR"
 DRIVER="$OUT_DIR/driver.log"
@@ -75,7 +81,12 @@ SUMMARY="$OUT_DIR/SUMMARY.txt"
 # shellcheck disable=SC2034
 DRIVER_LOG="$DRIVER"
 
-cli() { "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" -rpcuser=rt -rpcpassword=rt "$@"; }
+# cli, stop_node, wait_done_loading act on this node (perflib.sh); RPC
+# credentials come from the scratch zero.conf that lab_conf writes.
+# shellcheck disable=SC2034  # read by perflib.sh
+NODE_DATADIR="$SCRATCH"
+# shellcheck disable=SC2034
+NODE_RPCPORT="$RPCPORT"
 
 prepare_scratch() {
   # Honours ZERO_PERF_DATADIR_POLICY (default: set aside, then recreate), so a
@@ -100,17 +111,9 @@ prepare_scratch() {
       ;;
   esac
   cp -p "$WALLET_FILE" "$SCRATCH/wallet.zero"
-  {
-    echo "listen=0"
-    echo "maxconnections=0"
-    echo "server=1"
-    echo "rpcuser=rt"
-    echo "rpcpassword=rt"
-    echo "rpcport=$RPCPORT"
-    # Match Insight-built blocks/index (tip templates / full rsync).
-    echo "experimentalfeatures=1"
-    echo "insightexplorer=1"
-  } > "$SCRATCH/zero.conf"
+  # Standard lab config. -reindex rebuilds blocks/index, so the Insight flags
+  # the archives were built with are not an input requirement here.
+  lab_conf "$SCRATCH" "$RPCPORT"
   log "scratch ready SNAP=$SNAP wallet=$(basename "$WALLET_FILE")"
 }
 
@@ -132,29 +135,42 @@ prepare_tip_scratch() {
     --exclude='debug*.log' --exclude='.lock' --exclude='zero.conf' \
     "$TIP_TEMPLATE/" "$SCRATCH/"
   cp -p "$WALLET_FILE" "$SCRATCH/wallet.zero"
-  {
-    echo "listen=0"
-    echo "maxconnections=0"
-    echo "server=1"
-    echo "rpcuser=rt"
-    echo "rpcpassword=rt"
-    echo "rpcport=$RPCPORT"
-    echo "experimentalfeatures=1"
-    echo "insightexplorer=1"
-  } > "$SCRATCH/zero.conf"
+  # The template's chainstate was built with Insight indexes; without these
+  # keys the node reindexes from genesis instead of loading the tip.
+  lab_conf "$SCRATCH" "$RPCPORT" experimentalfeatures=1 insightexplorer=1
   log "tip scratch ready wallet=$(basename "$WALLET_FILE") bytes=$(stat -f%z "$SCRATCH/wallet.zero" 2>/dev/null || stat -c%s "$SCRATCH/wallet.zero")"
 }
 
-stop_node() {
-  local pid="$1"
-  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-    cli stop 2>/dev/null || true
-    for _ in $(seq 1 60); do
-      kill -0 "$pid" 2>/dev/null || break
-      sleep 1
-    done
-    kill -TERM "$pid" 2>/dev/null || true
-    wait "$pid" 2>/dev/null || true
+# check_runtime "ZEROD_ARGS" -- runtime_record for this trial (perflib.sh):
+# appends the declared and observed runtime to SUMMARY, dies on a mismatch.
+# For dirty-cont, which counts witness work and records no timed row.
+check_runtime() {
+  if ! runtime_record "$SCRATCH/debug.log" "$SCRATCH/zero.conf" "$1"; then
+    echo "runtime=MISMATCH" >> "$SUMMARY"
+    die "runtime mismatch: the node did not apply '$1'; not a valid trial"
+  fi
+  printf 'runtime=%s\nobserved=%s\n' "${RUNTIME_DECLARED:-none}" "$RUNTIME_OBSERVED" | tee -a "$SUMMARY"
+}
+
+# record_wall OP "ZEROD_ARGS" WALL_S -- one RecBench row for a timed mode
+# (record_trial, perflib.sh): runtime checked against the node's log, the
+# wallet identified by hash. ops-campaign.sh reads ZERO_PERF_ROW_FILE instead
+# of parsing SUMMARY.txt.
+record_wall() {
+  local op="$1" zargs="$2" wall="$3"
+  if ! record_trial "$SCRATCH/debug.log" "$SCRATCH/zero.conf" "$zargs" "$WALLET_FILE" "" \
+       --store-dir "$STORE_DIR" --campaign "${CAMPAIGN:-witness-lab}" --run-id "$RUN_ID" \
+       --mode "$op" --condition "${CONDITION:-$MODE}" --trial "${TRIAL:-1}" \
+       --workload "op=$op" --workload "snap=$SNAP" \
+       --metric wall_s --value "$wall" --unit s --kind point \
+       --elapsed-s "$wall" --binary "$ZEROD" --notes "mode=$MODE"; then
+    echo "runtime=MISMATCH" >> "$SUMMARY"
+    die "row not recorded (see above); SUMMARY kept, not a valid trial"
+  fi
+  printf 'runtime=%s\nobserved=%s\nfingerprint=%s\n' \
+    "${RUNTIME_DECLARED:-none}" "$RUNTIME_OBSERVED" "$RECORD_FINGERPRINT" | tee -a "$SUMMARY"
+  if [ -n "${ZERO_PERF_ROW_FILE:-}" ]; then
+    printf 'run_id=%s\nfingerprint=%s\nwall_s=%s\n' "$RUN_ID" "$RECORD_FINGERPRINT" "$wall" > "$ZERO_PERF_ROW_FILE"
   fi
 }
 
@@ -220,6 +236,7 @@ else:
     print("early_continue_rate=NA (note_visits=0 -- typically pre-Sapling tip; notes not yet in chain)")
 print("DIRTY: park if shipping ibd-defer; else re-run CONT on post-Sapling TARGET_HEIGHT.")
 PY
+  check_runtime "${extra[*]}"
   log "done OUT_DIR=$OUT_DIR SUMMARY=$SUMMARY"
   cat "$SUMMARY"
 }
@@ -227,7 +244,7 @@ PY
 wait_rebuild_done() {
   local pid="$1"
   local last=-1 stable=0
-  while kill -0 "$pid" 2>/dev/null; do
+  while pid_alive "$pid"; do
     local h
     h=$(cli getblockcount 2>/dev/null || echo 0)
     if [ "$h" = "$last" ] && [ "$h" -gt 0 ]; then
@@ -286,6 +303,7 @@ run_rebuild() {
     echo "--- extract elapsed_ms from height-walk done ---"
     grep "BuildWitnessCache height-walk done" "$SCRATCH/debug.log" 2>/dev/null | tail -5 || true
   } | tee "$SUMMARY"
+  record_wall witness "${extra[*]}" "$elapsed"
   log "done OUT_DIR=$OUT_DIR"
 }
 
@@ -333,45 +351,13 @@ run_tip_rebuild() {
       echo "WARN: unexpected reindex started (insight flags / template mismatch?)"
     fi
   } | tee "$SUMMARY"
+  record_wall witness "${extra[*]}" "$elapsed"
   log "done OUT_DIR=$OUT_DIR"
-}
-
-wait_done_loading() {
-  local pid="$1"
-  while kill -0 "$pid" 2>/dev/null; do
-    if grep -q "Done loading" "$SCRATCH/debug.log" 2>/dev/null; then
-      log "detected Done loading"
-      sleep 2
-      return 0
-    fi
-    local h
-    h=$(cli getblockcount 2>/dev/null || echo 0)
-    log "waiting Done loading height=$h"
-    sleep 15
-  done
-  return 0
-}
-
-write_scratch_conf() {
-  local insight="${1:-0}"
-  {
-    echo "listen=0"
-    echo "maxconnections=0"
-    echo "server=1"
-    echo "rpcuser=rt"
-    echo "rpcpassword=rt"
-    echo "rpcport=$RPCPORT"
-    if [ "$insight" = "1" ]; then
-      echo "experimentalfeatures=1"
-      echo "insightexplorer=1"
-    fi
-  } > "$SCRATCH/zero.conf"
 }
 
 run_rescan() {
   local noteidx="$1"
   prepare_scratch
-  write_scratch_conf 0
   if [ ! -d "$SCRATCH/chainstate" ]; then
     echo "ERROR: rescan needs chainstate in the snap (got SNAP=$SNAP)" >&2
     exit 1
@@ -390,7 +376,7 @@ run_rescan() {
     cli getblockcount >/dev/null 2>&1 && break
     sleep 2
   done
-  wait_done_loading "$pid"
+  wait_done_loading "$pid" || die "node exited before Done loading; see $SCRATCH/debug.log"
   wait_rebuild_done "$pid"
   local t1 elapsed tip
   t1=$(now_ms)
@@ -402,6 +388,7 @@ run_rescan() {
     echo "--- rescan / height-walk ---"
     grep -E "Rescanning last| rescan +[0-9]+ms|BuildWitnessCache height-walk|Done loading" "$SCRATCH/debug.log" 2>/dev/null | tail -40 || true
   } | tee "$SUMMARY"
+  record_wall rescan "${extra[*]}" "$elapsed"
   log "done OUT_DIR=$OUT_DIR"
 }
 
@@ -412,7 +399,6 @@ run_catchup() {
     prepare_tip_scratch
   else
     prepare_scratch
-    write_scratch_conf 0
   fi
   if [ ! -d "$SCRATCH/chainstate" ]; then
     echo "ERROR: sync/catchup needs chainstate (SNAP=$SNAP use_tip=$use_tip)" >&2
@@ -432,7 +418,7 @@ run_catchup() {
     cli getblockcount >/dev/null 2>&1 && break
     sleep 2
   done
-  wait_done_loading "$pid"
+  wait_done_loading "$pid" || die "node exited before Done loading; see $SCRATCH/debug.log"
   local t1 elapsed tip
   t1=$(now_ms)
   elapsed=$(elapsed_s "$t0" "$t1")   # ms resolution, perflib.sh
@@ -443,6 +429,7 @@ run_catchup() {
     echo "--- Done loading / height-walk ---"
     grep -E "Done loading|BuildWitnessCache height-walk|Rescanning last" "$SCRATCH/debug.log" 2>/dev/null | tail -40 || true
   } | tee "$SUMMARY"
+  record_wall catchup "${extra[*]}" "$elapsed"
   log "done OUT_DIR=$OUT_DIR"
 }
 

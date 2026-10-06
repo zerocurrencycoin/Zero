@@ -2,8 +2,7 @@
 
 The Sapling/Sprout witness cache in `CWallet`: what it costs during sync and
 rescan, the opt-in mechanisms that reduce that cost, the RPC gates that
-protect it, and its behaviour under reorg and crash. Work items are
-`PLAN.md` group A.
+protect it, and its behaviour under reorg and crash.
 
 All figures are macOS/arm64, one host. Figures are bound to `M-*` ids in
 `Measures.md`.
@@ -30,7 +29,7 @@ witnessOnly=true)` on every block during IBD and reindex, and
 entered the wallet through `AddToWallet`, which invalidated the note index
 unconditionally, so every block rebuilt it with an O(`mapWallet`) scan. That
 figure predates the invalidation fix in section 3 and is due a remeasure
-(`PLAN.md` A4). The end-of-rescan height walk is 2.0 s; follow-tip walks are
+(`PLAN.md` A4b). The end-of-rescan height walk is 2.0 s; follow-tip walks are
 0-1 ms.
 
 **Unmeasured:** no p1 rescan profile, so the curve between 0.32% and 72% is
@@ -69,11 +68,18 @@ ChainTip / ThreadImport
 | defer | ConnectBlock only | one rebuild at import end | that rebuild |
 | defer + noteidx | ConnectBlock only | one rebuild, NOTEIDX walk | shortest |
 
-**DIRTY** -- skipping already-validated notes inside Verify -- is parked.
-Defer removes the surface it would act on, and the one lab sample
-(`witness_lab.sh dirty-cont`, tiny snap) had `note_visits=0` because every fat
-wallet note is post-Sapling. Reopen only if stock per-block Verify stays a
-supported default and a post-Sapling sample shows a high early-continue rate.
+### Choices
+
+| Choice | Trades | User-visible impact when on | Decided |
+|--------|--------|-----------------------------|---------|
+| `ibd-defer` | Per-block witness work during import for one rebuild at its end | Spends and wallet RPCs return `-31` until that rebuild, `-33` while it runs; a fat-wallet reindex ends ~35x sooner but is not spend-ready until the rebuild finishes | Opt-in; default-on needs the gate in "Ship state" |
+| NOTEIDX (`-walletwitnessnote=1`) | A scan of all of `mapWallet` for a scan of note-bearing txs only | None visible; ~32 bytes RAM per note-bearing tx, rebuilt on first use after load | Opt-in; always-on is the flag collapse |
+| DIRTY | Would skip re-verifying notes already valid, inside the per-block Verify | -- | Rejected: `ibd-defer` removes the per-block Verify it would shorten, and the only sample (`dirty-cont`, tiny snap) saw no notes, since every fat-wallet note is post-Sapling (M-WAL-DIRTY-CONT) |
+
+DIRTY is reopened only if stock per-block Verify stays a supported default
+and a post-Sapling sample shows a high early-continue rate. Stock behaviour,
+both flags off, is unchanged from upstream: every block pays the full Verify,
+which is negligible for small wallets and dominant for fat ones (section 1).
 
 ---
 
@@ -99,7 +105,7 @@ membership changes:
 Transparent inserts, merkle/`hashBlock` merges and transparent erases no
 longer invalidate. Covered by `WalletTests.NoteTxIndexTracksNoteBearingTxs`,
 connect-style and disconnect-style `AddToWallet` in one test. The measure
-gate is `PLAN.md` A4: in the post-1.6M band `Select` should fall from ~98%
+gate is `PLAN.md` A4a: in the post-1.6M band `Select` should fall from ~98%
 and the rate leave the ~19 blk/s floor (M-WAL-RESCAN-FAT).
 
 **Conditional follow-ups**, each only if a post-A4 profile shows it:
@@ -155,7 +161,11 @@ Tests that gate it:
 **Default-on gate:** the opt-in exit above, plus the A4 remeasure, plus the
 flag collapse below.
 
-**Flag collapse**, after A4:
+**Flag collapse.** Only making NOTEIDX always on needs evidence: a fat-wallet
+rescan of the post-1.6M band has to show the `Select` cost gone before
+NOTEIDX becomes the only path. That band alone answers it; a full genesis
+rescan adds nothing to the question. The single flag, hidden stats and one
+wallet state need no measurement.
 
 | Surface | Proposed |
 |---------|----------|

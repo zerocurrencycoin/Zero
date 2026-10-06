@@ -1,8 +1,7 @@
 # Locks
 
 Everything known about locking in this node: what the instrument measures,
-what it found, how to reproduce it, and what remains open. Work items are
-`PLAN.md` group B.
+what it found, how to reproduce it, and what remains open.
 
 ## The instrument, and a defect it had
 
@@ -97,7 +96,7 @@ Two limits worth stating:
 - **Single-threaded coverage.** A reindex exercises one dominant worker, so
   pairs only that path establishes are the only ones checked. An inversion
   reachable only under concurrent RPC and validation would not appear. This
-  is the gap the worker experiments (`PLAN.md` group B) are meant to close.
+  is the gap the worker experiments (`PLAN.md` B6) are meant to close.
 - **`TRY_LOCK` is excluded.** `push_lock` skips the whole scan when `fTry` is
   set, because a try-lock that fails bails rather than blocks. Genuine
   inversions involving a try-lock are therefore not detected, only the
@@ -143,10 +142,41 @@ That is the guard working; rebuild release afterwards.
 builds at `-O0`; the same reindex took 131 s release and 363 s debug.
 Acquisition counts are deterministic per block and do compare.
 
+## Contention
+
+`DEBUG_LOCKCONTENTION` builds log `LOCKCONTENTION: <name>` each time a lock is
+found held and the caller waits. That gives how often, by lock name only: no
+site, no wait time, and one log line per event, so it is usable for short
+runs and unusable on a live node. What would answer "how often and how long,
+where" is a per-site counter beside the attribution map the order instrument
+already keeps: contended acquisitions and total and maximum wait in
+microseconds per (lock, file, line), dumped at shutdown and by an RPC, in
+perf builds only (`PLAN.md` B8). No contention figure exists yet.
+
+## Long holds and hang risks
+
+Review of the source, not measured unless an `M-*` id is given. Every `LOCK2`
+in node code takes `cs_main` before `cs_wallet`.
+
+| Finding | Mechanism | Detection | Reporting today | Mitigation |
+|---------|-----------|-----------|-----------------|------------|
+| Rescan blocks the node | `ScanForWalletTransactions` holds `cs_main` and `cs_wallet` for the whole scan, with no shutdown check in its loop; a fat-wallet genesis rescan ran ~11.9 h (M-WAL-RESCAN-FAT). Reached at startup by `-rescan` and on a live node by `z_importkey`, `z_importviewingkey`, `importwallet` | RPC calls time out (`zero-cli` default 900 s) | none beyond the GUI progress hook | shutdown check every N blocks with the locator left at the last scanned block; release `cs_main` periodically |
+| Witness height walk | `BuildWitnessCache(pindex, false)` under both locks; 7.7 s on a fat tip rebuild without NOTEIDX (M-WAL-WITNESS-TIP-AB) | `getblockcount` stalls for the walk | `-33` to wallet RPCs only | `PLAN.md` A6 |
+| Per-block witness Verify | `VerifyAndSetInitialWitness` under both locks every block in IBD and reindex; 72-99% of CPU with a fat wallet (M-CPU-WAL-FAT) | slow sync, RPC latency | none | `-walletwitness=ibd-defer` (`WITNESS.md`) |
+| `getwalletinfo` behind a witness build | waits on `cs_wallet` for minutes | monitoring clients time out | none | the harness bounds its calls (`ZERO_PERF_CLI_TIMEOUT_S`) |
+| `CDB::Rewrite` spin | waits in `while (true)` for the file's use count to reach 0; a held handle spins forever. The source carries a commented-out trace for this | none | none | log the use count every N seconds; a bounded wait with an error (`PLAN.md` A13) |
+| Zeronode try-locks on `cs_main` | 8 `TRY_LOCK(cs_main)` sites in zeronode code avoid an inversion with zeronode locks; the order instrument does not check try-locks | none | none | keep them try-locks; record them as non-blocking order edges in a lock-debug run (`PLAN.md` B1) |
+| HTTP work queue full | requests behind `cs_main` fill `-rpcworkqueue`; the next get HTTP 503 with no reason | client sees 503 | one server log line per episode | `PLAN.md` C6 |
+
+None of these is a deadlock: each ends when the holder finishes. The
+practical failure is a supervisor or front-end that reads a long hold as a
+hung node and kills it mid-rescan.
+
 ## Open
 
 - Concurrency coverage: every result here comes from a single-worker reindex.
 - `TRY_LOCK` paths are uninstrumented.
+- No contention counts or wait times per site (`PLAN.md` B8).
 - Shielded note selection does not lock the notes it selects; see below.
 
 ## Shielded note selection and the single async worker

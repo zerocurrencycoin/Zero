@@ -326,16 +326,32 @@ src_rpcport() {
 cli() { "$ZERO_CLI" -datadir="$LAB" -rpcport="$RPCPORT" -rpcclienttimeout=3600 "$@"; }
 cli_src() { "$ZERO_CLI" -datadir="$SRC" -rpcport="$(src_rpcport "$SRC")" "$@"; }
 
+# Runtime the LAB node ran with: its zero.conf plus command line, checked
+# against its own log by contrib/perf/debuglog.py --check-runtime. null when
+# this invocation started no LAB node, or the checker is not in this tree.
+LAST_ZEROD_ARGS=""
+RUNTIME_JSON="null"
+check_lab_runtime() {
+  local chk="$REPO_ROOT/contrib/perf/debuglog.py" out rc=0
+  RUNTIME_JSON="null"
+  [[ -n "$LAST_ZEROD_ARGS" && -f "$chk" && -f "$LAB/debug.log" ]] || return 0
+  out="$(python3 "$chk" --check-runtime "$LAB/debug.log" --conf "$LAB/zero.conf" \
+           --zerod-args="$LAST_ZEROD_ARGS")" || rc=$?
+  RUNTIME_JSON="$(printf '%s\n' "$out" | python3 -c 'import json, sys
+print(json.dumps(dict(l.split("=", 1) for l in sys.stdin.read().split() if "=" in l), sort_keys=True))')"
+  return "$rc"
+}
+
 append_ledger() {
   mkdir -p "$(dirname "$LEDGER")"
   local zsha="missing"
   if [[ -x "$ZEROD" ]]; then
     zsha="$(shasum -a 256 "$ZEROD" | awk '{print $1}')"
   fi
-  printf '{"ts":"%s","id":"%s","exit":%s,"head":"%s","zerod":"%s","lab":"%s","src":"%s","height":"%s","duration_s":%s}\n' \
+  printf '{"ts":"%s","id":"%s","exit":%s,"head":"%s","zerod":"%s","lab":"%s","src":"%s","height":"%s","duration_s":%s,"runtime":%s}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" \
     "$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo none)" \
-    "$zsha" "$LAB" "$SRC" "${3:-}" "${4:-0}" >> "$LEDGER"
+    "$zsha" "$LAB" "$SRC" "${3:-}" "${4:-0}" "$RUNTIME_JSON" >> "$LEDGER"
 }
 
 cmd_extra() {
@@ -360,6 +376,11 @@ finish_ok() {
   local line="$id ok duration=${dur}s"
   [[ -n "$h" ]] && line="$line height=$h"
   [[ -n "$WALLET_FILE" ]] && line="$line wallet=$WALLET_FILE"
+  if ! check_lab_runtime; then
+    echo "ERROR: $id: the node did not apply the runtime it was given (see above); recorded as a failure" >&2
+    append_ledger "$id" 1 "$h" "$dur"
+    exit 1
+  fi
   echo "$line"
   append_ledger "$id" 0 "$h" "$dur"
 }
@@ -384,6 +405,7 @@ maybe_stop() {
 finish_err() {
   local id="$1" h="${2:-}"
   local dur=$(( $(date +%s) - T0 ))
+  check_lab_runtime || true
   append_ledger "$id" 1 "$h" "$dur"
 }
 
@@ -431,6 +453,7 @@ wait_stable_height() {
 }
 
 launch_zerod() {
+  LAST_ZEROD_ARGS="-listen=0 -connect=0 -maxconnections=0 $*"
   # shellcheck disable=SC2086
   "$ZEROD" -datadir="$LAB" -daemon -listen=0 -connect=0 -maxconnections=0 -rpcport="$RPCPORT" "$@" >/dev/null
 }

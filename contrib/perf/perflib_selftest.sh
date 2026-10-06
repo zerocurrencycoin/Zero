@@ -330,7 +330,70 @@ expect_fail "runtime_record refuses a -par width the node did not apply" \
   bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/debug.log' '$RT/zero.conf' '-disablewallet -par=7' 2>/dev/null"
 expect_fail "runtime_record refuses -disablewallet the node did not apply" \
   bash -c ". '$HERE/perflib.sh'; grep -v 'Wallet disabled' '$RT/debug.log' > '$RT/w.log'; runtime_record '$RT/w.log' '$RT/zero.conf' '-disablewallet' 2>/dev/null"
+eq "$(bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/debug.log' '$RT/zero.conf' '-disablewallet -par=4' 2>/dev/null; printf '%s' \"\$RUNTIME_DECLARED\"")" \
+   "dbcache=512,disablewallet=1,insightexplorer=1,par=4" \
+   "runtime_record sets RUNTIME_DECLARED as k=v,..."
 rm -rf "$RT"
+
+# --- lab_conf: one lab conf writer; the input's conf never decides runtime ---
+LC="$(mktemp -d)"
+mkdir -p "$LC/lab"
+printf 'insightexplorer=1\ndbcache=512\nreindex=1\n' > "$LC/lab/zero.conf"   # an archive's own
+ok_if "lab_conf writes the lab template" \
+  bash -c ". '$HERE/perflib.sh'; ZERO_DBCACHE=999 lab_conf '$LC/lab' 23999 >/dev/null"
+eq "$(grep -vE '^(#|$)' "$LC/lab/zero.conf" | paste -sd' ' -)" \
+   "server=1 listen=0 maxconnections=0 rpcuser=rt rpcpassword=rt rpcport=23999" \
+   "lab_conf replaces the input's conf; no Insight, dbcache or reindex, env dbcache ignored"
+bash -c ". '$HERE/perflib.sh'; lab_conf '$LC/lab' 23999 par=4 >/dev/null"
+eq "$(tail -1 "$LC/lab/zero.conf")" "par=4" "lab_conf appends the trial's keys"
+expect_fail "lab_conf refuses reindex= as a conf key" \
+  bash -c ". '$HERE/perflib.sh'; lab_conf '$LC/lab' 23999 reindex=1"
+expect_fail "lab_conf refuses a non KEY=VALUE argument" \
+  bash -c ". '$HERE/perflib.sh'; lab_conf '$LC/lab' 23999 -par=4"
+printf 'insightexplorer=1\nreindex=1\n' > "$LC/lab/zero.conf"
+bash -c ". '$HERE/perflib.sh'; ZERO_PERF_ARCHIVE_CONF=1 lab_conf '$LC/lab' 23999 >/dev/null"
+eq "$(paste -sd' ' - < "$LC/lab/zero.conf")" "insightexplorer=1" \
+   "ZERO_PERF_ARCHIVE_CONF=1 keeps the input's conf, minus a sticky reindex="
+rm -rf "$LC"
+
+# --- node helpers: bounded RPC, liveness that sees through a zombie ---------
+eq "$(bash -c ". '$HERE/perflib.sh'; run_bounded 1 sleep 5; echo \$?" 2>/dev/null)" \
+   "$(bash -c 'command -v timeout >/dev/null || command -v gtimeout >/dev/null && echo 124 || echo 142')" \
+   "run_bounded kills a command that outlives its bound"
+ok_if "run_bounded passes a quick command's status through" \
+  bash -c ". '$HERE/perflib.sh'; run_bounded 5 true"
+ok_if "pid_alive is true for a running process, false once it exits" \
+  bash -c ". '$HERE/perflib.sh'; sleep 2 & p=\$!; pid_alive \$p || exit 1; wait \$p; ! pid_alive \$p"
+ok_if "node_pid is empty and succeeds under pipefail when no node runs" \
+  bash -c "set -euo pipefail; . '$HERE/perflib.sh'; NODE_DATADIR=/nonexistent-lab; p=\$(node_pid); [ -z \"\$p\" ]"
+expect_fail "cli refuses to run without a node context" \
+  bash -c ". '$HERE/perflib.sh'; unset NODE_DATADIR NODE_RPCPORT; cli getblockcount"
+
+# --- sample_util: one row per call, as many columns as the header ----------
+UT="$(mktemp -d)"
+bash -c ". '$HERE/perflib.sh'; extra() { printf 'a\tb'; }; util_tsv_init '$UT/u.tsv' \"\$(printf 'x\ty')\"; UTIL_EXTRA_FN=extra; sleep 3 & UTIL_FOOTPRINT=0 UTIL_QUIET=1 sample_util poll \$! 7; UTIL_FOOTPRINT=0 UTIL_QUIET=1 sample_util poll \$! 8" >/dev/null 2>&1
+eq "$(awk -F'\t' '{print NF}' "$UT/u.tsv" | sort -u | paste -sd' ' -)" "14" \
+   "sample_util rows and header have the same column count, extras included"
+eq "$(awk -F'\t' 'NR==3 {print $3, ($12 > 0)}' "$UT/u.tsv")" "8 1" \
+   "sample_util records height and a positive thread count"
+rm -rf "$UT"
+
+# --- record_trial: runtime checked, input hashed, util named ---------------
+RB="$(mktemp -d)"
+mkdir -p "$RB/run"
+printf 'server=1\n' > "$RB/zero.conf"
+printf 't Zero version v1\nt Using 14 threads for script verification\nt Wallet disabled!\n' > "$RB/debug.log"
+printf 'archive bytes\n' > "$RB/input.tgz"
+printf 'utc\n' > "$RB/run/util.tsv"
+ok_if "record_trial records a run whose runtime matches" \
+  bash -c ". '$HERE/perflib.sh'; record_trial '$RB/debug.log' '$RB/zero.conf' '-disablewallet' '$RB/input.tgz' '$RB/run/util.tsv' --store-dir '$RB/store' --campaign selftest --run-id rt-1 --warmup-height 0 --end-height 10 --blocks 10 --elapsed-s 1 --blocks-per-sec 10 --notes snap=x >/dev/null 2>&1 && [ -n \"\$RECORD_FINGERPRINT\" ]"
+eq "$(cat "$RB"/store/*/ledger.jsonl 2>/dev/null | python3 -c 'import json,sys; print(json.loads(sys.stdin.readline())["notes"])')" \
+   "snap=x;input=input.tgz;input_sha256=$(shasum -a 256 "$RB/input.tgz" | cut -c1-16);util=run/util.tsv;observed=disablewallet=1,script_threads=14" \
+   "record_trial notes carry the caller's notes, input hash, util path and observed runtime"
+expect_fail "record_trial refuses a run whose node did not apply its runtime" \
+  bash -c ". '$HERE/perflib.sh'; record_trial '$RB/debug.log' '$RB/zero.conf' '' '' '' --store-dir '$RB/store' --campaign selftest --run-id rt-2 --warmup-height 0 --end-height 10 --blocks 10 --elapsed-s 1 --blocks-per-sec 10"
+eq "$(cat "$RB"/store/*/ledger.jsonl | wc -l | tr -d ' ')" "1" "a refused trial adds no row"
+rm -rf "$RB"
 
 if [ "$FAILED" -eq 0 ]; then echo "self-test OK" >&2; else echo "self-test FAILED" >&2; fi
 exit "$FAILED"

@@ -105,74 +105,11 @@ log "window warmup=$WARMUP_HEIGHT end=$end_label N_TRIALS=$N_TRIALS CONDITIONS=$
 log "ZERO_FDCACHE_built=$FDCACHE_BUILT (0 => A/B flags ignored by binary)"
 log "SAMPLE_UTIL=$SAMPLE_UTIL UTIL_PERIOD_S=$UTIL_PERIOD_S"
 
-height_of() {
-  "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" getblockcount 2>/dev/null || true
-}
-
-# One-line util sample -> UTIL_TSV. Args: phase pid [height]
-sample_util() {
-  local phase="$1" pid="$2" height="${3:-}"
-  [ "$SAMPLE_UTIL" = "1" ] || return 0
-  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null || return 0
-  local ps_line rss_kb pct_cpu pct_mem phys_mb=""
-  # macOS ps: rss in KB
-  ps_line=$(ps -o %cpu=,%mem=,rss= -p "$pid" 2>/dev/null | head -1 | sed 's/^ *//')
-  [ -n "$ps_line" ] || return 0
-  pct_cpu=$(echo "$ps_line" | awk '{print $1}')
-  # ps %cpu is "a decaying average" (ps(1)), not an instantaneous rate: it
-  # lags a step change by tens of seconds and oscillates around the true
-  # value. Measured side by side on a running import, ps read 101.8-113.8
-  # (CV 4.3%) where the delta method below read 113.2-115.2 (CV 0.6%) -- ps
-  # understated by up to 12.6 points and is why CPU figures in this campaign
-  # have been inconsistent between samples.
-  #
-  # cpu_rate is (CPU seconds consumed) / (wall seconds elapsed) x 100 between
-  # consecutive samples. It is the number that answers "how many cores is this
-  # using right now". Both are recorded: pct_cpu for continuity with older
-  # rows, cpu_rate as the one to read.
-  local cpu_s now cpu_rate=""
-  cpu_s=$(ps -o time= -p "$pid" 2>/dev/null | tr -d ' ' \
-          | awk -F: '{if(NF==3)print $1*3600+$2*60+$3; else if(NF==2)print $1*60+$2; else print $1+0}')
-  now=$(date +%s)
-  if [ -n "${_util_prev_cpu_s:-}" ] && [ -n "${_util_prev_t:-}" ]; then
-    cpu_rate=$(awk -v a="$cpu_s" -v b="$_util_prev_cpu_s" -v t="$now" -v p="$_util_prev_t" \
-      'BEGIN{d=t-p; if(d>0) printf "%.1f",(a-b)/d*100; else printf ""}')
-  fi
-  _util_prev_cpu_s="$cpu_s"; _util_prev_t="$now"
-  pct_mem=$(echo "$ps_line" | awk '{print $2}')
-  rss_kb=$(echo "$ps_line" | awk '{print $3}')
-  if command -v vmmap >/dev/null 2>&1; then
-    # -F: not -F=. vmmap prints "Physical footprint:  202.1M", so splitting
-    # on '=' left $2 empty and every phys_mb recorded as NA -- memory was
-    # never actually captured by any launcher using this helper.
-    phys_mb=$(vmmap -summary "$pid" 2>/dev/null | awk -F: '/Physical footprint:/ {
-      v = $2; gsub(/^[ \t]+|[ \t]+$/, "", v);
-      if (v ~ /G/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v*1024; exit }
-      if (v ~ /M/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v; exit }
-      if (v ~ /K/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v/1024; exit }
-    }')
-  fi
-  # Thermal/performance warning state (K3). macOS records a level only once
-  # one has been raised, so "none" is the normal reading; a whole-trial
-  # slowdown at unchanged process CPU is what this column exists to explain.
-  local therm="NA"
-  if command -v pmset >/dev/null 2>&1; then
-    therm=$(pmset -g therm 2>/dev/null \
-      | awk '/level|Limit/ && !/No / {gsub(/[ \t]+/, ""); printf "%s;", $0}')
-    therm="${therm:-none}"
-  fi
-  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
-    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$phase" "${height:-}" \
-    "$pct_cpu" "$pct_mem" "$rss_kb" "${phys_mb:-}" "$pid" "$therm" >> "$UTIL_TSV"
-  log "util phase=$phase h=${height:-NA} cpu%=$pct_cpu cpu_rate=${cpu_rate:-NA} mem%=$pct_mem rss_kb=$rss_kb phys_mb=${phys_mb:-NA} therm=$therm"
-}
-
-kill_pid_hard() {
-  local pid="$1"
-  kill -TERM "$pid" 2>/dev/null || true
-  for _ in $(seq 1 10); do kill -0 "$pid" 2>/dev/null || return 0; sleep 2; done
-  kill -9 "$pid" 2>/dev/null || true
-}
+# height_of, sample_util, stop_node, kill_pid_hard act on this node (perflib.sh).
+# shellcheck disable=SC2034  # read by perflib.sh
+NODE_DATADIR="$SCRATCH"
+# shellcheck disable=SC2034
+NODE_RPCPORT="$RPCPORT"
 
 reset_scratch() {
   log "reset scratch (rsync blocks, exclude chainstate; source read-only)"
@@ -183,24 +120,16 @@ reset_scratch() {
   rsync -a --exclude='chainstate' --exclude='wallet.zero' --exclude='wallet.zero*' \
     --exclude='debug*.log' --exclude='.lock' --exclude='bootstrap.dat*' \
     "$SRC_DATADIR/" "$SCRATCH/"
-  {
-    echo "listen=0"
-    echo "maxconnections=0"
-    echo "disablewallet=1"
-    echo "server=1"
-    echo "rpcuser=rt"
-    echo "rpcpassword=rt"
-    echo "rpcport=$RPCPORT"
-  } > "$SCRATCH/zero.conf"
+  lab_conf "$SCRATCH" "$RPCPORT" disablewallet=1
 }
 
 run_one() {
   local condition="$1" trial="$2"
   local trial_dir="$OUT_DIR/${condition}_trial${trial}"
   mkdir -p "$trial_dir"
-  UTIL_TSV="$trial_dir/util.tsv"
+  UTIL_TSV=""
   if [ "$SAMPLE_UTIL" = "1" ]; then
-    printf "utc\tphase\theight\tpct_cpu\tpct_mem\trss_kb\tphys_footprint_mb\tpid\ttherm\n" > "$UTIL_TSV"
+    util_tsv_init "$trial_dir/util.tsv"
   fi
   reset_scratch
 
@@ -230,7 +159,7 @@ run_one() {
   local nblocks="$MEASURE_BLOCKS"
 
   until h=$(height_of); [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -ge 0 ]; do
-    kill -0 "$pid" 2>/dev/null || { log "ERROR: exited before RPC"; return 1; }
+    pid_alive "$pid" || { log "ERROR: exited before RPC"; return 1; }
     [ "$waited" -ge 600 ] && { kill_pid_hard "$pid"; log "ERROR: RPC timeout"; return 1; }
     sleep 2; waited=$((waited + 2))
   done
@@ -239,7 +168,7 @@ run_one() {
   waited=0
   last_util=0
   until h=$(height_of); [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -ge "$WARMUP_HEIGHT" ]; do
-    kill -0 "$pid" 2>/dev/null || { log "ERROR: exited in warmup h=$h"; return 1; }
+    pid_alive "$pid" || { log "ERROR: exited in warmup h=$h"; return 1; }
     [ "$waited" -ge "$warmup_wait_s" ] && { kill_pid_hard "$pid"; log "ERROR: warmup timeout h=$h"; return 1; }
     if [ "$SAMPLE_UTIL" = "1" ] && [ $((waited - last_util)) -ge "$UTIL_PERIOD_S" ]; then
       sample_util warmup "$pid" "$h"
@@ -256,7 +185,7 @@ run_one() {
     local last="" same=0
     while [ "$waited" -lt "$measure_wait_s" ]; do
       h=$(height_of)
-      kill -0 "$pid" 2>/dev/null || { log "ERROR: exited in measure h=$h"; return 1; }
+      pid_alive "$pid" || { log "ERROR: exited in measure h=$h"; return 1; }
       if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" = "$last" ]; then
         same=$((same + 1))
         if [ "$same" -ge 3 ] && [ "$h" -gt 0 ]; then
@@ -281,7 +210,7 @@ run_one() {
     nblocks=$((end_h - WARMUP_HEIGHT))
   else
     until h=$(height_of); [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -ge "$end_h" ]; do
-      kill -0 "$pid" 2>/dev/null || { log "ERROR: exited in measure h=$h"; return 1; }
+      pid_alive "$pid" || { log "ERROR: exited in measure h=$h"; return 1; }
       [ "$waited" -ge "$measure_wait_s" ] && { kill_pid_hard "$pid"; log "ERROR: measure timeout h=$h"; return 1; }
       if [ "$SAMPLE_UTIL" = "1" ] && [ $((waited - last_util)) -ge "$UTIL_PERIOD_S" ]; then
         sample_util measure "$pid" "$h"
@@ -299,43 +228,37 @@ run_one() {
     --elapsed-heights "$trial_dir/debug.log" "$WARMUP_HEIGHT" "$end_h")
   if [ "$elapsed" = "NA" ] || [ -z "$elapsed" ]; then
     log "ERROR: elapsed NA condition=$condition trial=$trial"
-    "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" stop >/dev/null 2>&1 || kill_pid_hard "$pid"
+    stop_node "$pid"
     return 1
   fi
-  bps=$(python3 -c "print(round($nblocks / float('$elapsed'), 4))")
+  bps=$(safe_div "$nblocks" "$elapsed")
   printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
     "$MODE" "$condition" "$trial" "$WARMUP_HEIGHT" "$end_h" "$nblocks" "$elapsed" "$bps" "$RUN_ID" \
     >> "$RESULTS"
   log "result mode=$MODE condition=$condition trial=$trial elapsed_s=$elapsed blk/s=$bps"
 
-  local notes="fdcache_built=$FDCACHE_BUILT;mode=$MODE"
-  if [ "$SAMPLE_UTIL" = "1" ] && [ -f "$UTIL_TSV" ]; then
-    notes="${notes};util=$(basename "$trial_dir")/util.tsv"
-  fi
-  # Record only what the node actually applied (runtime_record, perflib.sh).
-  if ! runtime_record "$trial_dir/debug.log" "$SCRATCH/zero.conf" "-disablewallet -reindex ${extra}"; then
-    log "ERROR: runtime mismatch for condition=$condition trial=$trial; row not recorded"
-    "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" stop >/dev/null 2>&1 || kill_pid_hard "$pid"
+  # One row through record_trial (perflib.sh): the runtime checked against the
+  # node's own log, util.tsv named. A mismatch records nothing.
+  if ! record_trial "$trial_dir/debug.log" "$SCRATCH/zero.conf" "-disablewallet -reindex ${extra}" \
+       "" "${UTIL_TSV:-}" \
+       --store-dir "$STORE_DIR" \
+       --campaign "$CAMPAIGN" \
+       --run-id "$RUN_ID" \
+       --mode "$MODE" \
+       --condition "$condition" \
+       --trial "$trial" \
+       --workload "op=$MODE" \
+       --warmup-height "$WARMUP_HEIGHT" \
+       --end-height "$end_h" \
+       --blocks "$nblocks" \
+       --elapsed-s "$elapsed" \
+       --blocks-per-sec "$bps" \
+       --binary "$ZEROD" \
+       --notes "fdcache_built=$FDCACHE_BUILT;mode=$MODE"; then
+    log "ERROR: condition=$condition trial=$trial; row not recorded"
+    stop_node "$pid"
     return 1
   fi
-  notes="${notes};observed=${RUNTIME_OBSERVED}"
-  python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" \
-    --store-dir "$STORE_DIR" \
-    --record \
-    "${RUNTIME_ARGS[@]}" \
-    --campaign "$CAMPAIGN" \
-    --run-id "$RUN_ID" \
-    --mode "$MODE" \
-    --condition "$condition" \
-    --trial "$trial" \
-    --workload "op=$MODE" \
-    --warmup-height "$WARMUP_HEIGHT" \
-    --end-height "$end_h" \
-    --blocks "$nblocks" \
-    --elapsed-s "$elapsed" \
-    --blocks-per-sec "$bps" \
-    --binary "$ZEROD" \
-    --notes "$notes" | tee -a "$DRIVER"
 
   python3 "$REPO_ROOT/contrib/perf/extract_measures.py" \
     --datadir "$SCRATCH" \
@@ -345,10 +268,7 @@ run_one() {
     --csv "$OUT_DIR/measures_${condition}_t${trial}.csv" \
     --no-md 2>>"$DRIVER" || true
 
-  "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" stop >/dev/null 2>&1 || kill_pid_hard "$pid"
-  sleep 1
-  sample_util after_stop "$pid" "$h" 2>/dev/null || true
-  sleep 1
+  stop_node "$pid"
 }
 
 if [ "${INTERLEAVE:-0}" = "1" ]; then

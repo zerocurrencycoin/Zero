@@ -9,7 +9,7 @@ platform comparability rule now lives in `Measures.md`; this file keeps the
 tool survey until the runbook absorbs it, then retires.
 
 Written as a **survey and recommendation**, not a plan of record. Nothing here
-is scheduled; items judged worth doing are `PLAN.md` group F.
+is scheduled.
 
 ---
 

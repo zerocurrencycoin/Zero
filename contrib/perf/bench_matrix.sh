@@ -73,6 +73,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck source=/dev/null
 . "$REPO_ROOT/contrib/perf/perflib.sh"
 ZEROD="$REPO_ROOT/src/zerod"
+# shellcheck disable=SC2034  # read by perflib.sh cli()
 ZERO_CLI="$REPO_ROOT/src/zero-cli"
 # Read-only source for rsync resets. Override with ZERO_PERF_SRC_DATADIR.
 # Must NOT be the scratch dir; never wipe or -reindex this path in place.
@@ -97,34 +98,14 @@ if [ ! -f "$RESULTS_TSV" ]; then
     printf "mode\tcondition\ttrial\twarmup_height\tend_height\tblocks\telapsed_s\tblocks_per_sec\n" > "$RESULTS_TSV"
 fi
 
-height_of() {
-    "$ZERO_CLI" -datadir="$SCRATCH_DATADIR" -rpcport=$RPCPORT getblockcount 2>/dev/null
-}
-
-# SIGTERM, briefly wait, then SIGKILL if still alive. Needed because zerod's
-# shutdown path relies on RPC (not always up) or an interruption_point() a
-# stuck thread may not reach for a long time (e.g. LoadBlockIndexDB's
-# per-block accounting loop, main.cpp -- see the comment above run_trial's
-# wait loops). This script always resets the datadir (dispose_datadir) before the next
-# trial anyway, so there's no data-preservation reason to wait indefinitely
-# for a graceful exit once a bounded wait has already been exceeded.
-kill_pid_hard() {
-    local pid="$1"
-    kill -TERM "$pid" 2>/dev/null
-    for _ in $(seq 1 10); do
-        kill -0 "$pid" 2>/dev/null || return 0
-        sleep 2
-    done
-    if kill -0 "$pid" 2>/dev/null; then
-        log "pid=$pid did not respond to SIGTERM after 20s, sending SIGKILL"
-        kill -9 "$pid" 2>/dev/null
-        for _ in $(seq 1 10); do
-            kill -0 "$pid" 2>/dev/null || return 0
-            sleep 1
-        done
-        log "WARNING: pid=$pid still alive after SIGKILL -- unexpected, check manually"
-    fi
-}
+# height_of, stop_node and kill_pid_hard act on this node (perflib.sh).
+# kill_pid_hard exists because zerod's shutdown needs RPC (not always up) or
+# an interruption_point() a stuck thread may not reach for a long time, e.g.
+# LoadBlockIndexDB's per-block accounting loop (see run_trial's wait loops).
+# shellcheck disable=SC2034  # read by perflib.sh
+NODE_DATADIR="$SCRATCH_DATADIR"
+# shellcheck disable=SC2034
+NODE_RPCPORT="$RPCPORT"
 
 # $1: "reindex" or "bootstrap". The two modes need genuinely different
 # starting states, not just different zerod flags:
@@ -145,12 +126,16 @@ reset_scratch_datadir() {
     local mode="$1"
     log "resetting scratch datadir for mode=$mode (source untouched: $SRC_DATADIR)"
     dispose_datadir "$SCRATCH_DATADIR" SCRATCH
+    # Trailing slash on the source: without it rsync copies the directory
+    # itself, and the node would start on SCRATCH/<name>/ with no blocks.
     if [ "$mode" = "bootstrap" ]; then
-        rsync -a --exclude='chainstate' --exclude='blocks' "$SRC_DATADIR" "$SCRATCH_DATADIR/"
+        rsync -a --exclude='chainstate' --exclude='blocks' "$SRC_DATADIR/" "$SCRATCH_DATADIR/"
         mkdir -p "$SCRATCH_DATADIR/blocks"
     else
-        rsync -a --exclude='chainstate' "$SRC_DATADIR" "$SCRATCH_DATADIR/"
+        rsync -a --exclude='chainstate' "$SRC_DATADIR/" "$SCRATCH_DATADIR/"
     fi
+    # The source's own zero.conf came along; the lab writes its own.
+    lab_conf "$SCRATCH_DATADIR" "$RPCPORT"
 }
 
 # Reads debug.log's UpdateTip timestamps to get the exact wall-clock elapsed
@@ -201,7 +186,7 @@ run_trial() {
     local max_wait_s=600  # 10 min: generous for RPC-up, still bounded
     local waited=0
     until h=$(height_of) && [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -ge 0 ]; do
-        if ! kill -0 "$pid" 2>/dev/null; then
+        if ! pid_alive "$pid"; then
             log "ERROR: zerod exited before RPC came up (trial $trial)"
             return 1
         fi
@@ -223,7 +208,7 @@ run_trial() {
     local warmup_wait_s=$(( WARMUP_HEIGHT / 200 + 600 ))
     waited=0
     until h=$(height_of) && [ "$h" -ge "$WARMUP_HEIGHT" ]; do
-        if ! kill -0 "$pid" 2>/dev/null; then
+        if ! pid_alive "$pid"; then
             log "ERROR: zerod exited during warmup at height=$h (trial $trial) -- source data may not reach warmup height"
             cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
             return 1
@@ -249,7 +234,7 @@ run_trial() {
         local last="" same=0
         while [ "$waited" -lt "$measure_wait_s" ]; do
             h=$(height_of) || true
-            if ! kill -0 "$pid" 2>/dev/null; then
+            if ! pid_alive "$pid"; then
                 log "ERROR: zerod exited before target_end at height=$h (trial $trial) -- source data may not reach target height, or import finished early"
                 cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
                 return 1
@@ -275,7 +260,7 @@ run_trial() {
         nblocks=$((target_end - WARMUP_HEIGHT))
     else
         until h=$(height_of) && [ "$h" -ge "$target_end" ]; do
-            if ! kill -0 "$pid" 2>/dev/null; then
+            if ! pid_alive "$pid"; then
                 log "ERROR: zerod exited before target_end at height=$h (trial $trial) -- source data may not reach target height, or import finished early"
                 cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot" 2>/dev/null
                 return 1
@@ -294,15 +279,16 @@ run_trial() {
     cp "$SCRATCH_DATADIR/debug.log" "$trial_dir/debug.log.snapshot"
     grep "ReadFdCache:" "$SCRATCH_DATADIR/debug.log" | tail -3 > "$trial_dir/readfdcache_tail.log"
 
-    "$ZERO_CLI" -datadir="$SCRATCH_DATADIR" -rpcport=$RPCPORT stop >/dev/null 2>&1
-    for _ in $(seq 1 20); do
-        kill -0 "$pid" 2>/dev/null || break
-        sleep 3
-    done
-    if kill -0 "$pid" 2>/dev/null; then
-        log "WARNING: zerod (pid=$pid) did not exit cleanly after stop, escalating"
-        kill_pid_hard "$pid"
+    stop_node "$pid"
+
+    # Runtime as the node ran it (runtime_record, perflib.sh); a trial whose
+    # node did not apply its condition's flags is not that condition.
+    if ! runtime_record "$trial_dir/debug.log.snapshot" "$SCRATCH_DATADIR/zero.conf" \
+         "-connect=0 -listen=0 ${extra_args[*]}"; then
+        log "ERROR: runtime mismatch for $mode/$condition trial $trial; row not written"
+        return 1
     fi
+    printf 'declared=%s\nobserved=%s\n' "${RUNTIME_DECLARED:-none}" "$RUNTIME_OBSERVED" > "$trial_dir/runtime.txt"
 
     local elapsed
     elapsed=$(elapsed_between_heights "$trial_dir/debug.log.snapshot" "$WARMUP_HEIGHT" "$target_end")

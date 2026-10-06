@@ -51,60 +51,15 @@ DRIVER="$OUT_DIR/driver.log"
 # log() comes from perflib.sh and tees to DRIVER_LOG.
 # shellcheck disable=SC2034
 DRIVER_LOG="$DRIVER"
-UTIL_TSV="$OUT_DIR/util.tsv"
 RESULTS="$OUT_DIR/results.tsv"
+# cli, stop_node, sample_util act on this node (perflib.sh).
+# shellcheck disable=SC2034  # read by perflib.sh
+NODE_DATADIR="$SCRATCH"
+# shellcheck disable=SC2034
+NODE_RPCPORT="$RPCPORT"
 
-printf "utc\tphase\theight\tpct_cpu\tpct_mem\trss_kb\tphys_footprint_mb\tpid\n" > "$UTIL_TSV"
+util_tsv_init "$OUT_DIR/util.tsv"
 printf "mode\tblocks\telapsed_s\tblocks_per_sec\tms_per_block\tnotes\trun_id\n" > "$RESULTS"
-
-sample_util() {
-  local phase="$1" pid="$2" height="${3:-}"
-  [ "$SAMPLE_UTIL" = "1" ] || return 0
-  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null || return 0
-  local ps_line pct_cpu pct_mem rss_kb phys_mb=""
-  ps_line=$(ps -o %cpu=,%mem=,rss= -p "$pid" 2>/dev/null | head -1 | sed 's/^ *//')
-  [ -n "$ps_line" ] || return 0
-  pct_cpu=$(echo "$ps_line" | awk '{print $1}')
-  pct_mem=$(echo "$ps_line" | awk '{print $2}')
-  rss_kb=$(echo "$ps_line" | awk '{print $3}')
-  if command -v vmmap >/dev/null 2>&1; then
-    # -F: not -F=. vmmap prints "Physical footprint:  202.1M", so splitting
-    # on '=' left $2 empty and every phys_mb recorded as NA.
-    phys_mb=$(vmmap -summary "$pid" 2>/dev/null | awk -F: '/Physical footprint:/ {
-      v = $2; gsub(/^[ \t]+|[ \t]+$/, "", v);
-      if (v ~ /G/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v*1024; exit }
-      if (v ~ /M/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v; exit }
-      if (v ~ /K/) { gsub(/[^0-9.]/, "", v); printf "%.1f", v/1024; exit }
-    }')
-  fi
-  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
-    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$phase" "${height:-}" \
-    "$pct_cpu" "$pct_mem" "$rss_kb" "${phys_mb:-}" "$pid" >> "$UTIL_TSV"
-  log "util phase=$phase h=${height:-NA} cpu%=$pct_cpu mem%=$pct_mem rss_kb=$rss_kb phys_mb=${phys_mb:-NA}"
-}
-
-write_conf() {
-  local netline="$1"
-  mkdir -p "$SCRATCH"
-  {
-    echo "$netline"
-    echo "listen=0"
-    echo "maxconnections=0"
-    echo "server=1"
-    echo "rpcuser=rt"
-    echo "rpcpassword=rt"
-    echo "rpcport=$RPCPORT"
-    echo "gen=0"
-  } > "$SCRATCH/zero.conf"
-}
-
-cli() { "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" "$@"; }
-
-stop_node() {
-  cli stop >/dev/null 2>&1 || true
-  sleep 2
-  pkill -f "zerod -datadir=$SCRATCH" 2>/dev/null || true
-}
 
 probe_neon() {
   local report="$OUT_DIR/neon-probe.txt"
@@ -131,37 +86,42 @@ probe_neon() {
 run_regtest() {
   stop_node
   dispose_datadir "$SCRATCH" SCRATCH
-  write_conf "regtest=1"
+  lab_conf "$SCRATCH" "$RPCPORT" regtest=1 gen=0
   log "START mode=regtest blocks=$MINE_BLOCKS timeout=${MINE_TIMEOUT_S}s"
   "$ZEROD" -datadir="$SCRATCH" -daemon
   sleep 2
   local pid
-  pid=$(pgrep -f "zerod -datadir=$SCRATCH" | head -1)
+  pid=$(node_pid)
   sample_util start "$pid" 0
   # fund + mine
-  local t0 t1 elapsed bps ms
-  t0=$(date +%s)
-  if command -v gtimeout >/dev/null 2>&1; then
-    gtimeout "$MINE_TIMEOUT_S" "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" \
-      generate "$MINE_BLOCKS" >/dev/null
-  elif command -v timeout >/dev/null 2>&1; then
-    timeout "$MINE_TIMEOUT_S" "$ZERO_CLI" -datadir="$SCRATCH" -rpcport="$RPCPORT" \
-      generate "$MINE_BLOCKS" >/dev/null
-  else
-    cli generate "$MINE_BLOCKS" >/dev/null
-  fi
-  t1=$(date +%s)
-  elapsed=$((t1 - t0))
-  [ "$elapsed" -gt 0 ] || elapsed=1
+  local t0 elapsed bps ms
+  t0=$(now_ms)
+  ZERO_PERF_CLI_TIMEOUT_S="$MINE_TIMEOUT_S" cli generate "$MINE_BLOCKS" >/dev/null
+  elapsed=$(elapsed_s "$t0")   # ms resolution; whole seconds read 1 s for 8 blocks
+  positive elapsed_s "$elapsed"
   local h
   h=$(cli getblockcount)
   sample_util after_generate "$pid" "$h"
-  bps=$(python3 -c "print(round($MINE_BLOCKS/float($elapsed), 4))")
+  bps=$(safe_div "$MINE_BLOCKS" "$elapsed")
   ms=$(python3 -c "print(round(1000.0*$elapsed/float($MINE_BLOCKS), 3))")
   printf "regtest\t%s\t%s\t%s\t%s\t48,5-solve\t%s\n" \
     "$MINE_BLOCKS" "$elapsed" "$bps" "$ms" "$RUN_ID" >> "$RESULTS"
   log "result regtest blocks=$MINE_BLOCKS elapsed_s=$elapsed blk/s=$bps ms/blk=$ms"
   stop_node
+  # The solver in effect changes the measurement without changing the binary;
+  # unset in the conf means the compiled default. A regtest node logs under
+  # its network subdirectory.
+  local solver
+  solver=$(grep -E '^equihashsolver=' "$SCRATCH/zero.conf" 2>/dev/null | tail -1 | cut -d= -f2 || true)
+  if ! record_trial "$SCRATCH/regtest/debug.log" "$SCRATCH/zero.conf" "" "" "$UTIL_TSV" \
+       --store-dir "$STORE_DIR" --campaign "$CAMPAIGN" --run-id "$RUN_ID" \
+       --mode solve --condition regtest-48-5 --workload op=solve \
+       --runtime "solver=${solver:-default}" \
+       --warmup-height 0 --end-height "$h" --blocks "$MINE_BLOCKS" \
+       --elapsed-s "$elapsed" --blocks-per-sec "$bps" \
+       --binary "$ZEROD" --notes "ms_per_block=$ms"; then
+    die "row not recorded (see above); results.tsv kept"
+  fi
 }
 
 run_mainnet_template() {
@@ -192,21 +152,7 @@ case "$MODE" in
     ;;
 esac
 
-# Append to ledger if accumulate helper exists
-if [ -f "$REPO_ROOT/contrib/perf/recbench/recbench.py" ]; then
-  # Record the solver actually in effect, not a default assumed here: it
-  # changes the measurement without changing the binary. Read from the scratch
-  # conf; unset means the compiled default.
-  # `|| true`: an absent equihashsolver= line is the normal case (compiled
-  # default), and grep exits 1 for it. Under `set -e` that killed the script
-  # AFTER its work was done, so neon-probe reported failure on success.
-  SOLVER=$(grep -E '^equihashsolver=' "$SCRATCH/zero.conf" 2>/dev/null | tail -1 | cut -d= -f2 || true)
-  python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" --import-tsv "$RESULTS" \
-    --campaign "$CAMPAIGN" \
-    --workload "op=solve" \
-    --runtime "solver=${SOLVER:-default}" \
-    2>/dev/null || log "ledger import skipped/failed (ok for stub rows)"
-fi
-
+# Only regtest records a row (run_regtest). mainnet-template and neon-probe
+# write stub lines to results.tsv: no measurement, nothing to record.
 log "done OUT_DIR=$OUT_DIR RESULTS=$RESULTS CAMPAIGN=$CAMPAIGN"
 cat "$RESULTS"

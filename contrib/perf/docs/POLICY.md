@@ -65,8 +65,8 @@ A rule with no check drifts. A check that cannot fail the build is a comment.
 ## Ownership
 
 The repository root is read-only from this tree: no root file is edited,
-added, removed or renamed here. Defects in Zero-owned documents go to
-`PLAN.md` group Z.
+added, removed or renamed here. A defect in a Zero-owned document becomes a
+`Z` item in `PLAN.md` with a draft in `reporoot/`.
 
 | Tree | Owns |
 |------|------|

@@ -919,3 +919,20 @@ Zero review.
 
 ---
 
+
+### Q2. Measure the threaded tromp solver
+
+`EQUIHASH_TROMP_THREADED` compiles on macOS with the in-tree
+`src/pow/tromp/osx_barrier.h`. Both production call sites construct
+`equi eq(1)` and run the digit rounds inline; the threaded path needs
+`worker()` (`equi_miner.h:769`) with a `thread_ctx` array and round barriers.
+Steps: a threaded driver beside `EhTrompSolveRounds`; `SOLVE_TIMING_THREADS`
+in the fixed-nonce harness; 1/2/4/8 threads on the same nonces with identical
+solution sets at every width; `phys_mb` per width to confirm memory is
+constant in N (M-EQ-PEAK-TROMP).
+
+### Q9. Solver dump naming
+
+`DUMP_1927_SOLVER` writes the same filename each run; the baseline dump is
+the V2 oracle, so every write must carry variant and UTC. Then an
+`eqbench.sh` wrapper and a solver variant registry.

@@ -34,7 +34,7 @@ SCRATCH=/tmp/zero-lab-reindex
 rm -rf $SCRATCH && mkdir -p $SCRATCH
 . contrib/perf/perflib.sh
 tar -xzf "$(snap_archive chainblocks-tiny.tgz)" -C $SCRATCH blocks
-printf 'listen=0\nmaxconnections=0\nserver=1\nrpcuser=rt\nrpcpassword=rt\nrpcport=23970\ndisablewallet=1\n' > $SCRATCH/zero.conf
+lab_conf $SCRATCH 23970 disablewallet=1
 
 ./src/zerod -datadir=$SCRATCH -reindex -daemon
 sleep 20
@@ -332,7 +332,10 @@ set with signatures.
 ```
 
 They cover logging (`log`, `warn`, `die`), numeric guards, `safe_div`,
-`span_blocks`, datadir disposition, node shutdown, and run verification.
+`span_blocks`, datadir disposition, the lab conf (`lab_conf`), the launcher's
+node (`cli` under a timeout, `height_of`, `stop_node`, `kill_pid_hard`,
+`wait_done_loading`, `sample_util`), recording (`runtime_record`,
+`record_trial`), and run verification.
 Verifying a run means checking what it produced, not the exit status of
 whatever wrapped it:
 

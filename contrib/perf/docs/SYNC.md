@@ -3,7 +3,7 @@
 Where `zerod` spends time connecting blocks during `-reindex`, `-loadblock`
 bootstrap and network sync, the changes made to that path, and what remains.
 Wallet-on cost is `WITNESS.md`; shielded proof verification cost and its
-batching decision are `PerfGroth.md`. Work items are `PLAN.md` group K.
+batching decision are `PerfGroth.md`.
 
 All figures are macOS/arm64, one host, profiled on the `zcash-loadblk` thread
 (`ThreadImport`). Figures are bound to `M-*` ids in `Measures.md`.
@@ -103,15 +103,38 @@ counters):
 | `ReadBlockFromDisk` | 0 during reindex -- the block is passed to `ConnectTip` in memory | -- |
 
 Equihash is now ~45 us/block, ~7% of a tiny-window reindex (M-RX-TINYWIN).
+The family handles the repeat two other ways. Zcash and Ycash keep the
+re-check but short-circuit `CheckBlock` on a `fChecked` bit set on the block
+object (Bitcoin `542fcfe69`), which only helps when the same in-memory object
+is checked again. Hush3 and Pirate pass `fCheckPOW=0` from `AcceptBlock` and
+let `ConnectBlock`'s caller decide, gated on `BLOCK_VALID_CONTEXT` (Komodo
+`fa309e5b0`, "stop checking twice"), the closest precedent for this skip.
+Zclassic, Zen, Flux and Zero's product tree re-verify at both sites. Every one
+keeps the header re-check in `ReadBlockFromDisk`.
+
 The two remaining calls verify the same header. Removing one would save
 ~22 us/block -- ~3.5% of a tiny window, under 1% post-Sapling -- and needs a
 cached checked bit on the block object, the pattern behind zcashd's `fChecked`
 CVE-2026-35679. Not proposed.
 
-**Validation still missing** for the skip: a test that corrupts the Equihash
-solution between `AcceptBlock` and `ConnectBlock`, and a `getblock` RPC
-concurrent with reindex (an `nStatus` read racing its write). Existing
-coverage: `invalidblockrequest.py`, `reorg_limit.py`, `mempool_reorg.py`.
+**Pinned** by six Boost tests in `miner_tests`. Each mutation of
+`main.cpp` below was built and run; the named test, and only it, failed
+(record: `PLAN.md` P13):
+
+| Test | What it holds | Mutation that fails it |
+|------|---------------|------------------------|
+| `connectblock_trusts_valid_tree_header` | a corrupt solution under a `BLOCK_VALID_TREE` entry connects | skip reverted |
+| `readblockfromdisk_rechecks_header` | a solution byte flipped on disk after acceptance is rejected on read | header re-check removed from `ReadBlockFromDisk` |
+| `connectblock_still_checks_merkle_root` | a changed transaction list under a valid entry is rejected, `bad-txnmrklroot` | skip extended to the merkle check |
+| `connectblock_checks_header_below_valid_tree` | below `BLOCK_VALID_TREE` the solution is still verified | skip made unconditional |
+| `testblockvalidity_checks_solution` | block proposals verify the solution | `TestBlockValidity` passing `fCheckPOW=false` |
+| `processnewblock_rejects_corrupt_solution` | submission rejects a corrupt solution, accepts it intact | none single: `AcceptBlockHeader` backs up the preliminary check |
+
+The read-back case matters because `ConnectTip` reads a block from disk when
+it was not handed one in memory. The `AcceptBlock` half has no observable
+effect outside the `ZERO_PERF` counters. **Still missing:** a `getblock` RPC concurrent with reindex (an
+`nStatus` read racing its write). Other coverage: `invalidblockrequest.py`,
+`reorg_limit.py`, `mempool_reorg.py`.
 
 ---
 
@@ -142,7 +165,7 @@ are sequential in height order, which OS readahead already covers.
 **Unmeasured cases where it could pay**, both latency rather than throughput
 questions: random `getblock`/explorer serving (consecutive reads hit
 different files; measure RPC latency percentiles), and cold cache or slow
-storage (Linux `drop_caches`, `PLAN.md` group F).
+storage (Linux `drop_caches`, `PLAN.md` P8).
 
 **Defects if it resumes** (`PLAN.md` P8, postponed):
 

@@ -3,8 +3,7 @@
 Everything needed to decide and implement Sapling Groth16 batch verification.
 Current state and forward path only; superseded attempts are not recorded here.
 
-Numbers are cited by `M-*` id and live in `Measures.md`. Work items are
-`PLAN.md` group Y.
+Numbers are cited by `M-*` id and live in `Measures.md`.
 
 **This is the focused Groth16 document.** It is the single home for Groth16
 evidence, options and implementation path. Other documents cite its conclusions
@@ -936,8 +935,8 @@ precondition, not a preference:
 
 | Before | Why |
 |---|---|
-| **Close the `contrib/perf` documentation work** (`PLAN.md` group D) | A dependency change lands findings in a tree whose subjects are still 40-66% outside their owners. The result would be filed wherever it was written |
-| **Finish the pending test work** (`PLAN.md` group G) | An algorithm change is judged by whether the suites still pass. Suites with known-held failures and no recorded baseline cannot make that judgement |
+| **Close the `contrib/perf` documentation work** (`PLAN.md` D1, D3, D8, D10, D15) | A dependency change lands findings in a tree whose subjects are still 40-66% outside their owners. The result would be filed wherever it was written |
+| **Finish the pending test work** (`PLAN.md` G1-G3) | An algorithm change is judged by whether the suites still pass. Suites with known-held failures and no recorded baseline cannot make that judgement |
 | **Cut a reference benchmark** on the current build -- 5-10 trials preferred, all measurements kept -- recorded, with `cpu_busy` and millisecond timing | Without it, "did this help" is unanswerable. The lab only became able to resolve sub-1% differences on 2026-09-07 (M-LAB-WALL-MS, M-LAB-REPRO), and no multi-trial baseline has been taken since |
 
 **The order is not arbitrary.** A Groth16 or librustzcash experiment produces a

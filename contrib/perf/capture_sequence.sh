@@ -43,6 +43,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # shellcheck source=/dev/null
 . "$REPO_ROOT/contrib/perf/perflib.sh"
 ZEROD="$REPO_ROOT/src/zerod"
+# shellcheck disable=SC2034  # read by perflib.sh cli()
 ZERO_CLI="$REPO_ROOT/src/zero-cli"
 RPCPORT=23920
 
@@ -68,11 +69,16 @@ record_system_state() {
     } > "$dest" 2>&1
 }
 
-height_of() {
-    "$ZERO_CLI" -datadir="$DATADIR" -rpcport=$RPCPORT getblockcount 2>/dev/null
-}
+# height_of acts on this node (perflib.sh).
+# shellcheck disable=SC2034  # read by perflib.sh
+NODE_DATADIR="$DATADIR"
+# shellcheck disable=SC2034
+NODE_RPCPORT="$RPCPORT"
 
 # --- launch zerod ---
+# The datadir is usually an rsync of a live one, zero.conf included; the lab
+# writes its own so the source's keys do not become the trial's runtime.
+lab_conf "$DATADIR" "$RPCPORT"
 log "launching zerod -reindex on $DATADIR"
 "$ZEROD" -datadir="$DATADIR" -reindex -connect=0 -listen=0 -rpcport=$RPCPORT \
     >"$OUT_DIR/zerod_stdout.log" 2>&1 &
@@ -80,7 +86,7 @@ PID=$!
 log "zerod pid=$PID"
 
 until h=$(height_of) && [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -gt 0 ]; do
-    if ! kill -0 "$PID" 2>/dev/null; then
+    if ! pid_alive "$PID"; then
         log "ERROR: zerod exited before RPC came up"
         exit 1
     fi
@@ -91,7 +97,7 @@ log "RPC up, starting height=$h"
 capture_num=0
 start_epoch=$(date +%s)
 
-while kill -0 "$PID" 2>/dev/null; do
+while pid_alive "$PID"; do
     capture_num=$((capture_num + 1))
     if [ "$MAX_CAPTURES" -gt 0 ] && [ "$capture_num" -gt "$MAX_CAPTURES" ]; then
         log "reached max_captures=$MAX_CAPTURES, stopping sequence (zerod left running)"
@@ -122,7 +128,7 @@ while kill -0 "$PID" 2>/dev/null; do
 
     log "capture $capture_num: done, height=$h_before -> $h_after"
 
-    if ! kill -0 "$PID" 2>/dev/null; then
+    if ! pid_alive "$PID"; then
         log "zerod exited during/after capture $capture_num, stopping sequence"
         break
     fi
@@ -134,7 +140,7 @@ while kill -0 "$PID" 2>/dev/null; do
     if [ "$sleep_for" -gt 0 ]; then
         log "idling ${sleep_for}s until next capture boundary"
         # sleep in short chunks so a zerod exit is noticed promptly
-        while [ "$sleep_for" -gt 0 ] && kill -0 "$PID" 2>/dev/null; do
+        while [ "$sleep_for" -gt 0 ] && pid_alive "$PID"; do
             chunk=$(( sleep_for < 10 ? sleep_for : 10 ))
             sleep "$chunk"
             sleep_for=$(( sleep_for - chunk ))
@@ -142,7 +148,7 @@ while kill -0 "$PID" 2>/dev/null; do
     fi
 done
 
-if kill -0 "$PID" 2>/dev/null; then
+if pid_alive "$PID"; then
     log "sequence stopped, zerod (pid=$PID) still running -- leave it or kill -TERM $PID"
 else
     log "zerod (pid=$PID) has exited -- reindex presumably complete or crashed, check zerod_stdout.log"

@@ -397,7 +397,7 @@ _RE_CACHE_MIB = re.compile(r"\* Using ([0-9.]+)MiB for ")
 # node read plus its command line; everything else in a conf is RPC plumbing.
 RUNTIME_KEYS = ("disablewallet", "par", "dbcache", "experimentalfeatures",
                 "insightexplorer", "txindex", "zindex", "equihashsolver",
-                "walletwitness", "walletwitnessnote", "rpcthreads",
+                "walletwitness", "walletwitnessnote", "walletwitnessstats", "rpcthreads",
                 "rpcworkqueue", "perffdcache", "perfbufsize")
 DEFAULT_DBCACHE_MIB = 800   # nDefaultDbCache, src/txdb.h
 MAX_SCRIPT_THREADS = 16     # MAX_SCRIPTCHECK_THREADS, src/main.h

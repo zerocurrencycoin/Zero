@@ -7,6 +7,10 @@
 #   contrib/perf/tiny_baseline.sh
 #   LAB=/tmp/my-lab ZERO_PERF_ARCHIVE_DIR="..." contrib/perf/tiny_baseline.sh short
 #
+# Env: SAMPLE_UTIL=1 samples CPU, RSS and threads at every poll into
+# <run>-util.tsv (footprint once, after the timed span); ZEROD_EXTRA_ARGS adds
+# zerod flags, declared in the row's runtime (e.g. -debug=bench).
+#
 # Args: [tiny|short]  (default tiny)
 
 export LC_ALL=C
@@ -21,13 +25,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ZEROD="${ZEROD:-$REPO_ROOT/src/zerod}"
 ZERO_CLI="${ZERO_CLI:-$REPO_ROOT/src/zero-cli}"
 OUT_DIR="${ZERO_PERF_OUT_DIR:-$REPO_ROOT/test-logs}"
+STORE_DIR="${ZERO_PERF_STORE_DIR:-$REPO_ROOT/reindex-profile/bench-summaries}"
 RPCPORT="${ZERO_PERF_RPCPORT:-23925}"
 # Poll pacing. Defaults chosen from M-LAB-POLL-COST: 5 s while far cuts polling
 # overhead to ~4% of the span; 2 s near the target keeps detection latency
 # bounded, since that latency is inside the measured span too.
-POLL_FAR_S="${ZERO_PERF_POLL_FAR_S:-5}"
-POLL_NEAR_S="${ZERO_PERF_POLL_NEAR_S:-2}"
-POLL_NEAR_BLOCKS="${ZERO_PERF_POLL_NEAR_BLOCKS:-10000}"
+# (poll_interval, perflib.sh; ZERO_PERF_POLL_FAR_S / _NEAR_S / _NEAR_BLOCKS).
+SAMPLE_UTIL="${SAMPLE_UTIL:-0}"
+ZEROD_EXTRA_ARGS="${ZEROD_EXTRA_ARGS:-}"
 
 case "$SNAP" in
   tiny) ARCHIVE="chainblocks-tiny.tgz"; EXPECT_TIP=187417 ;;
@@ -43,9 +48,11 @@ if [ ! -x "$ZEROD" ]; then
   exit 1
 fi
 ARCHIVE_PATH="$(snap_archive "$ARCHIVE")" || exit 1
-# Identify the input, not just its name: two archives called chainblocks-tiny
-# can differ in blocks and in the zero.conf they carry.
-ARCHIVE_SHA="$(shasum -a 256 "$ARCHIVE_PATH" | cut -c1-16)"
+# height_of and stop_node act on this node (perflib.sh).
+# shellcheck disable=SC2034  # read by perflib.sh
+NODE_DATADIR="$LAB"
+# shellcheck disable=SC2034
+NODE_RPCPORT="$RPCPORT"
 
 RUN_ID="${SNAP}-$(date -u +%Y%m%dT%H%M%SZ)"
 # Only OUT_DIR here: creating LAB first would make dispose_datadir always
@@ -75,25 +82,11 @@ if ! tar -xzf "$ARCHIVE_PATH" -C "$LAB"; then
 fi
 log "unpack complete"
 
-# Standard lab config (PLAN.md decision 9): minimal, no Insight indexes, no
-# dbcache override. The tiny/short archives carry their own zero.conf with
-# insightexplorer=1 and dbcache=512, which costs ~9% and quadruples spread;
-# it is replaced unless ZERO_PERF_ARCHIVE_CONF=1 asks for the historical setup.
-if [ "${ZERO_PERF_ARCHIVE_CONF:-0}" = "1" ] && [ -f "$LAB/zero.conf" ]; then
-  log "using the archive's own zero.conf (ZERO_PERF_ARCHIVE_CONF=1)"
-else
-  printf 'server=1\nlisten=0\nconnect=0\nmaxconnections=0\ndisablewallet=1\ngen=0\n' > "$LAB/zero.conf"
-  log "wrote standard lab zero.conf (decision 9: no Insight, default dbcache)"
-fi
-
-# Ensure offline / no sticky reindex in conf if present
-if [ -f "$LAB/zero.conf" ]; then
-  # Drop sticky reindex= if present (one-shot CLI flag only)
-  if grep -q '^reindex=' "$LAB/zero.conf" 2>/dev/null; then
-    grep -v '^reindex=' "$LAB/zero.conf" > "$LAB/zero.conf.tmp" || true
-    mv "$LAB/zero.conf.tmp" "$LAB/zero.conf"
-  fi
-fi
+# Standard lab config (lab_conf, perflib.sh). The tiny/short archives carry
+# their own zero.conf with insightexplorer=1 and dbcache=512, which costs ~9%
+# and quadruples spread (M-RX-TINY-20260930); it is replaced unless
+# ZERO_PERF_ARCHIVE_CONF=1 asks for the historical setup.
+lab_conf "$LAB" "$RPCPORT"
 
 # Millisecond wall clock for the measured span (M-LAB-WALL-MS).
 # extract_measures.py
@@ -101,14 +94,13 @@ fi
 # so its wall_s quantises the rate to ~9.8 blk/s over this window
 # (M-LAB-WALL-QUANTUM) and no A/B on it can resolve better than 0.7%. The
 # launcher brackets the same span and can time it directly.
-LAB_T0=$(python3 -c 'import time; print(time.time())')
+LAB_T0=$(now_ms)
 echo "starting -reindex (disablewallet, listen=0)..."
-"$ZEROD" -datadir="$LAB" -disablewallet -reindex -listen=0 -maxconnections=0 \
-  -connect=0 -rpcport="$RPCPORT" -daemon
+ZARGS="-disablewallet -reindex -listen=0 -maxconnections=0 -connect=0 $ZEROD_EXTRA_ARGS"
+# shellcheck disable=SC2086  # ZARGS is a flag list
+"$ZEROD" -datadir="$LAB" $ZARGS -rpcport="$RPCPORT" -daemon
 
-cleanup() {
-  "$ZERO_CLI" -datadir="$LAB" -rpcport="$RPCPORT" stop >/dev/null 2>&1 || true
-}
+cleanup() { stop_node; }
 trap cleanup EXIT
 
 # Wait for tip
@@ -118,11 +110,18 @@ trap cleanup EXIT
 # written only at the end, and the driver log records decisions, not progress.
 PROGRESS_TSV="$OUT_DIR/${RUN_ID}-progress.tsv"
 printf "utc\telapsed_s\theight\n" > "$PROGRESS_TSV"
+UTIL_TSV=""
+if [ "$SAMPLE_UTIL" = "1" ]; then
+  util_tsv_init "$OUT_DIR/${RUN_ID}-util.tsv"
+fi
+NODE_PID=""
 for i in $(seq 1 600); do
-  h="$("$ZERO_CLI" -datadir="$LAB" -rpcport="$RPCPORT" getblockcount 2>/dev/null || true)"
+  h="$(height_of)"
+  [ -n "$NODE_PID" ] || NODE_PID="$(node_pid)"
+  UTIL_FOOTPRINT=0 UTIL_QUIET=1 sample_util poll "$NODE_PID" "$h"
   if [[ "$h" =~ ^[0-9]+$ ]]; then
     printf "%s\t%s\t%s\n" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
-      "$(python3 -c "import time;print(round(time.time()-$LAB_T0,3))")" "$h" >> "$PROGRESS_TSV"
+      "$(elapsed_s "$LAB_T0")" "$h" >> "$PROGRESS_TSV"
   fi
   if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -ge "$EXPECT_TIP" ]; then
     echo "tip reached height=$h"
@@ -132,31 +131,18 @@ for i in $(seq 1 600); do
     echo "ERROR: tip $EXPECT_TIP not reached (last height=$h)" >&2
     exit 1
   fi
-  # Backoff: poll sparsely while far from the target, tighten as it nears.
-  # Each poll costs ~212 ms of RPC and process spawn (M-LAB-POLL-COST) inside
-  # the timed span, so a fixed 2 s pace spent 9.6% of a 141 s run on polling.
-  # Near the target the interval bounds detection latency, which lands in the
-  # same span, so it tightens back to POLL_NEAR_S.
-  if [[ "$h" =~ ^[0-9]+$ ]] && [ "$h" -gt 0 ]; then
-    remaining=$(( EXPECT_TIP - h ))
-    if [ "$remaining" -lt "$POLL_NEAR_BLOCKS" ]; then
-      sleep "$POLL_NEAR_S"
-    else
-      sleep "$POLL_FAR_S"
-    fi
-  else
-    sleep "$POLL_NEAR_S"
-  fi
+  # Each poll costs ~212 ms inside the timed span (M-LAB-POLL-COST): sparse
+  # while far from the target, tight near it, where it bounds detection.
+  sleep "$(poll_interval "$h" "$EXPECT_TIP")"
 done
 
-LAB_T1=$(python3 -c 'import time; print(time.time())')
-LAB_WALL_MS=$(python3 -c "print(round(($LAB_T1-$LAB_T0)*1000))")
+LAB_WALL_MS=$(( $(now_ms) - LAB_T0 ))
 log "reindex finished; stopping node (span ${LAB_WALL_MS} ms)"
+sample_util tip "$NODE_PID" "$h"   # with footprint; outside the timed span
 # Allow reindex finished line to flush
 sleep 3
-"$ZERO_CLI" -datadir="$LAB" -rpcport="$RPCPORT" stop >/dev/null 2>&1 || true
+stop_node
 trap - EXIT
-sleep 2
 
 JSONL="$OUT_DIR/${RUN_ID}.jsonl"
 CSV="$OUT_DIR/measures_${RUN_ID}.csv"
@@ -200,47 +186,39 @@ print("LR_START=%d LR_END=%d LR_BLOCKS=%d LR_WALL=%s LR_HPS=%s"
 EOF
 )" || LEDGER_VARS=""
 
-# Runtime as the node ran it: the archive's own zero.conf may set Insight
-# indexes or dbcache, which change the result and were previously unrecorded.
-RUNTIME_OK=1
-if ! runtime_record "$LAB/debug.log" "$LAB/zero.conf" \
-     "-disablewallet -reindex -listen=0 -maxconnections=0 -connect=0"; then
-  RUNTIME_OK=0
-fi
-
-if [ -n "$LEDGER_VARS" ] && [ "$RUNTIME_OK" = 0 ]; then
-  warn "runtime mismatch; ledger row NOT appended"
-elif [ -n "$LEDGER_VARS" ]; then
+if [ -n "$LEDGER_VARS" ]; then
   eval "$LEDGER_VARS"
   # Prefer the launcher's millisecond span over the log-derived whole-second
   # wall time. Both measure the same interval; only one can resolve better
   # than a second (M-LAB-WALL-SECONDS). Fall back if the timing did not run.
   if [ -n "${LAB_WALL_MS:-}" ] && [ "$LAB_WALL_MS" -gt 0 ] 2>/dev/null; then
-    LR_WALL=$(python3 -c "print(round($LAB_WALL_MS/1000.0, 3))")
-    LR_HPS=$(python3 -c "print(round($LR_BLOCKS/($LAB_WALL_MS/1000.0), 6))")
+    LR_WALL=$(elapsed_s 0 "$LAB_WALL_MS")
+    LR_HPS=$(safe_div "$LR_BLOCKS" "$LR_WALL")
     log "elapsed from launcher: ${LR_WALL}s -> ${LR_HPS} blk/s (log-derived was ~whole seconds)"
   fi
-  # `if cmd; then` -- not `A && B || C`, which runs C even when A succeeds.
-  if python3 "$REPO_ROOT/contrib/perf/recbench/recbench.py" \
-    --record \
-    --warmup-height "$LR_START" \
-    --end-height "$LR_END" \
-    --blocks "$LR_BLOCKS" \
-    --elapsed-s "$LR_WALL" \
-    --blocks-per-sec "$LR_HPS" \
-    --campaign "$CAMPAIGN" \
-    --run-id "$RUN_ID" \
-    --mode reindex \
-    --condition "${CONDITION:-stock}" \
-    --trial "${TRIAL:-1}" \
-    --binary "$ZEROD" \
-    --workload "op=reindex" \
-    --workload "snap=$SNAP" \
-    "${RUNTIME_ARGS[@]}" \
-    --notes "snap=$SNAP;archive_sha256=$ARCHIVE_SHA;observed=$RUNTIME_OBSERVED" >/dev/null; then
+  # record_trial (perflib.sh): runtime as the node ran it, checked against its
+  # log; the archive identified by hash, since two archives called
+  # chainblocks-tiny differ in blocks and in the zero.conf they carry.
+  if record_trial "$LAB/debug.log" "$LAB/zero.conf" \
+       "$ZARGS" "$ARCHIVE_PATH" "$UTIL_TSV" \
+       --store-dir "$STORE_DIR" \
+       --warmup-height "$LR_START" \
+       --end-height "$LR_END" \
+       --blocks "$LR_BLOCKS" \
+       --elapsed-s "$LR_WALL" \
+       --blocks-per-sec "$LR_HPS" \
+       --campaign "$CAMPAIGN" \
+       --run-id "$RUN_ID" \
+       --mode reindex \
+       --condition "${CONDITION:-stock}" \
+       --trial "${TRIAL:-1}" \
+       --binary "$ZEROD" \
+       --workload "op=reindex" \
+       --workload "snap=$SNAP" \
+       --notes "snap=$SNAP"; then
     log "ledger row appended (campaign=$CAMPAIGN)"
   else
-    warn "ledger append failed; artifacts are still in $OUT_DIR"
+    warn "ledger row NOT appended; artifacts are still in $OUT_DIR"
   fi
 else
   warn "no complete reindex measure found; ledger row NOT appended"

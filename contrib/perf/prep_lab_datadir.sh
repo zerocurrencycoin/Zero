@@ -38,10 +38,6 @@ resolve() {
   (cd "$1" 2>/dev/null && pwd -P) || echo "$1"
 }
 
-refuse_protected() {
-  refuse_live_datadir "$1" "$2"
-}
-
 usage() {
   echo "Usage: $0 [create|unroll]" >&2
   echo "  no args: create then unroll" >&2
@@ -52,13 +48,13 @@ usage() {
 }
 
 do_create() {
-  refuse_protected LAB "$LAB"
+  refuse_live_datadir LAB "$LAB"
   mkdir -p "$LAB"
   echo "created $(resolve "$LAB")"
 }
 
 do_unroll() {
-  refuse_protected LAB "$LAB"
+  refuse_live_datadir LAB "$LAB"
   if [ ! -d "$LAB" ]; then
     echo "ERROR: LAB does not exist (run create first): $LAB" >&2
     exit 1
@@ -72,7 +68,7 @@ do_unroll() {
     echo "unroll archive $ARCHIVE -> $lab_res (blocks/ chainstate/ only, read-only source)"
     tar -xzf "$ARCHIVE" -C "$LAB" blocks chainstate
   else
-    refuse_protected SRC "$SRC"
+    refuse_live_datadir SRC "$SRC"
     src_res="$(resolve "$SRC")"
     if [ "$lab_res" = "$src_res" ]; then
       echo "ERROR: LAB and SRC are the same path: $lab_res" >&2

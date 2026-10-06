@@ -217,6 +217,18 @@ elapsed_from_log() {
   python3 "$REPO_ROOT/contrib/perf/extract_measures.py" --elapsed-heights "$log" "$h0" "$h1" 2>/dev/null || echo NA
 }
 
+# The wallet and witness launchers record their own row (perflib.sh
+# record_trial) and write its id and fingerprint to ZERO_PERF_ROW_FILE; that
+# file, not their prose output, is what this catalog keeps.
+row_note() {
+  local f="$1"
+  if [ -f "$f" ]; then
+    paste -sd' ' "$f"
+  else
+    echo "no row recorded"
+  fi
+}
+
 run_trial() {
   local id="$1"
   local row
@@ -246,7 +258,11 @@ PY
 
   export ZERO_PERF_RPCPORT="${ZERO_PERF_RPCPORT:-23957}"
   export CAMPAIGN="cycle-${CYCLE}"
-  local rc=0
+  # For launchers that record their own row: same run id, store and condition.
+  local row_file="$STATUS_DIR/${run_id}.row"
+  export ZERO_PERF_RUN_ID="$run_id" ZERO_PERF_STORE_DIR="$STORE_DIR" \
+    ZERO_PERF_ROW_FILE="$row_file" CONDITION="$id"
+  local rc=0 note=""
   case "$wallet:$op:$snap" in
     none:reindex:tiny|none:reindex:short)
       export ZERO_OPS_LAB="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}"
@@ -273,12 +289,7 @@ PY
         ZEROD_EXTRA_ARGS="$extra" \
         ZERO_PERF_SCRATCH_DATADIR="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}" \
         contrib/perf/wallet_sync_profile.sh || rc=$?
-      local scratch="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}"
-      if [ -f "$scratch/debug.log" ] && [ "$h1" -gt 0 ]; then
-        local el
-        el=$(elapsed_from_log "$scratch/debug.log" "$h0" "$h1")
-        ledger_append "$run_id" reindex "$id" "$h0" "$h1" "$el"
-      fi
+      note=$(row_note "$row_file")
       ;;
     *:rescan:tiny|*:rescan:short|*:rescan:full)
       local scratch="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}"
@@ -289,13 +300,15 @@ PY
           ZERO_PERF_WALLET_FILE="$wf" ZERO_PERF_CHAIN_SNAP="$snap" \
             ZERO_PERF_SCRATCH_DATADIR="$scratch" \
             contrib/perf/witness_lab.sh "$wmode" || rc=$?
+          note=$(row_note "$row_file")
           ;;
         *)
           ZERO_OPS_LAB="$scratch" \
             contrib/ops-validate.sh rescan "$wallet" "snap=$snap" || rc=$?
           ;;
       esac
-      if [ -f "$scratch/debug.log" ]; then
+      # ops-validate.sh records to its own ledger, not RecBench.
+      if [ -z "$note" ] && [ -f "$scratch/debug.log" ]; then
         local el
         if [ "$h1" -gt 0 ]; then
           el=$(elapsed_from_log "$scratch/debug.log" "$h0" "$h1")
@@ -314,23 +327,7 @@ PY
       ZERO_PERF_WALLET_FILE="$wf" ZERO_PERF_CHAIN_SNAP="$snap" \
         ZERO_PERF_SCRATCH_DATADIR="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}" \
         contrib/perf/witness_lab.sh "$wmode" || rc=$?
-      local el
-      el=$(python3 - "$REPO_ROOT/test-logs" "$wmode" <<'PY'
-import glob, os, re, sys
-root, mode = sys.argv[1], sys.argv[2]
-cands = sorted(glob.glob(os.path.join(root, "witness-lab-%s*/SUMMARY.txt" % mode)))
-if not cands:
-    print("NA")
-    raise SystemExit
-t = open(cands[-1]).read()
-# Decimal, not integer: witness_lab.sh reports milliseconds (perflib.sh
-# elapsed_s). \d+ alone truncated 141.763 to 141, reintroducing the
-# whole-second rounding that change removed.
-m = re.search(r"wall_s=(\d+(?:\.\d+)?)", t)
-print(m.group(1) if m else "NA")
-PY
-)
-      ledger_append "$run_id" catchup "$id" "$h0" "$h1" "$el"
+      note=$(row_note "$row_file")
       ;;
     *:sync:tip)
       wf=$(wallet_file_for "$wallet")
@@ -341,7 +338,7 @@ PY
       ZERO_PERF_WALLET_FILE="$wf" \
         ZERO_PERF_SCRATCH_DATADIR="${ZERO_PERF_SCRATCH_DATADIR:-$REPO_ROOT/reindex-profile/cycle-datadir}" \
         contrib/perf/witness_lab.sh "$wmode" || rc=$?
-      ledger_append "$run_id" catchup "$id" 0 0 0
+      note=$(row_note "$row_file")
       ;;
     *)
       echo "ERROR: no dispatcher for wallet=$wallet op=$op snap=$snap" >&2
@@ -350,10 +347,10 @@ PY
   esac
 
   if [ "$rc" -eq 0 ]; then
-    append_status "$id" ok "$run_id" ""
+    append_status "$id" ok "$run_id" "$note"
     echo "OK $id"
   else
-    append_status "$id" fail "$run_id" "rc=$rc"
+    append_status "$id" fail "$run_id" "rc=$rc${note:+ $note}"
     echo "FAIL $id rc=$rc" >&2
   fi
   return "$rc"
