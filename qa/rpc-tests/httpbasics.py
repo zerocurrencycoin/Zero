@@ -12,14 +12,8 @@ from test_framework.util import assert_equal, start_nodes
 
 import base64
 
-try:
-    import http.client as httplib
-except ImportError:
-    import httplib
-try:
-    import urllib.parse as urlparse
-except ImportError:
-    import urlparse
+import http.client as httplib
+import urllib.parse as urlparse
 
 class HTTPBasicsTest (BitcoinTestFramework):
     def setup_nodes(self):

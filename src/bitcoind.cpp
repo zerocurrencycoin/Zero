@@ -112,11 +112,11 @@ bool AppInit(int argc, char* argv[])
                    "\n"
                    "You can look at the example configuration files for suggestions of default\n"
                    "options that you may want to change.\n") +
-                 _("- Source code:  %s\n"
-                   "- .deb package: %s\n")).c_str(),
+                 _("- Example:   %s\n"
+                   "- Generator: %s\n")).c_str(),
                 GetConfigFile().string().c_str(),
-                "contrib/DEBIAN/examples/zero.conf",
-                "contrib/zero.conf");
+                "contrib/zero.conf",
+                "contrib/zero-conf.sh");
             return false;
         } catch (const std::exception& e) {
             fprintf(stderr,"Error reading configuration file: %s\n", e.what());

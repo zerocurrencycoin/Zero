@@ -5091,10 +5091,12 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, boost::optional<CReserveKey&>
         if (fBroadcastTransactions)
         {
             // Broadcast
-            if (!wtxNew.AcceptToMemoryPool(false))
+            CValidationState state;
+            if (!::AcceptToMemoryPool(mempool, state, wtxNew, false, NULL))
             {
                 // This must not fail. The transaction has already been signed and recorded.
-                LogPrintf("CommitTransaction(): Error: Transaction not valid\n");
+                LogPrintf("CommitTransaction(): Error: Transaction %s not valid: %s\n",
+                          wtxNew.GetHash().ToString(), state.GetRejectReason());
                 return false;
             }
             wtxNew.RelayWalletTransaction(strCommand);

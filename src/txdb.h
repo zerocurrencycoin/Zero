@@ -99,7 +99,6 @@ public:
 
     bool GetLevelDBProperty(const std::string& property, std::string& value) const;
     size_t GetLevelDBBlockCacheCapacity() const { return db.GetBlockCacheCapacity(); }
-    size_t GetLevelDBBlockCacheUsage() const { return db.GetBlockCacheUsage(); }
     size_t GetLevelDBWriteBufferBudget() const { return db.GetWriteBufferBudget(); }
 };
 
@@ -144,6 +143,10 @@ public:
 
     bool WriteFlag(const std::string &name, bool fValue);
     bool ReadFlag(const std::string &name, bool &fValue);
+    /** Store fDesired under name when it differs from the stored value; a
+     *  missing flag counts as false. fStored receives the prior value.
+     *  Returns true when the value changed. */
+    bool UpdateFlag(const std::string &name, bool fDesired, bool &fStored);
     bool LoadBlockIndexGuts(boost::function<CBlockIndex*(const uint256&)> insertBlockIndex);
 };
 

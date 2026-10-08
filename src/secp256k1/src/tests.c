@@ -2964,7 +2964,7 @@ void run_ec_pubkey_parse_test(void) {
         0xB8, 0x00
     };
     unsigned char sout[65];
-    unsigned char shortkey[2] = { 0 };
+    unsigned char shortkey[2];
     secp256k1_ge ge;
     secp256k1_pubkey pubkey;
     size_t len;

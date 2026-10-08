@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# Copyright (c) 2025 The Zcash developers
+# Copyright 2026 Zero Developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
-#
-# Test z_importkey with rescan=yes updates balance correctly
-#
+"""
+Test z_importkey with rescan=yes updates balance correctly.
+"""
 
 
 from decimal import Decimal

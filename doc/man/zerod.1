@@ -71,8 +71,8 @@ limit applied)
 .HP
 \fB\-par=\fR<n>
 .IP
-Set the number of script verification threads (\fB\-14\fR to 16, 0 = auto, <0 =
-leave that many cores free, default: 0)
+Set the number of script verification threads (at most 4, 0 = one per core,
+<0 = leave that many cores free, default: 0)
 .HP
 \fB\-pid=\fR<file>
 .IP
@@ -261,7 +261,7 @@ Specify Sapling Address to Consolidate. (default: all)
 .HP
 \fB\-consolidationtxfee\fR
 .IP
-Fee amount in Satoshis used send consolidation transactions. (default 0)
+Fee amount in zatoshis for consolidation transactions (default: 0)
 .HP
 \fB\-deletetx\fR
 .IP
@@ -271,7 +271,7 @@ through the transaction archive
 .HP
 \fB\-deleteinterval\fR
 .IP
-Delete transaction every <n> blocks during inital block download
+Delete transactions every <n> blocks during initial block download
 (default: 1000)
 .HP
 \fB\-keeptxnum\fR
@@ -439,7 +439,7 @@ Set the zeronode private key
 \fB\-zeronodeaddr=\fR<n>
 .IP
 Set external address:port to get to this zeronode (example:
-128.127.106.235:60020)
+128.127.106.235:23801)
 .HP
 \fB\-budgetvotemode=\fR<mode>
 .IP

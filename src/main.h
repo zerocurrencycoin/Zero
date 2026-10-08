@@ -82,8 +82,12 @@ static const unsigned int MAX_BLOCKFILE_SIZE = 0x8000000; // 128 MiB
 static const unsigned int BLOCKFILE_CHUNK_SIZE = 0x1000000; // 16 MiB
 /** The pre-allocation chunk size for rev?????.dat files (since 0.8) */
 static const unsigned int UNDOFILE_CHUNK_SIZE = 0x100000; // 1 MiB
-/** Maximum number of script-checking threads allowed */
-static const int MAX_SCRIPTCHECK_THREADS = 16;
+/** Maximum number of script-checking threads allowed. Shielded proof
+ *  verification, which runs outside the script-check pool, bounds block
+ *  validation, so participants beyond four add threads, not throughput. */
+static const int MAX_SCRIPTCHECK_THREADS = 4;
+/** Seconds between default-log summaries of transactions refused from peers */
+static const int64_t RELAY_REJECT_SUMMARY_INTERVAL = 60 * 60;
 /** -par default (number of script-checking threads, 0 = auto) */
 static const int DEFAULT_SCRIPTCHECK_THREADS = 0;
 /** Number of blocks that can be requested at any given time from a single peer. */
@@ -141,6 +145,11 @@ extern bool fExperimentalMode;
 extern bool fImporting;
 extern bool fReindex;
 extern int nScriptCheckThreads;
+/** Resolve -par to the number of script-check participants. nPar 0 uses
+ *  nCores; a negative nPar leaves that many cores free. The result is
+ *  capped at MAX_SCRIPTCHECK_THREADS; 0 means the connecting thread runs
+ *  the checks inline. */
+int GetScriptCheckThreads(int nPar, int nCores);
 extern bool fTxIndex;
 
 extern bool fZindex;

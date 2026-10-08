@@ -4254,10 +4254,10 @@ UniValue z_getmigrationstatus(const UniValue& params, bool fHelp) {
                 unfinalizedMigratedAmount -= tx.valueBalance;
             }
             // If the transaction is in the mempool it will not be associated with a block yet
-            if (tx.hashBlock.IsNull() || mapBlockIndex[tx.hashBlock] == nullptr) {
+            CBlockIndex* blockIndex = tx.hashBlock.IsNull() ? nullptr : LookupBlockIndex(tx.hashBlock);
+            if (blockIndex == nullptr) {
                 continue;
             }
-            CBlockIndex* blockIndex = mapBlockIndex[tx.hashBlock];
             //  The value of "time_started" is the earliest Unix timestamp of any known
             // migration transaction involving this wallet; if there is no such transaction,
             // then the field is absent.

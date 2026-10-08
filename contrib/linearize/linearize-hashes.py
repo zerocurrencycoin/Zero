@@ -7,7 +7,6 @@
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 #
 
-from __future__ import print_function
 import json
 import struct
 import re

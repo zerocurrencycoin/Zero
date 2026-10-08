@@ -8,6 +8,7 @@
 #include "util.h"
 #include "ui_interface.h"
 #include "chainparamsbase.h"
+#include "zeronode/zeronode.h"
 #include <base58.h>
 // clang-format on
 
@@ -64,18 +65,12 @@ bool CZeronodeConfig::read(std::string& strErr)
         std::string hostname = "";
         SplitHostPort(ip, port, hostname);
 
-        if (NetworkIdFromCommandLine() == CBaseChainParams::MAIN) {
-            if (port != 23801) {
-                strErr = _("Invalid port detected in zeronode.conf") + "\n" +
-                         strprintf(_("Line: %d"), linenumber) + "\n\"" + line + "\"" + "\n" +
-                         _("(must be 23801 for mainnet)");
-                streamConfig.close();
-                return false;
-            }
-        } else if (port == 23801) {
+        if (!IsValidZeronodePort(port)) {
             strErr = _("Invalid port detected in zeronode.conf") + "\n" +
                      strprintf(_("Line: %d"), linenumber) + "\n\"" + line + "\"" + "\n" +
-                     _("(23801 could be used only on mainnet)");
+                     (NetworkIdFromCommandLine() == CBaseChainParams::MAIN
+                          ? strprintf(_("(must be %d for mainnet)"), ZeronodeMainnetPort())
+                          : strprintf(_("(%d could be used only on mainnet)"), ZeronodeMainnetPort()));
             streamConfig.close();
             return false;
         }

@@ -22,8 +22,8 @@ gen_rpc_password() {
 usage() {
   cat <<'USAGE'
 Usage: contrib/zero-conf.sh [template] [-dir DIR] [-out NAME] [-force]
-Templates: prod (default), test, lab, node, zerowallet, insight, full
-RPC port: 23811 for prod/node/zerowallet/insight/full; 23941 for lab/test (outside 23801-23820)
+Templates: prod (default), lab, zerowallet, insight
+RPC port: 23811 for prod/zerowallet/insight; 23941 for lab (outside 23801-23820)
   -dir DIR     directory (default /tmp)
   -out NAME    filename (default zero.conf)
   -force       overwrite; also allow ~/.zero, Application Support/zero|Zero, and the repo
@@ -53,7 +53,7 @@ SRC="$TPL_DIR/${NAME}.conf"
 [[ -f "$SRC" ]] || { echo "missing template $SRC" >&2; usage >&2; exit 1; }
 
 case "$NAME" in
-  lab|test) : "${RPCUSER:=lab}"; : "${RPCPORT:=23941}" ;;
+  lab) : "${RPCUSER:=lab}"; : "${RPCPORT:=23941}" ;;
   *)        : "${RPCUSER:=zero}"; : "${RPCPORT:=23811}" ;;
 esac
 if [[ -z "$RPCPASSWORD" ]]; then

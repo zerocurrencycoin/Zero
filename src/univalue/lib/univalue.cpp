@@ -14,7 +14,7 @@
 
 #include "univalue.h"
 
-namespace
+namespace 
 {
 static bool ParsePrechecks(const std::string& str)
 {
@@ -356,3 +356,4 @@ const UniValue& UniValue::get_array() const
         throw std::runtime_error("JSON value is not an array as expected");
     return *this;
 }
+

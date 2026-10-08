@@ -186,8 +186,6 @@ public:
     bool GetProperty(const std::string& property, std::string& value) const;
 
     size_t GetBlockCacheCapacity() const { return nBlockCacheCapacity; }
-    /** Current LevelDB block LRU charge (bytes). Requires Cache::TotalCharge (Zero patch). */
-    size_t GetBlockCacheUsage() const;
     size_t GetWriteBufferBudget() const { return nWriteBufferBudget; }
 
     template <typename K, typename V>

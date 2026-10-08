@@ -37,9 +37,6 @@ Utility to generate the pnSeed[] array that is compiled into the client.
 Build Tools and Keys
 ---------------------
 
-### [Debian](/contrib/debian) ###
-Contains files used to package zerod for Debian-based Linux systems. Example config: `debian/examples/zero.conf`.
-
 ### [MacDeploy](/contrib/macdeploy) ###
 Scripts and notes for Mac builds.
 

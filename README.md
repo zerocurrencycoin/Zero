@@ -228,7 +228,7 @@ To persist across restart, set `gen=1` and `genproclimit=1` in `zero.conf` (alre
 
 ### Config samples
 
-`./contrib/zero-conf.sh` writes `contrib/conf-templates/` (default **prod**, `/tmp/zero.conf`, generated `rpcpassword`). In-tree samples: `./contrib/zero.conf`, `./contrib/debian/examples/zero.conf`.
+`./contrib/zero.conf` is the commented example: every option with its default. `./contrib/zero-conf.sh` writes a ready-made file per role from `contrib/conf-templates/` (default **prod**, `/tmp/zero.conf`, generated `rpcpassword`). Details: [BUILD_ZERO.md section 3.2](BUILD_ZERO.md#32-configuration-file).
 
 🔩 Running Zero
 --------------------

@@ -370,8 +370,8 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-loadblock=<file>", _("Imports blocks from external blk000??.dat file") + " " + _("on startup"));
     strUsage += HelpMessageOpt("-maxorphantx=<n>", strprintf(_("Keep at most <n> unconnectable transactions in memory (default: %u)"), DEFAULT_MAX_ORPHAN_TRANSACTIONS));
     strUsage += HelpMessageOpt("-mempooltxinputlimit=<n>", _("[DEPRECATED FROM OVERWINTER] Set the maximum number of transparent inputs in a transaction that the mempool will accept (default: 0 = no limit applied)"));
-    strUsage += HelpMessageOpt("-par=<n>", strprintf(_("Set the number of script verification threads (%u to %d, 0 = auto, <0 = leave that many cores free, default: %d)"),
-        -GetNumCores(), MAX_SCRIPTCHECK_THREADS, DEFAULT_SCRIPTCHECK_THREADS));
+    strUsage += HelpMessageOpt("-par=<n>", strprintf(_("Set the number of script verification threads (at most %d, 0 = one per core, <0 = leave that many cores free, default: %d)"),
+        MAX_SCRIPTCHECK_THREADS, DEFAULT_SCRIPTCHECK_THREADS));
 #ifndef WIN32
     strUsage += HelpMessageOpt("-pid=<file>", strprintf(_("Specify pid file (default: %s)"), "zerod.pid"));
 #endif
@@ -413,7 +413,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-peerbloomfilters", strprintf(_("Support filtering of blocks and transaction with Bloom filters (default: %u)"), 1));
     if (showDebug)
         strUsage += HelpMessageOpt("-enforcenodebloom", strprintf("Enforce minimum protocol version to limit use of Bloom filters (default: %u)", 0));
-    strUsage += HelpMessageOpt("-port=<port>", strprintf(_("Listen for connections on <port> (default: %u or testnet: %u)"), 23801, 23802));
+    strUsage += HelpMessageOpt("-port=<port>", strprintf(_("Listen for connections on <port> (default: %u or testnet: %u)"), Params(CBaseChainParams::MAIN).GetDefaultPort(), Params(CBaseChainParams::TESTNET).GetDefaultPort()));
     strUsage += HelpMessageOpt("-proxy=<ip:port>", _("Connect through SOCKS5 proxy"));
     strUsage += HelpMessageOpt("-proxyrandomize", strprintf(_("Randomize credentials for every proxy connection. This enables Tor stream isolation (default: %u)"), 1));
     strUsage += HelpMessageOpt("-seednode=<ip>", _("Connect to a node to retrieve peer addresses, and disconnect"));
@@ -432,9 +432,9 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-migrationdestaddress=<zaddr>", _("Set the Sapling migration address"));
     strUsage += HelpMessageOpt("-consolidation", _("Enable auto Sapling note consolidation"));
     strUsage += HelpMessageOpt("-consolidatesaplingaddress=<zaddr>", _("Specify Sapling Address to Consolidate. (default: all)"));
-    strUsage += HelpMessageOpt("-consolidationtxfee", strprintf(_("Fee amount in Satoshis used send consolidation transactions. (default %i)"), DEFAULT_CONSOLIDATION_FEE));
+    strUsage += HelpMessageOpt("-consolidationtxfee", strprintf(_("Fee amount in zatoshis for consolidation transactions (default: %i)"), DEFAULT_CONSOLIDATION_FEE));
     strUsage += HelpMessageOpt("-deletetx", _("Delete old, spent transactions from the wallet file (see -keeptxnum, -keeptxfornblocks); the zs_* history RPCs and getalldata still list them through the transaction archive"));
-    strUsage += HelpMessageOpt("-deleteinterval", strprintf(_("Delete transaction every <n> blocks during inital block download (default: %i)"), DEFAULT_TX_DELETE_INTERVAL));
+    strUsage += HelpMessageOpt("-deleteinterval", strprintf(_("Delete transactions every <n> blocks during initial block download (default: %i)"), DEFAULT_TX_DELETE_INTERVAL));
     strUsage += HelpMessageOpt("-keeptxnum", strprintf(_("Keep the last <n> transactions (default: %i)"), DEFAULT_TX_RETENTION_LASTTX));
     strUsage += HelpMessageOpt("-keeptxfornblocks", strprintf(_("Keep transactions for at least <n> blocks (default: %i)"), DEFAULT_TX_RETENTION_BLOCKS));
     if (showDebug)
@@ -529,7 +529,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-znconf=<file>", strprintf(_("Specify zeronode configuration file (default: %s)"), "zeronode.conf"));
     strUsage += HelpMessageOpt("-znconflock=<n>", strprintf(_("Lock zeronodes from zeronode configuration file (default: %u)"), 1));
     strUsage += HelpMessageOpt("-zeronodeprivkey=<n>", _("Set the zeronode private key"));
-    strUsage += HelpMessageOpt("-zeronodeaddr=<n>", strprintf(_("Set external address:port to get to this zeronode (example: %s)"), "128.127.106.235:60020"));
+    strUsage += HelpMessageOpt("-zeronodeaddr=<n>", strprintf(_("Set external address:port to get to this zeronode (example: %s)"), "128.127.106.235:23801"));
     strUsage += HelpMessageOpt("-budgetvotemode=<mode>", _("Change automatic finalized budget voting behavior. mode=auto: Vote for only exact finalized budget match to my generated budget. (string, default: auto)"));
     strUsage += HelpMessageGroup(_("Node relay options:"));
     strUsage += HelpMessageOpt("-datacarrier", strprintf(_("Relay and mine data carrier transactions (default: %u)"), 1));
@@ -564,7 +564,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-rpcbind=<addr>", _("Bind to given address to listen for JSON-RPC connections. Use [host]:port notation for IPv6. This option can be specified multiple times (default: bind to all interfaces)"));
     strUsage += HelpMessageOpt("-rpcuser=<user>", _("Username for JSON-RPC connections"));
     strUsage += HelpMessageOpt("-rpcpassword=<pw>", _("Password for JSON-RPC connections"));
-    strUsage += HelpMessageOpt("-rpcport=<port>", strprintf(_("Listen for JSON-RPC connections on <port> (default: %u or testnet: %u)"), 23811, 23812));
+    strUsage += HelpMessageOpt("-rpcport=<port>", strprintf(_("Listen for JSON-RPC connections on <port> (default: %u or testnet: %u)"), BaseParams(CBaseChainParams::MAIN).RPCPort(), BaseParams(CBaseChainParams::TESTNET).RPCPort()));
     strUsage += HelpMessageOpt("-rpcallowip=<ip>", _("Allow JSON-RPC connections from specified source. Valid for <ip> are a single IP (e.g. 1.2.3.4), a network/netmask (e.g. 1.2.3.4/255.255.255.0) or a network/CIDR (e.g. 1.2.3.4/24). This option can be specified multiple times"));
     strUsage += HelpMessageOpt("-rpcthreads=<n>", strprintf(_("Set the number of threads to service RPC calls (default: %d)"), DEFAULT_HTTP_THREADS));
     strUsage += HelpMessageOpt("-rpcdatacontinue=<n>", strprintf(_("Minimum seconds between successful getalldata responses before soft RPC_DATA_CONTINUE -34 (default: %d; 0 disables)"), 20));
@@ -849,6 +849,24 @@ static void ZC_LoadParams(
         return;
     }
 
+    // A file of the wrong size (an interrupted copy or a saved error page) gets a clear message
+    // here instead of an abort while librustzcash checks its hash.
+    const std::pair<boost::filesystem::path, uintmax_t> paramFiles[] = {
+        {sapling_spend, 47958396}, {sapling_output, 3592860}, {sprout_groth16, 725523612}};
+    for (const auto& file : paramFiles) {
+        boost::system::error_code ec;
+        const uintmax_t size = boost::filesystem::file_size(file.first, ec);
+        if (ec || size != file.second) {
+            uiInterface.ThreadSafeMessageBox(strprintf(
+                _("Zero network parameter file %s has %u bytes, expected %u.\n"
+                  "Delete it, run 'zero-fetch-params' or './zcutil/fetch-params.sh', and restart."),
+                    file.first.string(), ec ? 0 : size, file.second),
+                "", CClientUIInterface::MSG_ERROR);
+            StartShutdown();
+            return;
+        }
+    }
+
     pzcashParams = ZCJoinSplit::Prepared();
 
     static_assert(
@@ -1110,14 +1128,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     fCheckBlockIndex = GetBoolArg("-checkblockindex", chainparams.DefaultConsistencyChecks());
     fCheckpointsEnabled = GetBoolArg("-checkpoints", true);
 
-    // -par=0 means autodetect, but nScriptCheckThreads==0 means no concurrency
-    nScriptCheckThreads = GetArg("-par", DEFAULT_SCRIPTCHECK_THREADS);
-    if (nScriptCheckThreads <= 0)
-        nScriptCheckThreads += GetNumCores();
-    if (nScriptCheckThreads <= 1)
-        nScriptCheckThreads = 0;
-    else if (nScriptCheckThreads > MAX_SCRIPTCHECK_THREADS)
-        nScriptCheckThreads = MAX_SCRIPTCHECK_THREADS;
+    nScriptCheckThreads = GetScriptCheckThreads(GetArg("-par", DEFAULT_SCRIPTCHECK_THREADS), GetNumCores());
 
     fServer = GetBoolArg("-server", false);
 
@@ -1348,7 +1359,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     LogPrintf("Using at most %i connections (%i file descriptors available)\n", nMaxConnections, nFD);
     std::ostringstream strErrors;
 
-    LogPrintf("Using %u threads for script verification\n", nScriptCheckThreads);
+    LogPrintf("Script verification uses %d additional threads\n", std::max(nScriptCheckThreads - 1, 0));
     if (nScriptCheckThreads) {
         for (int i=0; i<nScriptCheckThreads-1; i++)
             threadGroup.create_thread(&ThreadScriptCheck);
@@ -1644,62 +1655,49 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     if ( fReindex == 0 ){
 
-        bool checkval;
         pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
+        bool fStored;
 
-        //One time reindex to enable transaction archiving.
-        pblocktree->ReadFlag("archiverule", checkval);
-        if (checkval != fArchive)
-        {
+        // A new datadir (no block index, no block files) records the flags
+        // without a reindex; an index that lost its flags still reindexes.
+        int nLastBlockFile = 0;
+        const bool fNewDatadir = !pblocktree->ReadLastBlockFile(nLastBlockFile) &&
+            !boost::filesystem::exists(GetBlockPosFilename(CDiskBlockPos(0, 0), "blk"));
+
+        // One-time reindex to enable transaction archiving.
+        if (pblocktree->UpdateFlag("archiverule", fArchive, fStored) && !fNewDatadir) {
             LogPrintf("Reindex source: DB_FLAG mismatch (archiverule stored=%d desired=%d)\n",
-                      (int)checkval, (int)fArchive);
-            pblocktree->WriteFlag("archiverule", fArchive);
+                      (int)fStored, (int)fArchive);
             LogPrintf("Transaction archive not set, will reindex. could take a while.\n");
             fReindex = true;
         }
 
-        //Check txindex
-        pblocktree->ReadFlag("txindex", checkval);
-        if ( checkval != fTxIndex)
-        {
+        if (pblocktree->UpdateFlag("txindex", fTxIndex, fStored) && !fNewDatadir) {
             LogPrintf("Reindex source: DB_FLAG mismatch (txindex stored=%d desired=%d)\n",
-                      (int)checkval, (int)fTxIndex);
-            pblocktree->WriteFlag("txindex", fTxIndex);
+                      (int)fStored, (int)fTxIndex);
             LogPrintf("set txindex, will reindex. could take a while.\n");
             fReindex = true;
         }
 
-        //Check prune mode
-        pblocktree->ReadFlag("prunedblockfiles", checkval);
-        if ( checkval != fPruneMode)
-        {
+        if (pblocktree->UpdateFlag("prunedblockfiles", fPruneMode, fStored) && !fNewDatadir) {
             LogPrintf("Reindex source: DB_FLAG mismatch (prunedblockfiles stored=%d desired=%d)\n",
-                      (int)checkval, (int)fPruneMode);
-            pblocktree->WriteFlag("prunedblockfiles", fPruneMode);
+                      (int)fStored, (int)fPruneMode);
             LogPrintf("set prunemode, will reindex. could take a while.\n");
             fReindex = true;
         }
 
-        //Check Insight Index
         fInsightExplorer = GetBoolArg("-insightexplorer", false);
-        pblocktree->ReadFlag("insightexplorer", checkval);
-        if ( checkval != fInsightExplorer )
-        {
+        if (pblocktree->UpdateFlag("insightexplorer", fInsightExplorer, fStored) && !fNewDatadir) {
             LogPrintf("Reindex source: DB_FLAG mismatch (insightexplorer stored=%d desired=%d)\n",
-                      (int)checkval, (int)fInsightExplorer);
-            pblocktree->WriteFlag("insightexplorer", fInsightExplorer);
+                      (int)fStored, (int)fInsightExplorer);
             LogPrintf("set insightexplorer, will reindex. could take a while.\n");
             fReindex = true;
         }
 
-        //Check Insight Index
         fZindex = GetBoolArg("-zindex", DEFAULT_SHIELDEDINDEX);
-        pblocktree->ReadFlag("zindex", checkval);
-        if ( checkval != fZindex )
-        {
+        if (pblocktree->UpdateFlag("zindex", fZindex, fStored) && !fNewDatadir) {
             LogPrintf("Reindex source: DB_FLAG mismatch (zindex stored=%d desired=%d)\n",
-                      (int)checkval, (int)fZindex);
-            pblocktree->WriteFlag("zindex", fZindex);
+                      (int)fStored, (int)fZindex);
             LogPrintf("set zindex, will reindex. could take a while.\n");
             fReindex = true;
         }

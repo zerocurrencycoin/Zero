@@ -205,7 +205,7 @@ if has_level configure; then
     receipt_fail "config.status missing (configure not run)"
     STEP_CFG="FAIL  no config.status"
   fi
-  # REL-09: the version configure.ac produces must equal --release.
+  # The version configure.ac produces must equal --release.
   cav() { sed -n "s/^define(_CLIENT_VERSION_$1, *\([0-9]*\)).*/\1/p" "$REPO_ROOT/configure.ac"; }
   CA_MAJ="$(cav MAJOR)"; CA_MIN="$(cav MINOR)"; CA_REV="$(cav REVISION)"; CA_BLD="$(cav BUILD)"
   if [[ -n "$CA_MAJ" && -n "$CA_BLD" ]]; then

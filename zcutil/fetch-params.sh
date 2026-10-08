@@ -1,10 +1,13 @@
 #!/bin/bash
 set -eu
-ME="fetch-params"
-# shellcheck disable=SC1091
-. "$(dirname "${BASH_SOURCE[0]}")/fzero.sh"
 
-PARAMS_DIR="$(zero_params_dir)"
+# Self-contained: release packages install this script alone as zero-fetch-params.
+# Same directory as zero_params_dir in zcutil/fzero.sh and ZC_GetParamsDir in zerod.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    PARAMS_DIR="$HOME/Library/Application Support/ZcashParams"
+else
+    PARAMS_DIR="$HOME/.zcash-params"
+fi
 
 SPROUT_PKEY_NAME='sprout-proving.key'
 SPROUT_VKEY_NAME='sprout-verifying.key'
@@ -102,6 +105,18 @@ function fetch_params {
     local output="$2"
     local dlname="${output}.dl"
     local expectedhash="$3"
+    local expectedsize="$4"
+
+    # An existing file of the wrong size (an interrupted copy or a saved error page) is
+    # moved aside and downloaded again; zerod would reject it at startup.
+    if [ -f "$output" ]; then
+        local actualsize
+        actualsize="$(wc -c < "$output" | tr -d ' ')"
+        if [ "$actualsize" != "$expectedsize" ]; then
+            echo "$filename has $actualsize bytes, expected $expectedsize; moving it to ${output}.bad and downloading again." >&2
+            mv -f "$output" "${output}.bad"
+        fi
+    fi
 
     if ! [ -f "$output" ]
     then
@@ -126,13 +141,12 @@ function fetch_params {
         cat "${dlname}.part.1" "${dlname}.part.2" > "${dlname}"
         rm "${dlname}.part.1" "${dlname}.part.2"
 
-        "$SHA256CMD" $SHA256ARGS -c <<EOF
-$expectedhash  $dlname
-EOF
-
-        # Check the exit code of the shasum command:
-        CHECKSUM_RESULT=$?
-        if [ $CHECKSUM_RESULT -eq 0 ]; then
+        # Compare the digest directly: GNU sha256sum, BSD sha256sum (macOS 14 and later), and
+        # shasum print it first, but their -c modes differ.
+        local actualhash
+        actualhash="$("$SHA256CMD" $SHA256ARGS "$dlname" | awk '{print $1}')"
+        if [ "$actualhash" = "$expectedhash" ]; then
+            echo "$dlname: OK"
             mv -v "$dlname" "$output"
         else
             echo "Failed to verify parameter checksums!" >&2
@@ -215,9 +229,9 @@ EOF
     #fetch_params "$SPROUT_VKEY_NAME" "$PARAMS_DIR/$SPROUT_VKEY_NAME" "4bd498dae0aacfd8e98dc306338d017d9c08dd0918ead18172bd0aec2fc5df82"
 
     # Sapling parameters:
-    fetch_params "$SAPLING_SPEND_NAME" "$PARAMS_DIR/$SAPLING_SPEND_NAME" "8e48ffd23abb3a5fd9c5589204f32d9c31285a04b78096ba40a79b75677efc13"
-    fetch_params "$SAPLING_OUTPUT_NAME" "$PARAMS_DIR/$SAPLING_OUTPUT_NAME" "2f0ebbcbb9bb0bcffe95a397e7eba89c29eb4dde6191c339db88570e3f3fb0e4"
-    fetch_params "$SAPLING_SPROUT_GROTH16_NAME" "$PARAMS_DIR/$SAPLING_SPROUT_GROTH16_NAME" "b685d700c60328498fbde589c8c7c484c722b788b265b72af448a5bf0ee55b50"
+    fetch_params "$SAPLING_SPEND_NAME" "$PARAMS_DIR/$SAPLING_SPEND_NAME" "8e48ffd23abb3a5fd9c5589204f32d9c31285a04b78096ba40a79b75677efc13" 47958396
+    fetch_params "$SAPLING_OUTPUT_NAME" "$PARAMS_DIR/$SAPLING_OUTPUT_NAME" "2f0ebbcbb9bb0bcffe95a397e7eba89c29eb4dde6191c339db88570e3f3fb0e4" 3592860
+    fetch_params "$SAPLING_SPROUT_GROTH16_NAME" "$PARAMS_DIR/$SAPLING_SPROUT_GROTH16_NAME" "b685d700c60328498fbde589c8c7c484c722b788b265b72af448a5bf0ee55b50" 725523612
 }
 
 main

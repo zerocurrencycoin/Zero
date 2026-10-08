@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026 The Zero developers
+# Copyright 2026 Zero Developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 """
@@ -12,7 +12,7 @@ out in init.cpp; txindex is always on). This test pins that contract:
   prune-and-reindex path that deletes block files must not run).
 - The pruneblockchain RPC does not exist.
 
-If pruning is restored, replace this test (see UpdateZero section 8.10).
+If pruning is restored, replace this test.
 """
 
 from test_framework.authproxy import JSONRPCException

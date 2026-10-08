@@ -9,9 +9,12 @@
 #
 
 
+import struct
+
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, assert_raises, start_node, connect_nodes
+from test_framework.util import assert_equal, assert_raises, start_node, connect_nodes, \
+    COINBASE_MATURITY
 
 
 # Create one-input, one-output, no-fee transaction:
@@ -37,8 +40,10 @@ class MempoolCoinbaseTest(BitcoinTestFramework):
         return signresult["hex"]
 
     def run_test(self):
-        # Mine three blocks. After this, nodes[0] blocks
-        # 101, 102, and 103 are spend-able.
+        # Mine four blocks on top of the cache tip T. The coinbases of blocks
+        # T+1-COINBASE_MATURITY .. T+4-COINBASE_MATURITY (mined by node 0) are
+        # then spendable; after a reorg back to T only the first of them is.
+        base = self.nodes[0].getblockcount() + 1 - COINBASE_MATURITY
         new_blocks = self.nodes[1].generate(4)
         self.sync_all()
 
@@ -51,7 +56,7 @@ class MempoolCoinbaseTest(BitcoinTestFramework):
         # 3. Indirect (coinbase and child both in chain) : spend_103 and spend_103_1
         # Use invalidatblock to make all of the above coinbase spends invalid (immature coinbase),
         # and make sure the mempool code behaves correctly.
-        b = [ self.nodes[0].getblockhash(n) for n in range(101, 105) ]
+        b = [ self.nodes[0].getblockhash(n) for n in range(base, base + 4) ]
         coinbase_txids = [ self.nodes[0].getblock(h)['tx'][0] for h in b ]
         spend_101_raw = self.create_tx(coinbase_txids[1], node1_address, 10)
         spend_102_raw = self.create_tx(coinbase_txids[2], node0_address, 10)
@@ -61,7 +66,9 @@ class MempoolCoinbaseTest(BitcoinTestFramework):
         timelock_tx = self.nodes[0].createrawtransaction([{"txid": coinbase_txids[0], "vout": 0}], {node0_address: 10})
         # Set the time lock, ensuring we don't clobber the rest of the Sapling v4 tx format
         timelock_tx = timelock_tx.replace("ffffffff", "11111111", 1)
-        timelock_tx = timelock_tx[:-38] + hex(self.nodes[0].getblockcount() + 2)[2:] + "000000" + timelock_tx[-30:]
+        # nLockTime is 4 bytes little-endian; the regtest cache tip is above 255
+        lock_height = struct.pack("<I", self.nodes[0].getblockcount() + 2).hex()
+        timelock_tx = timelock_tx[:-38] + lock_height + timelock_tx[-30:]
         timelock_tx = self.nodes[0].signrawtransaction(timelock_tx)["hex"]
         assert_raises(JSONRPCException, self.nodes[0].sendrawtransaction, timelock_tx)
 

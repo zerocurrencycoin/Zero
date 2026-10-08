@@ -94,13 +94,6 @@ bool CDBWrapper::GetProperty(const std::string& property, std::string& value) co
     return pdb->GetProperty(leveldb::Slice(property), &value);
 }
 
-size_t CDBWrapper::GetBlockCacheUsage() const
-{
-    if (!options.block_cache)
-        return 0;
-    return options.block_cache->TotalCharge();
-}
-
 CDBIterator::~CDBIterator() { delete piter; }
 bool CDBIterator::Valid() { return piter->Valid(); }
 void CDBIterator::SeekToFirst() { piter->SeekToFirst(); }

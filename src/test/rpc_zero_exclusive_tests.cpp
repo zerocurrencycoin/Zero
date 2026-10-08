@@ -223,6 +223,50 @@ BOOST_AUTO_TEST_CASE(rpc_getalldata_s6_inflight)
     ResetRpcDataContinueState();
 }
 
+// Zerowallet 2.0.0-4.0.0 call pattern (0 0 0 <watchonly>): an unchanged result comes back
+// instead of -34; a changed state runs the call; other callers keep -34.
+BOOST_AUTO_TEST_CASE(rpc_getalldata_legacy_client)
+{
+    ResetRpcDataContinueState();
+    mapArgs["-rpcdatacontinue"] = "3600";
+    UniValue first, again;
+    BOOST_CHECK_NO_THROW(first = CallRPC("getalldata 0 0 0 true"));
+    BOOST_CHECK_NO_THROW(again = CallRPC("getalldata 0 0 0 true"));
+    BOOST_CHECK_EQUAL(first.write(), again.write());
+
+    // Current Zerowallet arguments inside the time gate: -34.
+    try {
+        CallRPC("getalldata 0 2 50 true");
+        BOOST_FAIL("expected RPC_DATA_CONTINUE");
+    } catch (const runtime_error& e) {
+        BOOST_CHECK_EQUAL(string(e.what()), "rpc_data_continue");
+    }
+
+    // Legacy pattern with a different watch-only flag is a different result: the call runs.
+    BOOST_CHECK_NO_THROW(again = CallRPC("getalldata 0 0 0 false"));
+    BOOST_CHECK(again.isObject());
+
+    // In flight: the stored result for the same arguments is served.
+    SetGetAllDataInFlightForTest(true);
+    BOOST_CHECK_NO_THROW(again = CallRPC("getalldata 0 0 0 false"));
+    BOOST_CHECK(again.isObject());
+    SetGetAllDataInFlightForTest(false);
+
+    // In flight without a stored result: -34.
+    ResetRpcDataContinueState();
+    SetGetAllDataInFlightForTest(true);
+    try {
+        CallRPC("getalldata 0 0 0 true");
+        BOOST_FAIL("expected RPC_DATA_CONTINUE");
+    } catch (const runtime_error& e) {
+        BOOST_CHECK_EQUAL(string(e.what()), "rpc_data_continue");
+    }
+    SetGetAllDataInFlightForTest(false);
+
+    mapArgs["-rpcdatacontinue"] = "0";
+    ResetRpcDataContinueState();
+}
+
 // Wallet walks use const refs; shape and repeated success on an empty wallet.
 BOOST_AUTO_TEST_CASE(rpc_getalldata_s7_shape)
 {

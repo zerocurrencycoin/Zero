@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runtime ops validation in an isolated lab datadir, one catalog id per invocation. --help for options.
+# Runtime ops validation in an isolated lab datadir, one check per invocation. --help for options.
 set -euo pipefail
 ME="ops-validate"
 # shellcheck disable=SC1091
@@ -628,11 +628,11 @@ TEST_BITCOIN="${TEST_BITCOIN:-$REPO_ROOT/src/test/test_bitcoin}"
 
 cmd_equihash() {
   [[ -x "$TEST_BITCOIN" ]] || { echo "missing $TEST_BITCOIN (build test_bitcoin)" >&2; exit 1; }
-  echo "OPS-EQUIHASH --run_test=equihash_tests"
+  echo "equihash --run_test=equihash_tests"
   if (cd "$REPO_ROOT" && "$TEST_BITCOIN" --run_test=equihash_tests); then
-    finish_ok OPS-EQUIHASH ""
+    finish_ok equihash ""
   else
-    finish_err OPS-EQUIHASH ""
+    finish_err equihash ""
     exit 1
   fi
 }
@@ -801,7 +801,7 @@ cmd_mine() {
   n="$(eq_count 8)"
   eq_lab_push
   prepare_eq_lab
-  echo "OPS-MINE n=$n regtest (48,5)"
+  echo "mine n=$n regtest (48,5)"
   START_QUIET=1 start_zerod -keypool=1
   h0="$(cli getblockcount)"
   for i in $(seq 1 "$n"); do
@@ -812,12 +812,12 @@ cmd_mine() {
   if [[ "$h" -ne $((h0 + n)) ]]; then
     echo "ERROR: expected height $((h0 + n)), got $h" >&2
     maybe_stop
-    finish_err OPS-MINE "$h"
+    finish_err mine "$h"
     eq_lab_pop
     exit 1
   fi
   maybe_stop
-  finish_ok OPS-MINE "$h"
+  finish_ok mine "$h"
   eq_lab_pop
 }
 
@@ -831,39 +831,39 @@ cmd_restart() {
   start_isolated
   h1="$(cli getblockcount)"
   maybe_stop
-  echo "OPS-RESTART height=$h1 (before_stop=${h0})"
+  echo "restart height=$h1 (before_stop=${h0})"
   if [[ "$h0" != "NA" && "$h1" != "$h0" ]]; then
     echo "ERROR: tip changed across restart ($h0 -> $h1)" >&2
-    finish_err OPS-RESTART "$h1"
+    finish_err restart "$h1"
     exit 1
   fi
-  finish_ok OPS-RESTART "$h1"
+  finish_ok restart "$h1"
 }
 
 cmd_smoke() {
   local self="$REPO_ROOT/contrib/ops-validate.sh"
   local f
   f="$(pass_force)"
-  echo "OPS-SMOKE cold + restart LAB=$LAB"
+  echo "smoke: cold + restart LAB=$LAB"
   # shellcheck disable=SC2086
   "$self" cold keep $f
   # shellcheck disable=SC2086
   "$self" restart $f
-  finish_ok OPS-SMOKE ""
+  finish_ok smoke ""
 }
 
 cmd_short() {
   local self="$REPO_ROOT/contrib/ops-validate.sh"
   local f
   f="$(pass_force)"
-  echo "OPS-SHORT equihash + verifyeq + smoke"
+  echo "short: equihash + verifyeq + smoke"
   # shellcheck disable=SC2086
   "$self" equihash $f
   # shellcheck disable=SC2086
   "$self" verifyeq $f
   # shellcheck disable=SC2086
   "$self" smoke $f
-  finish_ok OPS-SHORT ""
+  finish_ok short ""
 }
 
 [[ -n "$CMD" ]] || { usage >&2; exit 2; }
@@ -888,7 +888,7 @@ case "$CMD" in
     maybe_inject_wallet
     write_isolated_conf
     apply_cmd_target reindex
-    echo "OPS-REINDEX snap=$SNAP wallet=${WALLET_FILE:-none} target=$(target_label) (CLI -reindex, no sticky conf)"
+    echo "reindex snap=$SNAP wallet=${WALLET_FILE:-none} target=$(target_label) (CLI -reindex, no sticky conf)"
     # shellcheck disable=SC2086
     start_zerod $(cmd_extra) -reindex
     h="$(wait_until_height "$TARGET")"
@@ -897,10 +897,10 @@ case "$CMD" in
       h="$(cli getblockcount 2>/dev/null || echo "$h")"
     fi
     if [[ -n "$WALLET_FILE" ]]; then
-      walletinfo_ok || { echo "ERROR: getwalletinfo failed or timed out" >&2; cli stop >/dev/null 2>&1 || true; finish_err OPS-REINDEX "$h"; exit 1; }
+      walletinfo_ok || { echo "ERROR: getwalletinfo failed or timed out" >&2; cli stop >/dev/null 2>&1 || true; finish_err reindex "$h"; exit 1; }
     fi
     maybe_stop
-    finish_ok OPS-REINDEX "$h"
+    finish_ok reindex "$h"
     ;;
   bootstrap)
     refuse_lab "$LAB"
@@ -918,11 +918,11 @@ case "$CMD" in
     cp -p "$BOOTSTRAP" "$LAB/bootstrap.dat"
     write_isolated_conf
     apply_cmd_target bootstrap
-    echo "OPS-BOOTSTRAP loadblock=$LAB/bootstrap.dat target=$(target_label) wait=${WAIT_S}s"
+    echo "bootstrap loadblock=$LAB/bootstrap.dat target=$(target_label) wait=${WAIT_S}s"
     start_zerod -disablewallet -loadblock="$LAB/bootstrap.dat"
     h="$(wait_until_height "$TARGET")"
     maybe_stop
-    finish_ok OPS-BOOTSTRAP "$h"
+    finish_ok bootstrap "$h"
     ;;
   rescan)
     refuse_lab "$LAB"
@@ -931,7 +931,7 @@ case "$CMD" in
     maybe_inject_wallet
     write_isolated_conf
     apply_cmd_target rescan
-    echo "OPS-RESCAN snap=$SNAP wallet=${WALLET_FILE:-none} target=$(target_label) (CLI -rescan, indexes kept)"
+    echo "rescan snap=$SNAP wallet=${WALLET_FILE:-none} target=$(target_label) (CLI -rescan, indexes kept)"
     # shellcheck disable=SC2086
     launch_zerod $(cmd_extra) -rescan
     wait_done_loading
@@ -947,25 +947,25 @@ case "$CMD" in
       walletinfo_ok || echo "WARN: getwalletinfo failed or timed out"
     fi
     maybe_stop
-    finish_ok OPS-RESCAN "$h"
+    finish_ok rescan "$h"
     ;;
   live)
     [[ -d "$SRC" ]] || { echo "ERROR: SRC missing $SRC" >&2; exit 1; }
     if ! cli_src getblockchaininfo >/dev/null 2>&1; then
       echo "ERROR: no RPC on $SRC (start zerod on the default datadir first, then re-run live)" >&2
       echo "  e.g. $ZEROD -datadir=\"$SRC\" -daemon" >&2
-      finish_err OPS-LIVE ""
+      finish_err live ""
       exit 1
     fi
     h="$(cli_src getblockcount)"
     cli_src getwalletinfo >/dev/null 2>&1 || echo "WARN: getwalletinfo failed"
-    echo "OPS-LIVE height=$h src=$SRC rpcport=$(src_rpcport "$SRC") (did not start or stop)"
+    echo "live height=$h src=$SRC rpcport=$(src_rpcport "$SRC") (did not start or stop)"
     if ! [[ "$h" =~ ^[0-9]+$ ]] || [[ "$h" -le 0 ]]; then
       echo "ERROR: live expected height > 0" >&2
-      finish_err OPS-LIVE "$h"
+      finish_err live "$h"
       exit 1
     fi
-    finish_ok OPS-LIVE "$h"
+    finish_ok live "$h"
     ;;
   copy)
     refuse_lab "$LAB"
@@ -978,8 +978,8 @@ case "$CMD" in
       cli getwalletinfo >/dev/null
     fi
     maybe_stop
-    echo "OPS-COPY src=$SRC lab=$LAB isolated (this zerod, no P2P)"
-    finish_ok OPS-COPY "$h"
+    echo "copy src=$SRC lab=$LAB isolated (this zerod, no P2P)"
+    finish_ok copy "$h"
     ;;
   cold|boot)
     refuse_lab "$LAB"
@@ -991,8 +991,8 @@ case "$CMD" in
     start_isolated
     h="$(cli getblockcount)"
     maybe_stop
-    echo "OPS-START-COLD (binary-up only, not a sync test)"
-    finish_ok OPS-START-COLD "$h"
+    echo "cold (binary-up only, not a sync test)"
+    finish_ok cold "$h"
     ;;
   restart)
     cmd_restart
@@ -1007,26 +1007,26 @@ case "$CMD" in
     cmd_equihash
     ;;
   verifyeq)
-    run_eq_bench verifyequihash "$(eq_count 20)" OPS-VERIFYEQ
+    run_eq_bench verifyequihash "$(eq_count 20)" verifyeq
     ;;
   solveeq)
-    run_eq_bench solveequihash "$(eq_count 1)" OPS-SOLVEEQ
+    run_eq_bench solveequihash "$(eq_count 1)" solveeq
     ;;
   mine)
     cmd_mine
     ;;
   attach)
     refuse_lab "$LAB"
-    echo "OPS-ATTACH LAB=$LAB rpcport=$RPCPORT"
+    echo "attach LAB=$LAB rpcport=$RPCPORT"
     wait_rpc
     h="$(cli getblockcount)"
     echo "RPC up height=$h"
-    finish_ok OPS-ATTACH "$h"
+    finish_ok attach "$h"
     ;;
   stop)
     refuse_lab "$LAB"
     cli stop >/dev/null
-    finish_ok OPS-STOP ""
+    finish_ok stop ""
     ;;
   -h|--help) usage; exit 0 ;;
   wallets) cmd_wallets; exit 0 ;;

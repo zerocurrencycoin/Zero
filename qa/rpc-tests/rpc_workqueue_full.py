@@ -15,20 +15,13 @@ With -rpcworkqueue=1 -rpcthreads=1:
 Run: ./qa/pull-tester/rpc-tests.sh rpc_workqueue_full
 """
 
-from __future__ import print_function
 
 import base64
 import threading
 import time
 
-try:
-    import http.client as httplib
-except ImportError:
-    import httplib
-try:
-    import urllib.parse as urlparse
-except ImportError:
-    import urlparse
+import http.client as httplib
+import urllib.parse as urlparse
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (

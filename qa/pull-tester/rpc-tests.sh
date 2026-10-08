@@ -104,6 +104,8 @@ testScriptsExt=(
     'rpc_coverage_probe.py'
     'rpc_workqueue_full.py'
     'getalldata_scenario.py'
+    'forknotify.py'
+    'hardforkdetection.py'
 );
 
 if [ "x$ENABLE_ZMQ" = "x1" ]; then
@@ -166,7 +168,13 @@ testScriptsTierBPass=(
     'reindex_shielded.py'
     'wallet_witness_defer.py'
     'pruning_disabled.py'
+    'reindex_db_flags.py'
+    'mempool_reorg.py'
+    'mempool_nu_activation.py'
+    'mempool_tx_expiry.py'
+    'wallet_nullifiers.py'
     'wallet_archive.py'
+    'txindex.py'
 )
 
 # Tier B fail: diagnostic only (-Bfail). Debug: needs porting work (maturity, comptool,
@@ -184,9 +192,6 @@ testScriptsTierBFailDebug=(
     'mergetoaddress_sapling.py'
     'mergetoaddress_mixednotes.py'
     'rawtransactions.py'
-    'mempool_reorg.py'
-    'mempool_nu_activation.py'
-    'mempool_tx_expiry.py'
     'merkle_blocks.py'
     'fundrawtransaction.py'
     'signrawtransaction_offline.py'
@@ -195,11 +200,9 @@ testScriptsTierBFailDebug=(
     'bipdersig-p2p.py'
     'regtest_signrawtransaction.py'
     'finalsaplingroot.py'
-    'txindex.py'
     # Multi-GB RSS shielded proving.
     'wallet_shieldcoinbase_sapling.py'
     'wallet_protectcoinbase.py'
-    'wallet_nullifiers.py'
     'zkey_import_export.py'
 )
 
@@ -235,6 +238,8 @@ testScriptsExtFail=(
     'smartfees.py'
     'invalidblockrequest.py'
     'p2p-acceptblock.py'
+    'forknotify.py'
+    'hardforkdetection.py'
 )
 
 # Invocation tiers:

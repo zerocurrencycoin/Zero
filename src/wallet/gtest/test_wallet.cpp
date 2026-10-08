@@ -1305,7 +1305,7 @@ TEST(WalletTests, CachedWitnessesChainTip) {
     TestWallet wallet;
     std::pair<uint256, uint256> anchors1;
     CBlock block1;
-    CBlockIndex index1(block1);  // Keep in scope: mapBlockIndex stores &index1; dangling ptr caused crash
+    CBlockIndex index1(block1);  // Keep in scope: mapBlockIndex stores &index1
     SproutMerkleTree sproutTree;
     SaplingMerkleTree saplingTree;
 
@@ -1435,7 +1435,7 @@ TEST(WalletTests, CachedWitnessesChainTip) {
 TEST(WalletTests, CachedWitnessesDecrementFirst) {
     TestWallet wallet;
     CBlock block1;
-    CBlockIndex index1(block1);  // Keep in scope: mapBlockIndex stores &index1; dangling ptr caused crash
+    CBlockIndex index1(block1);  // Keep in scope: mapBlockIndex stores &index1
     SproutMerkleTree sproutTree;
     SaplingMerkleTree saplingTree;
 

@@ -32,14 +32,13 @@ public:
  * ARCHITECTURAL OVERVIEW
  * =====================
  * 
- * This interface solves the architectural coupling problem between zeronodes 
- * (masternodes) and wallet functionality in Zero Currency. Previously, zeronode 
- * code directly accessed wallet functions through pwalletMain, creating:
+ * Zeronode code (masternodes) reaches the wallet only through this interface,
+ * never through pwalletMain. As a result:
  * 
- * 1. Tight coupling - zeronode code couldn't work without wallet
- * 2. Build complexity - wallet-disabled builds required extensive #ifdef guards
- * 3. Testing difficulties - mocking wallet behavior was complex
- * 4. Code maintenance - wallet changes broke zeronode functionality
+ * 1. The zeronode layer builds and runs without a wallet
+ * 2. Wallet-disabled builds need no #ifdef guards in zeronode code
+ * 3. Tests can substitute a mock wallet
+ * 4. Wallet changes do not reach zeronode code outside this interface
  * 
  * DESIGN PATTERN
  * ==============

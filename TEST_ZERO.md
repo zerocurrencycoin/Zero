@@ -73,19 +73,7 @@ Regenerate after every tier edit:
 | E | pass | `-E` | **working** |
 | **A+B+E** | **pass** | **`-all`** / `run-tests.sh --all` | **working** |
 
-### Tier A -- `testScriptsTierA`
-
-blockchain, disablewallet, httpbasics, reindex, decodescript, keypool, paymentdisclosure, getchaintips, rewind_index, p2p_nu_peer_management
-
-`contrib/run-tests.sh` **`PYTHON_PASSING`** (basenames, no `.py`) must match this list for `--jobs=N` only. Serial gate uses `rpc-tests.sh -A`.
-
-### Tier B pass -- `testScriptsTierBPass`
-
-wallet, wallet_anchorfork, wallet_changeindicator, wallet_import_export, wallet_1941, listtransactions, mempool_resurrect_test, mempool_spendcoinbase, mempool_limit, txn_doublespend, txn_doublespend --mineblock, zapwallettxes, proxy_test, signrawtransactions, nodehandling, rescan_startup, getblocktemplate, founders_window, zeronode_coinbase, zeronode_startalias, p2p_txexpiry_dos, p2p_txexpiringsoon, p2p_node_bloom, getrawtransaction_insight, rest, addressindex, spentindex, timestampindex, walletbackup, reindex_shielded, wallet_witness_defer, pruning_disabled, wallet_archive
-
-### Ext pass -- `testScriptsExtPass`
-
-invalidateblock, maxblocksinflight, rpc_coverage_probe, receivedby, rpcbind_test, getblocktemplate_longpoll, rpc_workqueue_full, getalldata_scenario
+Script names per tier: `qa/rpc-tests/test_tier_inventory.csv` (columns `tier`, `group`, `script`), generated from the arrays in `qa/pull-tester/rpc-tests.sh`, which are authoritative. `contrib/run-tests.sh` reads the Tier A names from the same arrays for `--jobs=N`; the serial gate uses `rpc-tests.sh -A`.
 
 ### C++ working filters
 
@@ -109,21 +97,20 @@ Default gate excludes one GTest still under development (listed in section 6). E
 
 ## 5. Promote and hold
 
-A basename that exits **0** when run alone is **not** in the contributor gate until it is moved into a pass array in `rpc-tests.sh`, CSV regenerated, and section 3 updated in the same change set. Hold items stay in Bfail / Efail / `--fail`.
+A basename that exits **0** when run alone is **not** in the contributor gate until it is moved into a pass array in `rpc-tests.sh` and the CSV is regenerated in the same change set. Hold items stay in Bfail / Efail / `--fail`.
 
 | Hold | Scripts | Blocker |
 |------|---------|---------|
 | Tip-200 / cache | `wallet_addresses`, `rescan_import`, `reorg_limit`, `wallet_listnotes`, `wallet_sapling`, `wallet_listreceived`, `wallet_persistence` | Hard-coded heights vs warm cache tip; needs `initialize_chain_clean` + `generate(200)` or relative heights |
 | Maturity / NU | `shorter_block_times`, `wallet_changeaddresses` | `COINBASE_MATURITY=720`; Blossom / fee-start mine plan |
-| Heavy proving | `wallet_shieldcoinbase_sapling`, `wallet_protectcoinbase`, `wallet_nullifiers`, `zkey_import_export` | Multi-GB RSS and long `generate` on `-all`; held from pass tiers by policy, not an unknown crash |
+| Heavy proving | `wallet_shieldcoinbase_sapling`, `wallet_protectcoinbase`, `zkey_import_export` | Multi-GB RSS and long `generate` on `-all`; held from pass tiers by policy, not an unknown crash |
 | Tx construction | `rawtransactions`, `fundrawtransaction`, `mergetoaddress_sapling`, `mergetoaddress_mixednotes`, `signrawtransaction_offline`, `key_import_export`, `regtest_signrawtransaction`, `merkle_blocks`, `finalsaplingroot` | Py3 / subsidy / Sapling RPC asserts still fail or un-reverified |
-| Pure txindex | `txindex` | Decimal `nValue` and 10 ZER subsidy vs leftover 50-coin asserts |
 | Comptool P2P | `bip65-cltv-p2p`, `bipdersig-p2p`, `invalidblockrequest`, `p2p-acceptblock` | Comparison-tool block templates; Python Equihash is (48,5) only |
-| Mempool / NU | `mempool_reorg`, `mempool_nu_activation`, `mempool_tx_expiry` | Activation / expiry heights vs Zero NU schedule |
 | GBT proposals | `getblocktemplate_proposals` | Proposal path vs Zero coinbase / founders |
 | Pruning | `pruning` | `-prune` is disabled in Zero (option commented out in `init.cpp`; `txindex` is forced on); retire with the option or restore both together |
 | Fee estimate | `smartfees` | Estimator vs Zero fee-start / founders |
-| Retired Sprout | `prioritisetransaction`, `wallet_treestate`, `wallet_overwintertx`, `mergetoaddress_sprout`, `sprout_sapling_migration`, `turnstile`, `zcjoinsplit`, `zcjoinsplitdoublespend` | `zcjoinsplit*` call the `zcraw*` RPCs, compiled out unless built with `-DENABLE_ZCRAW_RPC`; the others are Sprout-era or manual testnet; not a 4.0.1 gate item |
+| Retired Sprout | `prioritisetransaction`, `wallet_treestate`, `wallet_overwintertx`, `mergetoaddress_sprout`, `sprout_sapling_migration`, `turnstile`, `zcjoinsplit`, `zcjoinsplitdoublespend` | `zcjoinsplit*` call the `zcraw*` RPCs, compiled out unless built with `-DENABLE_ZCRAW_RPC`; the others are Sprout-era or manual testnet; not a gate item |
+| Fork warnings | `hardforkdetection`, `forknotify` | Mine with `-blockversion=2`, below the minimum block version 4; read `-alertnotify` output, which builds without `ENABLE_SYSTEM_COMMAND` skip; `forknotify` tests a warning on unknown block versions that the node does not have |
 | GTest | `CachedWitnessesCleanIndex` | Needs reindex-style `pcoinsTip` + disk blocks; run `--fail` |
 
 Optional: `--jobs>1` is throughput only; keep serial for gates. Re-record the `--all --strict` wall time when scripts move between tiers.
@@ -140,17 +127,7 @@ Arrays and filters for scripts still under development. Run via `-Bfail`, `-Efai
 | Bfail | retired | `-Bfail` (second) |
 | Efail | fail | `-Efail` / part of `-rpcfail` |
 
-### Bfail Debug -- `testScriptsTierBFailDebug`
-
-shorter_block_times, wallet_changeaddresses, wallet_addresses, rescan_import, reorg_limit, wallet_listreceived, wallet_persistence, wallet_sapling, wallet_listnotes, mergetoaddress_sapling, mergetoaddress_mixednotes, rawtransactions, mempool_reorg, mempool_nu_activation, mempool_tx_expiry, merkle_blocks, fundrawtransaction, signrawtransaction_offline, key_import_export, bip65-cltv-p2p, bipdersig-p2p, regtest_signrawtransaction, finalsaplingroot, txindex, wallet_shieldcoinbase_sapling, wallet_protectcoinbase, wallet_nullifiers, zkey_import_export
-
-### Bfail Retired -- `testScriptsTierBFailRetired`
-
-prioritisetransaction, wallet_treestate, wallet_overwintertx, mergetoaddress_sprout, sprout_sapling_migration, turnstile, zcjoinsplit, zcjoinsplitdoublespend
-
-### Efail -- `testScriptsExtFail`
-
-getblocktemplate_proposals, pruning, smartfees, invalidblockrequest, p2p-acceptblock
+Script names: the inventory CSV (section 3); blockers per script: section 5.
 
 ### C++ suites outside the working gate
 
@@ -200,7 +177,7 @@ Failures in the Zero-specific cases usually mean **`chainparams.cpp`** / **`pow.
 
 ## 8. Platform evidence and operational checks
 
-`--strict` proves the contributor gate on **one** OS. v4.1.0 needs an honest matrix plus a few node-lifecycle soaks. Do not treat a green macOS gate as Linux ELF, Windows, mining, or Zerowallet coverage.
+A green test run proves **one** OS. v4.1.0 needs an honest matrix plus a few node-lifecycle soaks. Do not treat a green macOS gate as Linux ELF, Windows, mining, or Zerowallet coverage.
 
 Receipts live in gitignored **`.build/`**. Scratch chain data stays outside the repo.
 
@@ -209,16 +186,15 @@ Receipts live in gitignored **`.build/`**. Scratch chain data stays outside the 
 | Layer | macOS ARM64 | Linux x86_64 (Ubuntu 24.04 class) | Windows |
 |-------|-------------|-----------------------------------|---------|
 | Build | **Done** (`./zcutil/build.sh`) | **Rebuild at the release tip** (recommended next gate) | **Not run.** MXE cross-build from Linux; this program has never produced or executed `zerod.exe` |
-| `./contrib/run-tests.sh --strict` | **Re-run on the tag commit** (last run on an earlier 4.0.1-line commit) | **Not run at current tip.** Recommended before tag; maintainer may ship without it | No native or WSL2 `--strict` |
-| `--suite` (ELF `check-security` / `no-dot-so`, full `rpcbind`) | **N/A** -- Darwin skips ELF stages | **Not run at current tip.** Recommended | N/A for PE |
-| `--all --strict` (Tier A+B+E) | Optional; re-run after tier moves | Optional after `--strict` | Not run |
-| Packaging | N/A | `release-linux.sh` not a `--strict` substitute | No signed installer |
-| Checksums / signatures | `zcutil/release-macos.sh` writes `SHA256SUMS`; signing needs a Developer ID (`--sign`, `--notarize`) | `zcutil/release-linux.sh` writes `SHA256SUMS`; GPG over it by hand | `zcutil/release-win.sh` writes `SHA256SUMS`; Authenticode with `--sign-pkcs12` |
-| Isolated mining RPC (OPS-GBT / Tier B `getblocktemplate`) | Tier B exists in the harness; isolated mainnet template not recorded | Same | Not run |
+| `./contrib/run-tests.sh --all` (release test run: C++ gate filters, Tier A, B pass, Ext pass) | **Run on the release commit** | **Run on the release commit** | Not run; no Windows runner |
+| `--suite` (ELF `check-security` / `no-dot-so`, full `rpcbind`) | **N/A** -- Darwin skips ELF stages | Optional; adds the ELF checks | N/A for PE |
+| Packaging | N/A | `release-linux.sh` is not a test run | No signed installer |
+| Checksums / signatures | `zcutil/release-macos.sh` writes `SHA256SUMS`; signing needs a Developer ID (`--sign`, `--notarize`) | `zcutil/release-linux.sh` writes `SHA256SUMS`; signing method undecided | `zcutil/release-win.sh` writes `SHA256SUMS`; Authenticode with `--sign-pkcs12` |
+| Isolated mining RPC (Tier B `getblocktemplate`) | Tier B exists in the harness; isolated mainnet template not recorded | Same | Not run |
 | **Live mining** (operator `gen=1` / `setgenerate` on mainnet) | **Optional observation** -- solver activity via `getmininginfo` / `debug.log`; not a found-block requirement | Same | Same |
 | Zerowallet | **Manual only** -- start or attach, watch addresses / History load, spinner, error dialogs. No automated UI. No send/receive, bulk, or mixed-type tx in this program | Same if used | Same if used |
 
-**RC bar:** macOS `--strict` on the **tag commit**; Linux `--strict` + `--suite` strongly recommended (`--suite` already runs the `--all` RPC tiers and adds the ELF checks; `--strict` adds `check-symbols`); Windows = first successful MXE build at minimum, then `--strict` when a Win/WSL2 runner exists. **Signing:** `SHA256SUMS` plus platform signatures (BUILD_ZERO section 2.6) on every shipped artifact; unsigned CI output is not a release. Record hashes/signatures as present or **explicitly missing**. Maintainer decides which OS gates are hard blocks. Darwin also skips full `rpcbind`; keep serial `--strict` (`--jobs>1` can hang `paymentdisclosure`).
+**RC bar:** macOS and Linux: `./contrib/run-tests.sh --all` on the release commit. Without `--strict` the runner exits 0 and prints WARNING when a step fails, so read its summary. Windows: first successful MXE build and one start of `zerod.exe`. **Signing:** `SHA256SUMS` on every shipped artifact; the platform signature method is undecided (BUILD_ZERO section 2.6). Record hashes and signatures as present or **explicitly missing**. Maintainer decides which OS gates are hard blocks. Darwin skips full `rpcbind`; run the RPC tiers serially (`--jobs>1` can hang `paymentdisclosure`).
 
 ### 8.2 Automating beyond the harness
 
@@ -237,22 +213,22 @@ Ports: **23801-23820** are reserved for deployments and tests that use chain def
 
 `contrib/ops-validate.sh` is the product soak and short RC driver (isolated LAB under `/tmp` by default). Bundles: **`short`** (equihash + verifyeq + smoke), **`smoke`** (cold + restart). One trial per invocation except those bundles. Default load stop is height 100000 and `-disablewallet`. Packed snaps and `bootstrap.dat` stay outside git. `--force` / `ZERO_OPS_FORCE=1` overrides datadir, running-`zerod`, and port gates (WARNING).
 
-| Id | Command | Pass |
-|----|---------|------|
-| **OPS-SMOKE** | `smoke` | `cold` then `restart` |
-| **OPS-SHORT** | `short` | `equihash` + `verifyeq` + `smoke` |
-| **OPS-START-COLD** | `cold` | RPC up on empty scratch, clean `stop` |
-| **OPS-RESTART** | `restart` after `cold` | Tip unchanged |
-| **OPS-ATTACH** | `keep` on a start cmd, then `attach` | `getblockchaininfo` on LAB |
-| **OPS-LIVE** | `live` | RPC to SRC (operator datadir); does not start or stop |
-| **OPS-REINDEX** | `reindex` / `reindex all` | `-reindex` from snap; `all` = snap tip |
-| **OPS-BOOTSTRAP** | `bootstrap` | `-loadblock` to 100000 (`all` = end of file) |
-| **OPS-RESCAN** | `rescan` | keep indexes, `-rescan`, wait Done loading (needs chainstate in snap) |
-| **OPS-COPY** | `copy` | rsync SRC blocks+chainstate into LAB, wait stable tip. Stop every `zerod` first |
-| **OPS-EQUIHASH** | `equihash` | Boost `equihash_tests` (KATs; no `zerod`) |
-| **OPS-VERIFYEQ** | `verifyeq` / `verifyeq N` | isolated `-regtest` + `zcbenchmark verifyequihash` N (default 20; MAIN **(192,7)**); times in ms |
-| **OPS-SOLVEEQ** | `solveeq` / `solveeq N` | isolated lab; `zcbenchmark solveequihash` N times (default 1, ~50s each); per-sample seconds plus min/mean/median/stdev when N>1; `rpcservertimeout=3600`; `ENABLE_MINING`; not the RC bar |
-| **OPS-MINE** | `mine` / `mine N` | isolated `-regtest` `generate` N (default 8); Equihash **(48,5)**; does **not** mine mainnet |
+| Command | Pass |
+|---------|------|
+| `smoke` | `cold` then `restart` |
+| `short` | `equihash` + `verifyeq` + `smoke` |
+| `cold` | RPC up on empty scratch, clean `stop` |
+| `restart` after `cold` | Tip unchanged |
+| `keep` on a start cmd, then `attach` | `getblockchaininfo` on LAB |
+| `live` | RPC to SRC (operator datadir); does not start or stop |
+| `reindex` / `reindex all` | `-reindex` from snap; `all` = snap tip |
+| `bootstrap` | `-loadblock` to 100000 (`all` = end of file) |
+| `rescan` | keep indexes, `-rescan`, wait Done loading (needs chainstate in snap) |
+| `copy` | rsync SRC blocks+chainstate into LAB, wait stable tip. Stop every `zerod` first |
+| `equihash` | Boost `equihash_tests` (KATs; no `zerod`) |
+| `verifyeq` / `verifyeq N` | isolated `-regtest` + `zcbenchmark verifyequihash` N (default 20; MAIN **(192,7)**); times in ms |
+| `solveeq` / `solveeq N` | isolated lab; `zcbenchmark solveequihash` N times (default 1, ~50s each); per-sample seconds plus min/mean/median/stdev when N>1; `rpcservertimeout=3600`; `ENABLE_MINING`; not the RC bar |
+| `mine` / `mine N` | isolated `-regtest` `generate` N (default 8); Equihash **(48,5)**; does **not** mine mainnet |
 
 Defaults when no option is given: lab datadir `/tmp/zero-ops-validate` (isolated commands use `/tmp/zero-ops-eq`), template `lab` (listen off, no peers), no wallet (`-disablewallet`), RPC port 23941 (isolated commands 23951), stop height 100000, snapshot `tiny`, wait 1800 s, source datadir = the node default for the OS.
 
@@ -271,7 +247,7 @@ P2P-CATCHUP is not in this menu. GBT is Tier B `getblocktemplate` (`-B` / `--all
 
 ### 8.4 Zerowallet soak
 
-No UI harness in this tree. Node-side: OPS-ATTACH + template `zerowallet`. macOS GUI path may be `Application Support/Zero` (INT-01) vs canonical `zero`. Align `rpcuser` / `rpcpassword` / `rpcport`. Do not send. Visual: addresses, History, spinner, dialogs. Spinner-idle is not a sync proof.
+No UI harness in this tree. Node-side: `attach` + template `zerowallet`. macOS GUI path may be `Application Support/Zero` vs canonical `zero`. Align `rpcuser` / `rpcpassword` / `rpcport`. Do not send. Visual: addresses, History, spinner, dialogs. Spinner-idle is not a sync proof.
 
 ### 8.5 Mining
 

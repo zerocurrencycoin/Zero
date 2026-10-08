@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026 The Zero developers
+# Copyright 2026 Zero Developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
 """
-Transaction archive with -deletetx (WAL-ARCHIVE-01, WAL-ARCHIVE-03):
+Transaction archive with -deletetx:
 
 - A spent coinbase is deleted from the wallet once its spend is deeper than
   -keeptxfornblocks; gettransaction no longer finds it.
 - zs_gettransaction and zs_listtransactions still return it through the
   archive, with the same txid and block.
-- History RPCs called while -reindex runs do not crash the node when the import
-  reaches the archived blocks (regression: lookups once inserted null block-index
-  entries that AcceptBlockHeader dereferenced).
+- History RPCs and z_getmigrationstatus called while -reindex runs leave the block
+  index unchanged; the import completes through the archived blocks.
 - The archived entry survives a restart with -rescan, -reindex, and -zapwallettxes
   (which erases archive records; the rescan writes them again).
-- Reorg consistency (WAL-ARCHIVE-02): a transaction whose block is invalidated and
+- Reorg consistency: a transaction whose block is invalidated and
   re-mined points to the new block with one confirmation.
 """
 
@@ -51,8 +50,11 @@ class WalletArchiveTest(BitcoinTestFramework):
         while time.time() < deadline:
             try:
                 if poll_history:
+                    # The calls Zerowallet makes while the node imports blocks.
                     node.zs_listtransactions()
                     node.getalldata(0, 0)
+                    node.getalldata(0, 0, 0, True)
+                    node.z_getmigrationstatus()
                 if node.getblockcount() >= height:
                     return
             except JSONRPCException:
@@ -88,7 +90,7 @@ class WalletArchiveTest(BitcoinTestFramework):
         cb_block = node.gettransaction(coinbase)["blockhash"]
         assert self.in_wallet(coinbase)
 
-        # Per-address history and supply on a populated wallet (TST-01).
+        # Per-address history and supply on a populated wallet.
         received = [t["txid"] for t in node.zs_listreceivedbyaddress(dest)]
         assert spend in received, "zs_listreceivedbyaddress missing the spend"
         sent = [t["txid"] for t in node.zs_listsentbyaddress(dest)]
@@ -115,7 +117,7 @@ class WalletArchiveTest(BitcoinTestFramework):
         self.restart(["-zapwallettxes=1"])
         self.check_archived(coinbase, cb_block, "after -zapwallettxes")
 
-        # WAL-ARCHIVE-02: archive point follows a reorg.
+        # The archive point follows a reorg.
         node = self.nodes[0]
         txid = node.sendtoaddress(node.getnewaddress(), 1)
         first = node.generate(1)[0]

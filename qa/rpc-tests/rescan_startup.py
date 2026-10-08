@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# Copyright (c) 2025 The Zcash developers
+# Copyright 2026 Zero Developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php .
 
-#
-# Test -rescan on startup: node restarts with -rescan, chain and wallet intact
-#
+"""
+Test -rescan on startup: node restarts with -rescan, chain and wallet intact.
+"""
 
 
 from test_framework.test_framework import BitcoinTestFramework

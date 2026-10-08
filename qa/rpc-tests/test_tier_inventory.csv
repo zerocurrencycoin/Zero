@@ -41,7 +41,13 @@ B,pass,walletbackup.py
 B,pass,reindex_shielded.py
 B,pass,wallet_witness_defer.py
 B,pass,pruning_disabled.py
+B,pass,reindex_db_flags.py
+B,pass,mempool_reorg.py
+B,pass,mempool_nu_activation.py
+B,pass,mempool_tx_expiry.py
+B,pass,wallet_nullifiers.py
 B,pass,wallet_archive.py
+B,pass,txindex.py
 Bfail,debug,shorter_block_times.py
 Bfail,debug,wallet_changeaddresses.py
 Bfail,debug,wallet_addresses.py
@@ -54,9 +60,6 @@ Bfail,debug,wallet_listnotes.py
 Bfail,debug,mergetoaddress_sapling.py
 Bfail,debug,mergetoaddress_mixednotes.py
 Bfail,debug,rawtransactions.py
-Bfail,debug,mempool_reorg.py
-Bfail,debug,mempool_nu_activation.py
-Bfail,debug,mempool_tx_expiry.py
 Bfail,debug,merkle_blocks.py
 Bfail,debug,fundrawtransaction.py
 Bfail,debug,signrawtransaction_offline.py
@@ -65,10 +68,8 @@ Bfail,debug,bip65-cltv-p2p.py
 Bfail,debug,bipdersig-p2p.py
 Bfail,debug,regtest_signrawtransaction.py
 Bfail,debug,finalsaplingroot.py
-Bfail,debug,txindex.py
 Bfail,debug,wallet_shieldcoinbase_sapling.py
 Bfail,debug,wallet_protectcoinbase.py
-Bfail,debug,wallet_nullifiers.py
 Bfail,debug,zkey_import_export.py
 Bfail,retired,prioritisetransaction.py
 Bfail,retired,wallet_treestate.py
@@ -91,3 +92,5 @@ Efail,fail,pruning.py
 Efail,fail,smartfees.py
 Efail,fail,invalidblockrequest.py
 Efail,fail,p2p-acceptblock.py
+Efail,fail,forknotify.py
+Efail,fail,hardforkdetection.py

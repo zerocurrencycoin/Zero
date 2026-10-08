@@ -7,7 +7,6 @@
 #   ./contrib/stats/decode_coinbase.py --heights 412300,800000,2400000
 #   ./contrib/stats/decode_coinbase.py --start 2471200 --count 200 --summary
 
-from __future__ import print_function
 
 import argparse
 import json

@@ -1,4 +1,4 @@
-// Copyright (c) 2026 The Zero developers
+// Copyright 2026 Zero Developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://www.opensource.org/licenses/mit-license.php.
 
@@ -155,6 +155,33 @@ BOOST_AUTO_TEST_CASE(reindex_db_flag_insight_txindex)
     BOOST_CHECK(db.WriteFlag("txindex", true));
     BOOST_CHECK(db.ReadFlag("txindex", fVal));
     BOOST_CHECK(fVal);
+}
+
+/** UpdateFlag treats a missing flag as false and reads each flag on its own:
+ *  a stored true under one name does not carry into a missing one. */
+BOOST_AUTO_TEST_CASE(reindex_db_flag_update)
+{
+    CBlockTreeDB db(1 << 20, /*fMemory=*/true);
+    bool fStored = true;
+
+    BOOST_CHECK(!db.UpdateFlag("zindex", false, fStored));
+    BOOST_CHECK(!fStored);
+    bool fVal = true;
+    BOOST_CHECK(!db.ReadFlag("zindex", fVal));
+
+    BOOST_CHECK(db.UpdateFlag("insightexplorer", true, fStored));
+    BOOST_CHECK(!fStored);
+    BOOST_CHECK(!db.UpdateFlag("insightexplorer", true, fStored));
+    BOOST_CHECK(fStored);
+    BOOST_CHECK(!db.UpdateFlag("prunedblockfiles", false, fStored));
+    BOOST_CHECK(!fStored);
+
+    BOOST_CHECK(db.UpdateFlag("txindex", true, fStored));
+    BOOST_CHECK(!fStored);
+    BOOST_CHECK(db.UpdateFlag("txindex", false, fStored));
+    BOOST_CHECK(fStored);
+    BOOST_CHECK(db.ReadFlag("txindex", fVal));
+    BOOST_CHECK(!fVal);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

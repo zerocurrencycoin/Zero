@@ -10,9 +10,8 @@ minimum supported Linux distribution versions.
 
 Example usage:
 
-    python contrib/devtools/symbol-check.py src/zerod src/zero-cli src/zero-tx
+    python3 contrib/devtools/symbol-check.py src/zerod src/zero-cli src/zero-tx
 '''
-from __future__ import division, print_function
 import subprocess
 import re
 import sys

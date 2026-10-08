@@ -28,6 +28,13 @@ inline int ZeronodeCountWithMargin(int64_t n) { return (int)(n * 5 / 4); }
     (the former double expression), computed in quarters with integer division. */
 inline int ZeronodePaymentWindowStart(int nHeight, int nEnabled) { return (int)((4 * (int64_t)nHeight - 5 * (int64_t)nEnabled) / 4); }
 
+/** Mainnet default P2P port, the only port a mainnet zeronode may use. */
+int ZeronodeMainnetPort();
+
+/** Whether a zeronode may announce nPort: on mainnet only ZeronodeMainnetPort(); on testnet and
+    regtest any port except it. The network comes from -testnet and -regtest. */
+bool IsValidZeronodePort(int nPort);
+
 /** Output value of the transaction that checks zeronode collateral acceptance: 9999.99 ZER. */
 static const CAmount ZERONODE_COLLATERAL_CHECK_VALUE = 999999 * COIN / 100;
 

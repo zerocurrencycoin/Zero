@@ -45,11 +45,35 @@ static CCriticalSection cs_getalldata_gate;
 static bool fGetAllDataInFlight = false;
 static int64_t nGetAllDataLastSuccess = 0;
 
+// Zerowallet 2.0.0 to 4.0.0 call getalldata with datatype 0, transactiontype 0, count 0, and a
+// watch-only flag, and show error -34 as a dialog. For that call pattern the gate returns the
+// previous result instead, while the chain tip and the number of wallet transactions are
+// unchanged, so the copy equals what the call would compute; when either changed, the call runs.
+// Other callers keep -34.
+static UniValue legacyGetAllDataResult;
+static bool fLegacyGetAllDataResult = false;
+static bool fLegacyGetAllDataWatchonly = false;
+static uint256 legacyGetAllDataTip;
+static size_t nLegacyGetAllDataTxCount = 0;
+static bool fLegacyGetAllDataLogged = false;
+
+/** True for the getalldata arguments Zerowallet 2.0.0 to 4.0.0 send: 0 0 0 <watchonly>. */
+static bool IsLegacyGetAllDataCall(const UniValue& params)
+{
+    return params.size() == 4 &&
+           params[0].isNum() && params[0].get_int() == 0 &&
+           params[1].isNum() && params[1].get_int() == 0 &&
+           params[2].isNum() && params[2].get_int() == 0 &&
+           params[3].isBool();
+}
+
 void ResetRpcDataContinueState()
 {
     LOCK(cs_getalldata_gate);
     fGetAllDataInFlight = false;
     nGetAllDataLastSuccess = 0;
+    legacyGetAllDataResult = UniValue();
+    fLegacyGetAllDataResult = false;
 }
 
 /** Test hook: hold the in-flight flag; the next getalldata then hits the coalesce gate. */
@@ -59,27 +83,46 @@ void SetGetAllDataInFlightForTest(bool inFlight)
     fGetAllDataInFlight = inFlight;
 }
 
-/** Acquire getalldata gate or throw RPC_DATA_CONTINUE. RAII clears in-flight. */
+/** Acquire getalldata gate, serve the legacy cached result, or throw RPC_DATA_CONTINUE.
+    RAII clears in-flight. tip and nTxCount describe the wallet state before the call. */
 class CGetAllDataInFlightGuard
 {
     bool fActive;
+    bool fServeCached;
+    UniValue cached;
 public:
-    CGetAllDataInFlightGuard() : fActive(false)
+    CGetAllDataInFlightGuard(bool fLegacy, bool fWatchonly, const uint256& tip, size_t nTxCount)
+        : fActive(false), fServeCached(false)
     {
         LOCK(cs_getalldata_gate);
-        if (fGetAllDataInFlight) {
-            throw JSONRPCError(RPC_DATA_CONTINUE, "rpc_data_continue");
-        }
-        const int64_t minInterval = GetArg("-rpcdatacontinue", DEFAULT_RPC_DATA_CONTINUE);
-        if (minInterval > 0 && nGetAllDataLastSuccess > 0) {
-            const int64_t age = GetTime() - nGetAllDataLastSuccess;
-            if (age >= 0 && age < minInterval) {
-                throw JSONRPCError(RPC_DATA_CONTINUE, "rpc_data_continue");
+        const bool fUnchanged = fLegacy && fLegacyGetAllDataResult &&
+                                fLegacyGetAllDataWatchonly == fWatchonly &&
+                                legacyGetAllDataTip == tip && nLegacyGetAllDataTxCount == nTxCount;
+        bool fGated = fGetAllDataInFlight;
+        if (!fGated) {
+            const int64_t minInterval = GetArg("-rpcdatacontinue", DEFAULT_RPC_DATA_CONTINUE);
+            if (minInterval > 0 && nGetAllDataLastSuccess > 0) {
+                const int64_t age = GetTime() - nGetAllDataLastSuccess;
+                // A legacy caller whose data changed runs despite the time gate.
+                fGated = age >= 0 && age < minInterval && !(fLegacy && !fUnchanged);
             }
+        }
+        if (fGated) {
+            if (!fUnchanged)
+                throw JSONRPCError(RPC_DATA_CONTINUE, "rpc_data_continue");
+            if (!fLegacyGetAllDataLogged) {
+                LogPrintf("getalldata: Zerowallet 2.0.0-4.0.0 call pattern (0 0 0); unchanged results are served from the previous call instead of error -34; upgrade Zerowallet\n");
+                fLegacyGetAllDataLogged = true;
+            }
+            cached = legacyGetAllDataResult;
+            fServeCached = true;
+            return;
         }
         fGetAllDataInFlight = true;
         fActive = true;
     }
+    bool ServeCached() const { return fServeCached; }
+    const UniValue& Cached() const { return cached; }
     ~CGetAllDataInFlightGuard()
     {
         if (!fActive)
@@ -93,6 +136,16 @@ static void MarkGetAllDataSuccess()
 {
     LOCK(cs_getalldata_gate);
     nGetAllDataLastSuccess = GetTime();
+}
+
+static void StoreLegacyGetAllDataResult(const UniValue& result, bool fWatchonly, const uint256& tip, size_t nTxCount)
+{
+    LOCK(cs_getalldata_gate);
+    legacyGetAllDataResult = result;
+    fLegacyGetAllDataResult = true;
+    fLegacyGetAllDataWatchonly = fWatchonly;
+    legacyGetAllDataTip = tip;
+    nLegacyGetAllDataTxCount = nTxCount;
 }
 
 
@@ -2069,15 +2122,29 @@ UniValue getalldata(const UniValue& params, bool fHelp)
             + HelpExampleRpc("getalldata", "0")
         );
 
-    // Before wallet locks / walks: in-flight or recent success -> soft continue
-    CGetAllDataInFlightGuard inFlightGuard;
-
-    LOCK(cs_main);
-
     bool fIncludeWatchonly = false;
     if (params.size() == 4) {
         fIncludeWatchonly = params[3].get_bool();
     }
+
+    // Wallet state before the call; read before the gate lock to keep the lock order
+    // cs_main, cs_wallet, then cs_getalldata_gate.
+    const bool fLegacyClient = IsLegacyGetAllDataCall(params);
+    uint256 stateTip;
+    size_t nStateTxCount = 0;
+    if (fLegacyClient && pwalletMain) {
+        LOCK2(cs_main, pwalletMain->cs_wallet);
+        if (chainActive.Tip())
+            stateTip = chainActive.Tip()->GetBlockHash();
+        nStateTxCount = pwalletMain->mapWallet.size();
+    }
+
+    // Before wallet locks / walks: in-flight or recent success -> soft continue
+    CGetAllDataInFlightGuard inFlightGuard(fLegacyClient, fIncludeWatchonly, stateTip, nStateTxCount);
+    if (inFlightGuard.ServeCached())
+        return inFlightGuard.Cached();
+
+    LOCK(cs_main);
 
     UniValue returnObj(UniValue::VOBJ);
     int connectionCount = 0;
@@ -2387,8 +2454,7 @@ UniValue getalldata(const UniValue& params, bool fHelp)
     UniValue trans(UniValue::VARR);
     UniValue transTime(UniValue::VARR);
 
-    // Count is arg 3; allow 3- or 4-arg forms (Zerowallet sends 4 with watchonly).
-    // Previously `params.size() == 3` only, so `{0,0,0,true}` ignored count and kept 200.
+    // Count is arg 3; accept 3- and 4-arg forms (Zerowallet sends 4 with watchonly).
     if (params.size() >= 3) {
       nCount = params[2].get_int();
       if (nCount <= 0)
@@ -2572,6 +2638,8 @@ UniValue getalldata(const UniValue& params, bool fHelp)
 
     returnObj.push_back(Pair("listtransactions", trans));
     MarkGetAllDataSuccess();
+    if (fLegacyClient)
+        StoreLegacyGetAllDataResult(returnObj, fIncludeWatchonly, stateTip, nStateTxCount);
     return returnObj;
 }
 

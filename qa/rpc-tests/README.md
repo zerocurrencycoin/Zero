@@ -24,7 +24,7 @@ Examples:
 ./qa/pull-tester/rpc-tests.sh rpcbind_test
 ./qa/pull-tester/rpc-tests.sh getchaintips
 ./qa/pull-tester/rpc-tests.sh wallet_changeaddresses   # Bfail Debug (clean chain + mature coinbase)
-./qa/pull-tester/rpc-tests.sh txindex                  # Bfail Debug (pure -txindex; see TEST_ZERO)
+./qa/pull-tester/rpc-tests.sh txindex                  # Tier B pass
 ./qa/pull-tester/rpc-tests.sh addressindex             # Tier B pass (insight)
 ```
 
@@ -43,7 +43,7 @@ Add `--nocleanup` to keep the temp datadir after a standalone run.
 
 See `TEST_ZERO.md`. Script names are authoritative in `qa/pull-tester/rpc-tests.sh` arrays only.
 
-Tier lists: `qa/pull-tester/rpc-tests.sh` arrays (export with **`-list-csv`**); named lists: **TEST_ZERO.md** §3.
+Tier lists: `qa/pull-tester/rpc-tests.sh` arrays, exported to `test_tier_inventory.csv` with **`-list-csv`**; blockers of held scripts: **TEST_ZERO.md** section 5.
 
 - `qa/pull-tester/rpc-tests.sh -A` -- Tier A gate
 - `qa/pull-tester/rpc-tests.sh -B` -- Tier B pass

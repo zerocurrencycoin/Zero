@@ -9,7 +9,7 @@ Build guide for the Zero full node binary `zerod`.
 
 ## 1. Introduction
 
-Build `zerod` from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). **Tested:** Ubuntu 24.04, macOS 26.3 (Darwin 25.3). **Runtime rule of thumb:** the **build OS** sets the binary's glibc/libstdc++ floor -- deploy on that OS class or newer. Maintainer ABI / multi-Ubuntu notes stay in internal docs until a public minimum-OS decision ships with a release. The tree uses Autotools with **`depends/`** for deterministic dependency builds.
+Build `zerod` from source on Linux, macOS ARM64, or Windows (cross-compile from Linux). **Tested:** Ubuntu 24.04, macOS 26.3 (Darwin 25.3). **Runtime rule of thumb:** the **build OS** sets the binary's glibc/libstdc++ floor -- deploy on that OS class or newer. The tree uses Autotools with **`depends/`** for deterministic dependency builds.
 
 ### 1.1 System requirements
 
@@ -202,20 +202,20 @@ Tag `vMAJOR.MINOR.PATCH` from the release line after a clean build and contribut
 **Build and test.** Build per section 2. Confirm the machine with `zcutil/check-setup.sh` and identity with `zcutil/check-release.sh --exact` when tagging (clean tree; HEAD must equal `--release`, default **v4.1.0-rc1**; the version `configure.ac` produces and `zerod -version` must match it). Then `zcutil/build-release.sh` if you still need a compile, and:
 
 ```bash
-./contrib/run-tests.sh --strict
+./contrib/run-tests.sh --all
 ```
 
-Or `./contrib/run-tests.sh --strict` if a receipt already exists. Logs: `.build/test-logs/`. Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`.
+The runner exits 0 and prints WARNING when a step fails unless `--strict` is given; read its summary. Logs: `.build/test-logs/`. Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`.
 
 **Package.** Run the packaging script for each shipped platform (section 2.5). `contrib/devtools/split-debug.sh` exists for separate debuginfo but is not wired in.
 
-**Checksum and sign.** Do this during release prep (same sitting as tag + package), not after the GitHub Release is published. Unsigned CI artifacts are not releases. Sign macOS and Windows binaries with the packaging script options, collect all archives in one `artifacts/` directory, run `./zcutil/checksums.sh`, then sign the sums file: `gpg --armor --detach-sign artifacts/SHA256SUMS`. Publish the archives, `SHA256SUMS`, and `SHA256SUMS.asc` together. RC recording (present vs explicitly missing): [TEST_ZERO.md](TEST_ZERO.md) section 8.
+**Checksum and sign.** Do this during release prep (same sitting as tag + package), not after the GitHub Release is published. Unsigned CI artifacts are not releases. Sign macOS and Windows binaries with the packaging script options, collect all archives in one `artifacts/` directory, run `./zcutil/checksums.sh`, then sign `SHA256SUMS` with the method chosen for the release (undecided). Publish the archives, `SHA256SUMS`, and its signature together. RC recording (present vs explicitly missing): [TEST_ZERO.md](TEST_ZERO.md) section 8.
 
 **Verify a download.** In the download directory:
 
 | Platform | Commands |
 |----------|----------|
-| Linux | `sha256sum --ignore-missing -c SHA256SUMS` and `gpg --verify SHA256SUMS.asc SHA256SUMS` |
+| Linux | `sha256sum --ignore-missing -c SHA256SUMS` |
 | macOS | `shasum -a 256 --ignore-missing -c SHA256SUMS`; after unzipping, `codesign --verify --strict zerod` and `spctl --assess --type execute -v zerod` |
 | Windows (PowerShell) | `Get-FileHash -Algorithm SHA256 win-zero-v<ver>.zip` and compare with the line in `SHA256SUMS`; `signtool verify /pa zerod.exe` (Windows SDK) |
 
@@ -264,7 +264,26 @@ echo server=1 > C:\Users\Alice\AppData\Roaming\zero\zero.conf
 .\src\zerod.exe -daemon
 ```
 
-### 3.2 Files
+### 3.2 Configuration file
+
+`zerod` starts only when `zero.conf` exists in the data directory; an empty file is valid. `contrib/zero.conf` is the commented example: every line is commented out and shows the built-in default, grouped by network, RPC server, wallet, indexes, performance, mining, zeronode, notifications, and logging. Copy it, then uncomment only the lines to change. A comment after a value on the same line is ignored. Command-line options override the file. `reindex=` never belongs in the file: run `zerod -reindex` once instead.
+
+`contrib/zero-conf.sh` writes a ready-made file for one role from `contrib/conf-templates/` and fills in RPC credentials:
+
+| Template | Role | RPC port |
+|----------|------|----------|
+| `prod` (default) | Node with wallet RPC, no mining | 23811 |
+| `lab` | Isolated scratch node, no peers | 23941 |
+| `zerowallet` | The file Zerowallet generates | 23811 |
+| `insight` | Explorer node: indexes, ZMQ, no wallet | 23811 |
+
+```bash
+./contrib/zero-conf.sh prod -dir ~/.zero
+```
+
+`zero-conf.sh --help` lists the options. Without `rpcuser` and `rpcpassword`, `zero-cli` authenticates with the `.cookie` file in the data directory.
+
+### 3.3 Files
 
 See [doc/files.md](doc/files.md) for details.
 
@@ -284,7 +303,7 @@ See [doc/files.md](doc/files.md) for details.
 | wallet.zero | Wallet (BDB) |
 | .cookie | RPC auth cookie |
 
-### 3.3 Size Estimates
+### 3.4 Size Estimates
 
 | Component | Approx. size |
 |-----------|--------------|
@@ -294,9 +313,9 @@ See [doc/files.md](doc/files.md) for details.
 
 **Sync time:** ~6-10 hours for full chain (varies by network and disk).
 
-### 3.4 Zcash Params
+### 3.5 Zcash Params
 
-**System setup**, not the build/validate cycle. Run `./zcutil/fetch-params.sh` once per machine before first `zerod` start. Zero fetches Sapling params only (~800 MB). Sprout params are not used. Source: `https://download.z.cash/downloads`. If present and checksum-valid, no download occurs.
+**System setup**, not the build/validate cycle. Run `./zcutil/fetch-params.sh` once per machine before first `zerod` start. `zerod` needs three files in the params directory: `sapling-spend.params` (48 MB), `sapling-output.params` (3.6 MB), and `sprout-groth16.params` (726 MB, the Groth16 parameters that verify Sprout transactions). The pre-Sapling `sprout-proving.key` and `sprout-verifying.key` are not used and are not fetched. Source: `https://download.z.cash/downloads`. The script keeps a file that exists with the expected size; a file of any other size (an interrupted copy or a saved error page) moves to `<name>.bad` and downloads again. A download arrives in two parts, is joined, and moves into place only when its SHA-256 matches. `zerod` checks existence and size at startup and stops with a message naming the file, then verifies BLAKE2b hashes while loading. Release packages install the script as `zero-fetch-params`; it needs no other file.
 
 **Params mirror:** still planned.
 
@@ -514,7 +533,7 @@ Or run **`./zcutil/build.sh`**, which does this automatically. Do **not** use **
 
 **Mutex crash (macOS):** `rm -rf "$HOME/Library/Application Support/zero/database"` and restart.
 
-**`-bind_at_load` linker warning (macOS):** Manual **`make`** or **`make check-symbols`** without **`MACOSX_DEPLOYMENT_TARGET`** can print **`ld: warning: -bind_at_load is deprecated on macOS`**. GNU libtool adds the flag when the env var is unset (defaults to **`10.0`**). **`./zcutil/build.sh`** exports **`MACOSX_DEPLOYMENT_TARGET=15.0`**; for manual builds run **`export MACOSX_DEPLOYMENT_TARGET=15.0`** first. Build still succeeds; warning is cosmetic. Permanent Makefile/configure export: postponed (OPS-MACOS-DEPLOY-TARGET).
+**`-bind_at_load` linker warning (macOS):** Manual **`make`** or **`make check-symbols`** without **`MACOSX_DEPLOYMENT_TARGET`** can print **`ld: warning: -bind_at_load is deprecated on macOS`**. GNU libtool adds the flag when the env var is unset (defaults to **`10.0`**). **`./zcutil/build.sh`** exports **`MACOSX_DEPLOYMENT_TARGET=15.0`**; for manual builds run **`export MACOSX_DEPLOYMENT_TARGET=15.0`** first. Build still succeeds; warning is cosmetic.
 
 ### 6.3 Boost / GCC
 
