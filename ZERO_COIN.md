@@ -227,11 +227,8 @@ Replace **`USERNAME`** with your OS login.
 | **macOS** | `~/Library/Application Support/zero` | `~/Library/Application Support/ZcashParams` |
 | **Windows** | `C:\Users\USERNAME\AppData\Roaming\zero` | `C:\Users\USERNAME\AppData\Roaming\ZcashParams` |
 
-- **New addresses:** `getnewaddress` (transparent), `z_getnewaddress sapling` (shielded); list: `getaddressesbyaccount ""`, `z_listaddresses`.
+- **New addresses:** `getnewaddress` (transparent), `z_getnewaddress sapling` (shielded); list: `listreceivedbyaddress 0 true`, `z_listaddresses`.
 
-### Block explorer
-
-Mainnet: [https://insight.zeromachine.io/](https://insight.zeromachine.io/) -- public transparent address / block / transaction search.
 ---
 
 ## Security

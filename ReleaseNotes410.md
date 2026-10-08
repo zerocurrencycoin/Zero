@@ -73,7 +73,3 @@ Zero **v4.1.0** full node (`zerod`, `zero-cli`, `zero-tx`): improvement, bug-fix
 ### Verify download
 
 - See BUILD_ZERO, "Verify a download".
-
-### Known limitations
-
-- Platform signatures: BUILD_ZERO, "Verify a download", lists which archives are signed.

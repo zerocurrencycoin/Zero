@@ -193,13 +193,11 @@ Default builds are **not** stripped. The packaging scripts strip the staged copi
 
 ### 2.6 Release lifecycle
 
-**Version bump.** `configure.ac` (`_CLIENT_VERSION_*`), `src/config/bitcoin-config.h`, `src/clientversion.h`. After bump: build per section 2, run contributor gate, confirm `zerod -version`.
+Steps in order, all at the release commit on the release branch. `git status --short` prints nothing before each tag. What must pass on each platform: [TEST_ZERO.md section 8.1](TEST_ZERO.md#81-platform-matrix).
 
-**Git.**
+**Version.** `_CLIENT_VERSION_*` in `configure.ac`. `_CLIENT_VERSION_BUILD` names the release: 0-24 give `-betaN` (N = build + 1), 25-49 give `-rcN` (N = build - 24), 50 the release, above 50 `-N` (N = build - 50). After a version change, rebuild and regenerate the man pages with `./contrib/devtools/gen-manpages.sh`.
 
-Tag `vMAJOR.MINOR.PATCH` from the release line after a clean build and contributor gate. Archives: `Zero-<ver>-<target>-<triplet>.<ext>`.
-
-**Build and test.** Build per section 2. Confirm the machine with `zcutil/check-setup.sh` and identity with `zcutil/check-release.sh --exact` when tagging (clean tree; HEAD must equal `--release`, default **v4.1.0-rc1**; the version `configure.ac` produces and `zerod -version` must match it). Then `zcutil/build-release.sh` if you still need a compile, and:
+**Build and test.** Confirm the machine with `./zcutil/check-setup.sh`, build per section 2, then:
 
 ```bash
 ./contrib/run-tests.sh --all
@@ -207,9 +205,25 @@ Tag `vMAJOR.MINOR.PATCH` from the release line after a clean build and contribut
 
 The runner exits 0 and prints WARNING when a step fails unless `--strict` is given; read its summary. Logs: `.build/test-logs/`. Quick smoke (C++ only): `./contrib/run-tests.sh --no-python --strict`.
 
-**Package.** Run the packaging script for each shipped platform (section 2.5). `contrib/devtools/split-debug.sh` exists for separate debuginfo but is not wired in.
+**Tag.** `check-release.sh` must print READY on every line; `--expect HEAD` before the tag, `--exact` after it:
 
-**Checksum and sign.** Do this during release prep (same sitting as tag + package), not after the GitHub Release is published. Unsigned CI artifacts are not releases. Sign macOS and Windows binaries with the packaging script options, collect all archives in one `artifacts/` directory, run `./zcutil/checksums.sh`, then sign `SHA256SUMS` with the method chosen for the release (undecided). Publish the archives, `SHA256SUMS`, and its signature together. RC recording (present vs explicitly missing): [TEST_ZERO.md](TEST_ZERO.md) section 8.
+```bash
+./zcutil/check-release.sh --release vX.Y.Z-rcN --expect HEAD --levels=tree,configure,build
+git tag -a vX.Y.Z-rcN -m "Zero vX.Y.Z-rcN"
+./zcutil/check-release.sh --release vX.Y.Z-rcN --exact --levels=tree,configure,build
+git push origin <release branch> vX.Y.Z-rcN
+```
+
+**Package.** At the tag, run the packaging script for each platform (section 2.5): `./zcutil/release-macos.sh` on macOS; on the Linux build host `./zcutil/build.sh` and `./zcutil/release-linux.sh`, then `./zcutil/build.sh -win` and `./zcutil/release-win.sh`. `contrib/devtools/split-debug.sh` exists for separate debuginfo but is not wired in.
+
+**Checksum and sign.** In the same sitting as tag and package, before the GitHub Release. Unsigned CI artifacts are not releases. Sign macOS and Windows binaries with the packaging script options, collect all archives in one `artifacts/` directory, run `./zcutil/checksums.sh` and `./zcutil/checksums.sh --verify`, then sign `SHA256SUMS` with the method chosen for the release. Publish the archives, `SHA256SUMS`, and its signature together.
+
+**Publish.** The release body is section 3 of the release notes:
+
+```bash
+sed -n '/^## 3. Release body/,$p' ReleaseNotesNNN.md > .build/release-body.md
+gh release create vX.Y.Z artifacts/* --title "Zero vX.Y.Z" --notes-file .build/release-body.md
+```
 
 **Verify a download.** In the download directory:
 
@@ -523,13 +537,13 @@ BDB **6.2.32** (depends). Used for wallet storage. Wallet-enabled builds require
 ```bash
 HOST=$(./depends/config.guess)
 ls depends/$HOST/include/db_cxx.h depends/$HOST/lib/libdb_cxx*   # must exist
-CONFIG_SITE=$PWD/depends/$HOST/share/config.site \
-  ./configure --prefix=$PWD/depends/$HOST --host="$HOST" --disable-proton CXXFLAGS='-g'
 ```
+
+then rerun `./configure` with `CONFIG_SITE` as in section 4.2.
 
 Or run **`./zcutil/build.sh`**, which does this automatically. Do **not** use **`--disable-wallet`** unless you intentionally want a wallet-less daemon.
 
-**Not found after depends build:** `ls depends/$HOST/lib/libdb*`. If **`depends/$HOST/share/config.site`** is missing, rebuild depends: **`make -C depends NO_PROTON=1 HOST=$HOST`**.
+**Not found after depends build:** `ls depends/$HOST/lib/libdb*`. If **`depends/$HOST/share/config.site`** is missing, rebuild depends as in section 4.2.
 
 **Mutex crash (macOS):** `rm -rf "$HOME/Library/Application Support/zero/database"` and restart.
 

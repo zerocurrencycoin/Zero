@@ -189,12 +189,12 @@ Receipts live in gitignored **`.build/`**. Scratch chain data stays outside the 
 | `./contrib/run-tests.sh --all` (release test run: C++ gate filters, Tier A, B pass, Ext pass) | **Run on the release commit** | **Run on the release commit** | Not run; no Windows runner |
 | `--suite` (ELF `check-security` / `no-dot-so`, full `rpcbind`) | **N/A** -- Darwin skips ELF stages | Optional; adds the ELF checks | N/A for PE |
 | Packaging | N/A | `release-linux.sh` is not a test run | No signed installer |
-| Checksums / signatures | `zcutil/release-macos.sh` writes `SHA256SUMS`; signing needs a Developer ID (`--sign`, `--notarize`) | `zcutil/release-linux.sh` writes `SHA256SUMS`; signing method undecided | `zcutil/release-win.sh` writes `SHA256SUMS`; Authenticode with `--sign-pkcs12` |
+| Checksums / signatures | `SHA256SUMS`; Developer ID signature and notarization | `SHA256SUMS` and its signature | `SHA256SUMS`; Authenticode |
 | Isolated mining RPC (Tier B `getblocktemplate`) | Tier B exists in the harness; isolated mainnet template not recorded | Same | Not run |
 | **Live mining** (operator `gen=1` / `setgenerate` on mainnet) | **Optional observation** -- solver activity via `getmininginfo` / `debug.log`; not a found-block requirement | Same | Same |
 | Zerowallet | **Manual only** -- start or attach, watch addresses / History load, spinner, error dialogs. No automated UI. No send/receive, bulk, or mixed-type tx in this program | Same if used | Same if used |
 
-**RC bar:** macOS and Linux: `./contrib/run-tests.sh --all` on the release commit. Without `--strict` the runner exits 0 and prints WARNING when a step fails, so read its summary. Windows: first successful MXE build and one start of `zerod.exe`. **Signing:** `SHA256SUMS` on every shipped artifact; the platform signature method is undecided (BUILD_ZERO section 2.6). Record hashes and signatures as present or **explicitly missing**. Maintainer decides which OS gates are hard blocks. Darwin skips full `rpcbind`; run the RPC tiers serially (`--jobs>1` can hang `paymentdisclosure`).
+**RC bar** (the only release bar; steps in BUILD_ZERO section 2.6). macOS and Linux: `./contrib/run-tests.sh --all` on the release commit, its summary clean. Windows: first successful MXE build and one start of `zerod.exe`; without that start, Windows archives leave the release. On the release commit also: `./contrib/ops-validate.sh short`, `live` when a node runs on the operator datadir, and the Zerowallet visual check (section 8.4). **Signing:** `SHA256SUMS` on every shipped artifact. Record hashes and signatures as present or **explicitly missing**. Maintainer decides which OS gates are hard blocks. Darwin skips full `rpcbind`; run the RPC tiers serially (`--jobs>1` can hang `paymentdisclosure`).
 
 ### 8.2 Automating beyond the harness
 
@@ -243,7 +243,6 @@ Wallet ids: `p0` / `p1` / `fat` / `none` or `--wallet=PATH` (`wallets` lists pat
 
 P2P-CATCHUP is not in this menu. GBT is Tier B `getblocktemplate` (`-B` / `--all`).
 
-**RC bar:** layer 0 + `ops-validate.sh short` + `live` when SRC is up + checksums/signatures + wallet visual. `solveeq` is optional (default one long trial; pass N for repeats).
 
 ### 8.4 Zerowallet soak
 
@@ -260,7 +259,7 @@ Isolated tests in this tree (scratch LAB, not the operator datadir):
 - In-process CreateNewBlock: `./src/test/test_bitcoin -t miner_tests`
 - Daemon `generate` on **regtest (48,5)**: `ops-validate.sh mine`
 
-Operator CPU miner on **mainnet (192,7)** is `gen=1` / `setgenerate`. Template **prod** ships `gen=0`. Mainnet and testnet set `fMiningRequiresPeers`, so the miner waits until there are peers and the node is not in IBD. Coinbase needs a wallet or `-mineraddress`. `setgenerate` is the RPC for mainnet/testnet; on regtest use `generate` (that is what `mine` calls). One OptimisedSolve is on the order of a minute; finding a mainnet block at current difficulty is not expected. Watch `getmininginfo` (`generate`, `localsolps`) and `debug.log` (`Using Equihash solver`, `Running ZeroMiner`). `setgenerate false` turns it off.
+Operator CPU mining on **mainnet (192,7)**: README "Optional CPU mining". On regtest the harness uses `generate` (what `mine` calls).
 
 Tier B `getblocktemplate` is the pool/template claim (`-B` / `--all`).
 

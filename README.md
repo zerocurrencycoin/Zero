@@ -142,8 +142,9 @@ Automatic node deprecation (mainnet) is configured on a **~10 year** window from
 
 ### Quick start on Linux
 
+Install the packages listed in [BUILD_ZERO.md section 2.2](BUILD_ZERO.md#22-linux-x86_64), then:
+
 ```bash
-sudo apt install build-essential pkg-config libc6-dev m4 g++-multilib autoconf libtool ncurses-dev unzip git python3 python3-zmq zlib1g-dev wget bsdmainutils automake cmake curl
 git clone https://github.com/zerocurrencycoin/Zero.git && cd Zero
 ./zcutil/fetch-params.sh
 ./zcutil/build.sh
@@ -212,7 +213,7 @@ With `server=1` and RPC credentials in `zero.conf`:
 
 ### Optional CPU mining
 
-Template **prod** ships `gen=0`. Isolated tests (`ops-validate.sh mine`, Boost `miner_tests`) are **regtest (48,5)** and do not mine the live chain. Mainnet CPU mining is Equihash **(192,7)** on a synced node with peers, a wallet or `-mineraddress`, and `ENABLE_MINING`.
+Template **prod** ships `gen=0`. The mining tests (TEST_ZERO section 8.5) run on **regtest (48,5)** and do not mine the live chain. Mainnet CPU mining is Equihash **(192,7)** on a synced node with peers, a wallet or `-mineraddress`, and `ENABLE_MINING`.
 
 Without restart, on the operator node:
 
@@ -222,7 +223,7 @@ Without restart, on the operator node:
 ./src/zero-cli setgenerate false
 ```
 
-`getmininginfo` should show `"generate": true` and a non-zero `localsolps` once the solver is running. `debug.log` should contain `Using Equihash solver` and `Running ZeroMiner`. The miner waits if there are no peers or the node is still in initial block download. Finding a mainnet block at current difficulty is not expected.
+`getmininginfo` should show `"generate": true` and a non-zero `localsolps` once the solver is running. `debug.log` should contain `Using Equihash solver` and `Running ZeroMiner`. The miner waits if there are no peers or the node is still in initial block download. One solve takes on the order of a minute; finding a mainnet block at current difficulty is not expected.
 
 To persist across restart, set `gen=1` and `genproclimit=1` in `zero.conf` (already present as `gen=0` / `genproclimit=1` / `equihashsolver=tromp` in the prod template). Use `setgenerate false` or `gen=0` to stop.
 

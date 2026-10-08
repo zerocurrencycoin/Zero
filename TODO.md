@@ -22,10 +22,10 @@ Open follow-ups for the Zero full node (`zerod`).
 
 ## Ordered next
 
-1. **Linux build** -- Build, run `./contrib/run-tests.sh --all`, and package with `./zcutil/release-linux.sh` on the Ubuntu 24.04 build host at the release commit.
-2. **Windows build** -- Build with MXE (`./zcutil/build.sh -win`), package with `./zcutil/release-win.sh` on the Linux build host, and start `zerod.exe` once on Windows; without that run, Windows archives leave v4.1.0.
+1. **Linux build** -- Build, test, and package at the release commit on the Ubuntu 24.04 build host.
+2. **Windows build** -- Cross-build and package at the release commit on the Linux build host, then start `zerod.exe` once on Windows.
 3. **Release signing** -- Decide checksums and signing per platform; method in progress.
-4. **Release tags** -- Tag the release candidate and the release; merge into `master`.
+4. **Release tags** -- Tag the release candidate and the release on `zero-410`; merge into `master`.
 
 ---
 
@@ -33,7 +33,7 @@ Open follow-ups for the Zero full node (`zerod`).
 
 - **RPC dispositions** -- Decide the Sprout RPCs and record test depth per RPC from the harness in `doc/RPCs.csv`; the accounts RPCs stay deprecated until Zerowallet lists transparent addresses with `listreceivedbyaddress`.
 - **Zeronode validation** -- Pass `zeronode_coinbase.py` and `zeronode_startalias.py` at the release commit; after v4.1.0, in order: registration success path on regtest, reorg test, automated `chainActive` checks, mainnet payment scan, public operator section in BUILD_ZERO.
-- **Branch cleanup** -- Squash commits before the `master` merge; list each branch with its merge and tag status before deletion.
+- **Branch cleanup** -- Decide whether to squash commits before the `master` merge; deferred. List each branch with its merge and tag status before deletion.
 - **Comment rules** -- Adopt the documentation and comment rules into the contributor instruction file. Postponed: retitle maintainer-document items to these titles and retire their IDs.
 
 ---
