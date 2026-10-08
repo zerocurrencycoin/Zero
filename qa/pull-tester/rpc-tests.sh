@@ -73,7 +73,7 @@ testScripts=(
     'zkey_import_export.py'
     'reorg_limit.py'
     'getblocktemplate.py'
-    'founders_window.py'
+    'dev_fee_window.py'
     'zeronode_coinbase.py'
     'zeronode_startalias.py'
     'bip65-cltv-p2p.py'
@@ -108,18 +108,12 @@ testScriptsExt=(
     'hardforkdetection.py'
 );
 
-if [ "x$ENABLE_ZMQ" = "x1" ]; then
-  if [ -n "$PYTHON" ] && "$PYTHON" -c "import zmq" 2>/dev/null; then
-    testScripts+=('zmq_test.py')
-  fi
-fi
-
 if [ "x$ENABLE_PROTON" = "x1" ]; then
   testScripts+=('proton_test.py')
 fi
 
 # Tier A: contributor gate; fast scripts only. Slow wallet, rescan, doublespend, and
-# heavy-mining scripts belong in Tier B. Keep PYTHON_PASSING in contrib/run-tests.sh in sync.
+# heavy-mining scripts belong in Tier B. contrib/run-tests.sh reads Tier A from -list-csv.
 # These arrays are authoritative; export with -list-csv.
 testScriptsTierA=(
     'blockchain.py'
@@ -153,7 +147,7 @@ testScriptsTierBPass=(
     'nodehandling.py'
     'rescan_startup.py'
     'getblocktemplate.py'
-    'founders_window.py'
+    'dev_fee_window.py'
     'zeronode_coinbase.py'
     'zeronode_startalias.py'
     'p2p_txexpiry_dos.py'
@@ -173,8 +167,25 @@ testScriptsTierBPass=(
     'mempool_nu_activation.py'
     'mempool_tx_expiry.py'
     'wallet_nullifiers.py'
+    'zmq_test.py'
     'wallet_archive.py'
     'txindex.py'
+    'rawtransactions.py'
+    'fundrawtransaction.py'
+    'signrawtransaction_offline.py'
+    'regtest_signrawtransaction.py'
+    'key_import_export.py'
+    'mergetoaddress_sapling.py'
+    'wallet_shieldcoinbase_sapling.py'
+    'mergetoaddress_mixednotes.py'
+    'merkle_blocks.py'
+)
+
+# Large: zerod peak RSS 3 to 4 GiB and 1 to 4 minutes per script. Run with -L only;
+# not part of -all.
+testScriptsLarge=(
+    'zkey_import_export.py'
+    'wallet_protectcoinbase.py'
 )
 
 # Tier B fail: diagnostic only (-Bfail). Debug: needs porting work (maturity, comptool,
@@ -189,21 +200,9 @@ testScriptsTierBFailDebug=(
     'wallet_persistence.py'
     'wallet_sapling.py'
     'wallet_listnotes.py'
-    'mergetoaddress_sapling.py'
-    'mergetoaddress_mixednotes.py'
-    'rawtransactions.py'
-    'merkle_blocks.py'
-    'fundrawtransaction.py'
-    'signrawtransaction_offline.py'
-    'key_import_export.py'
     'bip65-cltv-p2p.py'
     'bipdersig-p2p.py'
-    'regtest_signrawtransaction.py'
     'finalsaplingroot.py'
-    # Multi-GB RSS shielded proving.
-    'wallet_shieldcoinbase_sapling.py'
-    'wallet_protectcoinbase.py'
-    'zkey_import_export.py'
 )
 
 testScriptsTierBFailRetired=(
@@ -249,6 +248,7 @@ testScriptsExtFail=(
 #   -list-csv [path]    Tier/group/script CSV to stdout or path; no tests run
 #   -E | --tier-e       Ext pass only
 #   -Efail              Ext fail only (diagnostic)
+#   -L | --large        Large scripts only (3 to 4 GiB RSS); not in -all
 #   -all                -A then -B then -E (pass tiers); contrib/run-tests.sh also accepts --all
 #   -rpcfail            -Bfail then -Efail (diagnostic)
 #   (no args)           same as -all (qa/zcash/full_test_suite.py rpc stage)
@@ -282,6 +282,14 @@ function runScriptEntry
     local script_file="${entry%% *}"
     local extra_args="${entry#"${script_file}"}"
     extra_args="${extra_args# }"
+    # zmq_test needs a ZMQ build and the Python zmq module (python3-zmq).
+    if [ "$script_file" = "zmq_test.py" ]; then
+        if [ "x$ENABLE_ZMQ" != "x1" ] || ! "${PYTHON:-python3}" -c "import zmq" 2>/dev/null; then
+            echo "--- Skipped: zmq_test.py (needs a ZMQ build and the Python zmq module) ---"
+            echo
+            return 0
+        fi
+    fi
     runTestScript \
         "$entry" \
         "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${script_file}" \
@@ -326,6 +334,7 @@ function dumpTierCsv
     for ent in "${testScriptsTierBFailRetired[@]}"; do echo "Bfail,retired,${ent}"; done
     for ent in "${testScriptsExtPass[@]}"; do echo "E,pass,${ent}"; done
     for ent in "${testScriptsExtFail[@]}"; do echo "Efail,fail,${ent}"; done
+    for ent in "${testScriptsLarge[@]}"; do echo "L,large,${ent}"; done
 }
 
 function runTierEPass
@@ -336,6 +345,11 @@ function runTierEPass
 function runTierEFail
 {
     runScriptArray testScriptsExtFail
+}
+
+function runTierLarge
+{
+    runScriptArray testScriptsLarge
 }
 
 function runTierAllPass
@@ -368,6 +382,7 @@ function runSingleByName
         testScriptsTierBFail
         testScriptsExtPass
         testScriptsExtFail
+        testScriptsLarge
         testScripts
         testScriptsExt
     )
@@ -420,6 +435,10 @@ if [ "x${ENABLE_BITCOIND}${ENABLE_UTILS}${ENABLE_WALLET}" = "x111" ]; then
         RPC_TIER=e
         shift
         passOn="$*"
+    elif [ "$1" = "-L" ] || [ "$1" = "--large" ]; then
+        RPC_TIER=large
+        shift
+        passOn="$*"
     elif [ "$1" = "-rpcfail" ]; then
         RPC_TIER=rpcfail
         shift
@@ -441,6 +460,7 @@ if [ "x${ENABLE_BITCOIND}${ENABLE_UTILS}${ENABLE_WALLET}" = "x111" ]; then
         bfail)    echo "=== RPC tier -Bfail (Tier B known fail) ===" ; runTierBFail ;;
         e)        echo "=== RPC tier -E (Ext pass) ===" ; runTierEPass ;;
         efail)    echo "=== RPC tier -Efail (Ext known fail) ===" ; runTierEFail ;;
+        large)    echo "=== RPC tier -L (large) ===" ; runTierLarge ;;
         all)      echo "=== RPC tier -all (-A -B -E pass) ===" ; runTierAllPass ;;
         rpcfail)  echo "=== RPC tier -rpcfail (-Bfail -Efail) ===" ; runTierAllFail ;;
         single)   runSingleByName "$single_name" || exit 1 ;;

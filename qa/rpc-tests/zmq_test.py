@@ -9,7 +9,7 @@
 
 
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, bytes_to_hex_str, start_nodes
+from test_framework.util import COINBASE_MATURITY, assert_equal, bytes_to_hex_str, start_nodes
 
 import zmq
 import struct
@@ -56,7 +56,7 @@ class ZMQTest(BitcoinTestFramework):
 
         assert_equal(genhashes[0], blkhash) #blockhash from generate must be equal to the hash received over zmq
 
-        n = 721
+        n = COINBASE_MATURITY + 1
         genhashes = self.nodes[1].generate(n)
         self.sync_all()
 

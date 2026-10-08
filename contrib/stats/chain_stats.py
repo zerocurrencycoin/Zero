@@ -257,7 +257,7 @@ def verify_tip(cli):
                 pool.get("id", "?"), pool.get("chainValue", 0)))
     expected = sum(subsidy_zat(h) for h in range(0, tip + 1))
     print("Model subsidy sum to tip: {} ZER".format(fmt_zer(expected)))
-    print("(On-chain total supply includes fees; compare with gettxoutsetinfo if txindex enabled)")
+    print("(On-chain supply: gettxoutsetinfo total_amount plus the shielded valuePools of getblockchaininfo)")
 
 
 def main():

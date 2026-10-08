@@ -46,7 +46,7 @@ class WalletShieldCoinbaseTest (BitcoinTestFramework):
         self.nodes[2].generate(1)
         self.nodes[2].generate(1)
         self.sync_all()
-        self.nodes[1].generate(721)
+        self.nodes[1].generate(COINBASE_MATURITY + 1)
         self.sync_all()
         assert_equal(self.nodes[0].getbalance(), 50)
         assert_equal(self.nodes[1].getbalance(), 10)
@@ -132,7 +132,7 @@ class WalletShieldCoinbaseTest (BitcoinTestFramework):
         self.sync_all()
         self.nodes[2].generate(20)
         self.sync_all()
-        self.nodes[1].generate(720)
+        self.nodes[1].generate(COINBASE_MATURITY)
         self.sync_all()
         mytaddr = get_coinbase_address(self.nodes[0], 800)
 

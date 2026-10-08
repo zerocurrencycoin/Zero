@@ -103,8 +103,10 @@ void CActiveZeronode::ManageStatus()
                 return;
             }
 
-            LOCK(g_zeronodeWallet->GetCS());
-            g_zeronodeWallet->LockCoin(vin.prevout);
+            {
+                LOCK(g_zeronodeWallet->GetCS());
+                g_zeronodeWallet->LockCoin(vin.prevout);
+            }
 
             // send to all nodes
             CPubKey pubKeyZeronode;
@@ -296,6 +298,8 @@ bool CActiveZeronode::GetZeroNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKe
 {
     // Find possible candidates
     if (!g_zeronodeWallet || !g_zeronodeWallet->IsAvailable()) return false;
+    // cs_main before cs_wallet, the node-wide order: AvailableCoins takes both.
+    LOCK(cs_main);
     TRY_LOCK(g_zeronodeWallet->GetCS(), fWallet);
     if (!fWallet) return false;
 

@@ -301,7 +301,7 @@ void CZeronodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFees
     CAmount zeronodePayment = GetZeronodePayment(nHeight, blockValue);
     CAmount minerValue = blockValue;
 
-    // Founders reward (7.5%, integer)
+    // Development fee (7.5%, integer), computed by the founders-reward code
     CAmount vFoundersReward = GetFoundersRewardAmount(blockValue);
 
     if(hasPayment){
@@ -314,7 +314,7 @@ void CZeronodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFees
         // Take some reward away from us
         txNew.vout[0].nValue -= vFoundersReward;
 
-        // And give it to the founders
+        // And pay it to the development fee address
         txFounders = CTxOut(vFoundersReward, Params().GetFoundersRewardScriptAtHeight(nHeight));
         txNew.vout.push_back(txFounders);
     }
@@ -330,7 +330,7 @@ void CZeronodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFees
           LogPrint("zeronode","Zeronode payment to %s\n", EncodeDestination(address1));
     }
     LogPrint("zeronode","Total miner to %s\n", FormatMoney(txNew.vout[0].nValue).c_str());
-    LogPrint("zeronode","Total founder to %s\n", FormatMoney(txFounders.nValue).c_str());
+    LogPrint("zeronode","Total development fee to %s\n", FormatMoney(txFounders.nValue).c_str());
     LogPrint("zeronode","Total zero node to %s\n", FormatMoney(txZeronodes.nValue).c_str());
     LogPrint("zeronode","Total Coinbase to %s\n", FormatMoney(txNew.vout[0].nValue+txFounders.nValue+txZeronodes.nValue).c_str());
 }

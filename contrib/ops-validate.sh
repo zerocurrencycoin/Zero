@@ -269,7 +269,7 @@ append_ledger() {
   mkdir -p "$(dirname "$LEDGER")"
   local zsha="missing"
   if [[ -x "$ZEROD" ]]; then
-    zsha="$(shasum -a 256 "$ZEROD" | awk '{print $1}')"
+    zsha="$(sha256_cmd "$ZEROD" | awk '{print $1}')"
   fi
   printf '{"ts":"%s","id":"%s","exit":%s,"head":"%s","zerod":"%s","lab":"%s","src":"%s","height":"%s","duration_s":%s}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" \
@@ -523,7 +523,7 @@ cmd_wallets() {
   for id in p0 p1 fat; do
     p="$(wallet_catalog_path "$id")"
     if [[ -f "$p" ]]; then
-      printf "%-6s  %-8s  %s\n" "$id" "$(stat -f%z "$p" 2>/dev/null || stat -c%s "$p")" "$p"
+      printf "%-6s  %-8s  %s\n" "$id" "$(file_size "$p")" "$p"
     else
       printf "%-6s  %-8s  %s\n" "$id" "MISSING" "$p"
     fi
@@ -592,7 +592,7 @@ prepare_snap_for_reindex() {
 inject_wallet() {
   [[ -f "$WALLET_FILE" ]] || { echo "ERROR: wallet file missing: $WALLET_FILE" >&2; exit 1; }
   cp -p "$WALLET_FILE" "$LAB/wallet.zero"
-  echo "injected wallet $WALLET_FILE -> $LAB/wallet.zero ($(stat -f%z "$WALLET_FILE" 2>/dev/null || stat -c%s "$WALLET_FILE") bytes)"
+  echo "injected wallet $WALLET_FILE -> $LAB/wallet.zero ($(file_size "$WALLET_FILE") bytes)"
 }
 
 wait_until_height() {

@@ -21,7 +21,7 @@ Usage: $ME [ -L | --log PATH ] [ --enable-lcov | --disable-tests ] [ --disable-m
   --enable-lcov   coverage instrumentation (default: off)
   --disable-tests omit test binaries (default: tests built)
   --disable-mining omit mining code (default: mining built)
-  --enable-proton Apache Qpid Proton AMQP (default: off)
+  --enable-proton Apache Qpid Proton AMQP (default: off; scheduled for removal)
 
   MAKEARGS: -jN optional; auto job count capped at FZERO_MAX_JOBS (see zcutil/fzero.sh, default 8; override with env)
 EOF

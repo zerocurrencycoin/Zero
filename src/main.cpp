@@ -89,6 +89,7 @@ int GetScriptCheckThreads(int nPar, int nCores)
 bool fExperimentalMode = false;
 bool fImporting = false;
 bool fReindex = false;
+// Always on; -txindex is not an option. Zeronode checks look up collateral transactions by txid.
 bool fTxIndex = true;
 bool fArchive = true;
 bool fZindex = false;
@@ -2201,6 +2202,7 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
     }
 }
 
+// Zero's development fee: 7.5% of the subsidy. The name follows the Zcash founders-reward code it reuses.
 CAmount GetFoundersRewardAmount(CAmount subsidy)
 {
     return subsidy * 75 / 1000;
@@ -5651,7 +5653,7 @@ bool LoadExternalBlockFile(const CChainParams& chainparams, FILE* fileIn, CDiskB
                     if (state.IsError())
                         break;
                 } else if (hash != chainparams.GetConsensus().hashGenesisBlock && mapBlockIndex[hash]->nHeight % 1000 == 0) {
-                    LogPrintf("Block Import: already had block %s at height %d\n", hash.ToString(), mapBlockIndex[hash]->nHeight);
+                    LogPrint("reindex", "Block Import: already had block %s at height %d\n", hash.ToString(), mapBlockIndex[hash]->nHeight);
                 }
 
                 // Recursively process earlier encountered successors of this block

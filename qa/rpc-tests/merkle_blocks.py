@@ -76,9 +76,7 @@ class MerkleBlockTest(BitcoinTestFramework):
         txid_spent = txin_spent["txid"]
         txid_unspent = txid1 if txin_spent["txid"] != txid1 else txid2
 
-        # We cant find the block from a fully-spent tx
-        assert_raises(JSONRPCException, self.nodes[2].gettxoutproof, [txid_spent])
-        # ...but we can if we specify the block
+        # Proof for a fully-spent tx with the block given
         assert_equal(self.nodes[2].verifytxoutproof(self.nodes[2].gettxoutproof([txid_spent], blockhash)), [txid_spent])
         # ...or if the first tx is not fully-spent
         assert_equal(self.nodes[2].verifytxoutproof(self.nodes[2].gettxoutproof([txid_unspent])), [txid_unspent])
@@ -86,7 +84,7 @@ class MerkleBlockTest(BitcoinTestFramework):
             assert_equal(self.nodes[2].verifytxoutproof(self.nodes[2].gettxoutproof([txid1, txid2])), txlist)
         except JSONRPCException:
             assert_equal(self.nodes[2].verifytxoutproof(self.nodes[2].gettxoutproof([txid2, txid1])), txlist)
-        # ...or if we have a -txindex
+        # ...and without the block, through the transaction index (always on in Zero)
         assert_equal(self.nodes[2].verifytxoutproof(self.nodes[3].gettxoutproof([txid_spent])), [txid_spent])
 
         # Quick test of getblock using blockhash and different levels of verbosity

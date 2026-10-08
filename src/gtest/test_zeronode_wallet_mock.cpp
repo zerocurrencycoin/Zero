@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include "primitives/transaction.h"
+#include "random.h"
 #include "uint256.h"
 #include "util.h"
 #include "zeronode/activezeronode.h"
@@ -218,3 +219,33 @@ TEST(ZeronodeWalletMock, SelectCoinsCallsAvailableCoins)
     ASSERT_FALSE(mock.calls.empty());
     EXPECT_EQ(mock.calls.back(), "AvailableCoins");
 }
+
+#ifdef ENABLE_WALLET
+// The real interface keeps request counts in the wallet's mapRequestCount
+// under cs_wallet.
+TEST(ZeronodeWalletInterface, RequestCountUsesWallet)
+{
+    CWallet wallet;
+    CWallet* prev = pwalletMain;
+    pwalletMain = &wallet;
+    CZeronodeWalletInterface iface;
+    uint256 h = GetRandHash();
+
+    EXPECT_EQ(0, iface.GetRequestCount(h));
+    iface.IncrementRequestCount(h);
+    EXPECT_EQ(1, iface.GetRequestCount(h));
+    iface.IncrementRequestCount(h);
+    EXPECT_EQ(2, iface.GetRequestCount(h));
+    {
+        LOCK(wallet.cs_wallet);
+        EXPECT_EQ(2, wallet.mapRequestCount[h]);
+    }
+
+    pwalletMain = prev;
+    if (!prev) {
+        // Without a wallet the interface reports no requests.
+        EXPECT_EQ(0, iface.GetRequestCount(h));
+    }
+}
+#endif
+

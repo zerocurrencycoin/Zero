@@ -11,15 +11,15 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
     connect_nodes_bi,
-    founders_share,
+    dev_fee_share,
     initialize_chain_clean,
     mine_to_height,
     miner_share,
-    REGTEST_FOUNDERS_START,
+    REGTEST_DEV_FEE_START,
     start_nodes,
 )
 
-REGTEST_FOUNDERS_ADDR = "t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg"
+REGTEST_DEV_FEE_ADDR = "t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg"
 
 
 class ZeronodeCoinbaseTest(BitcoinTestFramework):
@@ -47,14 +47,14 @@ class ZeronodeCoinbaseTest(BitcoinTestFramework):
         # Unsigned update: regtest strSporkKey has no matching wallet key.
         assert_equal(node.spork('SPORK_7_ZERONODE_PAYMENT_ENABLED', 0), 'failure')
 
-        mine_to_height(node, self.nodes, REGTEST_FOUNDERS_START)
-        cb = node.getblock(node.getblockhash(REGTEST_FOUNDERS_START), 2)['tx'][0]
-        # Sporks off: miner + founders only; no zeronode vout.
+        mine_to_height(node, self.nodes, REGTEST_DEV_FEE_START)
+        cb = node.getblock(node.getblockhash(REGTEST_DEV_FEE_START), 2)['tx'][0]
+        # Sporks off: miner and development fee only; no zeronode output.
         assert_equal(len(cb['vout']), 2)
-        assert_equal(Decimal(cb['vout'][0]['value']), miner_share(REGTEST_FOUNDERS_START))
-        assert_equal(Decimal(cb['vout'][1]['value']), founders_share(REGTEST_FOUNDERS_START))
+        assert_equal(Decimal(cb['vout'][0]['value']), miner_share(REGTEST_DEV_FEE_START))
+        assert_equal(Decimal(cb['vout'][1]['value']), dev_fee_share(REGTEST_DEV_FEE_START))
         assert_equal(cb['vout'][1]['scriptPubKey']['addresses'][0],
-                     REGTEST_FOUNDERS_ADDR)
+                     REGTEST_DEV_FEE_ADDR)
         stats = node.zeronodestats()
         assert_equal(Decimal(stats['chainStats']['zeronodepayment']), Decimal(0))
 

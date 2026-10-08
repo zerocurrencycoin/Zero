@@ -6,7 +6,7 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, initialize_chain_clean, \
+from test_framework.util import COINBASE_MATURITY, assert_equal, initialize_chain_clean, \
     start_node, connect_nodes_bi, wait_and_assert_operationid_status, \
     get_coinbase_address
 
@@ -42,7 +42,7 @@ class PaymentDisclosureTest (BitcoinTestFramework):
         self.sync_all()
         self.nodes[2].generate(3)
         self.sync_all()
-        self.nodes[1].generate(721)
+        self.nodes[1].generate(COINBASE_MATURITY + 1)
         self.sync_all()
         assert_equal(self.nodes[0].getbalance(), 40)
         assert_equal(self.nodes[1].getbalance(), 10)

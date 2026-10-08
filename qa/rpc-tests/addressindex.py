@@ -106,7 +106,7 @@ class AddressIndexTest(BitcoinTestFramework):
         unspent_txids = [u['txid'] for u in self.nodes[0].listunspent()]
 
         # The only unspents are coinbases; take any one. The regtest founders output starts
-        # at fee-start (height 1000), above the cache tip of 725 (maturity + 5); each coinbase
+        # at fee-start (height 1000), above CACHE_TIP (COINBASE_MATURITY + 5); each coinbase
         # therefore has a single miner P2PKH output. Do not assume Zcash's two-output coinbase.
         tx = self.nodes[0].getrawtransaction(unspent_txids[0], 1)
         assert_equal(len(tx['vout']), 1)

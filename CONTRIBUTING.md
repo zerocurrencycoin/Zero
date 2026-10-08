@@ -51,7 +51,7 @@ Maintainers merge once review concerns are resolved and the merge gate passes.
 
 ## Developer workflow
 
-1. Build from source as described in [BUILD_ZERO.md](BUILD_ZERO.md).
+1. Build from source per BUILD_ZERO "Build".
 2. Make the change.
 3. Run the merge gate: `./contrib/run-tests.sh --strict`. Without `--strict` the runner may exit 0 after a failed step.
 4. Push the branch and open the pull request.
@@ -63,23 +63,40 @@ Maintainers merge once review concerns are resolved and the merge gate passes.
 
 Code style and threading conventions follow the upstream Bitcoin Core and Zcash developer notes. Consensus and subsidy code is integer-only and must stay consistent across the miner, block validation, block templates, and RPC. Upstream, vendored, and ported code keeps its original comments and stays close to upstream so later merges remain clean.
 
+### Options and defaults
+
+The code is the only source of `zerod` options and their defaults: `HelpMessage` in `src/init.cpp` prints each default from the constant the code uses, so a default changes in one place. Everything else is derived or checked against it:
+
+| Extract | Produced by | Holds |
+|---------|-------------|-------|
+| `zerod -help`, `-help-debug` | the code | Options, defaults, and descriptions; `-help-debug` adds the options marked for debugging |
+| `doc/man/zerod.1` (also `zero-cli.1`, `zero-tx.1`) | `contrib/devtools/gen-manpages.sh`, at each version change | The help text |
+| `doc/Options.csv` | `contrib/tools/inventory-check.py` | Which options exist, in Zero and in the reference projects |
+| `contrib/zero.conf`, `contrib/conf-templates/` | written by hand | Options an operator sets, with the help-text default |
+
+A new or changed option needs its help line in the same change, a regenerated man page at the next version change, and an updated `doc/Options.csv` row (`inventory-check.py --apply`).
+
+### Shell notify hooks
+
+`-blocknotify`, `-walletnotify`, and `-alertnotify` run a shell command only in builds compiled with `-DENABLE_SYSTEM_COMMAND` in `CXXFLAGS`; release builds log the skipped command. The shell-free alternative is ZMQ, described in zcashd [doc/zmq.md](https://github.com/zcash/zcash/blob/v5.4.0/doc/zmq.md).
+
 ---
 
 ## Testing
 
-The node has three test layers: GTest (`src/zero-gtest`), Boost (`src/test/test_bitcoin`), and Python RPC tests (`qa/rpc-tests`). Test runners, tiers, and how to interpret results are in [TEST_ZERO.md](TEST_ZERO.md). Bug fixes should include a test that fails without the fix where practical.
+The node has three test layers: GTest (`src/zero-gtest`), Boost (`src/test/test_bitcoin`), and Python RPC tests (`qa/rpc-tests`). Runners, tiers, and held scripts are in TEST_ZERO "Run", "Tiers", and "Held scripts". Bug fixes should include a test that fails without the fix where practical.
 
 ---
 
 ## Continuous integration
 
-`.github/workflows/tests.yml` runs `./contrib/run-tests.sh --strict` on pushes and pull requests when CI is enabled for the repository.
+`.github/workflows/tests.yml` builds on Ubuntu 24.04 and runs `./contrib/run-tests.sh --strict` on pushes to `master`, `main`, and `develop` and on pull requests; pushes to a release branch such as `zero-410` do not start it.
 
 ---
 
 ## Release versioning and process
 
-Versions follow `MAJOR.MINOR.PATCH`, with release candidates tagged before the final release. The release lifecycle -- version bump, build, tag, packaging, checksums, and signatures -- is described in [BUILD_ZERO.md](BUILD_ZERO.md).
+Versions follow `MAJOR.MINOR.PATCH`, with release candidates tagged before the final release. The release lifecycle -- version bump, build, tag, packaging, checksums, and signatures -- is in BUILD_ZERO "Release".
 
 ---
 

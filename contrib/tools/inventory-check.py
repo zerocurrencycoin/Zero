@@ -14,7 +14,8 @@ Modes (combine as needed; without a mode the script only reports differences):
 Dispositions: supported; deprecated (help text starts with DEPRECATED or says the command is
 depreciated); experimental (upstream runtime gate fExperimentalMode or an "Experimental" table
 category); hidden (table category "hidden"); compiled-out (registered only with ENABLE_ZCRAW_RPC);
-removed (handler kept, table entry commented out).
+removed (handler kept, table entry commented out); inactive (table category in INACTIVE_CATEGORIES:
+registered and working, but the feature is switched off on mainnet, as the budget is by sporks 9 and 13).
 """
 import argparse, csv, os, pathlib, re, subprocess, sys
 
@@ -138,6 +139,8 @@ def handler_text(name, fn):
         return t[i:j if j > 0 else len(t)]
     return ''
 
+INACTIVE_CATEGORIES = ('zeronode-budget',)
+
 if args.disposition:
     counts = {}
     for r in rpc_rows:
@@ -155,6 +158,8 @@ if args.disposition:
                 d = 'hidden'
             elif re.search(r'"\\nDEPRECATED|"This command is depreciated', body):
                 d = 'deprecated'
+            elif cat in INACTIVE_CATEGORIES:
+                d = 'inactive'
             elif 'fExperimentalMode' in body or 'experimental' in cat.lower():
                 d = 'experimental'
             else:

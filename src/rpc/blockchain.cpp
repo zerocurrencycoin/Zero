@@ -967,10 +967,12 @@ void NetworkUpgradeDescPushBack(
     // Network upgrades with an activation height of NO_ACTIVATION_HEIGHT are
     // hidden. This is used when network upgrade implementations are merged
     // without specifying the activation height.
-    if (consensusParams.vUpgrades[idx].nActivationHeight != Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT) {
-        networkUpgrades.push_back(Pair(
-            HexInt(NetworkUpgradeInfo[idx].nBranchId),
-            NetworkUpgradeDesc(consensusParams, idx, height)));
+    // The object is keyed by branch ID. Cosmos reuses the Sapling branch ID, so the first
+    // upgrade with a branch ID (Sapling) is listed and a later one with the same ID is not.
+    std::string key = HexInt(NetworkUpgradeInfo[idx].nBranchId);
+    if (consensusParams.vUpgrades[idx].nActivationHeight != Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT &&
+        !networkUpgrades.exists(key)) {
+        networkUpgrades.push_back(Pair(key, NetworkUpgradeDesc(consensusParams, idx, height)));
     }
 }
 

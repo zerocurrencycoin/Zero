@@ -24,38 +24,57 @@ import re
 
 from .authproxy import AuthServiceProxy, JSONRPCException
 
-def p2p_port(n):
-    return 11000 + n + os.getpid()%999
-def rpc_port(n):
-    return 12000 + n + os.getpid()%999
+# Port layout of Bitcoin Core v0.13.0 qa/rpc-tests/test_framework/util.py (MAX_NODES,
+# PORT_MIN, PORT_RANGE, p2p_port, rpc_port), with the PID as the seed where Bitcoin Core
+# uses PortSeed.n from --portseed. Each process gets a block of MAX_NODES ports at offset
+# MAX_NODES * seed, so consecutive PIDs get disjoint blocks. P2P uses 24000-26999 and RPC
+# 27000-29999: above the chain ports 23801-23820 and the ops-validate ports 23941/23951,
+# below the Linux (32768) and macOS/Windows (49152) ranges for outgoing connections.
+MAX_NODES = 8
+PORT_MIN = 24000
+PORT_RANGE = 3000
 
-# Regtest founders/dev-fee window (must match Consensus::REGTEST_FOUNDERS_* in params.h).
-# Maturity stays COINBASE_MATURITY (720). Active for [START, STOP); STOP exclusive.
-REGTEST_FOUNDERS_START = 1000
-REGTEST_FOUNDERS_STOP = 1500
+def _port_offset():
+    return (MAX_NODES * os.getpid()) % (PORT_RANGE - 1 - MAX_NODES)
+
+def p2p_port(n):
+    assert n < MAX_NODES
+    return PORT_MIN + n + _port_offset()
+def rpc_port(n):
+    assert n < MAX_NODES
+    return PORT_MIN + PORT_RANGE + n + _port_offset()
+
+# Regtest development fee window (Consensus::REGTEST_FOUNDERS_START and _STOP in params.h).
+# Active for [START, STOP); STOP exclusive. The fee runs on Zcash's founders-reward code, so
+# the C++ names and the REGTEST_FOUNDERS_* and founders_share aliases keep "founders".
+REGTEST_DEV_FEE_START = 1000
+REGTEST_DEV_FEE_STOP = 1500
+REGTEST_FOUNDERS_START = REGTEST_DEV_FEE_START
+REGTEST_FOUNDERS_STOP = REGTEST_DEV_FEE_STOP
 REGTEST_HALVING = 150
 
 def block_subsidy(height):
-    """Full block subsidy at height (miner + founders), Decimal ZER. Matches GetBlockSubsidy."""
-    base = Decimal('10.8') if height >= REGTEST_FOUNDERS_START else Decimal(10)
+    """Full block subsidy at height (miner + development fee), Decimal ZER. Matches GetBlockSubsidy."""
     halvings = height // REGTEST_HALVING
     if halvings >= 64:
         return Decimal(0)
     # Integer zat path: 108*COIN/10 then >> halvings
     coin = 100000000
-    base_zat = (108 * coin // 10) if height >= REGTEST_FOUNDERS_START else (10 * coin)
+    base_zat = (108 * coin // 10) if height >= REGTEST_DEV_FEE_START else (10 * coin)
     return Decimal(base_zat >> halvings) / Decimal(coin)
 
-def founders_share(height):
-    """Founders carve at height (0 outside window). Decimal ZER. Matches GetFoundersRewardAmount."""
-    if height < REGTEST_FOUNDERS_START or height >= REGTEST_FOUNDERS_STOP:
+def dev_fee_share(height):
+    """Development fee at height (0 outside the window), Decimal ZER. Matches GetFoundersRewardAmount."""
+    if height < REGTEST_DEV_FEE_START or height >= REGTEST_DEV_FEE_STOP:
         return Decimal(0)
     subsidy_zat = int(block_subsidy(height) * 100000000)
     return Decimal(subsidy_zat * 75 // 1000) / Decimal(100000000)
 
+founders_share = dev_fee_share
+
 def miner_share(height):
-    """Miner coinbase amount at height (full subsidy minus founders)."""
-    return block_subsidy(height) - founders_share(height)
+    """Miner coinbase amount at height (full subsidy minus the development fee)."""
+    return block_subsidy(height) - dev_fee_share(height)
 
 # Zero regtest: 10 / 10.8 ZER base, halving every 150 blocks (Consensus::Halving = h/150)
 def subsidy_total(n_blocks):
@@ -270,7 +289,7 @@ def initialize_chain(test_dir):
     """
     cache_root = rpc_cache_root()
     cache_marker = os.path.join(cache_root, "node0")
-    mature_tip = COINBASE_MATURITY + 5
+    mature_tip = CACHE_TIP
 
     if os.path.isdir(cache_marker) and not _rpc_cache_is_current(cache_root, mature_tip):
         print("initialize_chain: stale cache at %s (expected tip %d), rebuilding" % (
@@ -687,6 +706,8 @@ def wait_and_assert_operationid_status(node, myopid, in_status='success', in_err
 
 # Keep in sync with src/consensus/consensus.h (static const int COINBASE_MATURITY).
 COINBASE_MATURITY = 720
+# Tip of the shared regtest cache: COINBASE_MATURITY + 5, so node 0 has mature coinbases.
+CACHE_TIP = COINBASE_MATURITY + 5
 
 def mature_height(spendable_coinbases=1):
     """Minimum chain tip so coinbase at height spendable_coinbases is mature."""

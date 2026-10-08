@@ -53,7 +53,7 @@ class GetBlockTemplateTest(BitcoinTestFramework):
         assert_equal(16, len(tmpl['noncerange']))
 
         # Test 6: coinbasetxn checks (required flag only).
-        # Stays below REGTEST_FOUNDERS_START; window coverage in founders_window.py.
+        # Stays below REGTEST_DEV_FEE_START; window coverage in dev_fee_window.py.
         assert(tmpl['coinbasetxn']['required'])
 
         # Test 7: hashFinalSaplingRoot matches chain tip (not upstream constant)

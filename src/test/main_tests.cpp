@@ -48,7 +48,7 @@ static void TestFoundersRewardAmountZero() {
 }
 
 static void TestSubsidyLimitZero(const Consensus::Params& consensusParams) {
-    // Zero supply (~25.6M ZER) exceeds MAX_MONEY; validate each subsidy is in range
+    // Each subsidy must be in MoneyRange; the total equals MAX_MONEY (gtest founders_reward_test).
     int nHeight = 0;
     for (; nHeight < consensusParams.nFeeStartBlockHeight; nHeight++) {
         CAmount nSubsidy = GetBlockSubsidy(nHeight, consensusParams);

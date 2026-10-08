@@ -148,7 +148,7 @@ nuparams,debug,,n,y,y,y
 paymentdisclosure,wallet-hidden,,n,y,y,y
 printpriority,debug,,y,y,y,y
 privdb,wallet,,n,y,y,y
-prune,chain,,y,y,y,y
+prune,chain,,y,y,y,n
 regtestprotectcoinbase,testing,,n,n,y,y
 relaypriority,relay,,n,n,y,y
 rpcasyncthreads,rpc,,n,y,y,y
@@ -163,7 +163,7 @@ stopafterblockimport,debug,,y,y,y,y
 testsafemode,debug,,n,y,y,y
 timestampindex,chain,,n,n,y,y
 tor,network-hidden,,n,y,y,y
-txindex,chain,,y,y,y,y
+txindex,chain,,y,y,y,n
 version,config,,y,y,y,y
 walletwitness,wallet,,n,n,n,y
 walletwitnessnote,wallet,,n,n,n,y

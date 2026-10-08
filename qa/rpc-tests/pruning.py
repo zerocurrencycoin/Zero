@@ -5,6 +5,8 @@
 
 #
 # Test pruning code
+#
+# Obsolete in Zero (no -prune option); kept as the upstream reference.
 # ********
 # WARNING:
 # This test uses 4GB of disk space.

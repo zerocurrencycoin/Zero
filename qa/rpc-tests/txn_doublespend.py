@@ -10,7 +10,7 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, connect_nodes, \
+from test_framework.util import COINBASE_MATURITY, assert_equal, connect_nodes, \
     sync_blocks, gather_inputs, initialize_chain_clean, start_nodes, \
     connect_nodes_bi
 
@@ -46,7 +46,7 @@ class TxnMallTest(BitcoinTestFramework):
         self.sync_all()
         # All four nodes mined 25 blocks each (100 total); need height >= 100+720
         # so every bootstrap coinbase is mature (mine_until stops at first UTXO).
-        need = 100 + 720 - self.nodes[0].getblockcount()
+        need = 100 + COINBASE_MATURITY - self.nodes[0].getblockcount()
         if need > 0:
             self.nodes[0].generate(need)
         self.sync_all()

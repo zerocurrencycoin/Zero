@@ -21,11 +21,10 @@ import time
 
 from test_framework.authproxy import JSONRPCException
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, initialize_chain_clean, \
+from test_framework.util import COINBASE_MATURITY, assert_equal, initialize_chain_clean, \
     start_node, stop_node, wait_bitcoinds
 
 KEEP_BLOCKS = 100  # minimum accepted by -keeptxfornblocks (MAX_REORG_LENGTH + 1)
-COINBASE_MATURITY = 720
 ARGS = ["-deletetx", "-keeptxnum=1", "-keeptxfornblocks=%d" % KEEP_BLOCKS]
 
 

@@ -140,20 +140,17 @@ bool CZeronodeWalletInterface::UpdatedTransaction(const uint256& hash)
 void CZeronodeWalletInterface::IncrementRequestCount(const uint256& hash)
 {
     if (pwalletMain) {
-        if (pwalletMain->mapRequestCount.count(hash)) {
-            pwalletMain->mapRequestCount[hash]++;
-        } else {
-            pwalletMain->mapRequestCount[hash] = 1;
-        }
+        LOCK(pwalletMain->cs_wallet); // mapRequestCount
+        pwalletMain->mapRequestCount[hash]++;
     }
 }
 
 int CZeronodeWalletInterface::GetRequestCount(const uint256& hash) const
 {
-    if (pwalletMain && pwalletMain->mapRequestCount.count(hash)) {
-        return pwalletMain->mapRequestCount[hash];
-    }
-    return 0;
+    if (!pwalletMain) return 0;
+    LOCK(pwalletMain->cs_wallet); // mapRequestCount
+    std::map<uint256, int>::const_iterator it = pwalletMain->mapRequestCount.find(hash);
+    return it != pwalletMain->mapRequestCount.end() ? it->second : 0;
 }
 
 CCriticalSection& CZeronodeWalletInterface::GetCS()
