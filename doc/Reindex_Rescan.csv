@@ -1,0 +1,15 @@
+option,area,code_refs,help,man,tests
+-reindex,chain,init.cpp:AppInit2[fReindex = GetBoolArg]; init.cpp:ThreadImport[ReindexResumeStartFile]; txdb.cpp:CBlockTreeDB::WriteReindexing; init.cpp:ThreadImport[LoadExternalBlockFile],y,y,pruning_disabled.py reindex.py reindex_shielded.py wallet_archive.py wallet_witness_defer.py
+-rescan,wallet,init.cpp:AppInit2[ScanForWalletTransactions(pindexRescan]; wallet.cpp:CWallet::ScanForWalletTransactions,y,y,rescan_startup.py wallet_archive.py
+-walletwitness,wallet,init.cpp:ThreadImport[RebuildWitnessCacheForChainTip]; wallet.cpp:CWallet::RebuildWitnessCacheForChainTip,y,y,rpc_zero_exclusive_tests.cpp wallet_witness_defer.py
+-walletwitnessnote,wallet,wallet.cpp:CWallet::IsWitnessNoteIndexEnabled[-walletwitnessnote],y,y,rpc_zero_exclusive_tests.cpp test_wallet.cpp wallet_witness_defer.py
+-zapwallettxes,wallet,init.cpp:AppInit2[-zapwallettxes],y,y,wallet_archive.py zapwallettxes.py
+-salvagewallet,wallet,init.cpp:AppInit2[-salvagewallet]; wallet.cpp:CWallet::Verify[-salvagewallet],y,y,
+-deletetx,wallet,init.cpp:AppInit2[-deletetx]; wallet.cpp:CWallet::DeleteWalletTransactions,y,y,wallet_archive.py
+-deleteinterval,wallet,init.cpp:AppInit2[-deleteinterval]; wallet.cpp:CWallet::DeleteWalletTransactions,y,y,
+-keeptxnum,wallet,init.cpp:AppInit2[-keeptxnum]; wallet.cpp:CWallet::DeleteWalletTransactions,y,y,wallet_archive.py
+-keeptxfornblocks,wallet,init.cpp:AppInit2[-keeptxfornblocks]; wallet.cpp:CWallet::DeleteWalletTransactions,y,y,wallet_archive.py
+-deleteconflicttx,wallet,init.cpp:AppInit2[-deleteconflicttx],n,n,
+-consolidation,wallet,init.cpp:AppInit2[-consolidation]; asyncrpcoperation_saplingconsolidation.cpp:AsyncRPCOperation_saplingconsolidation::main_impl,y,y,
+-consolidationtxfee,wallet,init.cpp:AppInit2[-consolidationtxfee],y,y,
+-consolidatesaplingaddress,wallet,init.cpp:AppInit2[-consolidatesaplingaddress]; asyncrpcoperation_saplingconsolidation.cpp:AsyncRPCOperation_saplingconsolidation::main_impl,y,y,

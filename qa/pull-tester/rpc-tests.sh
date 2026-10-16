@@ -108,18 +108,12 @@ testScriptsExt=(
     'hardforkdetection.py'
 );
 
-if [ "x$ENABLE_ZMQ" = "x1" ]; then
-  if [ -n "$PYTHON" ] && "$PYTHON" -c "import zmq" 2>/dev/null; then
-    testScripts+=('zmq_test.py')
-  fi
-fi
-
 if [ "x$ENABLE_PROTON" = "x1" ]; then
   testScripts+=('proton_test.py')
 fi
 
 # Tier A: contributor gate; fast scripts only. Slow wallet, rescan, doublespend, and
-# heavy-mining scripts belong in Tier B. Keep PYTHON_PASSING in contrib/run-tests.sh in sync.
+# heavy-mining scripts belong in Tier B. contrib/run-tests.sh reads Tier A from -list-csv.
 # These arrays are authoritative; export with -list-csv.
 testScriptsTierA=(
     'blockchain.py'
@@ -173,6 +167,7 @@ testScriptsTierBPass=(
     'mempool_nu_activation.py'
     'mempool_tx_expiry.py'
     'wallet_nullifiers.py'
+    'zmq_test.py'
     'wallet_archive.py'
     'txindex.py'
 )
@@ -282,6 +277,14 @@ function runScriptEntry
     local script_file="${entry%% *}"
     local extra_args="${entry#"${script_file}"}"
     extra_args="${extra_args# }"
+    # zmq_test needs a ZMQ build and the Python zmq module (python3-zmq).
+    if [ "$script_file" = "zmq_test.py" ]; then
+        if [ "x$ENABLE_ZMQ" != "x1" ] || ! "${PYTHON:-python3}" -c "import zmq" 2>/dev/null; then
+            echo "--- Skipped: zmq_test.py (needs a ZMQ build and the Python zmq module) ---"
+            echo
+            return 0
+        fi
+    fi
     runTestScript \
         "$entry" \
         "${PYTHON}" "${BUILDDIR}/qa/rpc-tests/${script_file}" \

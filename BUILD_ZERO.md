@@ -65,7 +65,6 @@ Binaries: `src/zerod`, `src/zero-cli`, `src/zero-tx`. The Qt desktop wallet is a
 | **bdb** | Wallet (`wallet_packages`; default on) | Dist tarball | Moderate; skipped only if `NO_WALLET` |
 | **libevent**, **zeromq**, **libsodium**, **utfcpp**, **googletest** | Event, ZMQ, crypto, tests | Smaller tarballs | Shorter than Boost / librustzcash |
 | **native_ccache** | Native helper | Small | Small |
-| **proton** | AMQP | Off unless `--enable-proton` | Not in the default cycle |
 
 A recipe hash includes `packages/<name>.mk` and patches. Editing those, changing `HOST`, `DEBUG`, or `NO_WALLET`, or deleting `depends/built/$HOST/<pkg>/` forces that package. Autogen and configure never kick Boost or Rust compiles.
 
@@ -218,11 +217,10 @@ git push origin <release branch> vX.Y.Z-rcN
 
 **Checksum and sign.** In the same sitting as tag and package, before the GitHub Release. Unsigned CI artifacts are not releases. Sign macOS and Windows binaries with the packaging script options, collect all archives in one `artifacts/` directory, run `./zcutil/checksums.sh` and `./zcutil/checksums.sh --verify`, then sign `SHA256SUMS` with the method chosen for the release. Publish the archives, `SHA256SUMS`, and its signature together.
 
-**Publish.** The release body is section 3 of the release notes:
+**Publish.** The release notes are `doc/release-notes/release-notes-X.Y.Z.md`, written for operators, miners, pools, and integrators: the state at this release compared with the previous published release, pointing to the standing documents instead of copying them. The file is the GitHub release body:
 
 ```bash
-sed -n '/^## 3. Release body/,$p' ReleaseNotesNNN.md > .build/release-body.md
-gh release create vX.Y.Z artifacts/* --title "Zero vX.Y.Z" --notes-file .build/release-body.md
+gh release create vX.Y.Z artifacts/* --title "Zero vX.Y.Z" --notes-file doc/release-notes/release-notes-X.Y.Z.md
 ```
 
 **Verify a download.** In the download directory:
@@ -360,13 +358,13 @@ Pinned in **`depends/packages/*.mk`** (hashed tarballs for reproducibility).
 | OpenSSL | 1.1.1w | `openssl.mk` | RPC TLS and legacy EVP call sites. **1.1.1 is EOL upstream**; **project decision:** stay on **1.1.1w** in **`depends`** until a scheduled, audited move to **OpenSSL 3.x** (or removal) with EVP/TLS regression tests. |
 | libsodium | 1.0.21 | `libsodium.mk` | Crypto; URL pinned to GitHub releases. |
 | libevent | 2.1.12 | `libevent.mk` | Network stack. |
-| ZeroMQ | 4.3.5 | `zeromq.mk` | Default **ZMQ** notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, ...). |
+| ZeroMQ | 4.3.5 | `zeromq.mk` | Default **ZMQ** notifications (`-zmqpubhashblock`, `-zmqpubhashtx`, ...) on Linux and macOS. Windows builds have no ZMQ (`build-win.sh` passes `--disable-zmq`). |
 | ccache | 4.13.1 | `native_ccache.mk` | Optional faster rebuilds; **`CCACHE_DIR`**, **`--enable-ccache`**. |
 | Rust | **system** (no pin; 1.90 on macOS) | `rust.mk` | **Default: system `cargo`/`rustc`** on macOS (always) and Linux/Windows when **`RUST_USE_SYSTEM=1`**. Symlinks into `depends` prefix. **`FORCE_DEPENDS_RUST=1`** forces legacy pinned **1.32.0** tarballs (CI / reproducibility only). Cross-builds: **`rustup target add`** for the host triple. |
 | librustzcash | snapshot `06da3b9` | `crate_*.mk`, `Cargo.lock` | Consensus-linked; upgrade only with protocol work. |
 | Googletest | 1.16.0 | `googletest.mk` | Last GTest line on **C++14**; 1.17+ expects C++17. |
 | utfcpp | 3.1 | `utfcpp.mk` | Header-only; UTF-8 checks in wallet RPC paths. |
-| Qpid Proton | 0.26.0 recipe; **off** | `proton.mk`, configure | **`--disable-proton`** / **`NO_PROTON=1`** default; optional upstream code only |
+| Qpid Proton (AMQP) | 0.26.0 recipe; **off** | `proton.mk`, configure | Not built (`NO_PROTON=1`, `--disable-proton`); scheduled for removal as in zcashd. Use ZMQ for notifications |
 | config.guess / config.sub | vendor drop | `depends/config.*` | **Apple Silicon** must resolve to **`aarch64-apple-darwin*`**, not **`arm-apple-darwin`**. |
 
 
@@ -416,7 +414,7 @@ Extra options (e.g. **`ENABLE_SYSTEM_COMMAND`**) go in **`CONFIGURE_FLAGS`** for
 ### 4.4 zcutil/build.sh
 
 ```
-./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --enable-proton ] [ --daemon ] [ MAKEARGS... ]
+./zcutil/build.sh [ --enable-lcov | --disable-tests ] [ --disable-mining ] [ --daemon ] [ MAKEARGS... ]
 ```
 
 - `--daemon`: `--disable-zmq --disable-rust`.
@@ -510,7 +508,7 @@ GCC 7.0+ for C++14. Manual build: `make -C depends`, then `CONFIG_SITE=$PWD/depe
 
 ### 5.2 macOS ARM64
 
-Apple Clang. Configure with `--enable-proton=no` and `CXXFLAGS="-g -Wno-enum-constexpr-conversion"` (Boost/Clang). BDB mutex crash: see section 6.2.
+Apple Clang. Configure with `CXXFLAGS="-g -Wno-enum-constexpr-conversion"` (Boost/Clang). BDB mutex crash: see section 6.2.
 
 ### 5.3 Windows
 

@@ -6,6 +6,7 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
+    COINBASE_MATURITY,
     assert_equal,
     assert_greater_than,
     connect_nodes_bi,
@@ -45,7 +46,7 @@ class WalletOverwinterTxTest (BitcoinTestFramework):
         self.sync_all()
 
     def run_test (self):
-        self.nodes[0].generate(720)
+        self.nodes[0].generate(COINBASE_MATURITY)
         self.sync_all()
         self.nodes[1].generate(95)
         self.sync_all()

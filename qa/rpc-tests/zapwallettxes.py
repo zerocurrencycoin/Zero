@@ -6,7 +6,7 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, initialize_chain_clean, \
+from test_framework.util import COINBASE_MATURITY, assert_equal, initialize_chain_clean, \
     start_nodes, start_node, connect_nodes_bi, bitcoind_processes
 
 
@@ -28,7 +28,7 @@ class ZapWalletTXesTest (BitcoinTestFramework):
         print("Mining blocks...")
         self.nodes[0].generate(4)
         self.sync_all()
-        self.nodes[1].generate(721)
+        self.nodes[1].generate(COINBASE_MATURITY + 1)
         self.sync_all()
 
         assert_equal(self.nodes[0].getbalance(), 40)

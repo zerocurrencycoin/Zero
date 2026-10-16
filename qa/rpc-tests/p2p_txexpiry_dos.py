@@ -7,7 +7,7 @@
 from test_framework.mininode import NodeConn, NetworkThread, \
     msg_tx, SAPLING_PROTO_VERSION
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import initialize_chain_clean, start_nodes, \
+from test_framework.util import COINBASE_MATURITY, initialize_chain_clean, start_nodes, \
     p2p_port, assert_equal
 
 # Zero regtest: activate Overwinter/Sapling and satisfy COINBASE_MATURITY (720).
@@ -49,7 +49,7 @@ class TxExpiryDoSTest(BitcoinTestFramework):
         assert_equal(0, peerinfo[0]["banscore"])
 
         coinbase_blocks = self.nodes[0].generate(1)
-        self.nodes[0].generate(720)
+        self.nodes[0].generate(COINBASE_MATURITY)
         tip = self.nodes[0].getblockcount()
         node_address = self.nodes[0].getnewaddress()
 

@@ -7,7 +7,7 @@
 
 
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, initialize_chain_clean, start_nodes, \
+from test_framework.util import COINBASE_MATURITY, assert_equal, initialize_chain_clean, start_nodes, \
     connect_nodes_bi
 
 from decimal import Decimal
@@ -50,7 +50,7 @@ class ListTransactionsTest(BitcoinTestFramework):
         self.sync_all()
         self.nodes[1].generate(1)
         self.sync_all()
-        self.nodes[2].generate(720)
+        self.nodes[2].generate(COINBASE_MATURITY)
         self.sync_all()
 
     def run_test(self):

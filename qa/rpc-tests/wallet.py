@@ -6,7 +6,7 @@
 
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_equal, assert_raises_message, \
+from test_framework.util import COINBASE_MATURITY, assert_equal, assert_raises_message, \
     initialize_chain_clean, start_nodes, start_node, connect_nodes_bi, \
     stop_nodes, sync_blocks, sync_mempools, wait_and_assert_operationid_status, \
     wait_bitcoinds, miner_share, miner_range
@@ -37,13 +37,13 @@ class WalletTest (BitcoinTestFramework):
         assert_equal(walletinfo['balance'], 0)
 
         self.sync_all()
-        self.nodes[1].generate(721)
+        self.nodes[1].generate(COINBASE_MATURITY + 1)
         self.sync_all()
-        self.nodes[1].generate(720)  # mature the 721 blocks (COINBASE_MATURITY=720)
+        self.nodes[1].generate(COINBASE_MATURITY)  # mature the COINBASE_MATURITY + 1 blocks
         self.sync_all()
 
         # node1's 721 blocks are at chain heights 5..725 (after node0's 4); all < fee-start
-        node1_subsidy = miner_range(5, 725)
+        node1_subsidy = miner_range(5, 4 + COINBASE_MATURITY + 1)
         assert_equal(self.nodes[0].getbalance(), 40)
         assert_equal(self.nodes[1].getbalance(), node1_subsidy)
         assert_equal(self.nodes[2].getbalance(), 0)
@@ -66,7 +66,7 @@ class WalletTest (BitcoinTestFramework):
         sync_blocks(self.nodes)  # Ensure node0's block is on all nodes before node1 builds
 
         # Have node1 generate 720 blocks (node0's coinbase needs COINBASE_MATURITY conf)
-        self.nodes[1].generate(720)
+        self.nodes[1].generate(COINBASE_MATURITY)
         self.sync_all()
 
         # node0: heights 1..4 + its fee-collecting coinbase (may be in FR window).

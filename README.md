@@ -119,6 +119,7 @@ Automatic node deprecation (mainnet) is configured on a **~10 year** window from
 | [TODO.md](TODO.md) | Contributors / maintainers | Open follow-ups for the full node |
 | [AGENTS.md](AGENTS.md) | Agents and humans editing the tree | Scope and documentation rules |
 | `doc/man/` | Operators (after install) | `zerod`, `zero-cli`, `zero-tx` manuals |
+| `doc/release-notes/` | Operators, miners, pools, integrators | Changes per release |
 
 ```
                     README

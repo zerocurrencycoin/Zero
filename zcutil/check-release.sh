@@ -229,9 +229,9 @@ if has_level build; then
   receipt_log "--- build ---"
   BUILD_OK=1
   if [[ -x "$REPO_ROOT/src/zerod" ]]; then
-    ZMTIME="$(stat -f '%Sm' -t '%Y-%m-%d' src/zerod 2>/dev/null || stat -c '%y' src/zerod | cut -d' ' -f1)"
-    receipt_log "zerod_mtime $(stat -f '%Sm' -t '%Y-%m-%dT%H:%M:%S' src/zerod 2>/dev/null || stat -c '%y' src/zerod)"
-    receipt_log "zerod_sha256 $(shasum -a 256 src/zerod | awk '{print $1}')"
+    ZMTIME="$(file_mtime_fmt '%Y-%m-%d' src/zerod)"
+    receipt_log "zerod_mtime $(file_mtime_fmt '%Y-%m-%dT%H:%M:%S' src/zerod)"
+    receipt_log "zerod_sha256 $(sha256_cmd src/zerod | awk '{print $1}')"
     ZVER_LINE="$(src/zerod -version 2>/dev/null | head -1)"
     printf '%s\n' "$ZVER_LINE" | receipt_cap || true
     receipt_pass "src/zerod executable"
@@ -243,7 +243,7 @@ if has_level build; then
     fi
     ZEROD_NOTE="zerod $ZMTIME"
     if HEAD_CT="$(git log -1 --format=%ct 2>/dev/null)"; then
-      Z_CT="$(stat -f %m src/zerod 2>/dev/null || stat -c %Y src/zerod)"
+      Z_CT="$(file_mtime_epoch src/zerod)"
       if [[ -n "$Z_CT" && "$Z_CT" -lt "$HEAD_CT" ]]; then
         receipt_warn "zerod dated $ZMTIME is older than HEAD; rebuild before treating this as this commit"
         ZEROD_NOTE="zerod $ZMTIME older than HEAD"
@@ -255,7 +255,7 @@ if has_level build; then
     BUILD_OK=0
   fi
   if [[ -x "$REPO_ROOT/src/zero-cli" ]]; then
-    receipt_log "zero-cli_sha256 $(shasum -a 256 src/zero-cli | awk '{print $1}')"
+    receipt_log "zero-cli_sha256 $(sha256_cmd src/zero-cli | awk '{print $1}')"
     receipt_pass "src/zero-cli executable"
   else
     receipt_fail "src/zero-cli missing"

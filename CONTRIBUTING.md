@@ -63,6 +63,19 @@ Maintainers merge once review concerns are resolved and the merge gate passes.
 
 Code style and threading conventions follow the upstream Bitcoin Core and Zcash developer notes. Consensus and subsidy code is integer-only and must stay consistent across the miner, block validation, block templates, and RPC. Upstream, vendored, and ported code keeps its original comments and stays close to upstream so later merges remain clean.
 
+### Options and defaults
+
+The code is the only source of `zerod` options and their defaults: `HelpMessage` in `src/init.cpp` prints each default from the constant the code uses, so a default changes in one place. Everything else is derived or checked against it:
+
+| Extract | Produced by | Holds |
+|---------|-------------|-------|
+| `zerod -help`, `-help-debug` | the code | Options, defaults, and descriptions; `-help-debug` adds the options marked for debugging |
+| `doc/man/zerod.1` (also `zero-cli.1`, `zero-tx.1`) | `contrib/devtools/gen-manpages.sh`, at each version change | The help text |
+| `doc/Options.csv` | `contrib/tools/inventory-check.py` | Which options exist, in Zero and in the reference projects |
+| `contrib/zero.conf`, `contrib/conf-templates/` | written by hand | Options an operator sets, with the help-text default |
+
+A new or changed option needs its help line in the same change, a regenerated man page at the next version change, and an updated `doc/Options.csv` row (`inventory-check.py --apply`).
+
 ---
 
 ## Testing

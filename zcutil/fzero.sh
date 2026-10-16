@@ -237,6 +237,19 @@ find_mingw_cxx() {
 # Compact-check receipts under ZERO_BUILD_DIR. Do not use init_logging here (it tees all stdout).
 CHECK_FAIL=0
 RECEIPT_VERBOSE=0
+# File size and modification time. GNU stat (Linux) and BSD stat (macOS) take
+# different flags, and GNU "stat -f" means file-system status, so pick by
+# implementation instead of trying one and falling back.
+if stat --version >/dev/null 2>&1; then
+  file_size() { stat -c %s "$1"; }
+  file_mtime_epoch() { stat -c %Y "$1"; }
+  file_mtime_fmt() { date -d "@$(file_mtime_epoch "$2")" +"$1"; }
+else
+  file_size() { stat -f %z "$1"; }
+  file_mtime_epoch() { stat -f %m "$1"; }
+  file_mtime_fmt() { date -r "$(file_mtime_epoch "$2")" +"$1"; }
+fi
+
 RECEIPT_OUT=""
 RECEIPT_LATEST=""
 RECEIPT=""

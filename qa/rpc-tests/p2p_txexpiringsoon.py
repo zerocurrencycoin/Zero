@@ -8,7 +8,7 @@ from test_framework.authproxy import JSONRPCException
 from test_framework.mininode import NodeConn, NetworkThread, CInv, \
     msg_mempool, msg_getdata, msg_tx, mininode_lock, SAPLING_PROTO_VERSION
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, connect_nodes_bi, fail, \
+from test_framework.util import COINBASE_MATURITY, assert_equal, connect_nodes_bi, fail, \
     initialize_chain_clean, p2p_port, start_nodes, sync_blocks, sync_mempools
 from tx_expiry_helper import TestNode, create_transaction
 
@@ -21,7 +21,6 @@ NU_ARGS = [
 ]
 TX_EXPIRING_SOON_THRESHOLD = 3
 # First coinbase height + COINBASE_MATURITY + (spend indices 0..2)
-MATURITY_BLOCKS = 720
 SPENDABLE_COINBASES = 3
 
 
@@ -110,7 +109,7 @@ class TxExpiringSoonTest(BitcoinTestFramework):
         connect_nodes_bi(self.nodes, 0, 1)
 
         # Mine enough blocks for three mature coinbases (720 maturity on regtest).
-        total_blocks = MATURITY_BLOCKS + SPENDABLE_COINBASES
+        total_blocks = COINBASE_MATURITY + SPENDABLE_COINBASES
         coinbase_blocks = self.nodes[0].generate(total_blocks)
         tip = self.nodes[0].getblockcount()
         node_address = self.nodes[0].getnewaddress()

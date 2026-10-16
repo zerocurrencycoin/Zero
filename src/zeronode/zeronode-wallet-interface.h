@@ -35,10 +35,12 @@ public:
  * Zeronode code (masternodes) reaches the wallet only through this interface,
  * never through pwalletMain. As a result:
  * 
- * 1. The zeronode layer builds and runs without a wallet
- * 2. Wallet-disabled builds need no #ifdef guards in zeronode code
- * 3. Tests can substitute a mock wallet
- * 4. Wallet changes do not reach zeronode code outside this interface
+ * 1. The zeronode layer runs when the wallet is disabled at runtime (-disablewallet)
+ * 2. Tests can substitute a mock wallet (src/gtest/test_zeronode_wallet_mock.cpp)
+ * 3. Wallet changes do not reach zeronode code outside this interface
+ *
+ * The real implementation is compiled into the wallet library; code paths that
+ * need wallet types still sit under #ifdef ENABLE_WALLET.
  * 
  * DESIGN PATTERN
  * ==============
@@ -99,42 +101,10 @@ public:
  * ==============
  * 
  * The interface must be initialized early in the application lifecycle:
- * 1. Called from init.cpp after wallet initialization
- * 2. Creates appropriate implementation based on ENABLE_WALLET
- * 3. Sets global g_zeronodeWallet instance
- * 
- * FUTURE IMPROVEMENTS
- * ==================
- * 
- * 1. Error Handling Enhancement:
- *    - Add specific error codes instead of boolean returns
- *    - Implement ZeronodeWalletError enum for detailed error reporting
- *    - Add GetLastError() method for error diagnostics
- * 
- * 2. Async Operations:
- *    - Add async transaction broadcasting with callbacks
- *    - Implement progress reporting for long operations
- *    - Add cancellation support for slow wallet operations
- * 
- * 3. Enhanced Abstraction:
- *    - Add wallet event notifications (new transactions, balance changes)
- *    - Implement wallet capability discovery (HD wallet, hardware wallet)
- *    - Add batch operations for improved performance
- * 
- * 4. Testing Infrastructure:
- *    - Create MockZeronodeWallet for unit testing
- *    - Add wallet state simulation capabilities
- *    - Implement deterministic test fixtures
- * 
- * 5. Performance Optimization:
- *    - Cache frequently accessed wallet state
- *    - Add bulk coin availability queries
- *    - Optimize critical section usage
- * 
- * 6. Security Enhancements:
- *    - Add operation audit logging
- *    - Implement wallet operation rate limiting
- *    - Add secure memory handling for keys
+ * 1. Called once from AppInit2 (init.cpp) after the wallet is loaded
+ * 2. Creates the implementation selected by ENABLE_WALLET
+ * 3. Sets g_zeronodeWallet; code that can run earlier checks it for nullptr
+ *
  */
 class IZeronodeWalletInterface
 {
@@ -222,7 +192,7 @@ public:
      * @param output The outpoint (txid + vout) to lock
      * 
      * Used by: Zeronode collateral protection, budget proposal creation
-     * Thread-safe: Requires wallet critical section lock
+     * Thread-safe: caller holds GetCS(); callers that also need cs_main take it first
      * Effect: Locked UTXOs won't appear in AvailableCoins() or automatic coin selection
      */
     virtual void LockCoin(COutPoint& output) = 0;
@@ -301,7 +271,7 @@ public:
      * @param hash Transaction hash
      * 
      * Used by: SwiftTX request counting, duplicate request prevention
-     * Thread-safe: Yes (atomic operation)
+     * Thread-safe: takes the wallet lock (mapRequestCount)
      * Effect: Increments internal counter for the given transaction hash
      */
     virtual void IncrementRequestCount(const uint256& hash) = 0;
@@ -312,7 +282,7 @@ public:
      * @return Number of requests made for this transaction
      * 
      * Used by: SwiftTX request tracking, spam detection
-     * Thread-safe: Yes (read-only operation)
+     * Thread-safe: takes the wallet lock (mapRequestCount)
      */
     virtual int GetRequestCount(const uint256& hash) const = 0;
     

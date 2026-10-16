@@ -46,6 +46,7 @@ B,pass,mempool_reorg.py
 B,pass,mempool_nu_activation.py
 B,pass,mempool_tx_expiry.py
 B,pass,wallet_nullifiers.py
+B,pass,zmq_test.py
 B,pass,wallet_archive.py
 B,pass,txindex.py
 Bfail,debug,shorter_block_times.py

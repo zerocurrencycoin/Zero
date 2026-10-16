@@ -5,7 +5,7 @@
 
 
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, assert_true, bitcoind_processes, \
+from test_framework.util import COINBASE_MATURITY, assert_equal, assert_true, bitcoind_processes, \
     connect_nodes_bi, initialize_chain_clean, start_node, start_nodes, \
     wait_and_assert_operationid_status, get_coinbase_address
 
@@ -26,7 +26,7 @@ class WalletNullifiersTest (BitcoinTestFramework):
         self.sync_all()
         self.nodes[3].generate(25)
         self.sync_all()
-        self.nodes[0].generate(721)
+        self.nodes[0].generate(COINBASE_MATURITY + 1)
         self.sync_all()
 
         # add zaddr to node 0

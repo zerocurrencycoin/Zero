@@ -270,7 +270,7 @@ def initialize_chain(test_dir):
     """
     cache_root = rpc_cache_root()
     cache_marker = os.path.join(cache_root, "node0")
-    mature_tip = COINBASE_MATURITY + 5
+    mature_tip = CACHE_TIP
 
     if os.path.isdir(cache_marker) and not _rpc_cache_is_current(cache_root, mature_tip):
         print("initialize_chain: stale cache at %s (expected tip %d), rebuilding" % (
@@ -687,6 +687,8 @@ def wait_and_assert_operationid_status(node, myopid, in_status='success', in_err
 
 # Keep in sync with src/consensus/consensus.h (static const int COINBASE_MATURITY).
 COINBASE_MATURITY = 720
+# Tip of the shared regtest cache: COINBASE_MATURITY + 5, so node 0 has mature coinbases.
+CACHE_TIP = COINBASE_MATURITY + 5
 
 def mature_height(spendable_coinbases=1):
     """Minimum chain tip so coinbase at height spendable_coinbases is mature."""

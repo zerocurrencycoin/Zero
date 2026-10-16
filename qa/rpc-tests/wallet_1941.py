@@ -7,7 +7,7 @@
 
 
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import assert_equal, initialize_chain_clean, \
+from test_framework.util import COINBASE_MATURITY, assert_equal, initialize_chain_clean, \
     initialize_datadir, start_nodes, start_node, connect_nodes_bi, \
     bitcoind_processes, wait_and_assert_operationid_status, \
     get_coinbase_address
@@ -47,7 +47,7 @@ class Wallet1941RegressionTest (BitcoinTestFramework):
         print("Mining blocks...")
 
         self.nodes[0].setmocktime(starttime)
-        self.nodes[0].generate(721)
+        self.nodes[0].generate(COINBASE_MATURITY + 1)
 
         mytaddr = get_coinbase_address(self.nodes[0])
         myzaddr = self.nodes[0].z_getnewaddress('sprout')
@@ -78,12 +78,12 @@ class Wallet1941RegressionTest (BitcoinTestFramework):
         self.add_second_node()
         self.nodes[1].getnewaddress()
         self.nodes[1].z_getnewaddress('sprout')
-        self.nodes[1].generate(721)
+        self.nodes[1].generate(COINBASE_MATURITY + 1)
         self.sync_all()
 
         # Import the key on node 1, only scanning the last few blocks.
         # (uses 'true' to test boolean fallback)
-        self.nodes[1].z_importkey(key, 'true', self.nodes[1].getblockchaininfo()['blocks'] - 720)
+        self.nodes[1].z_importkey(key, 'true', self.nodes[1].getblockchaininfo()['blocks'] - COINBASE_MATURITY)
 
         # Confirm that the balance on node 1 is zero, as we have not
         # rescanned over the older transactions
