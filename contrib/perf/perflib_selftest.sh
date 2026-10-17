@@ -327,7 +327,7 @@ eq "$(bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/debug.log' '$RT/zero.co
    "--runtime dbcache=512 --runtime disablewallet=1 --runtime insightexplorer=1 --runtime par=4 " \
    "runtime_record declares conf keys and command-line flags"
 expect_fail "runtime_record refuses a -par width the node did not apply" \
-  bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/debug.log' '$RT/zero.conf' '-disablewallet -par=7' 2>/dev/null"
+  bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/debug.log' '$RT/zero.conf' '-disablewallet -par=3' 2>/dev/null"
 expect_fail "runtime_record refuses -disablewallet the node did not apply" \
   bash -c ". '$HERE/perflib.sh'; grep -v 'Wallet disabled' '$RT/debug.log' > '$RT/w.log'; runtime_record '$RT/w.log' '$RT/zero.conf' '-disablewallet' 2>/dev/null"
 eq "$(bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/debug.log' '$RT/zero.conf' '-disablewallet -par=4' 2>/dev/null; printf '%s' \"\$RUNTIME_DECLARED\"")" \

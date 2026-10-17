@@ -323,7 +323,8 @@ def run_self_test() -> int:
                       encoding="utf-8")
         obs = observed_runtime(lg)
         assert check_runtime(eff, obs) == [], check_runtime(eff, obs)
-        assert len(check_runtime(dict(eff, par="7"), obs)) == 1
+        assert len(check_runtime(dict(eff, par="3"), obs)) == 1
+        assert check_runtime(dict(eff, par="7"), obs) == []   # capped at 4
         assert len(check_runtime(dict(eff, dbcache="800"), obs)) == 1
         assert len(check_runtime({k: v for k, v in eff.items() if k != "disablewallet"}, obs)) == 1
         assert check_runtime(dict(eff, par="0"), obs) == []   # auto width: not checked
@@ -400,7 +401,7 @@ RUNTIME_KEYS = ("disablewallet", "par", "dbcache", "experimentalfeatures",
                 "walletwitness", "walletwitnessnote", "walletwitnessstats", "rpcthreads",
                 "rpcworkqueue", "perffdcache", "perfbufsize")
 DEFAULT_DBCACHE_MIB = 800   # nDefaultDbCache, src/txdb.h
-MAX_SCRIPT_THREADS = 16     # MAX_SCRIPTCHECK_THREADS, src/main.h
+MAX_SCRIPT_THREADS = 4      # MAX_SCRIPTCHECK_THREADS, src/main.h
 
 
 def _kv(token: str):
