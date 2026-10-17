@@ -135,9 +135,9 @@ test, and only it, failed (record: `PLAN.md` P13):
 
 The read-back case matters because `ConnectTip` reads a block from disk when
 it was not handed one in memory. The `AcceptBlock` half has no observable
-effect outside the `ZERO_PERF` counters. **Still missing:** a `getblock` RPC concurrent with reindex. `getblock`
-holds `cs_main` throughout, so an `nStatus` race is not expected
-(unverified); the test covers the read path under load. Other coverage: `invalidblockrequest.py`,
+effect outside the `ZERO_PERF` counters. No test runs `getblock` during a reindex: `getblock` holds `cs_main`
+throughout, so it cannot race the status write, and the read re-check is
+pinned above. Other coverage: `invalidblockrequest.py`,
 `reorg_limit.py`, `mempool_reorg.py`.
 
 ---

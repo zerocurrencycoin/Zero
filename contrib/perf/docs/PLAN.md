@@ -48,8 +48,7 @@ hand-off and the Z7 merge of Zero 4.1.0.
 
 | Item | Work | Done when |
 |------|------|-----------|
-| P20 | `MAX_SCRIPTCHECK_THREADS` 16 -> 4: edited, not built | built; this host logs "Using 4 threads for script verification" |
-| P13 | `getblock` during `-reindex` test, proposed not to add: `getblock` holds `cs_main`, so the targeted race cannot occur, and the read re-check is pinned by `readblockfromdisk_rechecks_header` | decision: add or drop |
+| P20 | `MAX_SCRIPTCHECK_THREADS` 16 -> 4: done; regtest `-par` 1, 2, 3, 4, 8, 0 give 0, 2, 3, 4, 4, 4 threads, and the harness accepts each (`test-logs/harness-par-20261017/`) | done |
 
 ### Functional validation
 
@@ -172,7 +171,7 @@ Analysis: `SYNC.md`.
 
 | Id | Item | When | Kanban | Disp | Detail |
 |----|------|------|--------|------|--------|
-| P13 | Redundant Equihash verification: skip in `37f3f3459`; per-caller `ZERO_PERF` counters (M-EQ-VERIFY-SITES); eight `header_check_tests` cases; `getblock` concurrent with reindex not covered | Baseline | InTest | Open | `SYNC.md` "Equihash verifications per block"; section 14 |
+| P13 | Redundant Equihash verification: skip in `37f3f3459`; per-caller `ZERO_PERF` counters (M-EQ-VERIFY-SITES); eight `header_check_tests` cases | Baseline | InTest | Open | `SYNC.md` "Equihash verifications per block" |
 | K8 | Remeasure throughput on the current build: stock reindex h600k-900k, n=4, the before/after for M-RX-POSTSAP-STOCK | Baseline | ToDo | Open | `SYNC.md` "Where the time goes" |
 | K11 | CPU profiles regenerated on the current build, across the board; tracking | Baseline | ToDo | Open | section 14, K11 |
 | P1 | Proof-verification counters and phase timers that cover proof work. Counters built under `ZERO_PERF`, not yet run post-Sapling | Ready | InTest | Open -- decision: section 3 #3 | section 14; `PerfTimers.md` |
@@ -437,9 +436,6 @@ window with the counters checked against a profile of the same window
 (`PerfTimers.md` "5. How each change is checked"). Its users -- a log phase
 summary, C2, C4, Y1 -- are unscheduled; Baseline 1 attributes proof cost
 from profiles (K11).
-
-**P13.** Tests: `SYNC.md` "Equihash verifications per block". Open: the
-`getblock` decision in section 2.
 
 **P19.** In no makefile, no objects, no includes; entered as a subtree in
 `f4d8cd127`. Zcash removed libsnark in `9ce0caf20` (v2.1.0); Pirate, Hush3
