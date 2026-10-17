@@ -333,6 +333,14 @@ expect_fail "runtime_record refuses -disablewallet the node did not apply" \
 eq "$(bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/debug.log' '$RT/zero.conf' '-disablewallet -par=4' 2>/dev/null; printf '%s' \"\$RUNTIME_DECLARED\"")" \
    "dbcache=512,disablewallet=1,insightexplorer=1,par=4" \
    "runtime_record sets RUNTIME_DECLARED as k=v,..."
+printf 't Zero version v1\nt Script verification uses 3 additional threads\nt Wallet disabled!\n' > "$RT/z410.log"
+expect_ok "runtime_record reads the v4.1.0 worker line: -par=8 runs 4 threads" \
+  bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/z410.log' '$RT/zero.conf' '-disablewallet -par=8' 2>/dev/null"
+printf 't Zero version v1\nt Script verification uses 0 additional threads\nt Wallet disabled!\n' > "$RT/z410.log"
+expect_ok "runtime_record reads the v4.1.0 worker line: -par=1 runs inline" \
+  bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/z410.log' '$RT/zero.conf' '-disablewallet -par=1' 2>/dev/null"
+expect_fail "runtime_record refuses -par=2 when the node ran inline" \
+  bash -c ". '$HERE/perflib.sh'; runtime_record '$RT/z410.log' '$RT/zero.conf' '-disablewallet -par=2' 2>/dev/null"
 rm -rf "$RT"
 
 # --- lab_conf: one lab conf writer; the input's conf never decides runtime ---

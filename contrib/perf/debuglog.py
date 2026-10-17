@@ -307,6 +307,11 @@ def run_self_test() -> int:
         lg.write_text("t Zero version v1\nt Using 0 threads for script verification\n",
                       encoding="utf-8")
         assert observed_runtime(lg) == {"script_threads": "0"}, observed_runtime(lg)
+        # Zero v4.1.0 form: workers, not threads.
+        for workers, threads in (("0", "0"), ("1", "2"), ("3", "4")):
+            lg.write_text("t Zero version v1\nt Script verification uses %s additional threads\n"
+                          % workers, encoding="utf-8")
+            assert observed_runtime(lg) == {"script_threads": threads}, observed_runtime(lg)
 
         # effective_runtime: conf keys, command line overrides, plumbing dropped.
         cf = d / "zero.conf"
@@ -325,6 +330,19 @@ def run_self_test() -> int:
         assert check_runtime(eff, obs) == [], check_runtime(eff, obs)
         assert len(check_runtime(dict(eff, par="3"), obs)) == 1
         assert check_runtime(dict(eff, par="7"), obs) == []   # capped at 4
+        for par, line, ok in (("1", "Using 0 threads", True),
+                              ("1", "Script verification uses 0 additional", True),
+                              ("2", "Script verification uses 1 additional", True),
+                              ("4", "Script verification uses 3 additional", True),
+                              ("8", "Script verification uses 3 additional", True),
+                              ("8", "Using 8 threads", False),
+                              ("2", "Script verification uses 0 additional", False)):
+            text = line + (" for script verification" if line.startswith("Using")
+                           else " threads")
+            lg.write_text("t Zero version v1\nt %s\nt Wallet disabled!\n" % text,
+                          encoding="utf-8")
+            got = check_runtime({"par": par, "disablewallet": "1"}, observed_runtime(lg))
+            assert (got == []) == ok, (par, line, got)
         assert len(check_runtime(dict(eff, dbcache="800"), obs)) == 1
         assert len(check_runtime({k: v for k, v in eff.items() if k != "disablewallet"}, obs)) == 1
         assert check_runtime(dict(eff, par="0"), obs) == []   # auto width: not checked
@@ -392,6 +410,10 @@ def run_self_test() -> int:
 
 
 _RE_SCRIPT_THREADS = re.compile(r"Using (\d+) threads for script verification")
+# Zero v4.1.0 logs workers only: the connecting thread is not counted, and
+# 0 means the checks run inline. The node never runs a pool of one, so
+# k > 0 workers is k + 1 threads and 0 is inline (0 threads).
+_RE_SCRIPT_WORKERS = re.compile(r"Script verification uses (\d+) additional threads")
 _RE_CACHE_MIB = re.compile(r"\* Using ([0-9.]+)MiB for ")
 
 # Runtime keys that change what a measurement means. Recorded from the conf the
@@ -468,6 +490,10 @@ def observed_runtime(log: Path) -> dict:
             m = _RE_SCRIPT_THREADS.search(line)
             if m:
                 threads = int(m.group(1))
+            m = _RE_SCRIPT_WORKERS.search(line)
+            if m:
+                workers = int(m.group(1))
+                threads = workers + 1 if workers else 0
             if "Wallet disabled!" in line:
                 wallet_disabled = True
             if "Cache configuration:" in line:
