@@ -141,17 +141,23 @@ Written 2026-09-12. **Nothing here has been run** except where marked.
 
 ### 5.1 `-par` sizing: is the default right?
 
-`-par=0` resolves to `GetNumCores()`, capped at `MAX_SCRIPTCHECK_THREADS` = 16
-(`init.cpp:1125-1132`), and spawns `nScriptCheckThreads - 1` workers because
-the connecting thread participates:
+**Decided (P20): cap at 4.** `-par=0` resolves to `GetNumCores()`, capped
+at `MAX_SCRIPTCHECK_THREADS` = 4 (`main.h`; applied in `AppInit2`, search
+`nScriptCheckThreads`), and spawns `nScriptCheckThreads - 1` workers because
+the connecting thread participates. A value of 1 or less runs the checks
+inline on the connecting thread (scalar):
 
-| CPUs | Workers | Participants |
-|-----:|--------:|-------------:|
-| 1 | 0 | 1 -- checks run inline |
-| 2 | 1 | 2 |
-| 4 | 3 | 4 |
-| 14 (this host: 10 P + 4 E cores) | 13 | 14 |
-| 16+ | 15 | 16 |
+| CPUs, `-par=0` | Participants | Workers | Before the cap |
+|---------------:|-------------:|--------:|----------------|
+| 1 | 1 -- inline, scalar | 0 | same |
+| 2 | 2 | 1 | same |
+| 4 | 4 | 3 | same |
+| 8 | 4 | 3 | 8, 7 workers |
+| 14 (this host: 10 P + 4 E cores) | 4 | 3 | 14, 13 workers |
+| 16+ | 4 | 3 | 16, 15 workers |
+
+`-par=1` forces the scalar path on any host; `-par=-n` leaves n cores free
+before the cap applies.
 
 The proportional part is correct at small sizes; a 2-CPU VPS gets one worker.
 The cap is the only free choice, and it dates from ECDSA-bound 2013 workloads.
@@ -159,8 +165,7 @@ Post-Sapling sync is proof-verification-bound on `ThreadImport`, and stack
 sampling found all 13 workers parked for an entire post-Sapling import
 (`SCRIPTQUEUE.md` "Measurement 2").
 
-**Proposal (`PLAN.md` P20): lower `MAX_SCRIPTCHECK_THREADS` from 16 to 4;
-keep the proportional formula.** Nothing changes for hosts of 4 CPUs or fewer.
+Nothing changes for hosts of 4 CPUs or fewer.
 
 **Proposal: `-rpcthreads` 4 -> 2.** Zero's RPC consumers are a wallet UI
 polling `getalldata` and an explorer, and `getalldata` already refuses
@@ -189,8 +194,8 @@ for an unidentified reason), serial 355.87. The pre-registered prediction -- no
 difference -- is wrong above the checkpoint: serial checking costs 6.1%, and
 throughput rises monotonically with workers. Capping at 4 costs 1.2-2.9% on this
 14-core host and removes 10 threads; capping at 7 costs ~0.6%. Below the
-checkpoint the pool does no work, so there the cap is free. Whether ~1% of
-post-checkpoint sync is worth 10 threads is `PLAN.md` decision 8.
+checkpoint the pool does no work, so there the cap is free. The cap trades 1.2-2.9% of
+post-checkpoint sync on this host for 10 fewer threads.
 
 ### 5.2 Read-only RPC under concurrency
 

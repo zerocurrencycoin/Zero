@@ -65,8 +65,9 @@ A rule with no check drifts. A check that cannot fail the build is a comment.
 ## Ownership
 
 The repository root is read-only from this tree: no root file is edited,
-added, removed or renamed here. A defect in a Zero-owned document becomes a
-`Z` item in `PLAN.md` with a draft in `reporoot/`.
+added, removed or renamed here. A root file is refreshed only by taking
+Zero's committed version whole (`PLAN.md` Z7). A defect in a Zero-owned
+document becomes a `Z` item in `PLAN.md` with a draft in `reporoot/`.
 
 | Tree | Owns |
 |------|------|
@@ -88,6 +89,30 @@ writing (`fix_ascii.py`).
 
 ---
 
+## Sessions
+
+Rules for an agent session in this tree, on top of `AGENTS.md`.
+
+- Start at the root of the `ZeroPerf` worktree and use root-relative or
+  absolute paths; never `cd`. Work in Zero's tree from a session opened in
+  the `Zero401` checkout.
+- Git writes -- commit, branch move, tag, rebase, push -- run only on the
+  user's direction for that action. Otherwise the agent gives the diff
+  summary, the commands and the commit messages, and stops.
+- The restart prompt in `PLAN.md` section 1 is fixed text. A session wrap
+  updates the state line, not the prompt.
+- A status or decision applies to the items named, never to their group.
+  Record only what was decided; a proposal stays marked as one until
+  accepted.
+- Settled and postponed items stay out of reports and prose; their status is
+  their `PLAN.md` row.
+- A structural rewrite restates each criterion given and shows how the
+  proposal meets it, and is applied after approval. New content is placed by
+  re-deriving the layout, not appended.
+- Run a check before stating its result; otherwise say "unverified".
+
+---
+
 ## Code and build changes
 
 A change proposed or made here is done when each step holds:
@@ -105,6 +130,13 @@ them is upstream; its reason is usually in the originating commit, and
 diverging needs a stated reason. Build, exercise and test logs for a
 behaviour change go in `test-logs/<change>-<utc>/`.
 
+- Rebuild clean after `./configure`: it regenerates makefiles without
+  invalidating objects, so an incremental build carries new flags only in
+  recompiled units. Check with `nm src/zerod` and the binary timestamp.
+- Never compare debug and release timings. `validate.sh` fails
+  `buildconfig` while a debug binary is in the tree.
+- Run the test suites sequentially.
+
 ---
 
 ## Lab discipline
@@ -117,6 +149,9 @@ behaviour change go in `test-logs/<change>-<utc>/`.
 - Verify by artifact, not by exit status or a summary: check the completion
   marker and cross-check totals (`require_marker`, `require_counts_agree`).
 - State n with every aggregate. A negative over few trials is not absence.
+- Benchmarks only on an idle host: no build, test run or other `zerod`.
+- Lab inputs stay out of `/tmp`; this host moves `/tmp` lab directories
+  into `/tmp/zero_old` at midnight.
 - Effort in bands (S, M, L, XL), not calendar estimates.
 - Source `perflib.sh`; do not reimplement it. Run `perflib_selftest.sh` after
   changing it.

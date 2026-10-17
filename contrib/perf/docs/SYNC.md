@@ -117,9 +117,10 @@ The two remaining calls verify the same header. Removing one would save
 cached checked bit on the block object, the pattern behind zcashd's `fChecked`
 CVE-2026-35679. Not proposed.
 
-**Pinned** by six Boost tests in `miner_tests`. Each mutation of
-`main.cpp` below was built and run; the named test, and only it, failed
-(record: `PLAN.md` P13):
+**Pinned** by eight Boost tests in `header_check_tests`
+(`src/test/header_check_tests.cpp`, built with `ENABLE_MINING`). For the
+first six, each mutation of `main.cpp` below was built and run; the named
+test, and only it, failed (record: `PLAN.md` P13):
 
 | Test | What it holds | Mutation that fails it |
 |------|---------------|------------------------|
@@ -129,11 +130,14 @@ CVE-2026-35679. Not proposed.
 | `connectblock_checks_header_below_valid_tree` | below `BLOCK_VALID_TREE` the solution is still verified | skip made unconditional |
 | `testblockvalidity_checks_solution` | block proposals verify the solution | `TestBlockValidity` passing `fCheckPOW=false` |
 | `processnewblock_rejects_corrupt_solution` | submission rejects a corrupt solution, accepts it intact | none single: `AcceptBlockHeader` backs up the preliminary check |
+| `solution_binds_the_rest_of_the_header` | a changed `nNonce` invalidates the solution; submission rejects it | not run |
+| `resubmitted_block_is_a_harmless_duplicate` | a block already in the index, resubmitted, is accepted; tip unchanged | not run |
 
 The read-back case matters because `ConnectTip` reads a block from disk when
 it was not handed one in memory. The `AcceptBlock` half has no observable
-effect outside the `ZERO_PERF` counters. **Still missing:** a `getblock` RPC concurrent with reindex (an
-`nStatus` read racing its write). Other coverage: `invalidblockrequest.py`,
+effect outside the `ZERO_PERF` counters. **Still missing:** a `getblock` RPC concurrent with reindex. `getblock`
+holds `cs_main` throughout, so an `nStatus` race is not expected
+(unverified); the test covers the read path under load. Other coverage: `invalidblockrequest.py`,
 `reorg_limit.py`, `mempool_reorg.py`.
 
 ---

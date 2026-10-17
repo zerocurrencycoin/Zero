@@ -422,6 +422,42 @@ that legitimately wants two different views. **Recommend per-RPC in-flight
 plus a shared concurrency cap of 1** if that proves insufficient under load --
 but start per-RPC, because it cannot break an existing client.
 
+### P28. Witness RPC gate: what widening it does
+
+This tree widened the gate in `CRPCTable::execute` (`rpc/server.cpp`) from
+`z_sendmany` and `getalldata` to `z_shieldcoinbase` and `z_mergetoaddress`,
+returning `RPC_DISABLED_BEFORE_WITNESSES` (-31) while `initWitnessesBuilt` is
+false. Review found the reason given for it wrong for one of the two.
+
+**How "unbuilt" arises, and what an ungated call meets:**
+
+- *Rebuild.* `BuildWitnessCache` takes `LOCK2(cs_main, cs_wallet)` and clears
+  `initWitnessesBuilt` inside it, holding both until the rebuild ends. A
+  wallet RPC cannot run against a half-built cache: it blocks on the locks
+  and runs after the rebuild, against complete witnesses. The cost is an RPC
+  worker held for the rebuild, minutes on a fat wallet; four such calls
+  exhaust `-rpcthreads=4`.
+- *Deferred build* (`-walletwitness=ibd-defer`). Witnesses stay unbuilt
+  until the end of IBD with no lock held, so an ungated call runs at once.
+
+| | `z_mergetoaddress` | `z_shieldcoinbase` |
+|---|---|---|
+| Reads witnesses | yes: `asyncrpcoperation_mergetoaddress.cpp`, Sapling and Sprout sites, each checks for a missing witness | no: `asyncrpcoperation_shieldcoinbase.cpp` spends transparent coinbase only |
+| Ungated, rebuild | waits for the rebuild, then succeeds | waits for the rebuild, then succeeds |
+| Ungated, deferred | starts, then the async operation fails on a missing witness | succeeds |
+| Gated | -31 at once in both cases | -31 at once; refuses in deferred mode a call that would succeed |
+
+**Users.** Zerowallet calls only `z_sendmany` and `getalldata`, both gated
+already, and treats -31 as a soft status; neither change reaches it.
+`z_shieldcoinbase` is scripted by miners and pools.
+
+**Proposed when reopened:** keep `z_mergetoaddress` in the gate, as
+`z_sendmany` is, for an immediate and clear -31; remove
+`z_shieldcoinbase`; correct the comment at the gate, which says both read
+witnesses. Workers held during a rebuild affect every wallet RPC; the fix
+for that is releasing the locks between rebuild batches (`PLAN.md` A14b),
+not a longer gate list. A behaviour change, so after v4.1.0.
+
 ### P5. Migrate `boost::optional` to `std::optional`
 
 Zcash did this in `d8d091895` (2020-10-21) as a **scripted-diff**: the six
