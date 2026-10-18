@@ -25,7 +25,8 @@ class MergeToAddressMixedNotes(BitcoinTestFramework):
         print("Mining blocks...")
         self.nodes[0].generate(1)
         self.sync_all()
-        self.nodes[0].generate(COINBASE_MATURITY + 1)
+        # Heights 2 and 3 mature at one address, so get_coinbase_address picks it over height 1.
+        self.nodes[0].generate(COINBASE_MATURITY + 2)
         self.sync_all()
 
         # Send some ZEC to Sprout/Sapling addresses

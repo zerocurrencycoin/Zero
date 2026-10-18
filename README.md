@@ -25,7 +25,7 @@ This repository is the **full node** (`zerod`, `zero-cli`, `zero-tx`). It downlo
 |------------|------------|
 | **Trade or hold** | Wallets and exchanges from [zerocurrency.io](https://zerocurrency.io); verify tickers on official channels only. |
 | **Mine** | Equihash **(192,7)** -- Zero's PoW (Zcash mainnet uses **(200,9)**). `gen=0` is the operator default. |
-| **Run a node** | [Quick start](#-building) below, then [BUILD_ZERO.md](BUILD_ZERO.md). |
+| **Run a node** | [Quick start](#-building) below, then BUILD_ZERO "Configuration". |
 | **Understand economics** | [ZERO_COIN.md](ZERO_COIN.md) (emission, halvings, founders, zeronodes). |
 | **Contribute** | [CONTRIBUTING.md](CONTRIBUTING.md) · [TEST_ZERO.md](TEST_ZERO.md) · [TODO.md](TODO.md) · [AGENTS.md](AGENTS.md). |
 
@@ -61,7 +61,7 @@ Chain facts (authoritative detail in [ZERO_COIN.md](ZERO_COIN.md)):
 | **Fee-start** | Height **412,300** -- base subsidy **10 -> 10.8 ZER**; founders carve begins. |
 | **Halvings** | **800k** (2020), **1.6M** (2023), **2.4M** (2026); next **3.2M**. |
 | **Founders** | **7.5%** of block subsidy while eligible (through height **7,999,999**). |
-| **Zeronodes** | **20-40%** of block value by height tier when sporks enable payments. |
+| **Zeronodes** | **20-40%** of block value by height tier. |
 
 ------------------------------------------
 
@@ -120,6 +120,7 @@ Automatic node deprecation (mainnet) is configured on a **~10 year** window from
 | [AGENTS.md](AGENTS.md) | Agents and humans editing the tree | Scope and documentation rules |
 | `doc/man/` | Operators (after install) | `zerod`, `zero-cli`, `zero-tx` manuals |
 | `doc/release-notes/` | Operators, miners, pools, integrators | Changes per release |
+| [doc/zeronodes.md](doc/zeronodes.md) | Maintainers | Zeronode, spork, SwiftTX, and budget implementation |
 
 ```
                     README
@@ -143,80 +144,30 @@ Automatic node deprecation (mainnet) is configured on a **~10 year** window from
 
 ### Quick start on Linux
 
-Install the packages listed in [BUILD_ZERO.md section 2.2](BUILD_ZERO.md#22-linux-x86_64), then:
+Install the packages listed in BUILD_ZERO "Build", then:
 
 ```bash
 git clone https://github.com/zerocurrencycoin/Zero.git && cd Zero
 ./zcutil/fetch-params.sh
-./zcutil/build.sh
+./zcutil/build.sh -j$(nproc)
+mkdir -p ~/.zero && touch ~/.zero/zero.conf
 ./src/zerod -daemon
+./src/zero-cli getblockchaininfo
 ```
 
-macOS and Windows: see [BUILD_ZERO.md](BUILD_ZERO.md).
+An empty `zero.conf` is enough when `zero-cli` runs on the same host; other setups are in BUILD_ZERO "Configuration". macOS and Windows: BUILD_ZERO "Build".
 
 ### Operator checks
 
-Config, then an isolated lab cycle under `/tmp` (not the live datadir):
-
 ```bash
-./contrib/zero-conf.sh prod -dir ~/.zero
 ./contrib/ops-validate.sh smoke
 ```
 
-`smoke` is cold start + restart. `./contrib/ops-validate.sh short` adds Equihash KATs and `verifyeq`. Timed (192,7) solves are `solveeq` (default 1; pass N). Isolated regtest `generate` is `mine` (not mainnet). Load soaks (`reindex`, `bootstrap`, `copy`) stay separate. If a leftover `zerod` or RPC port is in the way, stop it or pass `--force`.
-
-From-source merge check: `./contrib/run-tests.sh --strict`. Maintainer inventory: [TEST_ZERO.md](TEST_ZERO.md).
-
-### Data directory
-
-Canonical defaults (`GetDefaultDataDir()` / `ZC_GetBaseParamsDir()` in `src/util.cpp`):
-
-| Platform | Data directory | Proving params |
-|----------|----------------|----------------|
-| **Linux** | `~/.zero` | `~/.zcash-params` |
-| **macOS** | `~/Library/Application Support/zero` | `~/Library/Application Support/ZcashParams` |
-| **Windows** | `%APPDATA%\zero` (e.g. `C:\Users\USERNAME\AppData\Roaming\zero`) | `%APPDATA%\ZcashParams` (sibling of `zero`, **not** under it) |
-
-Replace **`USERNAME`** with your login. Override datadir with `-datadir=<path>`. Wallet file: **`wallet.zero`** inside the datadir.
-
-**Linux** -- create config (or `./contrib/zero-conf.sh prod -dir ~/.zero`):
-
-```bash
-mkdir -p ~/.zero
-echo "server=1" > ~/.zero/zero.conf
-echo "rpcuser=YOUR_NAME" >> ~/.zero/zero.conf
-echo "rpcpassword=$(head -c 32 /dev/urandom | base64)" >> ~/.zero/zero.conf
-echo "rpcport=23811" >> ~/.zero/zero.conf
-```
-
-**macOS**:
-
-```bash
-mkdir -p "$HOME/Library/Application Support/zero"
-echo "server=1" > "$HOME/Library/Application Support/zero/zero.conf"
-```
-
-**Windows** (PowerShell):
-
-```powershell
-mkdir $env:APPDATA\zero
-echo server=1 > $env:APPDATA\zero\zero.conf
-```
-
-### Full node RPC on Linux
-
-With `server=1` and RPC credentials in `zero.conf`:
-
-```bash
-./src/zero-cli getblockchaininfo
-./src/zero-cli help
-```
+Starts and restarts an isolated node under `/tmp`; the live data directory is not touched. The other checks are in TEST_ZERO "Operational checks".
 
 ### Optional CPU mining
 
-Template **prod** ships `gen=0`. The mining tests (TEST_ZERO section 8.5) run on **regtest (48,5)** and do not mine the live chain. Mainnet CPU mining is Equihash **(192,7)** on a synced node with peers, a wallet or `-mineraddress`, and `ENABLE_MINING`.
-
-Without restart, on the operator node:
+Mainnet CPU mining is Equihash **(192,7)** on a synced node with peers, a wallet or `-mineraddress`, and `ENABLE_MINING`. Without restart:
 
 ```bash
 ./src/zero-cli setgenerate true 1
@@ -224,43 +175,38 @@ Without restart, on the operator node:
 ./src/zero-cli setgenerate false
 ```
 
-`getmininginfo` should show `"generate": true` and a non-zero `localsolps` once the solver is running. `debug.log` should contain `Using Equihash solver` and `Running ZeroMiner`. The miner waits if there are no peers or the node is still in initial block download. One solve takes on the order of a minute; finding a mainnet block at current difficulty is not expected.
-
-To persist across restart, set `gen=1` and `genproclimit=1` in `zero.conf` (already present as `gen=0` / `genproclimit=1` / `equihashsolver=tromp` in the prod template). Use `setgenerate false` or `gen=0` to stop.
-
-### Config samples
-
-`./contrib/zero.conf` is the commented example: every option with its default. `./contrib/zero-conf.sh` writes a ready-made file per role from `contrib/conf-templates/` (default **prod**, `/tmp/zero.conf`, generated `rpcpassword`). Details: [BUILD_ZERO.md section 3.2](BUILD_ZERO.md#32-configuration-file).
+`getmininginfo` shows `"generate": true` and a non-zero `localsolps` once the solver runs; `debug.log` shows `Using Equihash solver` and `Running ZeroMiner`. The miner waits while there are no peers or the node is in initial block download. One solve takes about a minute; finding a mainnet block at current difficulty is not expected. To mine after a restart, set `gen=1` in `zero.conf`.
 
 🔩 Running Zero
 --------------------
-After building, binaries are in `./src`. Run the daemon in the background:
-
-```
-./src/zerod -daemon
-```
 
 **Help and man pages**
 
 | How | What |
 |-----|------|
-| `./src/zerod -help` | Built-in option list (always available from the binary) |
+| `./src/zerod -help` | Option list from the binary |
 | `./src/zero-cli -help` | CLI client options |
 | `./src/zero-tx -help` | Transaction utility options |
-| `man zerod` / `man zero-cli` / `man zero-tx` | Same material as installed manuals under **`doc/man/`** (after `make install` or packaging that installs man pages) |
+| `man zerod` / `man zero-cli` / `man zero-tx` | The manuals in `doc/man/`, after an install that includes them |
 
-During development from a build tree, prefer **`-help`**. After a system install that includes man pages, **`man zerod`** is the usual operator path.
-
-Your wallet is created on first run as **`wallet.zero`** in the data directory (see table above). [Backup your wallet](https://github.com/zerocurrencycoin/Zero/wiki/Wallet-Backup) often.
+The wallet is created on first start as **`wallet.zero`** in the data directory. [Back up your wallet](https://github.com/zerocurrencycoin/Zero/wiki/Wallet-Backup) often.
 
 Usage is similar to other Zcash-family nodes. Background: [Zcash Basics](https://zcash.readthedocs.io/en/latest/rtd_pages/basics.html).
 
 ### Block explorer
-Public transparent address / block / transaction search.
 
-Mainnet: [https://insight.zeromachine.io/](https://insight.zeromachine.io/)
+Public transparent address, block, and transaction search on mainnet: [https://insight.zeromachine.io/](https://insight.zeromachine.io/)
+
+### Data directory
+
+| Platform | Data directory | Proving params |
+|----------|----------------|----------------|
+| **Linux** | `~/.zero` | `~/.zcash-params` |
+| **macOS** | `~/Library/Application Support/zero` | `~/Library/Application Support/ZcashParams` |
+| **Windows** | `%APPDATA%\zero` | `%APPDATA%\ZcashParams` |
+
+`-datadir=<path>` moves the data directory.
 
 ---
 
 Note: This repository builds the full node only. The Qt Desktop Wallet (**zerowallet**) is a separate application.
-

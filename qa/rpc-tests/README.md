@@ -41,29 +41,11 @@ Add `--nocleanup` to keep the temp datadir after a standalone run.
 
 ### RPC tiers
 
-See `TEST_ZERO.md`. Script names are authoritative in `qa/pull-tester/rpc-tests.sh` arrays only.
-
-Tier lists: `qa/pull-tester/rpc-tests.sh` arrays, exported to `test_tier_inventory.csv` with **`-list-csv`**; blockers of held scripts: **TEST_ZERO.md** section 5.
-
-- `qa/pull-tester/rpc-tests.sh -A` -- Tier A gate
-- `qa/pull-tester/rpc-tests.sh -B` -- Tier B pass
-- `qa/pull-tester/rpc-tests.sh -list-csv [path]` -- `tier,group,script` CSV (one script per line, grouped)
-- `qa/pull-tester/rpc-tests.sh -Bfail` -- Tier B known fail (Debug then Retired; diagnostic)
-- `qa/pull-tester/rpc-tests.sh -E` -- Ext pass
-- `qa/pull-tester/rpc-tests.sh -Efail` -- Ext known fail (diagnostic)
-- `qa/pull-tester/rpc-tests.sh -all` -- `-A` then `-B` then `-E` (pass tiers)
-- `qa/pull-tester/rpc-tests.sh -rpcfail` -- `-Bfail` then `-Efail`
-- `qa/pull-tester/rpc-tests.sh` (no args) -- same as `-all`
-
-Regenerate human-review tier inventory:
-
-```bash
-./qa/pull-tester/rpc-tests.sh -list-csv qa/rpc-tests/test_tier_inventory.csv
-```
+Tiers, their flags, and the inventory CSV: TEST_ZERO "Tiers"; blockers of held scripts: TEST_ZERO "Held scripts".
 
 ### `initialize_chain` cache
 
-Defined in `test_framework/util.py`. Frozen datadir: **`<repo>/cache/node{0..3}/`** via **`rpc_cache_root()`** (see **`TEST_ZERO.md`**). Only **four** scripts use it: **`blockchain.py`**, **`keypool.py`**, **`httpbasics.py`** (framework default), **`rpcbind_test.py`**.
+Defined in `test_framework/util.py`. Frozen datadir: **`<repo>/cache/node{0..3}/`** via **`rpc_cache_root()`**. Only **four** scripts use it: **`blockchain.py`**, **`keypool.py`**, **`httpbasics.py`** (framework default), **`rpcbind_test.py`**.
 
 First build: 200-block distribution, then mine to **`COINBASE_MATURITY` [720] + 5** (tip **725**) on node 0.
 

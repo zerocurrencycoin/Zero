@@ -21,21 +21,19 @@ Chain economics, consensus parameters, operational facts, and where Zero differs
 | **Transparent address (t-addr)** | Public UTXO address. |
 | **Shielded address (z-addr)** | Shielded pool (**Sapling** generation in this codebase). |
 | **Sapling** | Shielded protocol generation; activation heights per network in **`getblockchaininfo`**. |
-| **Sprout** | Earlier shielded path; relevance diminished. |
+| **Sprout** | First shielded pool; mainnet still holds a balance in it (`valuePools`); wallets create Sapling notes. |
 | **JoinSplit** | Shielded component moving value into/out of the pool. |
 | **Note / commitment / nullifier** | Shielded note lifecycle on-chain. |
-| **Spork** | Live-adjustable network toggle (zeronode tiers). |
 | **Equihash (192, 7)** | PoW parameters for Zero; notably different from Zcash's **(200, 9)**. |
 | **Coinbase** | Subsidy + fees in the block reward transaction. |
 | **COINBASE_MATURITY** | **720** confirmations before coinbase is spendable (not Bitcoin 100). |
 | **Block subsidy** | New coins per block before fees; **halving** reduces it. |
 | **Halving** | Subsidy right-shift at interval boundaries (see **Halving calendar**). |
 | **Founders reward** | **7.5%** of block subsidy in eligible heights to rotating transparent addresses. |
-| **Zeronode** | Incentive layer; **20-40%** of block value when sporks enable tiers (see **Zeronode payments**). |
+| **Zeronode** | Incentive layer; **20-40%** of block value (see **Zeronode payments**). |
 | **Mainnet / testnet / regtest** | Production / public test / local regression. |
 | **Network upgrade (NU) / branch id** | Rule set by height; **branch id** in sighash for Overwinter+ txs. |
 | **RPC** | JSON-RPC from **zerod**. |
-| **Pruning / txindex** | Optional mode; importance reduced. |
 | **Reindex** / **Rescan** | Chain index rebuild vs wallet rescan. |
 | **Params** | Proving keys; **fetch-params** scripts. |
 | **MAX_MONEY** | Caps **single-output** amounts; total issued supply is a separate concept (**Total supply**). |
@@ -82,7 +80,7 @@ Historical path from genesis to the current schedule. Amounts are consensus mint
 
 **Issued through height 2,400,000 (halving 3 inclusive):** **14,790,161.35 ZER** minted -- Miner **10,600,091.78** / Nodes **3,390,032.47** / Dev **800,037.10** (see **Emission totals** below).
 
-**Current era (post-halving 3):** base **1.35 ZER**/block; founders **7.5%** of that; zeronode **35%** when sporks on. For tip-relative model sums, run `contrib/stats/chain_stats.py --verify` locally after sync (not published here).
+**Current era (post-halving 3):** base **1.35 ZER**/block; founders **7.5%** of that; zeronode **35%**. For tip-relative model sums, run `contrib/stats/chain_stats.py --verify` locally after sync (not published here).
 
 **Projected:** next halving **3,200,000**; founders continue to **7,999,999**; cumulative mint at founders end model **~16.93M ZER**; long-run schedule asymptotes under the 21M-class ceiling used in tests -- product target remains **some 20M ZER** (supply review open).
 
@@ -156,7 +154,7 @@ Share of **block value** (subsidy before fees split).
 | >= 2,400,000 | 35% |
 | >= 3,200,000 | 40% |
 
-**Sporks:** **`SPORK_7_ZERONODE_PAYMENT_ENABLED`** must be on for non-zero zeronode payment; **`SPORK_6_ZERONODE_FULL_PAYMENT_ENABLED`** selects tier schedule vs fixed **100,000** zatoshis. **`SPORK_13_ENABLE_SUPERBLOCKS`** routes payees through **budget** instead of default zeronode fill.
+The tiers apply while zeronode payments are switched on network-wide, as on mainnet; the switches are in doc/zeronodes.md "Sporks".
 
 ---
 
@@ -164,7 +162,7 @@ Share of **block value** (subsidy before fees split).
 
 1. **`blockValue`** = **`GetBlockSubsidy(height)`**.
 2. **Founders** = **7.5%** of **`blockValue`** when required.
-3. **Zeronode** = **`GetZeronodePayment`** (or budget path).
+3. **Zeronode** = **`GetZeronodePayment`**.
 4. **Miner** = **`blockValue - founders - zeronode + fees`**.
 
 ---
@@ -214,18 +212,8 @@ Mainnet donation address published with the desktop wallet project: `t1fDbALrS7t
 ## Operational reference
 
 - **Default RPC port:** **23811** (P2P is **23801**; `src/chainparamsbase.cpp`).
-- **Datadir / wallet:** see table below; wallet file **`wallet.zero`** -- **back up** before upgrades.
+- **Wallet:** **`wallet.zero`** in the data directory -- **back up** before upgrades.
 - **Proving params:** `zcutil/fetch-params.sh`.
-
-### Default data paths
-
-Replace **`USERNAME`** with your OS login.
-
-| Platform | Data directory | Proving params |
-|----------|----------------|----------------|
-| **Linux** | `~/.zero` | `~/.zcash-params` |
-| **macOS** | `~/Library/Application Support/zero` | `~/Library/Application Support/ZcashParams` |
-| **Windows** | `C:\Users\USERNAME\AppData\Roaming\zero` | `C:\Users\USERNAME\AppData\Roaming\ZcashParams` |
 
 - **New addresses:** `getnewaddress` (transparent), `z_getnewaddress sapling` (shielded); list: `listreceivedbyaddress 0 true`, `z_listaddresses`.
 
@@ -239,7 +227,7 @@ The node is **experimental**; use at your own risk. Back up keys and wallet file
 
 ## Emission totals and chain statistics
 
-Consensus-model totals from `GetBlockSubsidy` + 7.5% founders + tiered zeronode share (sporks on). Figures below are **fixed-height** schedule totals (through halving milestones). Tip-relative checks: run the scripts locally after sync -- do not paste live tip into this file.
+Consensus-model totals from `GetBlockSubsidy` + 7.5% founders + tiered zeronode share. Figures below are **fixed-height** schedule totals (through halving milestones). Tip-relative checks: run the scripts locally after sync -- do not paste live tip into this file.
 
 ```bash
 ./contrib/stats/chain_stats.py --cons --thru 2400000   # fixed height (halving 3)
@@ -323,7 +311,7 @@ Tools: see command table in **Emission totals** above.
 | `zeronodestats` | Includes `chainStats.developmentfee` (founders carve) |
 | `getblocksubsidy` | `miner` / `founders` amounts |
 | `getblock <hash> 2` | Coinbase vout decode |
-| `gettxoutsetinfo` | UTXO set size (requires no pruning) |
+| `gettxoutsetinfo` | UTXO set size |
 | `getmininginfo` | Network hash, difficulty |
 
 Sprout pool on mainnet remains non-zero (historical shielded balance); Sapling is the active wallet generation.

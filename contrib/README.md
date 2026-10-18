@@ -1,5 +1,3 @@
-*** Warning: This document may be incomplete for Zero; verify paths against BUILD_ZERO.md. ***
-
 Wallet Tools
 ---------------------
 

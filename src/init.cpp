@@ -1132,6 +1132,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     fServer = GetBoolArg("-server", false);
 
+    // -prune is not an option: pruning cannot run with the always-on transaction index.
     // block pruning; get the amount of disk space (in MB) to allot for block & undo files
     // int64_t nSignedPruneTarget = GetArg("-prune", 0) * 1024 * 1024;
     // if (nSignedPruneTarget < 0) {

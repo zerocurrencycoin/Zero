@@ -51,7 +51,7 @@ Maintainers merge once review concerns are resolved and the merge gate passes.
 
 ## Developer workflow
 
-1. Build from source as described in [BUILD_ZERO.md](BUILD_ZERO.md).
+1. Build from source per BUILD_ZERO "Build".
 2. Make the change.
 3. Run the merge gate: `./contrib/run-tests.sh --strict`. Without `--strict` the runner may exit 0 after a failed step.
 4. Push the branch and open the pull request.
@@ -76,23 +76,27 @@ The code is the only source of `zerod` options and their defaults: `HelpMessage`
 
 A new or changed option needs its help line in the same change, a regenerated man page at the next version change, and an updated `doc/Options.csv` row (`inventory-check.py --apply`).
 
+### Shell notify hooks
+
+`-blocknotify`, `-walletnotify`, and `-alertnotify` run a shell command only in builds compiled with `-DENABLE_SYSTEM_COMMAND` in `CXXFLAGS`; release builds log the skipped command. The shell-free alternative is ZMQ, described in zcashd [doc/zmq.md](https://github.com/zcash/zcash/blob/v5.4.0/doc/zmq.md).
+
 ---
 
 ## Testing
 
-The node has three test layers: GTest (`src/zero-gtest`), Boost (`src/test/test_bitcoin`), and Python RPC tests (`qa/rpc-tests`). Test runners, tiers, and how to interpret results are in [TEST_ZERO.md](TEST_ZERO.md). Bug fixes should include a test that fails without the fix where practical.
+The node has three test layers: GTest (`src/zero-gtest`), Boost (`src/test/test_bitcoin`), and Python RPC tests (`qa/rpc-tests`). Runners, tiers, and held scripts are in TEST_ZERO "Run", "Tiers", and "Held scripts". Bug fixes should include a test that fails without the fix where practical.
 
 ---
 
 ## Continuous integration
 
-`.github/workflows/tests.yml` runs `./contrib/run-tests.sh --strict` on pushes and pull requests when CI is enabled for the repository.
+`.github/workflows/tests.yml` builds on Ubuntu 24.04 and runs `./contrib/run-tests.sh --strict` on pushes to `master`, `main`, and `develop` and on pull requests; pushes to a release branch such as `zero-410` do not start it.
 
 ---
 
 ## Release versioning and process
 
-Versions follow `MAJOR.MINOR.PATCH`, with release candidates tagged before the final release. The release lifecycle -- version bump, build, tag, packaging, checksums, and signatures -- is described in [BUILD_ZERO.md](BUILD_ZERO.md).
+Versions follow `MAJOR.MINOR.PATCH`, with release candidates tagged before the final release. The release lifecycle -- version bump, build, tag, packaging, checksums, and signatures -- is in BUILD_ZERO "Release".
 
 ---
 

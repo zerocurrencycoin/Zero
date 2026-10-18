@@ -3,12 +3,6 @@
 Apply with `contrib/zero-conf.sh`. Default template **prod**, default file `/tmp/zero.conf`.
 Do not copy a live datadir conf into git (credentials).
 
-Ports:
-
-- **23801-23820** -- deployments and tests that deliberately use chain defaults (mainnet P2P **23801** / RPC **23811**, testnet 23802/23812, regtest 23803/23813).
-- **lab** template defaults to RPC **23941** (isolated). `ops-validate` Equihash / mine uses **23951**.
-- QA RPC harness picks ephemeral ports in **11000+** / **12000+** (pid-based), not the deployment range.
-
 | Template | Role | Default RPC |
 |----------|------|-------------|
 | **prod** | Production operator (`gen=0`, wallet RPC) | 23811 |

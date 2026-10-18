@@ -24,10 +24,25 @@ import re
 
 from .authproxy import AuthServiceProxy, JSONRPCException
 
+# Port layout of Bitcoin Core v0.13.0 qa/rpc-tests/test_framework/util.py (MAX_NODES,
+# PORT_MIN, PORT_RANGE, p2p_port, rpc_port), with the PID as the seed where Bitcoin Core
+# uses PortSeed.n from --portseed. Each process gets a block of MAX_NODES ports at offset
+# MAX_NODES * seed, so consecutive PIDs get disjoint blocks. P2P uses 24000-26999 and RPC
+# 27000-29999: above the chain ports 23801-23820 and the ops-validate ports 23941/23951,
+# below the Linux (32768) and macOS/Windows (49152) ranges for outgoing connections.
+MAX_NODES = 8
+PORT_MIN = 24000
+PORT_RANGE = 3000
+
+def _port_offset():
+    return (MAX_NODES * os.getpid()) % (PORT_RANGE - 1 - MAX_NODES)
+
 def p2p_port(n):
-    return 11000 + n + os.getpid()%999
+    assert n < MAX_NODES
+    return PORT_MIN + n + _port_offset()
 def rpc_port(n):
-    return 12000 + n + os.getpid()%999
+    assert n < MAX_NODES
+    return PORT_MIN + PORT_RANGE + n + _port_offset()
 
 # Regtest founders/dev-fee window (must match Consensus::REGTEST_FOUNDERS_* in params.h).
 # Maturity stays COINBASE_MATURITY (720). Active for [START, STOP); STOP exclusive.

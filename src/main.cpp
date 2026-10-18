@@ -89,6 +89,7 @@ int GetScriptCheckThreads(int nPar, int nCores)
 bool fExperimentalMode = false;
 bool fImporting = false;
 bool fReindex = false;
+// Always on; -txindex is not an option. Zeronode checks look up collateral transactions by txid.
 bool fTxIndex = true;
 bool fArchive = true;
 bool fZindex = false;
