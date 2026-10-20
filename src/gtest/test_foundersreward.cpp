@@ -175,7 +175,8 @@ TEST(founders_reward_test, regtest) {
 
 
 
-// Sum of GetFoundersRewardAmount over founders-reward height span (7.5%, integer trunc).
+// Sum of GetFoundersRewardAmount over heights 1 to the last founders height; the paid fee starts at nFeeStartBlockHeight.
+// Then the subsidy sum over all heights, which must equal MAX_MONEY.
 TEST(founders_reward_test, slow_start_subsidy) {
     SelectParams(CBaseChainParams::MAIN);
     CChainParams params = Params();

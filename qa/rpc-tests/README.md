@@ -45,7 +45,7 @@ Tiers, their flags, and the inventory CSV: TEST_ZERO "Tiers"; blockers of held s
 
 ### `initialize_chain` cache
 
-Defined in `test_framework/util.py`. Frozen datadir: **`<repo>/cache/node{0..3}/`** via **`rpc_cache_root()`**. Only **four** scripts use it: **`blockchain.py`**, **`keypool.py`**, **`httpbasics.py`** (framework default), **`rpcbind_test.py`**.
+Defined in `test_framework/util.py`. Frozen datadir: **`<repo>/cache/node{0..3}/`** via **`rpc_cache_root()`**. Scripts that keep the framework's default `setup_chain` use it.
 
 First build: 200-block distribution, then mine to **`COINBASE_MATURITY` [720] + 5** (tip **725**) on node 0.
 

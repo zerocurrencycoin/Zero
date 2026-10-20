@@ -1,335 +1,130 @@
-# ZERO_COIN - User-observable chain and node
+# ZERO_COIN
 
-Chain economics, consensus parameters, operational facts, and where Zero differs from upstream.
-
-| Audience | Use |
-|----------|-----|
-| Miners / pools | Block reward, halving, zeronode share, payout expectations. |
-| Node operators | Ports, config, sync. |
-| Exchanges / integrators | Supply, emission, branch ids. |
-| Developers | Consensus-visible rules; code in **`src/`**. |
+Chain economics and consensus parameters of the Zero mainnet, for miners, pools, exchanges, and integrators. Amounts are computed with the integer arithmetic of the code (`GetBlockSubsidy`, `GetFoundersRewardAmount`, `GetZeronodePayment` in `src/main.cpp`) and checked against the chain; 1 ZER = 100,000,000 zatoshis.
 
 ---
 
-## Glossary
+## Chain
 
-| Term | Meaning |
-|------|--------|
-| **zerod** / **zero-cli** / **zero-tx** | Daemon, RPC client, tx utility (**doc/man/**). |
-| **ZER** | Ticker; amounts in RPC/wallet often in **zatoshi** (see `MAX_MONEY` / `MoneyRange` in consensus code). |
-| **zatoshi** | Smallest unit (like Bitcoin's satoshi). |
-| **Transparent address (t-addr)** | Public UTXO address. |
-| **Shielded address (z-addr)** | Shielded pool (**Sapling** generation in this codebase). |
-| **Sapling** | Shielded protocol generation; activation heights per network in **`getblockchaininfo`**. |
-| **Sprout** | First shielded pool; mainnet still holds a balance in it (`valuePools`); wallets create Sapling notes. |
-| **JoinSplit** | Shielded component moving value into/out of the pool. |
-| **Note / commitment / nullifier** | Shielded note lifecycle on-chain. |
-| **Equihash (192, 7)** | PoW parameters for Zero; notably different from Zcash's **(200, 9)**. |
-| **Coinbase** | Subsidy + fees in the block reward transaction. |
-| **COINBASE_MATURITY** | **720** confirmations before coinbase is spendable (not Bitcoin 100). |
-| **Block subsidy** | New coins per block before fees; **halving** reduces it. |
-| **Halving** | Subsidy right-shift at interval boundaries (see **Halving calendar**). |
-| **Founders reward** | **7.5%** of block subsidy in eligible heights to rotating transparent addresses. |
-| **Zeronode** | Incentive layer; **20-40%** of block value (see **Zeronode payments**). |
-| **Mainnet / testnet / regtest** | Production / public test / local regression. |
-| **Network upgrade (NU) / branch id** | Rule set by height; **branch id** in sighash for Overwinter+ txs. |
-| **RPC** | JSON-RPC from **zerod**. |
-| **Reindex** / **Rescan** | Chain index rebuild vs wallet rescan. |
-| **Params** | Proving keys; **fetch-params** scripts. |
-| **MAX_MONEY** | Caps **single-output** amounts; total issued supply is a separate concept (**Total supply**). |
-| **Deprecation** | Mainnet nodes shut down at an end-of-support height; `getdeprecationinfo` reports it. |
-| **P2P subver** | Peer user-agent subversion. |
-| **Mempool** | Unconfirmed txs awaiting blocks. |
+| Parameter | Value |
+|-----------|-------|
+| Genesis | 2017-02-19 10:26:40 UTC, `068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6`; pays no coins |
+| Proof of work | Equihash (192,7), personalization `ZERO_PoW`; Zcash uses (200,9) |
+| Block spacing | 120 s target |
+| Difficulty adjustment | Digishield per block (`GetNextWorkRequired`, `CalculateNextWorkRequired` in `src/pow.cpp`): mean target of the last 17 blocks, scaled by their median-time-past timespan dampened by 4 and bounded to 90-130% of 17 x 120 s (`nPowAveragingWindow` 17, `nPowMaxAdjustUp` 10, `nPowMaxAdjustDown` 30); Zcash uses 17, 16, 32 |
+| Coinbase maturity | 720 blocks |
+| Ports | P2P 23801, RPC 23811 (testnet 23802 and 23812, regtest 23803 and 23813) |
+
+| Network upgrade | Mainnet height | Branch ID |
+|-----------------|----------------|-----------|
+| Overwinter and Sapling | 492,850 (2019-01-05) | `0x6f76727a`, `0x7361707a` |
+| Cosmos | 620,450 (2019-07-02) | `0x7361707a`, the Sapling ID |
+| Blossom | not scheduled | -- |
+
+Signers take the branch ID for a height from `getblockchaininfo`. Shielded addresses are Sapling; the Sprout pool still holds coins from before Sapling.
 
 ---
 
-## Chain launch
+## Block subsidy
 
-- **Genesis:** 19 Feb 2017; hash `068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6`.
-- **No ICO, no premine** -- emission follows the subsidy schedule below.
+| Heights | Base subsidy |
+|---------|--------------|
+| 1 to 412,299 | 10 ZER |
+| From 412,300 (fee-start) | 10.8 ZER |
 
----
-
-## Economics vs Bitcoin / Zcash / Zero
-
-| Component | Zero | Bitcoin | Zcash |
-|-----------|------|---------|-------|
-| Base subsidy | 10 ZER (pre-fee) / 10.8 ZER (post-fee) | 50 BTC (historic) | 12.5 ZEC (slow-start era) |
-| Halving interval | 800k pre-Blossom, 1.6M post-Blossom | 210k | 840k / 1.68M |
-| Founder/dev | **7.5%** of subsidy | None | 20% (ECC+ZF era) |
-| Node reward | **20-40%** zeronode | None | None |
-
-Target block spacing **120 s** (pre-Blossom); ~800k blocks per halving interval is about **1,111 days** (~3.04 years).
+The subsidy is the base shifted right once per 800,000 blocks (`height / 800,000` halvings). At halving 30 it is 1 zatoshi; from halving 31, height 24,800,000, it is 0. Fee-start on testnet is height 1, on regtest 1000. The code divides the base by 2 under Blossom, which is not scheduled.
 
 ---
 
-## Mainnet emission timeline
+## Coinbase split
 
-Historical path from genesis to the current schedule. Amounts are consensus mint (`GetBlockSubsidy`); payee split is applied after (founders / zeronode / miner).
+The coinbase pays the subsidy plus fees and no more (`ConnectBlock`); the shares below come out of the subsidy and do not add coins.
 
-| When (UTC) | Height | Event | Base subsidy /block | Halvings | Split notes |
-|------------|-------:|-------|--------------------:|---------:|-------------|
-| 19 Feb 2017 | 0 | Genesis | **10** ZER | 0 | No founders carve yet |
-| ~Sep 2018 (est.) | **412,300** | **Fee-start** | **10.8** ZER | 0 | Founders **7.5%** required; zeronode still 20% until 800k |
-| 7 Mar 2020 | **800,000** | Halving 1 | **5.4** ZER | 1 | Zeronode tier -> **25%** |
-| 25 Mar 2023 | **1,600,000** | Halving 2 | **2.7** ZER | 2 | Zeronode tier -> **30%** |
-| 12 Mar 2026 | **2,400,000** | Halving 3 | **1.35** ZER | 3 | Zeronode tier -> **35%** |
-| (next) | **3,200,000** | Halving 4 | **0.675** ZER | 4 | Zeronode tier -> **40%** |
-| (schedule) | **7,999,999** | Last founders height | (then-current halved base) | -- | Founders carve ends |
-| (asymptote) | -- | Long-run mint | -> 0 after 64 halvings | -- | Model / `MAX_MONEY` ceiling **21M** zats cap is per-output, not total supply |
+1. **Development fee:** 7.5% of the subsidy (`subsidy * 75 / 1000`, truncated) from fee-start through height 7,999,999, to a P2SH address that rotates every 800,000 blocks (Addresses).
+2. **Zeronode payment:** a share of the subsidy by height, enforced on mainnet since block 620,426 (2019-07-02); the network-wide switches are in doc/zeronodes.md "Sporks".
 
-**Issued through height 2,400,000 (halving 3 inclusive):** **14,790,161.35 ZER** minted -- Miner **10,600,091.78** / Nodes **3,390,032.47** / Dev **800,037.10** (see **Emission totals** below).
+   | Heights | Zeronode share |
+   |---------|----------------|
+   | Below 800,000 | 20% |
+   | From 800,000 | 25% |
+   | From 1,600,000 | 30% |
+   | From 2,400,000 | 35% |
+   | From 3,200,000 | 40% |
 
-**Current era (post-halving 3):** base **1.35 ZER**/block; founders **7.5%** of that; zeronode **35%**. For tip-relative model sums, run `contrib/stats/chain_stats.py --verify` locally after sync (not published here).
+3. **Miner:** the rest, plus fees.
 
-**Projected:** next halving **3,200,000**; founders continue to **7,999,999**; cumulative mint at founders end model **~16.93M ZER**; long-run schedule asymptotes under the 21M-class ceiling used in tests -- product target remains **some 20M ZER** (supply review open).
+**For pools.** `getblocktemplate` returns the complete coinbase in `coinbasetxn`, with the development fee (`foundersreward`) and the zeronode output (`payee`, `payee_amount`); `getblocksubsidy` reports `miner` already net of the development fee, with the zeronode share still in it. A coinbase built from these fields that pays less than the template is accepted, and the difference is lost.
 
-### Halving calendar
+Example at height 2,500,000: subsidy 10.8 >> 3 = 1.35 ZER; development fee 0.10125; zeronode 35% = 0.4725; miner 0.77625 plus fees. A typical coinbase has three outputs: development fee, zeronode, miner. A fourth output is a pool splitting its miner payout.
 
-| Event | Block | Date (UTC) |
-|-------|-------|------------|
-| Genesis | 0 | 19 Feb 2017 |
-| Fee-start | 412,300 | ~Sep 2018 (120 s spacing est.) |
-| Halving 1 | 800,000 | 7 Mar 2020 |
-| Halving 2 | 1,600,000 | 25 Mar 2023 |
-| Halving 3 | 2,400,000 | 12 Mar 2026 |
-| Halving 4 (next) | 3,200,000 | ~2029 (spacing est.) |
+**Naming.** The development fee runs on the founders-reward code inherited from Zcash (`GetFoundersRewardAmount`, `vFoundersRewardAddress`), so `getblocksubsidy` and block templates call it `founders`, and `zeronodestats` calls it `developmentfee`. It differs from Zcash's founders reward, which took 20% of the subsidy for Zcash's first four years.
 
 ---
 
-## Consensus timing constants
+## Emission
 
-| Constant | Value |
-|----------|-------|
-| PRE_BLOSSOM_POW_TARGET_SPACING | 120 s |
-| BLOSSOM_POW_TARGET_SPACING_RATIO | 2 |
-| PRE_BLOSSOM_HALVING_INTERVAL | 800,000 blocks |
-| PRE_BLOSSOM_REGTEST_HALVING_INTERVAL | 150 |
-| POST_BLOSSOM_REGTEST_HALVING_INTERVAL | 300 |
+| Date (UTC) | Height | Event | Base subsidy |
+|------------|--------|-------|--------------|
+| 2017-02-19 | 0 | Genesis, no coins | -- |
+| 2018-09-15 | 412,300 | Fee-start: development fee begins | 10.8 ZER |
+| 2019-07-02 | 620,426 | Zeronode payee enforced | 10.8 ZER |
+| 2020-03-07 | 800,000 | Halving 1 | 5.4 ZER |
+| 2023-03-26 | 1,600,000 | Halving 2 | 2.7 ZER |
+| 2026-03-12 | 2,400,000 | Halving 3 | 1.35 ZER |
+| About 2029 | 3,200,000 | Halving 4 | 0.675 ZER |
+| -- | 7,999,999 | Last development fee | -- |
+| -- | 24,800,000 | Subsidy reaches 0 (halving 31) | -- |
 
-Pre-Blossom halving index: **`nHeight / 800000`**.
+| Through height | Minted | Development fee | Zeronode share | Miner share |
+|----------------|--------|-----------------|----------------|-------------|
+| 2,400,000 | 14,790,151.35 | 800,037.10 | 3,390,030.47 | 10,600,083.78 |
+| 7,999,999 | 16,933,275.00 | 960,771.37 | 4,193,280.00 | 11,779,223.63 |
+| 24,800,000 (all) | **16,950,149.896** | 960,771.368 | 4,200,029.872 | 11,789,348.656 |
 
----
+The zeronode and miner columns apply the zeronode tiers from height 1. On the chain, zeronode outputs began with the spork switches in 2019 (blocks 594,334 to 620,426); the 1,274,150.16 ZER that the tiers assign to heights 1 to 620,425 went to miners or was not claimed.
 
-## Block subsidy rule
+**Maximum supply.** 16,950,149.896 ZER, the sum of the subsidy over all heights. `MAX_MONEY` in `src/amount.h` has exactly this value, and GTest `founders_reward_test.slow_start_subsidy` asserts that the subsidy sum equals it. Validation applies `MoneyRange` (0 to `MAX_MONEY`) to each output and value balance.
 
-1. Base **10 ZER** per block before **fee-start**; **10.8 ZER** at and after fee-start.
-2. **Halving count** from height (pre-Blossom: **`height / 800000`**; no Zcash-style slow-start shift).
-3. Subsidy = base `>> halvings` (right shift); zero after 64 halvings.
-4. If Blossom were active, implementation divides base by **2** before shifting; Blossom is not activated on mainnet in current params.
+**Supply on the chain** at height 2,568,279: transparent outputs 14,440,868.09 ZER (`gettxoutsetinfo`), Sapling pool 548,836.73, Sprout pool 25,841.96 (`getblockchaininfo`), total 15,015,546.78. The schedule allows 15,017,328.00 (`getsupply`, which computes the schedule, not the chain). The 1,781.22 ZER difference is value that coinbases did not claim, which is never created: consensus caps a coinbase at subsidy plus fees and accepts less. 1,781.16 ZER of it (1,776.39 subsidy, 4.77 fees) is in 62,109 blocks from heights 444,843 (2018-10-31) to 2,492,433 (2026-07-10), from 42 pool payout addresses: most withheld 0.2% of the block value or of the miner share for a fee recipient that got no output, and one deducted the development fee a second time in 954 blocks between 2019-09 and 2020-12. The remaining 0.05 ZER is other unclaimed fees and outputs that cannot be spent. Coinbases with several miner outputs, where a pool splits its payout, are not among them. Per-pool detail: doc/mining-pools.md "History".
 
-Implementation: **`GetBlockSubsidy`** in **`src/main.cpp`**.
-
----
-
-## Fee-start height
-
-| Network | Height |
-|---------|--------|
-| Mainnet | **412,300** |
-| Testnet | 1 |
-| Regtest | 5,000 |
-
-At mainnet fee-start: base subsidy steps **10 -> 10.8 ZER**; founders output becomes required in coinbase (when also before last founders height). Zeronode tiers key off **800k** height multiples.
+`contrib/stats/chain_stats.py` and `contrib/stats/decode_coinbase.py` recompute these figures from a synced node.
 
 ---
 
-## Founders reward
+## Addresses
 
-- **When:** `height >= fee-start` and `height <=` last founders height (**7,999,999** under pre-Blossom formula).
-- **Amount:** **7.5%** of **`GetBlockSubsidy`** for that height.
-- **Where:** Rotates among **`vFoundersRewardAddress`** (mainnet addresses in **Founder and system addresses** below). RPC today: **`zeronodestats`** -> `chainStats.developmentfee` / `developmentfeezats`; GBT / `getblocksubsidy` use **founders** / **foundersreward**.
+**Development fee**, by rotation index (`height / 800,000`):
 
----
+| Index | Address | Lifetime ZER |
+|-------|---------|--------------|
+| 0 | `t3hmg6WApjqVFw9oPWTDy4JLEqXcUWthg5v` | 314,037.00 (from fee-start) |
+| 1 | `t3hrh5M7eaGA5zXCitPXz2pbe146GkVPWHs` | 324,000.00 |
+| 2 | `t3aWmHqBGS7watoKQLa7uykeTaYHoYqM361` | 162,000.00 |
+| 3 | `t3hsi89hPsZzmnbs3pny6cfAxMxV5TJLErj` | 81,000.00 |
+| 4 | `t3TdGxPVUdMXd6qDrDCEuJETLadZ9Ki3s9r` | 40,500.00 |
+| 5 | `t3cb5ZjKmbGbqDaYk97Auam9kXXikGQBmyY` | 20,250.00 |
+| 6 | `t3V1YovGUPW9WSBoAHS48FDdUfUTo6LDpZR` | 10,125.00 |
+| 7 | `t3KB9n28MVg31oo856t1tQGfJuYq8usTvSi` | 5,062.496 |
+| 8 | `t3dqSV4YGj5V3WjQhqFGrKTMUf9Tgc6xnJM` | 2,531.248 |
+| 9 | `t3aJkYT1i6tyytq8J6khPaDNtgZsBSXgfBf` | 1,265.624 |
 
-## Zeronode payments
+Testnet and regtest addresses: `vFoundersRewardAddress` in `src/chainparams.cpp`.
 
-Share of **block value** (subsidy before fees split).
+**Zeronode dummy address**, used to build validation-only transactions for the 10,000 ZER collateral check: mainnet `t1TLNF3seMZennWmmxik8r1PVEKj5zudgRw`, testnet `tmWuQ8Yh3pHDa8MingmN8ECPRBxo2n8uZRs`, regtest `s1eQnJdoWDhKhxDrX8ev3aFjb1J6ZwXCxUT`.
 
-| Mainnet height | Approx. % of block value |
-|----------------|--------------------------|
-| < 800,000 | 20% |
-| >= 800,000 | 25% |
-| >= 1,600,000 | 30% |
-| >= 2,400,000 | 35% |
-| >= 3,200,000 | 40% |
-
-The tiers apply while zeronode payments are switched on network-wide, as on mainnet; the switches are in doc/zeronodes.md "Sporks".
-
----
-
-## Coinbase payee order
-
-1. **`blockValue`** = **`GetBlockSubsidy(height)`**.
-2. **Founders** = **7.5%** of **`blockValue`** when required.
-3. **Zeronode** = **`GetZeronodePayment`**.
-4. **Miner** = **`blockValue - founders - zeronode + fees`**.
+**ZeroWallet donation address**, published with the desktop wallet: `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP`.
 
 ---
 
-## Worked example
+## Comparison
 
-**Height 2,382,565**: halvings = 2; subsidy = 10.8 >> 2 = **2.7 ZER**; founders **0.2025 ZER**; zeronode 30% of block value = **0.81 ZER**; miner **~1.6875 ZER** + fees.
+| | Zero | Zcash | Bitcoin |
+|-|------|-------|---------|
+| Proof of work | Equihash (192,7) | Equihash (200,9) | SHA-256d |
+| Block spacing | 120 s | 150 s, 75 s after Blossom | 600 s |
+| Initial subsidy | 10 ZER, 10.8 from fee-start | 12.5 ZEC after slow start | 50 BTC |
+| Halving interval | 800,000 blocks | 840,000, 1,680,000 after Blossom | 210,000 |
+| Maximum supply | 16,950,149.896 ZER | 21,000,000 ZEC | 21,000,000 BTC |
+| Protocol share | 7.5% development fee from height 412,300; 20 to 40% zeronodes | 20% founders reward for four years, then the development fund | None |
 
----
-
-## Total supply and MAX_MONEY
-
-Total supply is targeted at some **20M ZER**. **`MAX_MONEY`** in **`src/amount.h`** limits per-output amounts; validation uses **`MoneyRange`** on individual subsidy outputs, not a running cap on total supply. Integrators should not equate **`MAX_MONEY`** with total supply.
-
-### Integer arithmetic
-
-Subsidy is computed in integer zatoshis (`GetBlockSubsidy`); founders are `subsidy * 75 / 1000`, truncated toward zero (`GetFoundersRewardAmount`); the zeronode share uses integer percent (`blockValue * N / 100`). Miner, `ConnectBlock`, block templates, and RPC use the same helpers.
-
----
-
-## Network upgrades and branch identifiers
-
-Overwinter-style transactions bind a **consensus branch id** into the **sighash**. **Sapling** and **Cosmos** both use **`0x7361707a`** in **`src/consensus/upgrades.cpp`**. There is no separate sighash epoch between them unless a future NU introduces a new **`nBranchId`**.
-
-Wallets and signers must use activation heights from **`getblockchaininfo`** / **`getblock`** for their network.
-
----
-
-## Founder and system addresses
-
-### Founders addresses
-
-`t3hmg6WApjqVFw9oPWTDy4JLEqXcUWthg5v`, `t3hrh5M7eaGA5zXCitPXz2pbe146GkVPWHs`, `t3aWmHqBGS7watoKQLa7uykeTaYHoYqM361`, `t3hsi89hPsZzmnbs3pny6cfAxMxV5TJLErj`, `t3TdGxPVUdMXd6qDrDCEuJETLadZ9Ki3s9r`, `t3cb5ZjKmbGbqDaYk97Auam9kXXikGQBmyY`, `t3V1YovGUPW9WSBoAHS48FDdUfUTo6LDpZR`, `t3KB9n28MVg31oo856t1tQGfJuYq8usTvSi`, `t3dqSV4YGj5V3WjQhqFGrKTMUf9Tgc6xnJM`, `t3aJkYT1i6tyytq8J6khPaDNtgZsBSXgfBf`
-
-Testnet/regtest: **`src/chainparams.cpp`** (`GetFoundersRewardAddressAtHeight`).
-
-### Zeronode dummy address
-
-Mainnet `t1TLNF3seMZennWmmxik8r1PVEKj5zudgRw`; testnet `tmWuQ8Yh3pHDa8MingmN8ECPRBxo2n8uZRs`; regtest `s1eQnJdoWDhKhxDrX8ev3aFjb1J6ZwXCxUT`. Used to build validation-only transactions for **10,000 ZER** collateral checks.
-
-### ZeroWallet donation address
-
-Mainnet donation address published with the desktop wallet project: `t1fDbALrS7tZV7DDvadAT7yHi5Sztptj8yP`.
-
----
-
-## Operational reference
-
-- **Default RPC port:** **23811** (P2P is **23801**; `src/chainparamsbase.cpp`).
-- **Wallet:** **`wallet.zero`** in the data directory -- **back up** before upgrades.
-- **Proving params:** `zcutil/fetch-params.sh`.
-
-- **New addresses:** `getnewaddress` (transparent), `z_getnewaddress sapling` (shielded); list: `listreceivedbyaddress 0 true`, `z_listaddresses`.
-
----
-
-## Security
-
-The node is **experimental**; use at your own risk. Back up keys and wallet files. See [Zcash security information](https://z.cash/support/security/).
-
----
-
-## Emission totals and chain statistics
-
-Consensus-model totals from `GetBlockSubsidy` + 7.5% founders + tiered zeronode share. Figures below are **fixed-height** schedule totals (through halving milestones). Tip-relative checks: run the scripts locally after sync -- do not paste live tip into this file.
-
-```bash
-./contrib/stats/chain_stats.py --cons --thru 2400000   # fixed height (halving 3)
-./contrib/stats/chain_stats.py --cons --dev            # dev addr model deposited
-./contrib/stats/chain_stats.py --verify                # model vs live tip (local only)
-./contrib/stats/decode_coinbase.py --heights 2400000
-```
-
-| Flag | Default | Purpose |
-|------|---------|---------|
-| `--cons` | on | Consensus emission report |
-| `--thru HEIGHT` | chain tip | Cumulative through tip, or fixed height |
-| `--dev` | off | Dev rotation addresses: model deposited + on-chain balance |
-| `--cli PATH` | `src/zero-cli` | RPC client |
-| `--verify` | off | Model subsidy sum vs live tip (operator use; not a published snapshot) |
-| `--scan START COUNT` | off | Coinbase vout histogram |
-
-Split totals (through height 2,400,000):
-
-```
-Total:     14,790,161.35 ZER
-Miner:    10,600,091.78 ZER
-Nodes:    3,390,032.47 ZER
-Dev:            800,037.10 ZER
-```
-
-### Through halving 3
-
-| Component | ZER | Share of subsidy |
-|-----------|-----|------------------|
-| **Block subsidy (minted)** | **14,790,161.35** | 100% |
-| Miner | 10,600,091.78 | 71.67% |
-| Nodes (20/25/30% tiers) | 3,390,032.47 | 22.92% |
-| Dev (7.5%) | 800,037.10 | 5.41% |
-
-### Subsidy by era
-
-| Height range | Blocks | Subsidy/block | Era total ZER |
-|--------------|--------|---------------|---------------|
-| 0 - 412,299 | 412,300 | 10.0 | 4,123,000.00 |
-| 412,300 - 799,999 | 387,700 | 10.8 | 4,187,160.00 |
-| 800,000 - 1,599,999 | 800,000 | 5.4 | 4,320,000.00 |
-| 1,600,000 - 2,399,999 | 800,000 | 2.7 | 2,160,000.00 |
-| 2,400,000 | 1 | 1.35 | 1.35 |
-
-### Dev received by rotation index
-
-| Index | Address (prefix) | Cumulative ZER |
-|-------|------------------|----------------|
-| 0 | `t3hmg6WApjq...` | 314,037.00 |
-| 1 | `t3hrh5M7eaG...` | 324,000.00 |
-| 2 | `t3aWmHqBGS7...` | 162,000.00 |
-| 3 | `t3hsi89hPsZ...` | 0.10125 (starts at 2,400,000) |
-| 4-9 | (next eras) | 0.00 |
-
-Rotation interval: **800,000** blocks per index (`height / 800000`). Full addresses: **Dev and system addresses** above.
-
-### Projected totals
-
-| Milestone | Height | Cumulative subsidy ZER |
-|-----------|--------|------------------------|
-| Halving 3 | 2,400,000 | 14,790,161.35 |
-| Dev end | 7,999,999 | 16,933,285.00 (model) |
-| Asymptotic cap | gtest `slow_start_subsidy` | **21,000,000** (`MAX_MONEY`) |
-
-Dev share continues until block **7,999,999**; nodes tiers step at each 800k boundary through 40% at 3,200,000+.
-
-### Coinbase layout and dual-miner splits
-
-Typical **3-vout** coinbase: dev P2SH + nodes P2PKH + miner P2PKH.
-
-**4-vout** coinbases (~10% of recent blocks): extra transparent output is **miner payout split** across two t-addresses (pool operator), **not** a fourth protocol fee. Zero has no treasury 4th coinbase output.
-
-Tools: see command table in **Emission totals** above.
-
-### On-chain statistics
-
-| RPC | Use |
-|-----|-----|
-| `getblockchaininfo` | Tip, `valuePools` (sprout/sapling/transparent) |
-| `zeronodestats` | Includes `chainStats.developmentfee` (founders carve) |
-| `getblocksubsidy` | `miner` / `founders` amounts |
-| `getblock <hash> 2` | Coinbase vout decode |
-| `gettxoutsetinfo` | UTXO set size |
-| `getmininginfo` | Network hash, difficulty |
-
-Sprout pool on mainnet remains non-zero (historical shielded balance); Sapling is the active wallet generation.
-
----
-
-## References
-
-| Resource | URL |
-|----------|-----|
-| Zero website | [zerocurrency.io](https://zerocurrency.io) |
-| Releases | [github.com/zerocurrencycoin/Zero/releases](https://github.com/zerocurrencycoin/Zero/releases) |
-| BitcoinTalk | [topic 3310714](https://bitcointalk.org/index.php?topic=3310714.0) |
-| Zcash protocol (PDF) | [protocol.pdf](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf) |
-| Zcash security | [z.cash/support/security](https://z.cash/support/security/) |
-
----
-
-## Coinbase validation
-
-Mainnet-verified coinbase behavior: run `contrib/stats/decode_coinbase.py` and `contrib/stats/chain_stats.py` against a synced **`src/zerod`**. Emission tables in this file are the product narrative; scripts are the check.
+Protocol specification of the Zcash family: [Zcash Protocol Specification](https://zips.z.cash/protocol/protocol.pdf).

@@ -26,7 +26,7 @@ B,pass,signrawtransactions.py
 B,pass,nodehandling.py
 B,pass,rescan_startup.py
 B,pass,getblocktemplate.py
-B,pass,founders_window.py
+B,pass,dev_fee_window.py
 B,pass,zeronode_coinbase.py
 B,pass,zeronode_startalias.py
 B,pass,p2p_txexpiry_dos.py

@@ -54,7 +54,7 @@ symbol-check.py
 
 A script to check that **Linux** executables only contain allowed **gcc**, **glibc**, and **libstdc++** symbol versions (compatibility with minimum distro targets).
 
-Example — run against a directory of built binaries:
+Example -- run against a directory of built binaries:
 
     find /path/to/build -type f -executable | xargs python3 contrib/devtools/symbol-check.py
 

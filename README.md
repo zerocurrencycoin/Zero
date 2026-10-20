@@ -4,7 +4,7 @@
 
 ### •LAUNCH DATE: 2017-02-19
 
-GENESIS BLOCK - 19th Feb 2017 11:26:40 - `068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6`
+GENESIS BLOCK - 19th Feb 2017 10:26:40 UTC - `068cbb5db6bc11be5b93479ea4df41fa7e012e92ca8603c315f9b1a2202205c6`
 
 ------------------------------------------
 
@@ -17,7 +17,7 @@ GENESIS BLOCK - 19th Feb 2017 11:26:40 - `068cbb5db6bc11be5b93479ea4df41fa7e012e
 
 [ZERO](https://github.com/zerocurrencycoin/Zero) combines Bitcoin-style security with Zerocash-style shielded privacy. Transparent (t-addr) and shielded (z-addr) payments coexist; privacy is optional, not mandatory.
 
-This repository is the **full node** (`zerod`, `zero-cli`, `zero-tx`). It downloads and stores the history of ZERO transactions. Sync time depends on your computer and network; plan for a substantial first sync.
+This repository is the **full node** (`zerod`, `zero-cli`, `zero-tx`). It downloads and stores the history of ZERO transactions; the size of a synced node is in BUILD_ZERO "Paths".
 
 **Who should read what**
 
@@ -26,7 +26,7 @@ This repository is the **full node** (`zerod`, `zero-cli`, `zero-tx`). It downlo
 | **Trade or hold** | Wallets and exchanges from [zerocurrency.io](https://zerocurrency.io); verify tickers on official channels only. |
 | **Mine** | Equihash **(192,7)** -- Zero's PoW (Zcash mainnet uses **(200,9)**). `gen=0` is the operator default. |
 | **Run a node** | [Quick start](#-building) below, then BUILD_ZERO "Configuration". |
-| **Understand economics** | [ZERO_COIN.md](ZERO_COIN.md) (emission, halvings, founders, zeronodes). |
+| **Understand economics** | [ZERO_COIN.md](ZERO_COIN.md) (emission, halvings, development fee, zeronodes). |
 | **Contribute** | [CONTRIBUTING.md](CONTRIBUTING.md) · [TEST_ZERO.md](TEST_ZERO.md) · [TODO.md](TODO.md) · [AGENTS.md](AGENTS.md). |
 
 ------------------------------------------
@@ -51,16 +51,14 @@ This repository is the **full node** (`zerod`, `zero-cli`, `zero-tx`). It downlo
 
 ### •DECENTRALIZED PAYMENTS
 
-Zero uses Equihash **(192, 7)**, which typically needs a GPU with about **8 GB** of RAM for meaningful mining.
-
-Chain facts (authoritative detail in [ZERO_COIN.md](ZERO_COIN.md)):
+Chain facts (detail in [ZERO_COIN.md](ZERO_COIN.md)):
 
 | Topic | Summary |
 |--------|---------|
-| **Emission** | Block subsidy with halvings every **800,000** blocks (pre-Blossom); target supply on the order of **~20M ZER**. |
-| **Fee-start** | Height **412,300** -- base subsidy **10 -> 10.8 ZER**; founders carve begins. |
+| **Emission** | Block subsidy halves every **800,000** blocks; maximum supply **16,950,149.896 ZER**. |
+| **Fee-start** | Height **412,300** -- base subsidy **10 -> 10.8 ZER**; development fee begins. |
 | **Halvings** | **800k** (2020), **1.6M** (2023), **2.4M** (2026); next **3.2M**. |
-| **Founders** | **7.5%** of block subsidy while eligible (through height **7,999,999**). |
+| **Development fee** | **7.5%** of block subsidy from fee-start through height **7,999,999**. |
 | **Zeronodes** | **20-40%** of block value by height tier. |
 
 ------------------------------------------
@@ -75,16 +73,11 @@ Zero aims at decentralisation, open source, and peer-to-peer operation, with pri
 
 --------------
 
-[Zero](https://zero.directory/) implements the Zerocash protocol family. More technical detail: [Zcash Protocol Specification](https://github.com/zcash/zips/raw/master/protocol/protocol.pdf).
+[Zero](https://zero.directory/) implements the Zerocash protocol family. More technical detail: [Zcash Protocol Specification](https://zips.z.cash/protocol/protocol.pdf).
 
 ![alt text](https://github.com/zerocurrencycoin/Zero/blob/master/art/algo%20zer%20improv.jfif)
 
 ------------------------------------------
-
-
-🔢 Development Fund
-------------------------------------------
-**7.5%** of block subsidy in eligible heights. See [ZERO_COIN.md -- Founders reward](ZERO_COIN.md#founders-reward).
 
 
 📣 Announcements
@@ -101,43 +94,26 @@ See important security warnings on the
 
 **Zero is experimental and a work in progress.** Use it at your own risk.
 
-Automatic node deprecation (mainnet) is configured on a **~10 year** window from the release baseline (`WEEKS_UNTIL_DEPRECATION` in `src/deprecation.h`). Query live values with `getdeprecationinfo`. This is **not** a near-term operator concern for current releases.
+Automatic node deprecation (mainnet) is configured on a **~10 year** window from the release baseline (`WEEKS_UNTIL_DEPRECATION` in `src/deprecation.h`). `getdeprecationinfo` reports the deprecation height.
 
 
 📚 Documentation
 ----------------
 
-**Ship set** (product distribution / public docs). Cross-links among these files only.
-
 | Document | Readers | Purpose |
 |----------|---------|---------|
 | [README.md](README.md) | Everyone | Front page, quick start, links |
-| [ZERO_COIN.md](ZERO_COIN.md) | Miners, exchanges, operators, integrators | Chain economics, addresses, glossary |
-| [BUILD_ZERO.md](BUILD_ZERO.md) | Builders | Linux / macOS / Windows build and troubleshooting |
-| [TEST_ZERO.md](TEST_ZERO.md) | Contributors | Validation runbook and working inventory |
+| [ZERO_COIN.md](ZERO_COIN.md) | Miners, pools, exchanges, integrators | Chain economics, consensus parameters, addresses |
+| [BUILD_ZERO.md](BUILD_ZERO.md) | Builders, operators, maintainers | Build, configure, and release on Linux, macOS, and Windows |
+| [TEST_ZERO.md](TEST_ZERO.md) | Contributors, maintainers | Test runs, tiers, held scripts, release bar |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contributors | Patch and review expectations |
 | [TODO.md](TODO.md) | Contributors / maintainers | Open follow-ups for the full node |
 | [AGENTS.md](AGENTS.md) | Agents and humans editing the tree | Scope and documentation rules |
 | `doc/man/` | Operators (after install) | `zerod`, `zero-cli`, `zero-tx` manuals |
 | `doc/release-notes/` | Operators, miners, pools, integrators | Changes per release |
 | [doc/zeronodes.md](doc/zeronodes.md) | Maintainers | Zeronode, spork, SwiftTX, and budget implementation |
-
-```
-                    README
-                       │
-        ┌──────────────┼──────────────┬────────────┐
-        ▼              ▼              ▼            ▼
-   BUILD_ZERO     TEST_ZERO     CONTRIBUTING    AGENTS
-        │              │              │
-        └──────────────┴──────────────┘
-                       │
-                       ▼
-                     TODO
-                       ▼
-                   ZERO_COIN.md
-             (chain + node reference)
-```
-
+| [doc/mining-pools.md](doc/mining-pools.md) | Maintainers, pool operators | Coinbase behavior by pool, outreach asks |
+| [doc/s-nomp-recipients.md](doc/s-nomp-recipients.md) | Pool operators | s-nomp empty reward recipient: cause, history, fix |
 
 🔧 Building
 --------

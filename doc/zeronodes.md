@@ -49,7 +49,7 @@ Zeronodes vote to lock the inputs of a transaction (messages `ix` and `txlvote`)
 
 ## 4. Budget
 
-Budget proposals and votes travel in `zprop`, `mvote`, `fbs`, `fbvote`, and `znvs` messages and are stored in `budget.dat`. The budget RPCs are in `src/rpc/zeronode-budget.cpp` (11 rows in `doc/RPCs.csv`). Payment through a budget superblock needs `SPORK_13`, and its enforcement `SPORK_9`; both are off on mainnet, so the superblock paths in `FillBlockPayee` and `IsBlockPayeeValid` do not run. Nodes still relay and store budget messages.
+Budget proposals and votes travel in `zprop`, `mvote`, `fbs`, `fbvote`, and `znvs` messages and are stored in `budget.dat`. The budget RPCs are in `src/rpc/zeronode-budget.cpp` and listed in `doc/RPCs.csv`. Payment through a budget superblock needs `SPORK_13`, and its enforcement `SPORK_9`; both are off on mainnet, so the superblock paths in `FillBlockPayee` and `IsBlockPayeeValid` do not run. Nodes still relay and store budget messages.
 
 ---
 

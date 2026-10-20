@@ -8,7 +8,7 @@ Zero **v4.1.0** full node (`zerod`, `zero-cli`, `zero-tx`): improvement, bug-fix
 
 - Back up `wallet.zero` before upgrading. Build from the tag or use the release archives.
 - `-blocknotify`, `-walletnotify`, and `-alertnotify` do not run in release builds; see CONTRIBUTING "Shell notify hooks".
-- `-alerts` is removed with the P2P alert system: Zero never set a valid alert key, so no network alert could validate, and peers relaying alerts were penalized. An `alerts=` line in `zero.conf` is ignored. `-alertnotify` remains for this node's deprecation and long-fork warnings.
+- `-alerts` is removed with the P2P alert system: Zero never set a valid alert key, so no network alert could validate, and peers relaying alerts were penalized. An `alerts=` line in `zero.conf` is ignored. `-alertnotify` still reports this node's deprecation and long-fork warnings in builds with `ENABLE_SYSTEM_COMMAND`.
 - `getalldata` clients: treat error -34 (`RPC_DATA_CONTINUE`) as "retry later". Omitting argument 2 (`transactiontype`) now returns the last 7 days; pass 0 for full history.
 - Scripts that match message text: RPC errors and log lines say Zero instead of Zcash; `startalias` and `startzeronode` report "Zeronode list syncing, please wait. Current status: ..." while the zeronode list syncs.
 - LevelDB keeps up to 256 table files per database open (64 before). On 64-bit hosts they are memory-mapped and hold no file descriptors.
@@ -20,6 +20,7 @@ Zero **v4.1.0** full node (`zerod`, `zero-cli`, `zero-tx`): improvement, bug-fix
 - A full RPC work queue returns HTTP 503 and logs one warning per episode; limit set by `-rpcworkqueue`.
 - New `getdbinfo`: `-dbcache` budgets, live fill of the UTXO cache, and LevelDB block-cache capacity and statistics.
 - `getrawtransaction` and `decoderawtransaction` help documents the `size` field.
+- `getblockchaininfo` lists Sapling once under branch ID `7361707a`. Cosmos reuses that ID, and the output carried the key twice, so JSON parsers showed Cosmos and hid Sapling.
 - `zcrawjoinsplit` and `zcrawreceive` (Sprout raw JoinSplit RPCs) are removed, as in zcashd 5.4.0; a build with `-DENABLE_ZCRAW_RPC` restores them.
 
 ## Wallet
@@ -43,7 +44,7 @@ Zero **v4.1.0** full node (`zerod`, `zero-cli`, `zero-tx`): improvement, bug-fix
 ## Build, release, and tests
 
 - Release archives for Linux, macOS, and Windows with one `SHA256SUMS` file.
-- Test gate `./contrib/run-tests.sh --strict` and regtest founders window coverage.
+- Test gate `./contrib/run-tests.sh --strict` and regtest coverage of the development fee window (`dev_fee_window.py`).
 
 ## Compatibility
 

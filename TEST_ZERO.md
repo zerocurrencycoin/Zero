@@ -1,6 +1,6 @@
 # TEST_ZERO
 
-Test the Zero full node: the merge gate, the release test run, held scripts, and operational checks on scratch data. Contributors need Run through Held scripts; maintainers also need Release bar and Operational checks. The scripts are authoritative: tier membership lives in the arrays of `qa/pull-tester/rpc-tests.sh`, and `contrib/run-tests.sh --help` and `contrib/ops-validate.sh --help` list every option.
+Test the Zero full node: the merge gate, the release test run, held scripts, and operational checks on scratch data. Contributors need Run through Held scripts; maintainers also need Release bar and Operational checks. Tier membership lives in the arrays of `qa/pull-tester/rpc-tests.sh`.
 
 Prerequisite: a build per BUILD_ZERO "Build", with `src/zerod` and the test binaries.
 
@@ -62,7 +62,7 @@ A held script moves to a pass tier after five clean serial runs.
 
 ## Writing tests for Zero
 
-Regtest coinbase matures after `COINBASE_MATURITY` = 720 blocks and the RPC cache tip is `CACHE_TIP` = 725; Zcash tests assume 100 and 200. Write heights relative to `CACHE_TIP` or the current tip, and place upgrade activation relative to `COINBASE_MATURITY`. For spendable coinbase use `mine_until_mature`, `ensure_coinbase_utxos`, and `get_coinbase_address`; for amounts use `block_subsidy`, `miner_share`, and `founders_share` with `REGTEST_HALVING` (they cover the regtest founders window, heights 1000 to 1500). Heights in raw transactions are 4-byte little-endian. All helpers are in `qa/rpc-tests/test_framework/util.py`.
+Regtest coinbase matures after `COINBASE_MATURITY` = 720 blocks and the RPC cache tip is `CACHE_TIP` = 725; Zcash tests assume 100 and 200. Write heights relative to `CACHE_TIP` or the current tip, and place upgrade activation relative to `COINBASE_MATURITY`. For spendable coinbase use `mine_until_mature`, `ensure_coinbase_utxos`, and `get_coinbase_address`; for amounts use `block_subsidy`, `miner_share`, and `dev_fee_share` with `REGTEST_HALVING` (they cover the regtest development fee window, heights 1000 to 1500). Heights in raw transactions are 4-byte little-endian. All helpers are in `qa/rpc-tests/test_framework/util.py`.
 
 Equihash: Boost `equihash_tests` checks the mainnet (192,7) genesis and height-1 headers and the regtest (48,5) vectors in `src/test/data/`. A failing vector means `chainparams.cpp`, `pow.cpp`, or `CheckEquihashSolution` drifted: fix that code, never the parameters or the `ZERO_PoW` personalization, which would fork the node off mainnet. The Python solver (`test_framework/equihash.py`) solves (48,5) only and uses the `ZcashPoW` personalization, so blocks it solves fail on the node.
 

@@ -44,33 +44,37 @@ def rpc_port(n):
     assert n < MAX_NODES
     return PORT_MIN + PORT_RANGE + n + _port_offset()
 
-# Regtest founders/dev-fee window (must match Consensus::REGTEST_FOUNDERS_* in params.h).
-# Maturity stays COINBASE_MATURITY (720). Active for [START, STOP); STOP exclusive.
-REGTEST_FOUNDERS_START = 1000
-REGTEST_FOUNDERS_STOP = 1500
+# Regtest development fee window (Consensus::REGTEST_FOUNDERS_START and _STOP in params.h).
+# Active for [START, STOP); STOP exclusive. The fee runs on Zcash's founders-reward code, so
+# the C++ names and the REGTEST_FOUNDERS_* and founders_share aliases keep "founders".
+REGTEST_DEV_FEE_START = 1000
+REGTEST_DEV_FEE_STOP = 1500
+REGTEST_FOUNDERS_START = REGTEST_DEV_FEE_START
+REGTEST_FOUNDERS_STOP = REGTEST_DEV_FEE_STOP
 REGTEST_HALVING = 150
 
 def block_subsidy(height):
-    """Full block subsidy at height (miner + founders), Decimal ZER. Matches GetBlockSubsidy."""
-    base = Decimal('10.8') if height >= REGTEST_FOUNDERS_START else Decimal(10)
+    """Full block subsidy at height (miner + development fee), Decimal ZER. Matches GetBlockSubsidy."""
     halvings = height // REGTEST_HALVING
     if halvings >= 64:
         return Decimal(0)
     # Integer zat path: 108*COIN/10 then >> halvings
     coin = 100000000
-    base_zat = (108 * coin // 10) if height >= REGTEST_FOUNDERS_START else (10 * coin)
+    base_zat = (108 * coin // 10) if height >= REGTEST_DEV_FEE_START else (10 * coin)
     return Decimal(base_zat >> halvings) / Decimal(coin)
 
-def founders_share(height):
-    """Founders carve at height (0 outside window). Decimal ZER. Matches GetFoundersRewardAmount."""
-    if height < REGTEST_FOUNDERS_START or height >= REGTEST_FOUNDERS_STOP:
+def dev_fee_share(height):
+    """Development fee at height (0 outside the window), Decimal ZER. Matches GetFoundersRewardAmount."""
+    if height < REGTEST_DEV_FEE_START or height >= REGTEST_DEV_FEE_STOP:
         return Decimal(0)
     subsidy_zat = int(block_subsidy(height) * 100000000)
     return Decimal(subsidy_zat * 75 // 1000) / Decimal(100000000)
 
+founders_share = dev_fee_share
+
 def miner_share(height):
-    """Miner coinbase amount at height (full subsidy minus founders)."""
-    return block_subsidy(height) - founders_share(height)
+    """Miner coinbase amount at height (full subsidy minus the development fee)."""
+    return block_subsidy(height) - dev_fee_share(height)
 
 # Zero regtest: 10 / 10.8 ZER base, halving every 150 blocks (Consensus::Halving = h/150)
 def subsidy_total(n_blocks):

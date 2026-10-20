@@ -2202,6 +2202,7 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
     }
 }
 
+// Zero's development fee: 7.5% of the subsidy. The name follows the Zcash founders-reward code it reuses.
 CAmount GetFoundersRewardAmount(CAmount subsidy)
 {
     return subsidy * 75 / 1000;

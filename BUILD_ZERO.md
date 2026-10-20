@@ -235,3 +235,33 @@ make distclean
 rm -rf depends/$HOST depends/built/$HOST depends/work
 ./zcutil/build.sh
 ```
+
+### Clock
+
+Since Cosmos (height 620,450), `zerod` refuses a block whose time is more than 10 minutes ahead of its adjusted time (`time-too-new`, `CheckBlockHeader`), and a miner's clock sets its block timestamps. The adjusted time is the local clock plus the median offset reported by peers; a median of 70 minutes or more is ignored, with a one-time warning when no peer is within 5 minutes (`AddTimeData`). Both limits are compiled in. They only judge blocks against the current time, so a reindex or an import of old blocks is unaffected; a host clock more than 10 minutes slow refuses new blocks until it is corrected. `-mocktime` is for regression tests.
+
+Ubuntu 18.04 and 24.04 both run `systemd-timesyncd` by default, which is accurate to milliseconds on a VPS; chrony is needed only for its reporting (`chronyc tracking`) or a stricter discipline.
+
+| Check or setting | Command |
+|------------------|---------|
+| Synchronized, service active | `timedatectl` (`System clock synchronized: yes`, `NTP service: active`) |
+| Offset and server, systemd 239 and later (Ubuntu 20.04 and later) | `timedatectl timesync-status` |
+| Server, systemd 237 (Ubuntu 18.04), which shows no offset | `journalctl -u systemd-timesyncd` ("Synchronized to time server") |
+| Offset with any version | `chronyc tracking` with chrony; `ntpdate -q <server>` (package `ntpdate`) otherwise |
+| Servers for timesyncd | `NTP=` in `/etc/systemd/timesyncd.conf`, then `systemctl restart systemd-timesyncd` |
+| Enable after a stop | `timedatectl set-ntp true` |
+| Peer offsets as the node sees them | `getpeerinfo` `timeoffset` |
+
+### Chain diagnostics
+
+| Question | Tool |
+|----------|------|
+| Is the node on the best chain; which forks did it see | `getblockchaininfo`, `getchaintips` (stale branches and their length) |
+| Are the block and undo files consistent | `verifychain`, or `-checkblocks=N -checklevel=0..4` at startup |
+| Does the coin supply add up | `gettxoutsetinfo` plus the shielded `valuePools` of `getblockchaininfo`, against `getsupply` (the schedule) |
+| How fast do transactions arrive | `getchaintxstats`, `getmempoolinfo`, `getrawmempool` |
+| Which peer sends what | `getpeerinfo`, `-debug=net`; ban with `setban` |
+| Where does block connection spend time | `-debug=bench` |
+| Leave a bad block or branch | `invalidateblock <hash>`, undo with `reconsiderblock` (hidden RPCs) |
+| Rebuild indexes or the wallet view | `-reindex`, `-rescan`; import blocks with `-loadblock` and `-stopafterblockimport` |
+| Cache use | `getdbinfo` |
