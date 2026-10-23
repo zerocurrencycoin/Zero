@@ -788,7 +788,7 @@ have built the alternative (batched asynchronous verification,
 Sapling spends.
 
 **Full trajectory analysis, ecosystem comparison and effort assessment:
-`ZcashRust.md`** (out of tree), alongside checkouts of every
+`ZcashRust.md`** (zk-dir), alongside checkouts of every
 generation. In summary: reaching Ycash's level is an FFI delta of **+5/-1
 functions**, three of which are one feature Zero does not implement, so the
 1127-commit distance overstates the work by a wide margin -- what dominates is
@@ -955,7 +955,7 @@ The commit distances (Ycash 1127, Pirate 2462) overstate what each project
 actually did. Isolating fork-specific work: **each fork carries about three
 commits of its own** -- network prefixes, activation heights, encoding -- on top
 of upstream history pulled forward. The named authors on both forks are the
-upstream Zcash team (`ZcashRust.md` S9, out of tree).
+upstream Zcash team (`ZcashRust.md` section 9, zk-dir).
 
 **So the move is not research; it is a bounded change of known shape, performed
 twice independently.** Both trees are checked out locally for reference.
