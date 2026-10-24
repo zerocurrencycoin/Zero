@@ -246,11 +246,18 @@ Ubuntu 18.04 and 24.04 both run `systemd-timesyncd` by default, which is accurat
 |------------------|---------|
 | Synchronized, service active | `timedatectl` (`System clock synchronized: yes`, `NTP service: active`) |
 | Offset and server, systemd 239 and later (Ubuntu 20.04 and later) | `timedatectl timesync-status` |
-| Server, systemd 237 (Ubuntu 18.04), which shows no offset | `journalctl -u systemd-timesyncd` ("Synchronized to time server") |
-| Offset with any version | `chronyc tracking` with chrony; `ntpdate -q <server>` (package `ntpdate`) otherwise |
+| Server, systemd 237 (Ubuntu 18.04), which shows no offset | `journalctl -u systemd-timesyncd --no-pager \| tail -5` ("Synchronized to time server") |
+| Offset with any version | `chronyc tracking` with chrony; otherwise a one-shot query that sets nothing, below |
 | Servers for timesyncd | `NTP=` in `/etc/systemd/timesyncd.conf`, then `systemctl restart systemd-timesyncd` |
 | Enable after a stop | `timedatectl set-ntp true` |
 | Peer offsets as the node sees them | `getpeerinfo` `timeoffset` |
+
+One-shot offset on Ubuntu 18.04, where `ntpdate` coexists with timesyncd:
+
+```bash
+sudo apt-get install -y ntpdate
+ntpdate -q time.cloudflare.com    # "offset +0.001842 sec"
+```
 
 ### Chain diagnostics
 

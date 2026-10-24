@@ -25,7 +25,7 @@ Tools and samples that ship with the Zero full node but are not part of `zerod`.
 | `stats/chain_stats.py` | Emission and coinbase-split totals, from the model or a synced node |
 | `stats/decode_coinbase.py` | Decode the coinbase outputs of given heights |
 | `stats/block_rate_replay.py` | Replay block timestamps through the block-rate warning and fast-block checks |
-| `stats/chain-audit/` | Chain scans (coinbases, block times, fees) and reports on pools, timing, forks, arrival, and transactions behind `doc/mining-pools.md` |
+| `stats/chain-audit/` | Chain scans (coinbases, block times, fees) and reports on pools, timing, forks, arrival, and transactions behind `doc/mining/mining-pools.md`; peer and zeronode address grouping (`addresses.py`) |
 | [linearize/](linearize/) | Build `bootstrap.dat` from a synced node's block files (Zero header format) |
 | `zmq/zmq_sub.py` | Example ZMQ subscriber for `-zmqpub*` notifications |
 | [seeds/](seeds/) | `generate-seeds.py` writes `src/chainparamsseeds.h` from `nodes_main.txt` and `nodes_test.txt`; TODO "Peer discovery" |

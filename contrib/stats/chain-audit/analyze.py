@@ -2,7 +2,7 @@
 # Copyright 2026 Zero Developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or https://www.opensource.org/licenses/mit-license.php.
-"""Reports behind doc/mining-pools.md, from the TSV files of scan.py (and RPC for forks, tags, expiry).
+"""Reports behind doc/mining/mining-pools.md, from the TSV files of scan.py (and RPC for forks, tags, expiry).
 
   analyze.py underclaim COINBASE                      under-claimed coinbases by payout address and height range
   analyze.py candidates COINBASE OUT                  heights for "scan.py fees": blocks with transactions claiming <= subsidy

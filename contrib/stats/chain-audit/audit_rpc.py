@@ -68,7 +68,7 @@ DEV_FEE_ADDRESSES = {
     "t3V1YovGUPW9WSBoAHS48FDdUfUTo6LDpZR", "t3KB9n28MVg31oo856t1tQGfJuYq8usTvSi", "t3dqSV4YGj5V3WjQhqFGrKTMUf9Tgc6xnJM",
     "t3aJkYT1i6tyytq8J6khPaDNtgZsBSXgfBf"}
 
-# Payout addresses matched to pools (doc/mining-pools.md "Identities"); unmatched ones keep their address.
+# Payout addresses matched to pools (doc/mining/mining-pools.md "Identities"); unmatched ones keep their address.
 POOL_NAMES = {
     "t1aZet5eQegFmDgMiCpfwdZoeJ7geukENG1": "Mining-Dutch",
     "t1MRBMDxW5QTbMteKprtjExPwWZuyitZ13o": "zpool.ca",

@@ -112,8 +112,8 @@ Automatic node deprecation (mainnet) is configured on a **~10 year** window from
 | `doc/man/` | Operators (after install) | `zerod`, `zero-cli`, `zero-tx` manuals |
 | `doc/release-notes/` | Operators, miners, pools, integrators | Changes per release |
 | [doc/zeronodes.md](doc/zeronodes.md) | Maintainers | Zeronode, spork, SwiftTX, and budget implementation |
-| [doc/mining-pools.md](doc/mining-pools.md) | Maintainers, pool operators | Coinbase behavior by pool, outreach asks |
-| [doc/s-nomp-recipients.md](doc/s-nomp-recipients.md) | Pool operators | s-nomp empty reward recipient: cause, history, fix |
+| [doc/mining/mining-pools.md](doc/mining/mining-pools.md) | Maintainers, pool operators | Coinbase behavior by pool, outreach asks |
+| [doc/mining/s-nomp-recipients.md](doc/mining/s-nomp-recipients.md) | Pool operators | s-nomp empty reward recipient: cause, history, fix |
 
 🔧 Building
 --------

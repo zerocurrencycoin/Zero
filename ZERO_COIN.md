@@ -85,13 +85,27 @@ The zeronode and miner columns apply the zeronode tiers from height 1. On the ch
 
 **Maximum supply.** 16,950,149.896 ZER, the sum of the subsidy over all heights. `MAX_MONEY` in `src/amount.h` has exactly this value, and GTest `founders_reward_test.slow_start_subsidy` asserts that the subsidy sum equals it. Validation applies `MoneyRange` (0 to `MAX_MONEY`) to each output and value balance.
 
-**Supply on the chain** at height 2,568,279: transparent outputs 14,440,868.09 ZER (`gettxoutsetinfo`), Sapling pool 548,836.73, Sprout pool 25,841.96 (`getblockchaininfo`), total 15,015,546.78. The schedule allows 15,017,328.00 (`getsupply`, which computes the schedule, not the chain). The 1,781.22 ZER difference is value that coinbases did not claim, which is never created: consensus caps a coinbase at subsidy plus fees and accepts less. 1,781.16 ZER of it (1,776.39 subsidy, 4.77 fees) is in 62,109 blocks from heights 444,843 (2018-10-31) to 2,492,433 (2026-07-10), from 42 pool payout addresses: most withheld 0.2% of the block value or of the miner share for a fee recipient that got no output, and one deducted the development fee a second time in 954 blocks between 2019-09 and 2020-12. The remaining 0.05 ZER is other unclaimed fees and outputs that cannot be spent. Coinbases with several miner outputs, where a pool splits its payout, are not among them. Per-pool detail: doc/mining-pools.md "History".
+**Supply on the chain** at height 2,568,279 is 1,781 ZER below the schedule (`getsupply`): coinbases claimed less than allowed, mostly through misconfigured pool software, and consensus accepts a short coinbase without creating the difference.
 
 `contrib/stats/chain_stats.py` and `contrib/stats/decode_coinbase.py` recompute these figures from a synced node.
 
 ---
 
 ## Addresses
+
+**Encodings**, from `base58Prefixes` and `bech32HRPs` in `src/chainparams.cpp`. Mainnet uses Zcash's encodings unchanged, so a Zero address cannot be told from a Zcash address by its form; a wallet must know the network.
+
+| Kind | Mainnet | Testnet | Regtest |
+|------|---------|---------|---------|
+| Transparent P2PKH | `1C B8`, `t1...` | `1D 25`, `tm...` | As testnet |
+| Transparent P2SH | `1C BD`, `t3...` | `1C BA`, `t2...` | As testnet |
+| Private key (WIF) | `80`, `K...` or `L...` | `EF`, `c...` | As testnet |
+| BIP32 extended public, private key | `04 88 B2 1E`, `04 88 AD E4` | `04 35 87 CF`, `04 35 83 94` | As testnet |
+| Sprout address, viewing key, spending key | `zc...`, `ZiVK...`, `SK...` | `zt...` and testnet prefixes | As testnet |
+| Sapling address | `zs` | `ztestsapling` | `zregtestsapling` |
+| Sapling full, incoming viewing key | `zviews`, `zivks` | `zviewtestsapling`, `zivktestsapling` | `zviewregtestsapling`, `zivkregtestsapling` |
+| Sapling extended spending key, full viewing key | `secret-extended-key-main`, `zxviews` | `secret-extended-key-test`, `zxviewtestsapling` | `secret-extended-key-regtest`, `zxviewregtestsapling` |
+| BIP44 coin type (`bip44CoinType`) | 323 (SLIP-44) | 1 | 1 |
 
 **Development fee**, by rotation index (`height / 800,000`):
 
