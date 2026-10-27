@@ -53,7 +53,7 @@ Maintainers merge once review concerns are resolved and the merge gate passes.
 
 1. Build from source per BUILD_ZERO "Build".
 2. Make the change.
-3. Run the merge gate: `./contrib/run-tests.sh --strict`. Without `--strict` the runner may exit 0 after a failed step.
+3. Run the merge gate, TEST_ZERO "Run".
 4. Push the branch and open the pull request.
 
 
@@ -65,26 +65,34 @@ Code style and threading conventions follow the upstream Bitcoin Core and Zcash 
 
 ### Options and defaults
 
-The code is the only source of `zerod` options and their defaults: `HelpMessage` in `src/init.cpp` prints each default from the constant the code uses, so a default changes in one place. Everything else is derived or checked against it:
+The code is the only source of `zerod` options and their defaults: `HelpMessage` in `src/init.cpp` prints each default from the constant the code uses, so a default changes in one place. A new or changed option needs its help line and an updated `doc/Options.csv` row (`contrib/tools/inventory-check.py --apply`) in the same change; `contrib/zero.conf` and `contrib/conf-templates/` are written by hand and show the help-text default, so a changed default is updated there too. The man pages are regenerated at the next version change (`contrib/devtools/gen-manpages.sh`).
 
-| Extract | Produced by | Holds |
-|---------|-------------|-------|
-| `zerod -help`, `-help-debug` | the code | Options, defaults, and descriptions; `-help-debug` adds the options marked for debugging |
-| `doc/man/zerod.1` (also `zero-cli.1`, `zero-tx.1`) | `contrib/devtools/gen-manpages.sh`, at each version change | The help text |
-| `doc/Options.csv` | `contrib/tools/inventory-check.py` | Which options exist, in Zero and in the reference projects |
-| `contrib/zero.conf`, `contrib/conf-templates/` | written by hand | Options an operator sets, with the help-text default |
+### Development fee naming
 
-A new or changed option needs its help line in the same change, a regenerated man page at the next version change, and an updated `doc/Options.csv` row (`inventory-check.py --apply`).
+Zero's 7.5% development fee runs on the founders-reward code inherited from Zcash. Zcash's founders reward is a different payment, so new text never calls Zero's fee a founders reward.
 
-### Shell notify hooks
+| Text | Name used |
+|------|-----------|
+| Documents, help text, log and error messages, comments in Zero-written code, Zero's Python test helpers (`dev_fee_share`, `REGTEST_DEV_FEE_START`) | "development fee" |
+| C++ identifiers inherited from Zcash (`GetFoundersRewardAmount`, `vFoundersRewardAddress`, `GetLastFoundersRewardBlockHeight`, `txoutFounders`, `REGTEST_FOUNDERS_START`) | Unchanged: renaming touches consensus code and moves away from upstream |
+| RPC field names and values, block reject reasons, listed in ZERO_COIN "Coinbase split" | Unchanged: pools and clients parse them |
+| Upstream code and its comments, published release notes | Unchanged |
 
-`-blocknotify`, `-walletnotify`, and `-alertnotify` run a shell command only in builds compiled with `-DENABLE_SYSTEM_COMMAND` in `CXXFLAGS`; release builds log the skipped command. The shell-free alternative is ZMQ, described in zcashd [doc/zmq.md](https://github.com/zcash/zcash/blob/v5.4.0/doc/zmq.md).
+Text that names an unchanged identifier or field gives both once: "the development fee (`founders`)".
+
+### Vendored subtrees
+
+`src/leveldb`, `src/secp256k1`, and `src/univalue` match the upstream commits recorded by `git subtree` (`contrib/devtools/git-subtree-check.sh`), except for changes required to build or run, listed here. Code derived from Bitcoin Core and Zcash outside these subtrees keeps the upstream names and comments, so it compares and merges against upstream with small diffs.
+
+| Subtree | File | Change | Reason |
+|---------|------|--------|--------|
+| `src/secp256k1` | `src/tests.c` | `shortkey` zero-initialized | GCC `-Wmaybe-uninitialized` on Ubuntu 24.04; upstream made the same change |
 
 ---
 
 ## Testing
 
-The node has three test layers: GTest (`src/zero-gtest`), Boost (`src/test/test_bitcoin`), and Python RPC tests (`qa/rpc-tests`). Runners, tiers, and held scripts are in TEST_ZERO "Run", "Tiers", and "Held scripts". Bug fixes should include a test that fails without the fix where practical.
+A bug fix includes a test that fails without the fix where practical, and every change passes the merge gate. Test layers, runners, and tiers: TEST_ZERO.
 
 ---
 

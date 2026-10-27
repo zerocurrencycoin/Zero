@@ -1,2 +1,1 @@
-35.164.216.74:23801
-35.165.120.254:23801
+# List of fixed seed nodes for mainnet

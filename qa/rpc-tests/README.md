@@ -10,25 +10,9 @@ Generally useful functions: **`initialize_chain`**, **`initialize_chain_clean`**
 Notes
 =====
 
-### Run one script
+### Run one script on its own
 
-From repo root (after building `src/zerod` / `src/zero-cli`):
-
-```bash
-./qa/pull-tester/rpc-tests.sh <basename>
-```
-
-Examples:
-
-```bash
-./qa/pull-tester/rpc-tests.sh rpcbind_test
-./qa/pull-tester/rpc-tests.sh getchaintips
-./qa/pull-tester/rpc-tests.sh wallet_changeaddresses   # Bfail Debug (clean chain + mature coinbase)
-./qa/pull-tester/rpc-tests.sh txindex                  # Tier B pass
-./qa/pull-tester/rpc-tests.sh addressindex             # Tier B pass (insight)
-```
-
-Standalone scripts (`rpcbind_test.py`, `keypool.py`) can also be invoked directly. Cache path is **`rpc_cache_root()`** in `util.py` (default **`<repo>/cache/`**); gate scripts export **`ZERO_RPC_CACHE_DIR`**.
+Runner commands, tiers, and the RPC cache: TEST_ZERO "Run" and "Tiers". A script also runs without the runner, from the repository root after a build:
 
 ```bash
 export PATH="$PWD/src:$PATH"
@@ -37,22 +21,7 @@ export BITCOINCLI="$PWD/src/zero-cli"
 PYTHONPATH=qa/rpc-tests python3 qa/rpc-tests/rpcbind_test.py --srcdir src
 ```
 
-Add `--nocleanup` to keep the temp datadir after a standalone run.
-
-### RPC tiers
-
-Tiers, their flags, and the inventory CSV: TEST_ZERO "Tiers"; blockers of held scripts: TEST_ZERO "Held scripts".
-
-### `initialize_chain` cache
-
-Defined in `test_framework/util.py`. Frozen datadir: **`<repo>/cache/node{0..3}/`** via **`rpc_cache_root()`**. Scripts that keep the framework's default `setup_chain` use it.
-
-First build: 200-block distribution, then mine to **`COINBASE_MATURITY` [720] + 5** (tip **725**) on node 0.
-
-```bash
-rm -rf cache qa/rpc-tests/cache
-killall zerod 2>/dev/null || true
-```
+Scripts that keep the framework's default `setup_chain` copy the cache `<repo>/cache/node{0..3}/` (`rpc_cache_root()` in `test_framework/util.py`; `ZERO_RPC_CACHE_DIR` overrides it). To rebuild it, stop the test nodes and remove `cache/`; the next run recreates it.
 
 ### Framework options
 

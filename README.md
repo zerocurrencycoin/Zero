@@ -19,15 +19,7 @@ GENESIS BLOCK - 19th Feb 2017 10:26:40 UTC - `068cbb5db6bc11be5b93479ea4df41fa7e
 
 This repository is the **full node** (`zerod`, `zero-cli`, `zero-tx`). It downloads and stores the history of ZERO transactions; the size of a synced node is in BUILD_ZERO "Paths".
 
-**Who should read what**
-
-| I want to... | Start here |
-|------------|------------|
-| **Trade or hold** | Wallets and exchanges from [zerocurrency.io](https://zerocurrency.io); verify tickers on official channels only. |
-| **Mine** | Equihash **(192,7)** -- Zero's PoW (Zcash mainnet uses **(200,9)**). `gen=0` is the operator default. |
-| **Run a node** | [Quick start](#-building) below, then BUILD_ZERO "Configuration". |
-| **Understand economics** | [ZERO_COIN.md](ZERO_COIN.md) (emission, halvings, development fee, zeronodes). |
-| **Contribute** | [CONTRIBUTING.md](CONTRIBUTING.md) · [TEST_ZERO.md](TEST_ZERO.md) · [TODO.md](TODO.md) · [AGENTS.md](AGENTS.md). |
+Wallets and exchanges are listed on [zerocurrency.io](https://zerocurrency.io); verify tickers on official channels only. Documents for each reader: [Documentation](#-documentation).
 
 ------------------------------------------
 
@@ -51,15 +43,7 @@ This repository is the **full node** (`zerod`, `zero-cli`, `zero-tx`). It downlo
 
 ### •DECENTRALIZED PAYMENTS
 
-Chain facts (detail in [ZERO_COIN.md](ZERO_COIN.md)):
-
-| Topic | Summary |
-|--------|---------|
-| **Emission** | Block subsidy halves every **800,000** blocks; maximum supply **16,950,149.896 ZER**. |
-| **Fee-start** | Height **412,300** -- base subsidy **10 -> 10.8 ZER**; development fee begins. |
-| **Halvings** | **800k** (2020), **1.6M** (2023), **2.4M** (2026); next **3.2M**. |
-| **Development fee** | **7.5%** of block subsidy from fee-start through height **7,999,999**. |
-| **Zeronodes** | **20-40%** of block value by height tier. |
+Zero launched on 2017-02-19 with no premine. The block subsidy started at 10 ZER, became 10.8 ZER at height 412,300, where the 7.5% development fee begins, and halves every 800,000 blocks: after the third halving, at height 2,400,000 in 2026, it is 1.35 ZER. Maximum supply is 16,950,149.896 ZER. Emission, fee, zeronode shares, and consensus parameters: [ZERO_COIN.md](ZERO_COIN.md).
 
 ------------------------------------------
 
@@ -94,7 +78,7 @@ See important security warnings on the
 
 **Zero is experimental and a work in progress.** Use it at your own risk.
 
-Automatic node deprecation (mainnet) is configured on a **~10 year** window from the release baseline (`WEEKS_UNTIL_DEPRECATION` in `src/deprecation.h`). `getdeprecationinfo` reports the deprecation height.
+A mainnet node shuts down at the deprecation height built into its release and warns 4 weeks of blocks before it; `getdeprecationinfo` reports the height (`deprecationheight`). The height is `APPROX_RELEASE_HEIGHT` plus 520 weeks of blocks (`src/deprecation.h`).
 
 
 📚 Documentation
@@ -102,48 +86,47 @@ Automatic node deprecation (mainnet) is configured on a **~10 year** window from
 
 | Document | Readers | Purpose |
 |----------|---------|---------|
-| [README.md](README.md) | Everyone | Front page, quick start, links |
+| [README.md](README.md) | Everyone | Front page, chain summary, build and run, this document map |
 | [ZERO_COIN.md](ZERO_COIN.md) | Miners, pools, exchanges, integrators | Chain economics, consensus parameters, addresses |
 | [BUILD_ZERO.md](BUILD_ZERO.md) | Builders, operators, maintainers | Build, configure, and release on Linux, macOS, and Windows |
 | [TEST_ZERO.md](TEST_ZERO.md) | Contributors, maintainers | Test runs, tiers, held scripts, release bar |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributors | Patch and review expectations |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributors | Change workflow, review terms, coding rules that bind every change |
 | [TODO.md](TODO.md) | Contributors / maintainers | Open follow-ups for the full node |
 | [AGENTS.md](AGENTS.md) | Agents and humans editing the tree | Scope and documentation rules |
 | `doc/man/` | Operators (after install) | `zerod`, `zero-cli`, `zero-tx` manuals |
 | `doc/release-notes/` | Operators, miners, pools, integrators | Changes per release |
 | [doc/zeronodes.md](doc/zeronodes.md) | Maintainers | Zeronode, spork, SwiftTX, and budget implementation |
-| [doc/mining/mining-pools.md](doc/mining/mining-pools.md) | Maintainers, pool operators | Coinbase behavior by pool, outreach asks |
-| [doc/mining/s-nomp-recipients.md](doc/mining/s-nomp-recipients.md) | Pool operators | s-nomp empty reward recipient: cause, history, fix |
+| `doc/Options.csv`, `doc/RPCs.csv`, `doc/Reindex_Rescan.csv` | Maintainers | Options and RPCs in Zero and the reference projects, with dispositions; code references and coverage of the reindex and rescan options; written or checked by `contrib/tools/` |
+| [contrib/README.md](contrib/README.md) | Operators, contributors, maintainers | Index of the `contrib` tools and samples |
+| [contrib/conf-templates/README.md](contrib/conf-templates/README.md) | Operators | The `zero.conf` templates of `contrib/zero-conf.sh` |
+| [qa/rpc-tests/README.md](qa/rpc-tests/README.md) | Contributors | Running one RPC test script outside the runner; framework options |
 
 🔧 Building
 --------
 
-### Quick start on Linux
+### Build and run
 
-Install the packages listed in BUILD_ZERO "Build", then:
+Linux, after the packages in BUILD_ZERO "Linux":
 
 ```bash
 git clone https://github.com/zerocurrencycoin/Zero.git && cd Zero
-./zcutil/fetch-params.sh
-./zcutil/build.sh -j$(nproc)
-mkdir -p ~/.zero && touch ~/.zero/zero.conf
-./src/zerod -daemon
+./zcutil/fetch-params.sh && ./zcutil/build.sh -j$(nproc)
+./contrib/run-tests.sh --strict
+mkdir -p ~/.zero && touch ~/.zero/zero.conf && ./src/zerod -daemon
 ./src/zero-cli getblockchaininfo
 ```
 
-An empty `zero.conf` is enough when `zero-cli` runs on the same host; other setups are in BUILD_ZERO "Configuration". macOS and Windows: BUILD_ZERO "Build".
-
-### Operator checks
+Windows binaries are cross-built on that Linux host after MXE (BUILD_ZERO "Windows"):
 
 ```bash
-./contrib/ops-validate.sh smoke
+./zcutil/build.sh -win
 ```
 
-Starts and restarts an isolated node under `/tmp`; the live data directory is not touched. The other checks are in TEST_ZERO "Operational checks".
+macOS: BUILD_ZERO "macOS". Configuration beyond the empty `zero.conf`: BUILD_ZERO "Configuration". Tests: TEST_ZERO.
 
 ### Optional CPU mining
 
-Mainnet CPU mining is Equihash **(192,7)** on a synced node with peers, a wallet or `-mineraddress`, and `ENABLE_MINING`. Without restart:
+Mainnet CPU mining is Equihash **(192,7)** on a synced node with peers, a wallet or `-mineraddress`, and `ENABLE_MINING`. Set `equihashsolver=tromp` in `zero.conf` before starting the node (template `prod` sets it); the `default` solver is several times slower. Each mining thread holds one solver's memory: 3.25 GiB for tromp, about 4 GiB for `default`. Keep threads times that size well below physical memory: `genproclimit=-1` starts one thread per core; past physical memory the node swaps, stops answering RPC, and `setgenerate false` and `stop` wait for every solver round to finish. Without restart:
 
 ```bash
 ./src/zero-cli setgenerate true 1
@@ -151,7 +134,7 @@ Mainnet CPU mining is Equihash **(192,7)** on a synced node with peers, a wallet
 ./src/zero-cli setgenerate false
 ```
 
-`getmininginfo` shows `"generate": true` and a non-zero `localsolps` once the solver runs; `debug.log` shows `Using Equihash solver` and `Running ZeroMiner`. The miner waits while there are no peers or the node is in initial block download. One solve takes about a minute; finding a mainnet block at current difficulty is not expected. To mine after a restart, set `gen=1` in `zero.conf`.
+`getmininginfo` shows `"generate": true`, and after the first solve a non-zero `localsolps`: solutions per second over all mining time since the node started. `debug.log` shows `ZeroMiner started` and `Running ZeroMiner`. The miner waits while there are no peers or the node is in initial block download. Finding a mainnet block at current difficulty is not expected. To mine after a restart, set `gen=1` in `zero.conf`.
 
 🔩 Running Zero
 --------------------
@@ -175,14 +158,4 @@ Public transparent address, block, and transaction search on mainnet: [https://i
 
 ### Data directory
 
-| Platform | Data directory | Proving params |
-|----------|----------------|----------------|
-| **Linux** | `~/.zero` | `~/.zcash-params` |
-| **macOS** | `~/Library/Application Support/zero` | `~/Library/Application Support/ZcashParams` |
-| **Windows** | `%APPDATA%\zero` | `%APPDATA%\ZcashParams` |
-
-`-datadir=<path>` moves the data directory.
-
----
-
-Note: This repository builds the full node only. The Qt Desktop Wallet (**zerowallet**) is a separate application.
+Data directory and proving-parameter paths per platform: BUILD_ZERO "Paths".

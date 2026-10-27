@@ -45,12 +45,9 @@ def rpc_port(n):
     return PORT_MIN + PORT_RANGE + n + _port_offset()
 
 # Regtest development fee window (Consensus::REGTEST_FOUNDERS_START and _STOP in params.h).
-# Active for [START, STOP); STOP exclusive. The fee runs on Zcash's founders-reward code, so
-# the C++ names and the REGTEST_FOUNDERS_* and founders_share aliases keep "founders".
+# Active for [START, STOP); STOP exclusive.
 REGTEST_DEV_FEE_START = 1000
 REGTEST_DEV_FEE_STOP = 1500
-REGTEST_FOUNDERS_START = REGTEST_DEV_FEE_START
-REGTEST_FOUNDERS_STOP = REGTEST_DEV_FEE_STOP
 REGTEST_HALVING = 150
 
 def block_subsidy(height):
@@ -69,8 +66,6 @@ def dev_fee_share(height):
         return Decimal(0)
     subsidy_zat = int(block_subsidy(height) * 100000000)
     return Decimal(subsidy_zat * 75 // 1000) / Decimal(100000000)
-
-founders_share = dev_fee_share
 
 def miner_share(height):
     """Miner coinbase amount at height (full subsidy minus the development fee)."""
@@ -211,21 +206,30 @@ def _rpc_cache_write_tip_marker(cache_root, tip):
         f.write('%d\n' % tip)
 
 def ipv6_loopback_available():
-    """True if binding to ::1 succeeds.
+    """True if a TCP connection to a listener on ::1 completes.
 
     False when IPv6 is absent or disabled (common hardening: ipv6.disable=1,
-    no lo inet6, etc.). Callers must still treat Socks5Server(::1) bind failures
-    as skippable -- this probe is best-effort and must not imply the suite
-    requires IPv6.
+    no lo inet6, etc.), and when ::1 binds but connects to it fail (seen on
+    macOS: connect returns EAGAIN). Callers must still treat
+    Socks5Server(::1) bind failures as skippable -- this probe is best-effort
+    and must not imply the suite requires IPv6.
     """
+    listener = client = None
     try:
-        s = socket.socket(socket.AF_INET6)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(('::1', 0))
-        s.close()
+        listener = socket.socket(socket.AF_INET6)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(('::1', 0))
+        listener.listen(1)
+        client = socket.socket(socket.AF_INET6)
+        client.settimeout(3)
+        client.connect(listener.getsockname()[:2])
         return True
     except OSError:
         return False
+    finally:
+        for s in (client, listener):
+            if s is not None:
+                s.close()
 
 def _daemon_debug_tail(datadir, max_lines=25):
     logpath = os.path.join(datadir, 'regtest', 'debug.log')

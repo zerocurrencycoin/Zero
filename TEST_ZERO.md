@@ -34,6 +34,7 @@ Each script process takes 8 P2P ports in 24000-26999 and 8 RPC ports in 27000-29
 | Boost | `src/test/test_bitcoin` | Yes |
 | Python RPC | `qa/pull-tester/rpc-tests.sh` | Tier A |
 | Full suite | `qa/zcash/full_test_suite.py` | No; `--suite` only, ELF stages skipped on macOS |
+| Operational | `contrib/ops-validate.sh`, on scratch or operator data (Operational checks) | No; Release bar requires `short` |
 
 The C++ gate filters are in `qa/zcash/test_filters.sh`.
 
@@ -97,7 +98,16 @@ A test run proves one OS. On the release commit:
 | `./contrib/run-tests.sh --all`, summary clean | Required | Required, with `python3-zmq` so `zmq_test.py` runs | No runner; one start of `zerod.exe` instead, or the Windows archives leave the release |
 | `--suite` | ELF stages skipped | Optional | -- |
 | `./contrib/ops-validate.sh short`; `live` when a node runs on the operator datadir | Required | Required | -- |
-| Zerowallet check (Operational checks) | Manual | Manual if used | Manual if used |
+| Zerowallet check, below | Manual | Manual if used | Manual if used |
+
+**Zerowallet.** No UI harness in this tree. `ops-validate.sh` starts its node isolated (`-listen=0 -connect=0 -maxconnections=0`, `launch_zerod`), so it has no peers and does not sync, and `cold` starts it at height 0. Without a wallet option `cold` adds `-disablewallet`; with `--wallet=PATH` it enables the wallet but starts a new empty one, since only `reindex` and `rescan` copy PATH in (PATH must exist). Check in two steps, without sending:
+
+| Step | Node | Checks |
+|------|------|--------|
+| Connection | `./contrib/ops-validate.sh cold zerowallet keep --wallet=PATH`, then `attach`; `stop` after | Connection with `rpcuser`, `rpcpassword`, and `rpcport` from `/tmp/zero-ops-validate/zero.conf`; new addresses; error dialogs; the spinner stays at height 0 |
+| History and sync | A copy of a synced datadir with `zero.conf` from `./contrib/zero-conf.sh zerowallet -dir <copy>`, `port` and `rpcport` changed away from a running node's (23801, 23811), and a disposable wallet copy | Addresses and History of that wallet; the spinner reaches the peers' tip |
+
+An idle spinner does not prove sync.
 
 Record each artifact's hashes and signatures as present or missing. The maintainer decides which OS gates are hard blocks. Release steps: BUILD_ZERO "Release".
 
@@ -116,6 +126,4 @@ Record each artifact's hashes and signatures as present or missing. The maintain
 
 `mine` generates on regtest (48,5) and never mines mainnet; `verifyeq` and `solveeq` time mainnet (192,7) with `zcbenchmark`. Mainnet CPU mining: README "Optional CPU mining".
 
-**Zerowallet.** No UI harness in this tree. Start a node with template `zerowallet` (`cold zerowallet keep`, then `attach`), point the wallet at it with matching `rpcuser`, `rpcpassword`, and `rpcport`, and check addresses, History, the sync spinner, and error dialogs without sending. An idle spinner does not prove sync.
-
-**Explorer.** Template `insight`; its index settings must match the copied datadir, or the node reindexes. `getaddressbalance` and `getaddresstxids` on a disposable copy.
+**Explorer.** Template `insight` on a disposable datadir copy whose index settings match, or the node reindexes; check `getaddressbalance` and `getaddresstxids`.

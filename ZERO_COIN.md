@@ -57,7 +57,7 @@ The coinbase pays the subsidy plus fees and no more (`ConnectBlock`); the shares
 
 Example at height 2,500,000: subsidy 10.8 >> 3 = 1.35 ZER; development fee 0.10125; zeronode 35% = 0.4725; miner 0.77625 plus fees. A typical coinbase has three outputs: development fee, zeronode, miner. A fourth output is a pool splitting its miner payout.
 
-**Naming.** The development fee runs on the founders-reward code inherited from Zcash (`GetFoundersRewardAmount`, `vFoundersRewardAddress`), so `getblocksubsidy` and block templates call it `founders`, and `zeronodestats` calls it `developmentfee`. It differs from Zcash's founders reward, which took 20% of the subsidy for Zcash's first four years.
+**Naming.** The development fee runs on the founders-reward code inherited from Zcash (`GetFoundersRewardAmount`, `vFoundersRewardAddress`), so RPC output and reject reasons keep the Zcash names: `founders` in `getblocksubsidy`, `foundersreward` in `coinbasetxn` of `getblocktemplate` and as the `type` of its `coinbase_required_outputs` entry, and the block reject reason `cb-no-founders-reward`. `zeronodestats` reports it as `developmentfee` and `developmentfeezats`. It differs from Zcash's founders reward, which took 20% of the subsidy for Zcash's first four years.
 
 ---
 

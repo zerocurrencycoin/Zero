@@ -76,3 +76,5 @@ Budget proposals and votes travel in `zprop`, `mvote`, `fbs`, `fbvote`, and `znv
 4. **Active-spork tests.** Tests run only with sporks at their defaults: `zeronode_coinbase.py` shows that a spork update fails without the regtest spork private key. Add a regtest signing key to the test framework, then test each row of section 5 with the spork on and off, across two nodes that must agree on block validity.
 5. **Wallet depth.** Fix or confirm the one-argument `GetDepthInMainChain` overload, then list which RPCs (`listtransactions`, `getalldata`, `z_*`) report SwiftTX-raised confirmations.
 6. **Upstream.** Read how PIVX and Dash retired or replaced SwiftX/InstantSend and budgets, and which sporks they hard-coded.
+7. **Validation.** After v4.1.0, in order: the registration success path on regtest, a reorg test, automated `chainActive` checks, the mainnet payment scan of item 1, and a public operator section in BUILD_ZERO.
+8. **Disposition.** From items 1 to 7, decide whether the spork, SwiftTX, and budget code stays, is reduced, or is removed; postponed.

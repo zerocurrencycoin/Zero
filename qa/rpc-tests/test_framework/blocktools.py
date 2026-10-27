@@ -43,10 +43,10 @@ def serialize_script_num(value):
     return r
 
 counter=1
-# Zero regtest: match Consensus::REGTEST_FOUNDERS_* (util.py mirrors params.h)
+# Zero regtest development fee window (util.py mirrors Consensus::REGTEST_FOUNDERS_* in params.h)
 from test_framework.util import (
-    REGTEST_FOUNDERS_START,
-    REGTEST_FOUNDERS_STOP,
+    REGTEST_DEV_FEE_START,
+    REGTEST_DEV_FEE_STOP,
     REGTEST_HALVING,
 )
 COIN = 100000000
@@ -60,7 +60,7 @@ def create_coinbase(heightAdjust = 0):
                 CScript([height, OP_0]), 0xffffffff))
     counter += 1
     coinbaseoutput = CTxOut()
-    base = (108 * COIN // 10) if height >= REGTEST_FOUNDERS_START else (10 * COIN)
+    base = (108 * COIN // 10) if height >= REGTEST_DEV_FEE_START else (10 * COIN)
     halvings = int(height / REGTEST_HALVING)
     if halvings >= 64:
         coinbaseoutput.nValue = 0
@@ -68,12 +68,12 @@ def create_coinbase(heightAdjust = 0):
         coinbaseoutput.nValue = base >> halvings
     coinbaseoutput.scriptPubKey = b""
     coinbase.vout = [ coinbaseoutput ]
-    if (REGTEST_FOUNDERS_START <= height < REGTEST_FOUNDERS_STOP) and halvings < 64:
+    if (REGTEST_DEV_FEE_START <= height < REGTEST_DEV_FEE_STOP) and halvings < 64:
         froutput = CTxOut()
-        froutput.nValue = coinbaseoutput.nValue * 75 // 1000  # 7.5% founder, integer
+        froutput.nValue = coinbaseoutput.nValue * 75 // 1000  # 7.5% development fee, integer
         fraddr = bytearray([0x67, 0x08, 0xe6, 0x67, 0x0d, 0xb0, 0xb9, 0x50,
                             0xda, 0xc6, 0x80, 0x31, 0x02, 0x5c, 0xc5, 0xb6,
-                            0x32, 0x13, 0xa4, 0x91])  # regtest founder t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg
+                            0x32, 0x13, 0xa4, 0x91])  # regtest development fee address t2FwcEhFdNXuFMv1tcYwaBJtYVtMj8b1uTg
         froutput.scriptPubKey = CScript([OP_HASH160, fraddr, OP_EQUAL])
         coinbaseoutput.nValue -= froutput.nValue
         coinbase.vout = [ coinbaseoutput, froutput ]

@@ -1,15 +1,9 @@
 contrib/linearize/bootstrap.dat
 contrib/linearize/hashlist.txt
 contrib/linearize/linearize.cfg
-README0.md
 
-.claude
-.codex
-.codess
-.doc/
 __pycache__/
 
-throw/
 *.tar.gz
 *.deb
 *.exe

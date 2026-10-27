@@ -91,7 +91,7 @@ Then build Zero; `-m PATH` overrides `MXE_ROOT`:
 ./zcutil/build.sh -win
 ```
 
-Binaries are in `src/` on every platform. Each `zcutil` script lists its options with `--help`.
+Binaries are in `src/` on every platform.
 
 ---
 
@@ -115,9 +115,25 @@ It works because every option has a default that fits a local node: `zerod` list
 
 RPC from another host also needs `rpcbind` and `rpcallowip`. Command-line options override the file. `reindex=` never belongs in the file: run `zerod -reindex` once instead.
 
+`-blocknotify`, `-walletnotify`, and `-alertnotify` run a shell command only in builds compiled with `-DENABLE_SYSTEM_COMMAND` in `CXXFLAGS`; release builds log the skipped command. The shell-free alternative is ZMQ, described in zcashd [doc/zmq.md](https://github.com/zcash/zcash/blob/v5.4.0/doc/zmq.md).
+
 ---
 
 ## How the build works
+
+The `zcutil` scripts; each lists its options with `--help`:
+
+| Script | Does | Used in |
+|--------|------|---------|
+| `fetch-params.sh` | Downloads and checks the proving parameters | Build |
+| `build.sh` | Runs `build-native.sh` on Linux and macOS, `build-win.sh` with `-win` | Build |
+| `build-native.sh`, `build-win.sh` | Native build; Windows cross-build with MXE | Build |
+| `check-setup.sh` | Checks the build host: toolchain and parameters | Release |
+| `check-release.sh` | Checks that tree, version, and build match a release tag | Release |
+| `build-release.sh` | Runs `check-setup.sh`, `check-release.sh`, then `build.sh` | Release |
+| `release-linux.sh`, `release-macos.sh`, `release-win.sh` | Stage, sign, and archive the binaries of one platform | Release |
+| `checksums.sh` | Writes or verifies `artifacts/SHA256SUMS` | Release |
+| `fzero.sh`, `fmessage.sh` | Shared helpers and messages, sourced by the scripts above | -- |
 
 `zcutil/build.sh` runs four stages every time:
 
@@ -173,11 +189,11 @@ Versions are pinned in `depends/packages/*.mk`: Berkeley DB 6.2.32 sets the wall
 
 ## Release
 
-All steps run at the release commit on the release branch, with `git status --short` empty before each tag. What must pass on each platform: TEST_ZERO "Release bar".
+All steps run at the release commit on the release branch, with `git status --short` empty before each tag.
 
 **Version.** `_CLIENT_VERSION_*` in `configure.ac`. `_CLIENT_VERSION_BUILD` 0 to 24 gives `-betaN` (N = build + 1), 25 to 49 `-rcN` (N = build - 24), 50 the release, above 50 `-N` (N = build - 50). After a change, rebuild and run `./contrib/devtools/gen-manpages.sh`.
 
-**Test.** `./zcutil/check-setup.sh`, build, then `./contrib/run-tests.sh --all` and read its summary.
+**Test.** `./zcutil/check-setup.sh`, build, then TEST_ZERO "Release bar" on each platform.
 
 **Tag.** `check-release.sh` must print READY on every line:
 

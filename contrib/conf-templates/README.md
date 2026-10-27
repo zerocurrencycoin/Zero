@@ -11,5 +11,3 @@ Do not copy a live datadir conf into git (credentials).
 | **insight** | Explorer flags + `disablewallet` (P2P 23801 in template) | 23811 |
 
 `-dir` sets the directory, `-out` the filename. `-force` overwrites and allows `~/.zero`, `Application Support/zero|Zero`, or the product tree.
-
-`contrib/zero.conf` is the commented example of every option with its default; these templates are ready-made files for one role each.

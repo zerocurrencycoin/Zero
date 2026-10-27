@@ -133,7 +133,7 @@ class SpentIndexTest(BitcoinTestFramework):
         coinbase_tx = deltas[0]
         assert_equal(coinbase_tx['index'], 0)
         assert_equal(len(coinbase_tx['inputs']), 0)
-        # Zero regtest below fee-start (1000): single miner output (no founders vout).
+        # Zero regtest below fee-start (1000): single miner output (no development fee output).
         # Coinbase value = subsidy (+ fees from other txs in the block).
         assert_equal(len(coinbase_tx['outputs']), 1)
         assert_equal(coinbase_tx['outputs'][0]['index'], 0)

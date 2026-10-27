@@ -18,7 +18,7 @@ from test_framework.util import (
     start_nodes,
     connect_nodes_bi,
     COINBASE_MATURITY,
-    REGTEST_FOUNDERS_START,
+    REGTEST_DEV_FEE_START,
     subsidy_range,
 )
 
@@ -43,10 +43,10 @@ class BlockchainTest(BitcoinTestFramework):
         node = self.nodes[0]
         res = node.gettxoutsetinfo()
 
-        assert CACHE_CHAIN_TIP < REGTEST_FOUNDERS_START
+        assert CACHE_CHAIN_TIP < REGTEST_DEV_FEE_START
         assert_equal(res[u'height'], CACHE_CHAIN_TIP)
         assert_equal(res[u'transactions'], CACHE_CHAIN_TIP)
-        # Below founders START: one miner output per coinbase
+        # Below the development fee window: one miner output per coinbase
         assert_equal(res[u'txouts'], CACHE_CHAIN_TIP)
         assert_equal(
             res[u'total_amount'],

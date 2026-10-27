@@ -16,9 +16,9 @@ Do not remove, destructively overwrite, or add files without explicit user confi
 
 ## Code
 
-**Comments.** State current behavior and why. No tracking IDs, task or status notes, or change history ("previously", "regression:", "fixed") in code, tests, scripts, help text, or operational documents; the nature of a fix belongs in commit messages and project records.
+**Comments.** State current behavior and why. No tracking IDs, task or status notes, or change history ("previously", "regression:", "fixed") in code, tests, scripts, help text, or operational documents; the nature of a fix belongs in commit messages and release notes.
 
-**Vendored subtrees.** `src/leveldb`, `src/secp256k1`, `src/univalue` stay identical to the upstream code unless a change is required to build or run. Never add comments there. Record each required change in the project records.
+**Vendored subtrees.** `src/leveldb`, `src/secp256k1`, `src/univalue` stay identical to the upstream code unless a change is required to build or run. Never add comments there. Record each required change in CONTRIBUTING "Vendored subtrees".
 
 ## Communication
 

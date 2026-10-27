@@ -7,7 +7,7 @@ Zero **v4.1.0** full node (`zerod`, `zero-cli`, `zero-tx`): improvement, bug-fix
 ## Upgrade actions
 
 - Back up `wallet.zero` before upgrading. Build from the tag or use the release archives.
-- `-blocknotify`, `-walletnotify`, and `-alertnotify` do not run in release builds; see CONTRIBUTING "Shell notify hooks".
+- `-blocknotify`, `-walletnotify`, and `-alertnotify` do not run in release builds; see BUILD_ZERO "Configuration".
 - `-alerts` is removed with the P2P alert system: Zero never set a valid alert key, so no network alert could validate, and peers relaying alerts were penalized. An `alerts=` line in `zero.conf` is ignored. `-alertnotify` still reports this node's deprecation and long-fork warnings in builds with `ENABLE_SYSTEM_COMMAND`.
 - `getalldata` clients: treat error -34 (`RPC_DATA_CONTINUE`) as "retry later". Omitting argument 2 (`transactiontype`) now returns the last 7 days; pass 0 for full history.
 - Scripts that match message text: RPC errors and log lines say Zero instead of Zcash; `startalias` and `startzeronode` report "Zeronode list syncing, please wait. Current status: ..." while the zeronode list syncs.
