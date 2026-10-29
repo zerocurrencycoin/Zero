@@ -7,7 +7,7 @@ Tools and samples that ship with the Zero full node but are not part of `zerod`.
 | Path | Purpose |
 |------|---------|
 | `zero.conf` | Commented example: every option an operator sets, with its default |
-| `zero-conf.sh`, [conf-templates/](conf-templates/) | Write a ready-made `zero.conf` for one role (`prod`, `lab`, `insight`, `zerowallet`) |
+| `zero-conf.sh`, [conf-templates/](conf-templates/) | Write a `zero.conf` from a role template |
 
 ## Testing and validation
 

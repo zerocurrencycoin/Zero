@@ -10,6 +10,10 @@ Full node only. Zerowallet out of scope.
 
 No `Co-authored-by:` or attribution trailers.
 
+## Shell
+
+Run commands and scripts with bash: `bash -c '...'`, `bash -s <<'EOF'`, or a script starting `#!/usr/bin/env bash`. An agent's shell may be zsh, which does not split an unquoted variable into words, so a command or file list held in a variable runs as one word.
+
 ## Files
 
 Do not remove, destructively overwrite, or add files without explicit user confirmation.

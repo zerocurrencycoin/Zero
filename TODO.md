@@ -23,10 +23,10 @@ Open follow-ups for the Zero full node (`zerod`).
 ## Release
 
 1. **Branch cleanup** -- After the release content is complete and before the tags, squash and clean up the old branches, tags, and commits, including the `perf-*` and `zero-401` branches. List each branch with its merge and tag status before deletion.
-2. **Release candidate** -- Rebuild at the release commit, run `check-release.sh` before and after the tag, and tag `v4.1.0-rc1` on `zero-410`, per BUILD_ZERO "Release".
+2. **Release candidate** -- Tag `v4.1.0-rc1` on `zero-410` per BUILD_ZERO "Release".
 3. **Release platforms** -- Build, test, and package on Linux and Windows at the `v4.1.0-rc1` tag per TEST_ZERO "Release bar".
 4. **Release signing** -- Decide checksums and signing per platform; method in progress. Decide after the `v4.1.0-rc1` cross-platform tests, before v4.1.0; BUILD_ZERO "Release" then gets the signing and verify commands.
-5. **Release tag** -- Set `_CLIENT_VERSION_BUILD` to 50, regenerate the man pages, tag `v4.1.0`, and merge into `master`, per BUILD_ZERO "Release".
+5. **Release tag** -- Set the release version, tag `v4.1.0`, and merge into `master`, per BUILD_ZERO "Release".
 
 ---
 
@@ -38,17 +38,15 @@ Wallet:
 
 RPC:
 
-- **RPC dispositions** -- Decide the Sprout RPCs and record test depth per RPC from the harness in `doc/RPCs.csv`; v4.1.0 ships the dispositions the file records now. The accounts RPCs stay deprecated until Zerowallet lists transparent addresses with `listreceivedbyaddress`. Maintainer.
-- **Wallet interface** -- Write the public node-wallet interface contract: RPCs and parameters Zerowallet uses, error codes and retry rules, `zero.conf` keys, data and parameter paths, and the node-wallet version table; Zerowallet links to it. The v4.1.0 changes that clients see are in its release notes, "Upgrade actions" and "RPC". Maintainer.
+- **Sprout RPCs** -- Decide each Sprout RPC's disposition and record test depth per RPC from the harness in `doc/RPCs.csv` (v4.1.0 ships the dispositions recorded now), then remove the code of RPCs that leave Zero, starting with the compiled-out raw JoinSplit RPCs; postponed. The accounts RPCs stay deprecated until Zerowallet lists transparent addresses with `listreceivedbyaddress`. Maintainer.
+- **Wallet interface** -- Write the public node-wallet interface contract that Zerowallet links to: RPCs and parameters it uses, error codes and retry rules, `zero.conf` keys, data and parameter paths, and the node-wallet version table. Then align the `zero.conf` Zerowallet writes (`rpcworkqueue`, `txindex`, `keeptx*`, `safekey`, macOS directory) with it in a coordinated Zerowallet release; under consideration. The v4.1.0 changes clients see are in its release notes, "Upgrade actions" and "RPC". Maintainer.
 - **getalldata cost** -- Measure poll cost on a large wallet first, then the follow-up steps. Maintainer.
-- **RPC removal** -- Remove the code of RPCs that leave Zero, starting with the compiled-out Sprout raw JoinSplit RPCs; postponed; follows RPC dispositions. Maintainer.
 
 Node operation:
 
 - **Reindex safeguards** -- Refuse a `reindex=` line in `zero.conf` and an unforced `DB_FLAG` mismatch unless `-reindexforce`; skip the wallet replay below a height. Maintainer.
 - **Conf checks** -- Check automatically that every key in `contrib/zero.conf` and `contrib/conf-templates/` is a parsed option and that shown defaults match `zerod -help` and `-help-debug`; add a default column to `doc/Options.csv` generated from the help text; run the check in `contrib/run-tests.sh` and `zcutil/check-release.sh`. `contrib/tools/inventory-check.py` counts commented-out `GetArg` calls as parsed options, so it missed `prune` and `txindex`; parse only live code. Maintainer.
-- **Conf templates test** -- Start `zerod` in a lab datadir with each generated template and stop it cleanly, then exercise each template's use case; automate in `contrib/ops-validate.sh`. For `zerowallet`, replace the two-step check in TEST_ZERO "Release bar" with one `ops-validate.sh` run: copy the `--wallet` file in for `cold` and `copy` as `rescan` does, and add a peered mode on lab ports that syncs a datadir copy. Maintainer.
-- **Lab datadir setup** -- Review and harmonize how test scenarios set up datadirs and configuration (`contrib/ops-validate.sh` labs and templates, the RPC test cache, height-bounded labs), and complete their documentation in TEST_ZERO; performance measurement stays out of scope. Maintainer.
+- **Lab setup** -- Harmonize datadir and configuration setup across the `ops-validate.sh` labs and templates, the RPC test cache, and height-bounded labs; exercise each template's use case, and replace the two-step Zerowallet check in TEST_ZERO "Release bar" with one run that copies the wallet in and syncs a datadir copy on lab ports. Maintainer.
 - **Chain diagnostics** -- Port the diagnostic and recovery tools that Zero lacks; postponed. Maintainer.
 
 Network and P2P:
@@ -92,6 +90,7 @@ Tests:
 - **Test conversion** -- Convert the scripts of TEST_ZERO "Held scripts" except the Obsolete, Retired Sprout, and GTest rows, and promote each after five clean serial runs: the scripts of the height and maturity rows with the helpers in TEST_ZERO "Writing tests for Zero"; the Python-solved-block scripts by solving with the `ZERO_PoW` personalization in `test_framework/equihash.py`; then `getblocktemplate_proposals` and `smartfees`; then the Fork warnings row, adapted to Zero's block version floor and to warnings checked without `-alertnotify`. Postponed.
 - **Witness rebuild coverage** -- Test witness rebuild (`-walletwitness=rebuild`) and bring the GTest row of TEST_ZERO "Held scripts" into the merge gate.
 - **Test filters** -- Unify test tiers, filters, and their names across the runners.
+- **Test speed** -- Cut the serial RPC run and the merge gate: shorter waits, fewer iterations, more concurrency, cheaper and precomputed setup, and tier moves, per Full description "Test speed".
 - **Fuzz harness** -- Add libFuzzer targets under `src/fuzz/`.
 - **Python cleanup** -- Adopt a format and lint check for Zero's Python files, share helpers in `contrib/stats` and `contrib/tools`, and unify script names and headers; postponed.
 - **Benchmark clarity** -- Fix the `zcbenchmark` help and defective types, record timing samples, guard miner memory, and validate tromp, per Full description "Benchmark clarity"; postponed.
@@ -111,12 +110,11 @@ Build, packaging, and release:
 - **AMQP removal** -- Remove AMQP (`src/amqp/`, the Proton recipe in `depends`, `contrib/amqp/`, `proton_test.py`, `--enable-proton`), as zcashd did; ZMQ remains the notification path. Maintainer.
 - **Windows ZMQ** -- Review enabling ZMQ in Windows builds (`build-win.sh` passes `--disable-zmq`): features needed, implementation, and tests. Maintainer.
 - **Linux package** -- Add man pages, the example `zero.conf`, and bash completions to the `.deb` from `zcutil/release-linux.sh`, and the example `zero.conf` to the macOS and Windows archives. Maintainer.
-- **Zerowallet conf** -- Align the `zero.conf` that Zerowallet writes (`rpcworkqueue`, `txindex`, `keeptx*`, `safekey`, macOS directory) with the node, coordinated with the Zerowallet release; under consideration. Maintainer.
 
 Documentation:
 
 - **Docs lint** -- Automate the documentation checks in `contrib/run-tests.sh`: relative links and section references resolve, ASCII outside README, no parentheticals in headings, named files exist, and documented commands run; then generate stated facts from the code. Maintainer.
-- **Recovery guide** -- Add a recovery and maintenance section to BUILD_ZERO (`-reindex`, `-rescan`, witness rebuild, `-zapwallettxes`, transaction deletion, consolidation): when to use each and what it costs, generated in part from `doc/Reindex_Rescan.csv`. Maintainer.
+- **Recovery costs** -- Measure the time, disk, and memory of each BUILD_ZERO "Recovery" option on a mainnet datadir copy and on `ops-validate.sh` snapshots, and add them to that section with the tests that cover each option (`doc/Reindex_Rescan.csv`); update the section when an option changes. Maintainer.
 - **Pool guidance** -- Publish a pool-operator section: coinbase rules, identification, relay, transaction policy, and the s-nomp recipient fix; postponed. Maintainer.
 - **README claims** -- Back the README feature headings (fast and zero-cost transactions, ASIC resistance, unique algorithm) with facts and sources, or reword them; kept as branding for now. Maintainer.
 
@@ -187,29 +185,53 @@ To resolve after v4.1.0:
 - `qa/rpc-tests/test_tier_inventory.csv` is regenerated by hand; nothing checks it against the runner.
 - Retired Sprout scripts and the Boost/GTest exclusion mechanism: review after v4.1.0 whether to keep, rewrite, or remove.
 - `contrib/run-tests.sh` has no mode for the Large tier; only `rpc-tests.sh -L` runs it.
-- `paymentdisclosure` can hang when `rpc-tests.sh` runs scripts in parallel (`--jobs` above 1), so the gates run serially.
 
-Method: port the runner parts of Bitcoin Core `test/functional/test_runner.py` that answer these problems. `BASE_SCRIPTS` and `EXTENDED_SCRIPTS` as the one list per tier (Zero's pass tiers and Large); `NON_SCRIPTS` for helper modules; `check_script_list`, which fails when a Python file in the test directory is in no list, in place of the hand-regenerated CSV; `check_script_prefixes` for name prefixes (`wallet_`, `rpc_`, `p2p_`, `mempool_`, `feature_`); `--portseed` per job with `--jobs`, `--filter`, `--exclude`, and `--failfast`; per-script run times in the summary.
+Method: port the runner parts of Bitcoin Core `test/functional/test_runner.py` that answer these problems. `BASE_SCRIPTS` and `EXTENDED_SCRIPTS` as the one list per tier (Zero's pass tiers and Large); `NON_SCRIPTS` for helper modules; `check_script_list`, which fails when a Python file in the test directory is in no list, in place of the hand-regenerated CSV; `check_script_prefixes` for name prefixes (`wallet_`, `rpc_`, `p2p_`, `mempool_`, `feature_`); `--portseed` per job with `--jobs`, `--filter`, `--exclude`, and `--failfast`.
+
+### Test speed
+
+Serial `rpc-tests.sh -all` on ARM64 macOS takes 1,355 s: Tier A 98 s, Tier B 1,128 s, Tier E 129 s, with CPU busy 0.75 of one core, so the run mostly waits. Boost takes 88 s and GTest 47 s, in parallel with each other. Each RPC script prints its seconds, and `contrib/run-tests.sh` writes them to `<log dir>/<stamp>-rpc-times.csv`; measure each step below with a rerun.
+
+**Waits.** Four 1 s waits:
+
+| Wait | Code | Call sites | Change |
+|------|------|------------|--------|
+| Block and mempool sync | `sync_blocks`, `sync_mempools` (`wait=1`) in `test_framework/util.py` | About 300 | Poll every 0.1 s |
+| Async operation | `wait_and_assert_operationid_status_result` (`time.sleep(1)`) | About 70 | Poll every 0.2 s |
+| Node start | `wait_for_daemon_rpc` runs `zero-cli -rpcwait`, which retries every 1 s (`MilliSleep(1000)` in `src/bitcoin-cli.cpp`) | About 300 start and stop sites | Poll `getblockcount` from Python every 0.1 s |
+| Zeronode sync | `zeronode_startalias` (105 s) waits for sync steps of `ZERONODE_SYNC_TIMEOUT` (5 s), about 25 s per asset (`src/zeronode/zeronode-sync.h`) | 1 script | Regtest-only shorter timers; node code. Maintainer |
+
+**Fewer iterations.** 51 scripts start from an empty chain and mine 721 blocks to a spendable coinbase, then sync them to 2 to 4 nodes; mining takes 4.5 s on one node, the syncs and polls cost more. `mergetoaddress_helper.py` mines `generate(1000)`: check whether fewer blocks test the same input limit. `walletbackup` (62 s), `wallet_archive` (55 s), and `zapwallettxes` (19 s) restart nodes repeatedly and gain from the node-start change. `txn_doublespend` runs twice to cover two paths and stays.
+
+**Concurrency.** `--jobs` in `contrib/run-tests.sh` runs only Tier A in parallel, one `rpc-tests.sh` per script. The stated `paymentdisclosure` hang under `--jobs` has no log or reproduction: run `./contrib/run-tests.sh --jobs=4` three times; keep the restriction only with a captured cause. Port offsets (`8 * pid % 2991`) do not collide for consecutive PIDs, and the script uses its own clean chain. With the CPU mostly idle and scripts under 2 GiB, extend `--jobs` to all pass tiers at 4 to 6 jobs. Shard GTest with `GTEST_TOTAL_SHARDS` and `GTEST_SHARD_INDEX`, and run the Boost RPC suites as separate `test_bitcoin --run_test=<suite>` processes, each with its own temporary directory.
+
+**Cheaper setup.** Boost `TestingSetup` (`src/test/test_bitcoin.cpp`) loads a new wallet per case, and `LoadWallet` fills the keypool with `-keypool` keys (default 100, `TopUpKeyPool`), 0.58 to 0.62 s per case for 85 cases in the RPC suites. Time one case with `-keypool=1` set in the fixture; if it holds, set it. Use one fixture per suite where cases do not change shared state. Sapling proofs are real work and stay.
+
+**Precomputed setup.** Add a second RPC test cache: a matured clean chain (height 721 or more, spendable coinbase) that clean-chain scripts copy as they copy the 725-block cache today.
+
+**Tier moves.** Move `paymentdisclosure` (26 s), which tests an experimental feature that works only on Sprout JoinSplits, from Tier A to Tier B: the gate drops to 72 s. Seven scripts create Sprout notes (`paymentdisclosure`, `wallet_nullifiers`, `wallet_anchorfork`, `mergetoaddress_mixednotes`, `wallet_changeindicator`, `wallet_1941`, `regtest_signrawtransaction`; 177 s), as do GTests `TransactionBuilder.SproutToSproutAndSapling`, `joinsplit.full_api_test`, and `TransactionBuilder.SaplingToSprout` (24.6 s of 47 s); they stay while wallets can create Sprout notes ("Sprout RPCs"), and the GTests move from the merge gate to the release run. Validation of existing Sprout spends stays tested either way.
+
+**Order.** 1. Python polling for sync, operations, and node start, then rerun `-all`. 2. The `--jobs` reproduction. 3. The Boost keypool timing. 4. GTest sharding and split Boost suites in `contrib/run-tests.sh`. 5. The tier moves. 6. The matured-chain cache and the zeronode timers, sized from the measured savings.
+
+Fixed costs: `getblocktemplate_longpoll` (71 s) waits out the long-poll timeout by design; `mergetoaddress_sapling` (105 s) builds Sapling proofs.
 
 ### Benchmark clarity
 
-`zcbenchmark` (`src/zcbenchmarks.cpp`; help in `zc_benchmark`, `src/wallet/rpcwallet.cpp`), the timing in `contrib/ops-validate.sh`, and miner limits. Values measured on ARM64 macOS.
+`zcbenchmark` (`src/zcbenchmarks.cpp`, help in `src/wallet/rpcwallet.cpp`) and miner limits. Measured on ARM64 macOS.
 
-**Help.** The help lists no types, unit, or third parameter. `runningtime` is seconds at microsecond resolution (`gettimeofday`). `verifyequihash` and `solveequihash` use MAIN (192,7) on every network; `verifyequihash` checks the genesis header in every sample. List each type with unit, parameter, network, and input.
+**Help.** List each type with unit (seconds, microsecond resolution), third parameter, network, and input; `verifyequihash` and `solveequihash` use MAIN (192,7) on every network.
 
 **Defective types.** Fix or remove:
 
 | Type | Defect | Measured |
 |------|--------|----------|
 | `parameterloading` | Error -3: Sprout parameters removed | -- |
-| `validatelargetx` | Default 11,130 inputs is the Zcash 2 MB transaction; `MAX_TX_SIZE_COSMOS` (200,000 bytes) allows about 1,110. Setup signs without precomputed data and grows with the square of the inputs | 1,000 inputs: 28 to 31 ms timed, 0.5 s wall per sample; 11,130: 0.34 s timed, 51 s wall |
-| `incnotewitnesses`, `incsaplingnotewitnesses` | The timed `ChainTip` takes the initial-download branch (block time 0); `BuildWitnessCache(pindex, true)` returns after walking wallet notes, so no witness is incremented. The Sapling variant adds its second transaction to `block1`, leaving the timed block empty | 100 / 1,000 / 10,000 transactions: 3 / 26 / 320 us |
-| `listunspent` | Times the wallet as found; a fresh node has no outputs | 1 us |
+| `validatelargetx` | Default 11,130 inputs is the Zcash 2 MB transaction; Zero's 200,000-byte limit (`MAX_TX_SIZE_COSMOS`) allows about 1,110. Setup grows with the square of the inputs | 1,000 inputs: 28 to 31 ms timed, 0.5 s wall; 11,130: 0.34 s timed, 51 s wall |
+| `incnotewitnesses`, `incsaplingnotewitnesses` | The timed `ChainTip` takes the initial-download branch and only walks wallet notes; the Sapling variant times an empty block (second transaction added to `block1`) | 3, 26, 320 us at 100, 1,000, 10,000 transactions |
+| `listunspent` | A fresh node has no outputs to list | 1 us |
 
-**Sizing table.** Only the operation is timed; per-sample setup can exceed it 150 times, so sample counts and sizes chosen from timed values overrun. After the defective types are fixed, run each type once at its smallest size, choose the parameter and a sample count of 10, 100, or 1,000 so each timed sample is between 100 ns and 10 s, and add a table to TEST_ZERO "Operational checks": type, parameter, sample count, timed value, wall time per sample, and peak RSS. Generate the table from the recorded samples (Recorded samples), not by hand; values measured before the fixes are not reused. Size the tromp validation the same way: one thread (3.25 GiB) and a 180 s window, which on ARM64 macOS gave 24 solver runs and 4 testnet blocks at minimum difficulty; a second thread only to check scaling.
+**Sizing table.** Setup is untimed and can be 150 times the timed operation. After the fixes, generate a table for TEST_ZERO "Operational checks" from recorded samples: per type, the parameter and sample count (10, 100, or 1,000) that give timed samples between 100 ns and 10 s, wall time per sample, and peak RSS. `ops-validate.sh` records only exit code and whole-second duration; record each sample and sub-second times.
 
-**Recorded samples.** The ledger (`append_ledger`) keeps exit code and whole-second duration; `run_eq_bench` keeps no samples; `cold`, `restart`, and `stop` resolve whole seconds (`date +%s`, the 1 s poll in `wait_rpc`, a 2 s sleep in `restart`). Store each sample and time below one second.
+**Miner limits.** Warn or refuse in `GenerateBitcoins` (`src/miner.cpp`) when threads times the solver memory in README "Optional CPU mining" exceed physical memory; tromp checks cancellation only between rounds, so an out-of-memory miner does not stop.
 
-**Miner limits.** Warn or refuse in `GenerateBitcoins` (`src/miner.cpp`) when threads times the solver memory in README "Optional CPU mining" exceeds physical memory; tromp checks cancellation only between rounds, so an out-of-memory miner does not stop.
-
-**Tromp validation.** `zcbenchmark` cannot select tromp, and the tromp build (`WN 192`, `WK 7`) does not solve regtest (48,5). Mainnet cannot mine in isolation (`nMinimumChainWork`, `fMiningRequiresPeers`); testnet has (192,7) and minimum chain work 0. Add an `ops-validate.sh` command that runs two connected testnet lab nodes, one mining with one tromp thread and one validating, and a check of every tromp solution, not only those meeting the target. Mainnet mining is outside the v4.1.0 release bar: after the release, run README "Optional CPU mining" with one tromp thread on a synced mainnet node, then add it to TEST_ZERO "Release bar".
+**Tromp validation.** Tromp runs only in the miner at (192,7): `zcbenchmark` cannot select it, regtest is (48,5), and mainnet cannot mine in isolation (`nMinimumChainWork`, `fMiningRequiresPeers`). Validate on two connected testnet lab nodes, one mining with one tromp thread for 180 s (24 solver runs, 4 blocks) and one validating, and check every solution, not only those meeting the target. After v4.1.0, run README "Optional CPU mining" on a synced mainnet node with one thread and add it to TEST_ZERO "Release bar".

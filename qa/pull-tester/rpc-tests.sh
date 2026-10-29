@@ -264,13 +264,20 @@ function runTestScript
 
     echo -e "=== Running testscript ${testName} ==="
 
+    local t0=$SECONDS result
     if eval "$@"
     then
         successCount=$(expr $successCount + 1)
-        echo "--- Success: ${testName} ---"
+        result=pass
+        echo "--- Success: ${testName} ($((SECONDS - t0)) s) ---"
     else
         failures[${#failures[@]}]="$testName"
-        echo "!!! FAIL: ${testName} !!!"
+        result=fail
+        echo "!!! FAIL: ${testName} ($((SECONDS - t0)) s) !!!"
+    fi
+    # RPC_TIMES_CSV, when set, collects one line per script: name,seconds,result.
+    if [ -n "${RPC_TIMES_CSV:-}" ]; then
+        echo "${testName},$((SECONDS - t0)),${result}" >> "$RPC_TIMES_CSV"
     fi
 
     echo
@@ -468,6 +475,10 @@ if [ "x${ENABLE_BITCOIND}${ENABLE_UTILS}${ENABLE_WALLET}" = "x111" ]; then
 
     echo -e "\n\nTests completed: $(expr $successCount + ${#failures[@]})"
     echo "successes $successCount; failures: ${#failures[@]}"
+    if [ -n "${RPC_TIMES_CSV:-}" ] && [ -s "$RPC_TIMES_CSV" ]; then
+        echo -e "\nSlowest scripts (seconds), from $RPC_TIMES_CSV:"
+        sort -t, -k2,2nr "$RPC_TIMES_CSV" | head -10 | awk -F, '{ printf "%6d  %s\n", $2, $1 }'
+    fi
 
     if [ ${#failures[@]} -gt 0 ]
     then

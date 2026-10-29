@@ -17,6 +17,8 @@ LOG_DIR="${LOG_DIR:-$ZERO_BUILD_DIR/test-logs}"
 mkdir -p "$LOG_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 LOG_PREFIX="$LOG_DIR/${TIMESTAMP}"
+# Per-script RPC durations for this run; rpc-tests.sh appends to it.
+export RPC_TIMES_CSV="${RPC_TIMES_CSV:-${LOG_PREFIX}-rpc-times.csv}"
 
 . "$REPO_ROOT/qa/zcash/test_filters.sh"
 
