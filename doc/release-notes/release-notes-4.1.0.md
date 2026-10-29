@@ -21,6 +21,7 @@ Zero **v4.1.0** full node (`zerod`, `zero-cli`, `zero-tx`): improvement, bug-fix
 - New `getdbinfo`: `-dbcache` budgets, live fill of the UTXO cache, and LevelDB block-cache capacity and statistics.
 - `getrawtransaction` and `decoderawtransaction` help documents the `size` field.
 - `getblockchaininfo` lists Sapling once under branch ID `7361707a`. Cosmos reuses that ID, and the output carried the key twice, so JSON parsers showed Cosmos and hid Sapling.
+- `getblockdeltas` writes an output's `address` once, and omits it for outputs without a transparent address, as zcashd does; the output carried the key twice, and `"address": ""` for those outputs.
 - `zcrawjoinsplit` and `zcrawreceive` (Sprout raw JoinSplit RPCs) are removed, as in zcashd 5.4.0; a build with `-DENABLE_ZCRAW_RPC` restores them.
 
 ## Wallet

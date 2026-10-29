@@ -14,6 +14,7 @@ Opt-in -walletwitness=ibd-defer and -walletwitnessnote (both default off) after 
 import time
 from decimal import Decimal
 
+from test_framework.authproxy import JSONRPCException
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     COINBASE_MATURITY,
@@ -42,22 +43,20 @@ def reorg_n_blocks(node, n):
 
 
 def wait_until_witnesses_ready(node, zaddr, timeout=900):
-    """Retry z_getbalance until witness rebuild (-31/-33) is done."""
+    """Wait until witnesses are built (-31, -33 cleared), then return z_getbalance.
+
+    getalldata is refused with -31 until witnesses are built, as z_sendmany is;
+    z_getbalance is not, so it cannot serve as the probe.
+    """
     deadline = time.time() + timeout
-    last_err = None
-    while time.time() < deadline:
+    while True:
         try:
+            node.getalldata(1)
             return Decimal(node.z_getbalance(zaddr))
-        except Exception as e:
-            last_err = e
-            msg = str(e).lower()
-            if "witness" in msg or "-33" in msg or "-31" in msg:
-                time.sleep(2)
-                continue
-            time.sleep(1)
-    raise RuntimeError(
-        "witnesses not ready within %ss: %s" % (timeout, last_err)
-    )
+        except JSONRPCException as e:
+            if e.error.get("code") not in (-31, -33) or time.time() > deadline:
+                raise
+        time.sleep(1)
 
 
 class WalletWitnessDeferTest(BitcoinTestFramework):

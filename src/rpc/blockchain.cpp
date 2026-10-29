@@ -194,7 +194,6 @@ UniValue blockToDeltasJSON(const CBlock& block, const CBlockIndex* blockindex)
             if (IsValidDestination(dest)) {
                 delta.push_back(Pair("address", EncodeDestination(dest)));
             }
-            delta.push_back(Pair("address", EncodeDestination(dest)));
             delta.push_back(Pair("satoshis", out.nValue));
             delta.push_back(Pair("index", (int)k));
 
@@ -474,6 +473,9 @@ UniValue getblockdeltas(const UniValue& params, bool fHelp)
 
     std::string strHash = params[0].get_str();
     uint256 hash(uint256S(strHash));
+
+    // GetSpentIndex requires cs_main.
+    LOCK(cs_main);
 
     if (mapBlockIndex.count(hash) == 0)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");

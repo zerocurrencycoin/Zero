@@ -508,12 +508,22 @@ def _generate_batched(node, nblocks, batch=50):
         node.generate(n)  # intentionally unused return (block hashes)
         left -= n
 
-def connect_nodes(from_connection, node_num):
+RPC_BUILDING_WITNESS_CACHE = -33
+
+def connect_nodes(from_connection, node_num, timeout=120):
     ip_port = "127.0.0.1:"+str(p2p_port(node_num))
     from_connection.addnode(ip_port, "onetry")
     # poll until version handshake complete to avoid race conditions
-    # with transaction relaying
-    while any(peer['version'] == 0 for peer in from_connection.getpeerinfo()):
+    # with transaction relaying; a reorg after the connect can rebuild the
+    # witness cache, which refuses getpeerinfo with -33 until it finishes
+    deadline = time.time() + timeout
+    while True:
+        try:
+            if not any(peer['version'] == 0 for peer in from_connection.getpeerinfo()):
+                return
+        except JSONRPCException as e:
+            if e.error.get('code') != RPC_BUILDING_WITNESS_CACHE or time.time() > deadline:
+                raise
         time.sleep(0.1)
 
 def connect_nodes_bi(nodes, a, b):

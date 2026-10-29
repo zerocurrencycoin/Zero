@@ -1101,8 +1101,12 @@ UniValue getspentinfo(const UniValue& params, bool fHelp)
     CSpentIndexKey key(txid, outputIndex);
     CSpentIndexValue value;
 
-    if (!GetSpentIndex(key, value)) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unable to get spent info");
+    {
+        // GetSpentIndex requires cs_main.
+        LOCK(cs_main);
+        if (!GetSpentIndex(key, value)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unable to get spent info");
+        }
     }
     UniValue obj(UniValue::VOBJ);
     obj.push_back(Pair("txid", value.txid.GetHex()));
