@@ -203,9 +203,9 @@ The `zcutil` scripts; each lists its options with `--help`:
 | `fetch-params.sh` | Downloads and checks the proving parameters | Build |
 | `build.sh` | Runs `build-native.sh` on Linux and macOS, `build-win.sh` with `-win` | Build |
 | `build-native.sh`, `build-win.sh` | Native build; Windows cross-build with MXE | Build |
-| `check-setup.sh` | Checks the build host: toolchain and parameters | Release |
+| `check-setup.sh` | Checks the build host: toolchain and parameters; with `--win`, the MXE compiler under `MXE_ROOT` or on PATH, and Wine | Release |
 | `check-release.sh` | Checks that tree, version, and build match a release tag | Release |
-| `build-release.sh` | Runs `check-setup.sh`, `check-release.sh`, then `build.sh` | Release |
+| `build-release.sh` | Runs `check-setup.sh`, `check-release.sh --levels=tree`, `build.sh`, then `check-release.sh` on the build: levels `tree,configure,build`, or `tree,configure` with `--win`, or the given `--levels` | Release |
 | `release-linux.sh`, `release-macos.sh`, `release-win.sh` | Stage, sign, and archive the binaries of one platform | Release |
 | `checksums.sh` | Writes or verifies `artifacts/SHA256SUMS` | Release |
 | `fzero.sh`, `fmessage.sh` | Shared helpers and messages, sourced by the scripts above | -- |
@@ -290,7 +290,9 @@ git push origin <release branch> vX.Y.Z-rcN
 
 `--sign` applies a Developer ID signature with the hardened runtime; `--notarize` submits the zip with `xcrun notarytool` (Gatekeeper checks notarization online, since a zip of command-line tools cannot be stapled). `--sign-pkcs12` applies Authenticode with `osslsigncode`, password in `ZERO_AUTHENTICODE_PASS`. Without these options the archives are unsigned and the scripts warn.
 
-**Checksum and sign.** In the same sitting: collect all archives in one `artifacts/`, run `./zcutil/checksums.sh` and `./zcutil/checksums.sh --verify` after the last signing step, then sign `SHA256SUMS` with the method chosen for the release. Unsigned CI artifacts are not releases.
+`release-win.sh` then starts the zipped binaries under Wine (`sudo apt install -y wine`) in a temporary prefix and datadir: `zerod.exe -version` must report the version, a regtest start must reach "Done loading", `zero-cli.exe getblockchaininfo` must answer, and `stop` must end with "Shutdown: done"; the check takes under 30 s and fails the script otherwise. A host without Wine passes `--no-smoke` to `release-win.sh` and `--no-wine` to `check-setup.sh --win` or `build-release.sh --win`; `zerod.exe` from the zip is then started on Windows.
+
+**Checksum and sign.** In the same sitting: collect all archives in one `artifacts/`, run `./zcutil/checksums.sh` and `./zcutil/checksums.sh --verify` after the last signing step. `SHA256SUMS` has no signature until its method is decided. Unsigned CI artifacts are not releases.
 
 **Publish.** The body is `doc/release-notes/release-notes-X.Y.Z.md`: the state at this release against the previous published release, for operators, miners, pools, and integrators.
 

@@ -8,10 +8,12 @@ cd "$REPO_ROOT"
 
 LEVELS="toolchain,params"
 CHECK_WIN=0
+NO_WINE=0
 NO_WRITE=0
 STEP_OS=""
 STEP_TOOL=""
 STEP_PARAMS=""
+STEP_WINE=""
 
 usage() {
   cat <<'EOF'
@@ -21,8 +23,10 @@ Stdout is READY or NOT READY plus one line per step. Full log: -v or .build/setu
 Machine/setup check. Product/tree identity: zcutil/check-release.sh
 
   --levels=LIST      toolchain,params  (default: both)
-  --win              MXE mingw g++ on PATH (Linux host)
-  -v, --verbose      print the full receipt
+  --win              MXE mingw g++ under MXE_ROOT or on PATH (Linux host), and wine
+                     for the release-win.sh smoke check
+  --no-wine          with --win: skip the wine check (zerod.exe is started on Windows)
+  -v, --verbose     print the full receipt
   --no-write         do not write .build/setup-*.txt
   -h, --help
 EOF
@@ -32,6 +36,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --levels=*) LEVELS="${1#--levels=}"; shift ;;
     --win) CHECK_WIN=1; shift ;;
+    --no-wine) NO_WINE=1; shift ;;
     -v|--verbose) RECEIPT_VERBOSE=1; shift ;;
     --write) NO_WRITE=0; shift ;;
     --no-write) NO_WRITE=1; shift ;;
@@ -92,7 +97,7 @@ if has_level toolchain; then
     if CXX_BIN="$(find_mingw_cxx)"; then
       receipt_pass "mingw CXX $CXX_BIN"
     else
-      receipt_fail "MXE mingw g++ not on PATH (build.sh -win / MXE_ROOT)"
+      receipt_fail "MXE mingw g++ not under MXE_ROOT or on PATH (build.sh -win)"
       TOOL_OK=0
     fi
   else
@@ -147,6 +152,21 @@ if has_level params; then
   fi
 fi
 
+# Wine runs the release-win.sh smoke check; --no-wine leaves that check to a Windows host.
+if [[ "$CHECK_WIN" -eq 1 ]]; then
+  receipt_log "--- wine ---"
+  if [[ "$NO_WINE" -eq 1 ]]; then
+    receipt_log "wine skipped (--no-wine)"
+    STEP_WINE="SKIP  --no-wine"
+  elif WINE_VER="$(wine --version 2>/dev/null)"; then
+    receipt_pass "$WINE_VER"
+    STEP_WINE="PASS  $WINE_VER"
+  else
+    receipt_fail "wine not found (apt install wine, or --no-wine)"
+    STEP_WINE="FAIL  not found (--no-wine to skip)"
+  fi
+fi
+
 if [[ "$CHECK_FAIL" -eq 0 ]]; then
   receipt_log "READY exit=0"
 else
@@ -162,6 +182,7 @@ fi
 echo "os         $STEP_OS"
 [[ -n "$STEP_TOOL" ]] && echo "toolchain  $STEP_TOOL"
 [[ -n "$STEP_PARAMS" ]] && echo "params     $STEP_PARAMS"
+[[ -n "$STEP_WINE" ]] && echo "wine       $STEP_WINE"
 echo "receipt    $RECEIPT"
 
 exit "$CHECK_FAIL"

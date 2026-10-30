@@ -25,7 +25,7 @@ Open follow-ups for the Zero full node (`zerod`).
 1. **Branch cleanup** -- Before the tags, delete branch `zero-401`; its history stays in tag `archive/zero-401`.
 2. **Release candidate** -- Tag `v4.1.0-rc1` on `zero-410` per BUILD_ZERO "Release".
 3. **Release platforms** -- Build, test, and package on Linux and Windows at the `v4.1.0-rc1` tag per TEST_ZERO "Release bar".
-4. **Release signing** -- Decide checksums and signing per platform; method in progress. Decide after the `v4.1.0-rc1` cross-platform tests, before v4.1.0; BUILD_ZERO "Release" then gets the signing and verify commands.
+4. **Release signing** -- Decide after the `v4.1.0-rc1` cross-platform tests, before v4.1.0: the `SHA256SUMS` signature method and key holder; whether macOS archives ship with a Developer ID signature and notarization; whether Windows archives ship with Authenticode. Then add the sign and verify commands to BUILD_ZERO "Release".
 5. **Release tag** -- Set the release version, tag `v4.1.0`, and merge into `master`, per BUILD_ZERO "Release". In the same sitting as the v4.1.0 GitHub release, delete the `v4.0.1-RC-18` and `v4.0.1-RC-24` pre-releases with their tags (`gh release delete <tag> --cleanup-tag`); their binaries report v4.0.1 but were built from `fb9efafd1`, which is not on `zero-410`.
 
 ---

@@ -94,7 +94,7 @@ A test run proves one OS. On the release commit, built per BUILD_ZERO "Build" on
 
 | Check | macOS ARM64 | Linux x86_64 | Windows |
 |-------|-------------|--------------|---------|
-| `./contrib/run-tests.sh --all`, summary clean | Required | Required, with `python3-zmq` so `zmq_test.py` runs | No runner; one start of `zerod.exe` instead, or the Windows archives leave the release |
+| `./contrib/run-tests.sh --all`, summary clean | Required | Required, with `python3-zmq` so `zmq_test.py` runs | No runner; one start of `zerod.exe`, under Wine by `release-win.sh` or on Windows; without it, the Windows archives leave the release |
 | `--suite` | ELF stages skipped | Optional | -- |
 | `./contrib/ops-validate.sh short`; `live` when a node runs on the operator datadir | Required | Required | -- |
 | Zerowallet check (Operational checks) | Manual | Manual if used | Manual if used |

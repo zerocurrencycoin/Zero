@@ -222,7 +222,13 @@ find_native_cxx() {
   return 1
 }
 
+# The MXE tree build-win.sh puts first on PATH (MXE_ROOT, default $HOME/mxe), then PATH.
 find_mingw_cxx() {
+  local mxe_cxx="${MXE_ROOT:-$HOME/mxe}/usr/bin/x86_64-w64-mingw32.static-g++"
+  if [[ -x "$mxe_cxx" ]]; then
+    printf '%s\n' "$mxe_cxx"
+    return 0
+  fi
   if command -v x86_64-w64-mingw32.static-g++ >/dev/null 2>&1; then
     command -v x86_64-w64-mingw32.static-g++
     return 0

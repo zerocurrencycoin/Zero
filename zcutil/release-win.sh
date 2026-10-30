@@ -10,14 +10,22 @@ cd "$REPO_ROOT"
 
 show_help() {
   cat <<'USAGE'
-Usage: zcutil/release-win.sh [ -L | --log PATH ] [ -v X.Y.Z[-rcN] ] [ -s ] [ -b DIR ] [ --sign-pkcs12 FILE ]
+Usage: zcutil/release-win.sh [ -L | --log PATH ] [ -v X.Y.Z[-rcN] ] [ -s ] [ -b DIR ] [ --sign-pkcs12 FILE ] [ --no-smoke ]
 
 Stage zerod.exe, zero-cli.exe, zero-tx.exe, and README.md from the MXE build and
-write artifacts/win-zero-v<ver>.zip, then rewrite artifacts/SHA256SUMS.
+write artifacts/win-zero-v<ver>.zip, start the zipped binaries once under wine,
+then rewrite artifacts/SHA256SUMS.
 Run on the Linux build host after ./zcutil/build.sh -win.
+
+Smoke check: in a temporary WINEPREFIX and datadir, zerod.exe -version must report
+v<ver>, zerod.exe -regtest must log "Done loading", zero-cli.exe getblockchaininfo
+must answer regtest, and stop must end with "Shutdown: done". Needs wine and the
+proving parameters in ~/.zcash-params. --no-smoke skips it; then start zerod.exe
+from the zip on Windows instead.
 
   -v X.Y.Z[-rcN]      version for the artifact name (default: configured PACKAGE_VERSION)
   -s                  skip stripping (strip uses the MXE x86_64-w64-mingw32 strip when found)
+  --no-smoke          skip the wine smoke check
   -b DIR              directory holding the .exe files (default: src)
   --sign-pkcs12 FILE  Authenticode-sign with osslsigncode using this PKCS#12 file; password
                       from ZERO_AUTHENTICODE_PASS, timestamp server from ZERO_AUTHENTICODE_TS
@@ -31,6 +39,7 @@ VERSION_OVERRIDE=""
 SKIP_STRIP=""
 BIN_DIR="src"
 PKCS12=""
+NO_SMOKE=""
 parse_log_opts ".build/release-win.log" "$@"
 set -- "${REMAINING_ARGS[@]+"${REMAINING_ARGS[@]}"}"
 while [[ $# -gt 0 ]]; do
@@ -40,10 +49,16 @@ while [[ $# -gt 0 ]]; do
     -v) VERSION_OVERRIDE="${2:?}"; shift 2 ;;
     -b) BIN_DIR="${2:?}"; shift 2 ;;
     --sign-pkcs12) PKCS12="${2:?}"; shift 2 ;;
+    --no-smoke) NO_SMOKE=1; shift ;;
     *) show_help >&2; exit 2 ;;
   esac
 done
 init_logging
+# The MXE tree build-win.sh uses comes first, so strip matches the compiler.
+export PATH="${MXE_ROOT:-$HOME/mxe}/usr/bin:$PATH"
+if [ -z "$NO_SMOKE" ] && ! command -v wine >/dev/null; then
+  err "wine not found: install wine, or pass --no-smoke and start zerod.exe on Windows"
+fi
 
 VERSION="${VERSION_OVERRIDE:-$(zero_package_version)}"
 [ -n "$VERSION" ] || err "no version: configure the tree (./zcutil/build.sh -win) or pass -v"
@@ -98,6 +113,58 @@ for f in "${EXES[@]}" README.md; do
   grep -q "${NAME}/${f}" <<<"$LISTING" || err "zip missing $f"
 done
 step_done "Create zip"
+
+# --- Smoke check under wine; everything wine needs stays in this block ---
+free_port() { python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
+smoke_fail() {
+  [ -f "$SMOKE_DIR/data/regtest/debug.log" ] && tail -20 "$SMOKE_DIR/data/regtest/debug.log" >&2
+  [ -n "${ZPID:-}" ] && kill "$ZPID" 2>/dev/null
+  wineserver -k 2>/dev/null || true
+  err "smoke: $1 (files kept in $SMOKE_DIR)"
+}
+if [ -n "$NO_SMOKE" ]; then
+  printf '%s: %-24s [SKIP]\n' "$ME" "Smoke (wine)"
+  notice "start zerod.exe from $ZIP on Windows before release"
+else
+  SMOKE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/zero-smoke.XXXXXX")"
+  export WINEPREFIX="$SMOKE_DIR/prefix" WINEDEBUG=-all
+  wineboot -i >/dev/null 2>&1 || smoke_fail "wineboot failed"
+  ROAMING="$WINEPREFIX/drive_c/users/${USER:-$(id -un)}/AppData/Roaming"
+  mkdir -p "$ROAMING" "$SMOKE_DIR/data"
+  ln -s "$(zero_params_dir)" "$ROAMING/ZcashParams"
+  (cd "$SMOKE_DIR" && python3 -m zipfile -e "$REPO_ROOT/$ZIP" .)
+  : > "$SMOKE_DIR/data/zero.conf"
+  WDIR="$SMOKE_DIR/$NAME"
+  DATADIR_W="$(winepath -w "$SMOKE_DIR/data" 2>/dev/null)"
+  RPCPORT="$(free_port)"
+  P2PPORT="$(free_port)"
+  CLI=(wine "$WDIR/zero-cli.exe" -regtest "-datadir=$DATADIR_W" "-rpcport=$RPCPORT")
+
+  ZVER="$(wine "$WDIR/zerod.exe" -version 2>/dev/null | head -1 | tr -d '\r' || true)"
+  [[ "$ZVER" == *" v${VERSION}" ]] || smoke_fail "zerod.exe -version: '$ZVER', want v$VERSION"
+  wine "$WDIR/zerod.exe" -regtest "-datadir=$DATADIR_W" "-rpcport=$RPCPORT" "-port=$P2PPORT" \
+    > "$SMOKE_DIR/zerod.out" 2>&1 &
+  ZPID=$!
+  for _ in $(seq 180); do
+    grep -q "Done loading" "$SMOKE_DIR/data/regtest/debug.log" 2>/dev/null && break
+    kill -0 "$ZPID" 2>/dev/null || smoke_fail "zerod.exe exited during startup"
+    sleep 1
+  done
+  grep -q "Done loading" "$SMOKE_DIR/data/regtest/debug.log" || smoke_fail "no 'Done loading' within 180 s"
+  CHAININFO="$("${CLI[@]}" getblockchaininfo 2>/dev/null || true)"
+  grep -q '"chain": "regtest"' <<<"$CHAININFO" || smoke_fail "getblockchaininfo did not answer regtest"
+  "${CLI[@]}" stop >/dev/null 2>&1 || smoke_fail "stop failed"
+  for _ in $(seq 60); do
+    kill -0 "$ZPID" 2>/dev/null || break
+    sleep 1
+  done
+  kill -0 "$ZPID" 2>/dev/null && smoke_fail "zerod.exe still running 60 s after stop"
+  ZPID=""
+  grep -q "Shutdown: done" "$SMOKE_DIR/data/regtest/debug.log" || smoke_fail "no 'Shutdown: done'"
+  wineserver -k 2>/dev/null || true
+  rm -rf "$SMOKE_DIR"
+  step_done "Smoke (wine)"
+fi
 
 "$REPO_ROOT/zcutil/checksums.sh" artifacts
 notice "$ZIP"
