@@ -284,7 +284,7 @@ git push origin <release branch> vX.Y.Z-rcN
 
 | Run on | Command | Output |
 |--------|---------|--------|
-| Linux, after `build.sh` | `./zcutil/release-linux.sh` | `linux-zero-v<ver>.tgz`, `linux-zero-v<ver>.deb` (`Package: zero`, with `zero-fetch-params`; `-rcN` is written `~rcN`) |
+| Linux, after `build.sh` | `./zcutil/release-linux.sh` | `linux-zero-v<ver>.tgz`, `linux-zero-v<ver>.deb` (`Package: zero`, with `zero-fetch-params`) |
 | macOS, after `build.sh` | `./zcutil/release-macos.sh --sign IDENTITY --notarize PROFILE` | `macos-zero-v<ver>-<arch>.zip`, with `zero-fetch-params` |
 | Linux, after `build.sh -win` | `./zcutil/release-win.sh --sign-pkcs12 FILE` | `win-zero-v<ver>.zip` |
 

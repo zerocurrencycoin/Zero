@@ -63,8 +63,6 @@ fi
 [ -f "src/zero-tx" ]  || err "src/zero-tx not found. Run ./zcutil/build.sh first."
 [ -f "README.md" ]    || err "README.md not found."
 
-# Debian orders "~" before the release: 4.1.0~rc1 < 4.1.0.
-DEB_VERSION="${VERSION/-/~}"
 section "Release package (linux-zero-v${VERSION})"
 
 # Clean only bin staging dirs; leave artifacts persistent
@@ -105,7 +103,7 @@ case "$(uname -m)" in
 esac
 cat > "$debdir/DEBIAN/control" <<EOF
 Package: zero
-Version: ${DEB_VERSION}
+Version: ${VERSION}
 Architecture: ${DEB_ARCH}
 Maintainer: Zero Developers
 Description: Zero node daemon and CLI
