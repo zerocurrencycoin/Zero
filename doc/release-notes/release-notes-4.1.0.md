@@ -13,6 +13,7 @@ Zero **v4.1.0** full node (`zerod`, `zero-cli`, `zero-tx`): improvement, bug-fix
 - Scripts that match message text: RPC errors and log lines say Zero instead of Zcash; `startalias` and `startzeronode` report "Zeronode list syncing, please wait. Current status: ..." while the zeronode list syncs.
 - LevelDB keeps up to 256 table files per database open (64 before). On 64-bit hosts they are memory-mapped and hold no file descriptors.
 - `contrib/zero.conf` has no `addnode=` lines; peers come from DNS seeds.
+- Over a 4.1.0-rc1 `.deb`, `sudo dpkg -i linux-zero-v4.1.0.deb` reports a downgrade and completes; with `apt install`, confirm or pass `--allow-downgrades`.
 
 ## RPC
 

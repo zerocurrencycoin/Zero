@@ -30,7 +30,7 @@ Each script process takes 8 P2P ports in 24000-26999 and 8 RPC ports in 27000-29
 | Layer | Entry | In the merge gate |
 |-------|-------|-------------------|
 | Utilities, secp256k1, univalue, symbols | `src/test/bitcoin-util-test.py`, `make check`, `check-symbols`, `check-security` | Yes (`--quick` runs only these) |
-| GTest | `src/zero-gtest` | Yes, except `WalletTests.CachedWitnessesCleanIndex` |
+| GTest | `src/zero-gtest` | Yes, except `WalletTests.CachedWitnessesCleanIndex` and the three Sprout-proof tests in `GTEST_SPROUT_PROOF`, which no mode runs |
 | Boost | `src/test/test_bitcoin` | Yes |
 | Python RPC | `qa/pull-tester/rpc-tests.sh` | Tier A |
 | Full suite | `qa/zcash/full_test_suite.py` | No; `--suite` only, ELF stages skipped on macOS |

@@ -63,6 +63,15 @@ Maintainers merge once review concerns are resolved and the merge gate passes.
 
 Code style and threading conventions follow the upstream Bitcoin Core and Zcash developer notes. Consensus and subsidy code is integer-only and must stay consistent across the miner, block validation, block templates, and RPC. Upstream, vendored, and ported code keeps its original comments and stays close to upstream so later merges remain clean.
 
+### Shell scripts
+
+Scripts start with `#!/usr/bin/env bash` and must give the same result under bash 3.2 (macOS `/bin/bash`) and bash 5 (Linux; Homebrew on macOS, first on `PATH` when installed). `#!/bin/bash` always runs 3.2 on macOS. Constructs that differ:
+
+- `~` or quotes in the replacement of `${var/pattern/replacement}`: bash 5 expands `~` to the home directory, and bash 3.2 keeps quotes and backslashes literally, so no spelling of `${VERSION/-/~}` works in both. Use `sed` or `tr`.
+- Bash 4 features (`declare -A`, `mapfile`, `${var,,}`): absent in 3.2.
+
+Check a script under both: `/bin/bash script.sh` and `/opt/homebrew/bin/bash script.sh` on macOS.
+
 ### Options and defaults
 
 The code is the only source of `zerod` options and their defaults: `HelpMessage` in `src/init.cpp` prints each default from the constant the code uses, so a default changes in one place. A new or changed option needs its help line and an updated `doc/Options.csv` row (`contrib/tools/inventory-check.py --apply`) in the same change; `contrib/zero.conf` and `contrib/conf-templates/` are written by hand and show the help-text default, so a changed default is updated there too. The man pages are regenerated at the next version change (`contrib/devtools/gen-manpages.sh`).

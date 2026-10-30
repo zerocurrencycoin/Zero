@@ -307,3 +307,14 @@ gh release create vX.Y.Z artifacts/* --title "Zero vX.Y.Z" --notes-file doc/rele
 | Linux | `sha256sum --ignore-missing -c SHA256SUMS` |
 | macOS | `shasum -a 256 --ignore-missing -c SHA256SUMS`; after unzipping, `codesign --verify --strict zerod` and `spctl --assess --type execute -v zerod` |
 | Windows (PowerShell) | `Get-FileHash -Algorithm SHA256 win-zero-v<ver>.zip`, compared with `SHA256SUMS`; `signtool verify /pa zerod.exe` |
+
+**Install the .deb.** Package `zero` puts `zerod`, `zero-cli`, `zero-tx`, and `zero-fetch-params` in `/usr/bin`; Zero publishes no apt repository, so updates are installed the same way.
+
+```bash
+sudo apt install ./linux-zero-v<ver>.deb
+zero-fetch-params
+dpkg -s zero | grep Version
+sudo dpkg -r zero
+```
+
+The package version is the release version, `X.Y.Z-rcN` for a release candidate. Debian ranks `X.Y.Z-rcN` above `X.Y.Z`, so installing a release over its candidate is a downgrade to dpkg: `sudo dpkg -i linux-zero-vX.Y.Z.deb` warns `downgrading zero from X.Y.Z-rcN to X.Y.Z` and installs; `apt install` asks first, or needs `--allow-downgrades` with `-y`.

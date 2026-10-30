@@ -41,6 +41,7 @@ RPC:
 - **Sprout RPCs** -- Decide each Sprout RPC's disposition and record test depth per RPC from the harness in `doc/RPCs.csv` (v4.1.0 ships the dispositions recorded now), then remove the code of RPCs that leave Zero, starting with the compiled-out raw JoinSplit RPCs; postponed. The accounts RPCs stay deprecated until Zerowallet lists transparent addresses with `listreceivedbyaddress`.
 - **Wallet interface** -- Write the public node-wallet interface contract that Zerowallet links to: RPCs and parameters it uses, error codes and retry rules, `zero.conf` keys, data and parameter paths, and the node-wallet version table. Then align the `zero.conf` Zerowallet writes (`rpcworkqueue`, `txindex`, `keeptx*`, `safekey`, macOS directory) with it in a coordinated Zerowallet release; under consideration. The v4.1.0 changes clients see are in its release notes, "Upgrade actions" and "RPC".
 - **getalldata cost** -- Measure poll cost on a large wallet first, then the follow-up steps.
+- **Chain statistics** -- Keep `-zindex` and the shielded fields of `getchaintxstats` for shielded-usage statistics, fix their defects, and add test coverage, per Full description "Chain statistics"; postponed.
 - **Peer RPC during rebuild** -- Add `getpeerinfo` to the RPCs `src/rpc/server.cpp` serves while `fBuildingWitnessCache` is set (now `stop`, `help`, `getblockcount`, `getblockchaininfo`, `getnetworkinfo`), so monitors and `connect_nodes` do not get -33 during a witness build; it then waits for `cs_main` instead of failing. Needs a release note.
 
 Node operation:
@@ -61,6 +62,7 @@ Consensus:
 
 - **Time adjustment** -- Port zcashd's `-maxtimeadjustment` (v2.1.1-1) and its warning-only form (v2.1.2): the node uses its own clock, `getpeerinfo` keeps `timeoffset`, and the RPC warnings report a large median offset; add `timedata_tests` cases and a BUILD_ZERO "Clock" note that NTP is required; postponed.
 - **Difficulty review** -- Model Digishield with Zero's parameters (ZERO_COIN "Chain") against LWMA and ASERT on recorded chain data, and decide whether to change the algorithm in a network upgrade; postponed.
+- **Zeronode review** -- Work through doc/zeronodes.md "6. Review" and decide whether the spork, SwiftTX, and budget code stays, is reduced, or is removed; the TODO markers in `src/zeronode/` and `src/rpc/zeronode.cpp`, imported with the TENT masternode code, are resolved by that decision; postponed.
 - **Reorg defenses** -- Publish confirmation guidance for exchanges, then decide whether a consensus defense is needed; checkpoints are item "Checkpoint update"; not scheduled.
 
 Mempool and fees:
@@ -98,6 +100,7 @@ Tests:
 
 Build, packaging, and release:
 
+- **Script shebangs** -- Switch `zcutil/fetch-params.sh`, `contrib/tidy_datadir.sh`, `qa/pull-tester/rpc-tests.sh`, `qa/pull-tester/run-bitcoind-for-test.sh`, and `qa/pull-tester/tests-config.sh` from `#!/bin/bash` to `#!/usr/bin/env bash`, and run each under bash 3.2 and 5, per CONTRIBUTING "Shell scripts"; postponed.
 - **Toolchain versions** -- Verify GCC, Rust, Python, and autotools versions per supported build OS, record them in BUILD_ZERO "Requirements", and check them in `zcutil/check-setup.sh`. Rust: Linux builds use the pinned 1.32.0 unless `RUST_USE_SYSTEM=1`, macOS the system Rust; decide the Linux default and the minimum Rust for `librustzcash`.
 - **Windows hardening** -- Pass `--enable-hardening` in `build-win.sh`; needs the MXE build host.
 - **Checkpoint update** -- Add a mainnet checkpoint and raise `nMinimumChainWork`, per Full description "Release constants"; postponed: needs investigation of the effects, coordination with pools and exchanges, and a validated way to detect and recover a node that is on a branch the checkpoint refuses.
@@ -123,7 +126,7 @@ Documentation:
 
 Long-term, not scheduled:
 
-- **LevelDB update** -- Update `src/leveldb` to LevelDB 1.22 as in Bitcoin Core and zcashd; restores block-cache usage in `getdbinfo`. Set 32 MiB table files (`max_file_size`, as Bitcoin Core and zcashd `DBWRAPPER_MAX_FILE_SIZE`) so the block index and chain state fit the table cache.
+- **LevelDB update** -- Update `src/leveldb` to LevelDB 1.22 as in Bitcoin Core and zcashd; restores block-cache usage in `getdbinfo`. Set 32 MiB table files (`max_file_size`, as Bitcoin Core and zcashd `DBWRAPPER_MAX_FILE_SIZE`) so the block index and chain state fit the table cache. Recheck `max_open_files`, 256 for every database (`GetOptions` in `src/dbwrapper.cpp`): on 64-bit hosts LevelDB 1.18 maps cached tables and closes their descriptors, up to 1000 mappings per process shared by `blocks/index`, `chainstate`, and `sporks`, so 3 x 246 cached tables hold no descriptors, while 1000 per database (Bitcoin Core on 64-bit) would pass the mapping limit and take descriptors from the 150 that `init.cpp` reserves; the comment there cites Pirate's value instead of this reason and says descriptors need `ulimit -n` headroom, which cached tables do not.
 - **OpenSSL 3** -- Preference: move from OpenSSL 1.1.1w to 3.x, or remove OpenSSL as Bitcoin Core did; not scheduled. Call sites: wallet encryption in `src/wallet/crypter.cpp` (`EVP_BytesToKey`, AES-256-CBC through `EVP_*`), `OPENSSL_cleanse` in `src/support/cleanse.cpp`, locking and config setup in `src/util.cpp` (`CRYPTO_set_locking_callback`, `OPENSSL_no_config`, no-ops since 1.1.0), `BN_*` in `src/test/bignum.h`, and includes only in `src/init.cpp` and `src/zeronode/obfuscation.cpp`. RPC has no TLS (`-rpcssl` is refused).
 
 ---
@@ -150,6 +153,28 @@ Values compiled into each release. Once decided, BUILD_ZERO "Release" lists thei
 - **Tip cache** -- in-process tip and dirty cache, after poll cost. **Single walk**: merge History key insert into the balance walk. **Decrypt review**: IVK decryption cost.
 - **Helpers** -- the remaining shared parse and filter helpers.
 - **Address keys** -- key `addressBalances` by destination and encode once at JSON emit.
+
+### Chain statistics
+
+**Origin.** `getchaintxstats` comes from Bitcoin Core: `time`, `txcount`, `window_final_block_hash`, `window_block_count`, `window_tx_count`, `window_interval`, `txrate`. The Hush port adds `-zindex` (off by default; a change needs `-reindex`): eleven per-block shielded counters in `CBlockIndex` (`src/chain.h`), written to `blocks/index` only with `-zindex`, and with it the RPC fields `shielded_txcount`, `fully_shielded_txcount`, `shielding_txcount`, `deshielding_txcount`, the matching `*_payments` and rates, `shielded_outputs`, `nullifiers`, `shielded_pool_size`, `notarizations`, and an `organic` set.
+
+**Use.** Nothing in this tree, Zerowallet, or the explorer calls `getchaintxstats` or enables `-zindex`. `reindex_db_flags.py` and `reindex_tests` cover only the `-zindex` database flag.
+
+**Defects.**
+
+- `notarizations`, `notarization_txrate`, and the notarization term of `organic` count Komodo notarizations, which Zero does not have; the detection in `src/main.cpp` is commented out, so the values are always 0.
+- `nullifiers` comes from `CWallet::NullifierCount` through `g_zeronodeWallet`, although it returns the global `pcoinsTip` count; with `-disablewallet` it is 0 and `shielded_pool_size` equals every shielded output created. `shielded_pool_size` counts notes, not value.
+
+**Tests elsewhere.** Bitcoin Core `rpc_blockchain.py` (`_test_getchaintxstats`) checks the base fields and their errors. Hush has none. Pirate checks the field schema only (`qa/pytest_komodo/basic/test_blocks.py`).
+
+**Plan.** The statistics stay: shielded usage measures how much of the chain is private, and its value grows with GUI access to it.
+
+1. Remove `notarizations`, `notarization_txrate`, and the notarization term of `organic` from the RPC and its help.
+2. Take the nullifier count from `pcoinsTip` instead of `CWallet::NullifierCount`; rename or document `shielded_pool_size` as a note count.
+3. Tests: port Bitcoin Core `_test_getchaintxstats` for the base fields; add a regtest script with `-zindex` that mines shielding, fully shielded, and deshielding transactions and checks each counter and rate, with and without `-disablewallet`, and after `-reindex`.
+4. Measure the `-reindex` time and block-index size with `-zindex` on a mainnet datadir copy, and record them in BUILD_ZERO "Index settings".
+
+The field changes alter RPC output and go in the release notes.
 
 ### Chain diagnostics
 
@@ -231,7 +256,9 @@ Serial `rpc-tests.sh -all` on ARM64 macOS takes 1,355 s: Tier A 98 s, Tier B 1,1
 
 **Precomputed setup.** Add a second RPC test cache: a matured clean chain (height 721 or more, spendable coinbase) that clean-chain scripts copy as they copy the 725-block cache today.
 
-**Tier moves.** Move `paymentdisclosure` (26 s), which tests an experimental feature that works only on Sprout JoinSplits, from Tier A to Tier B: the gate drops to 72 s. Seven scripts create Sprout notes (`paymentdisclosure`, `wallet_nullifiers`, `wallet_anchorfork`, `mergetoaddress_mixednotes`, `wallet_changeindicator`, `wallet_1941`, `regtest_signrawtransaction`; 177 s), as do GTests `TransactionBuilder.SproutToSproutAndSapling`, `joinsplit.full_api_test`, and `TransactionBuilder.SaplingToSprout` (24.6 s of 47 s); they stay while wallets can create Sprout notes ("Sprout RPCs"), and the GTests move from the merge gate to the release run. Validation of existing Sprout spends stays tested either way.
+**Tier moves.** Move `paymentdisclosure` (26 s), which tests an experimental feature that works only on Sprout JoinSplits, from Tier A to Tier B: the gate drops to 72 s. Seven scripts create Sprout notes (`paymentdisclosure`, `wallet_nullifiers`, `wallet_anchorfork`, `mergetoaddress_mixednotes`, `wallet_changeindicator`, `wallet_1941`, `regtest_signrawtransaction`; 177 s), as do the three GTests in `GTEST_SPROUT_PROOF` (`qa/zcash/test_filters.sh`): on ARM64 macOS they take about 178 of 265 CPU seconds and 3 GiB of 3.0 GiB peak RSS, and the rest of GTest runs in 22.5 s at 0.21 GiB beside Boost (83 s, 0.77 GiB). No run mode includes them; review after v4.1.0 whether to run them alone in the release run or drop them with the Sprout RPCs ("Sprout RPCs"); postponed. The scripts stay while wallets can create Sprout notes. Validation of existing Sprout spends stays tested either way.
+
+**Measurement.** `contrib/run-tests.sh` records only RPC script seconds (`<stamp>-rpc-times.csv` in `.build/test-logs`), without the host or the C++ steps, so the 1,380 s serial `--all` RPC run on a small Linux host cannot be tied to its cores and memory. Add `<stamp>-host.txt` (`uname -srm`, core count, total memory, git head) and `<stamp>-steps.csv` (step, wall s, CPU s, peak RSS) from `/usr/bin/time -v` on Linux (package `time`) or `-l` on macOS, wall time only without it; then record one default and one `--all` run on each test host and quote figures with host and command; postponed.
 
 **Order.** 1. Python polling for sync, operations, and node start, then rerun `-all`. 2. The `--jobs` reproduction. 3. The Boost keypool timing. 4. GTest sharding and split Boost suites in `contrib/run-tests.sh`. 5. The tier moves. 6. The matured-chain cache and the zeronode timers, sized from the measured savings.
 
