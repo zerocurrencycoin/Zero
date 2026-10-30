@@ -267,6 +267,8 @@ All steps run at the release commit on the release branch, with `git status --sh
 
 **Version.** `_CLIENT_VERSION_*` in `configure.ac`. `_CLIENT_VERSION_BUILD` 0 to 24 gives `-betaN` (N = build + 1), 25 to 49 `-rcN` (N = build - 24), 50 the release, above 50 `-N` (N = build - 50). After a change, rebuild and run `./contrib/devtools/gen-manpages.sh`.
 
+**Names.** The release branch for version X.Y.Z is `zero-XYZ`, the three version digits after `zero-` with no dots, as `zero-410` for 4.1.0. Tags are annotated and named after the version string the build reports: `vX.Y.Z` for the release, `vX.Y.Z-betaN` and `vX.Y.Z-rcN` before it. Branches and tags created before v4.1.0 keep their names.
+
 **Test.** `./zcutil/check-setup.sh`, build, then TEST_ZERO "Release bar" on each platform.
 
 **Tag.** `check-release.sh` must print READY on every line:

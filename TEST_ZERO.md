@@ -99,7 +99,7 @@ A test run proves one OS. On the release commit, built per BUILD_ZERO "Build" on
 | `./contrib/ops-validate.sh short`; `live` when a node runs on the operator datadir | Required | Required | -- |
 | Zerowallet check (Operational checks) | Manual | Manual if used | Manual if used |
 
-Record each artifact's hashes and signatures as present or missing. The maintainer decides which OS gates are hard blocks. Release steps: BUILD_ZERO "Release".
+Record each artifact's hashes and signatures as present or missing. Which OS gates are hard blocks is decided per release. Release steps: BUILD_ZERO "Release".
 
 ---
 

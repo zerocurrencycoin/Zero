@@ -84,15 +84,17 @@ A mainnet node shuts down at the deprecation height built into its release and w
 📚 Documentation
 ----------------
 
+Documents written for Zero. Tools under `contrib/` are indexed in `contrib/README.md`, with their own READMEs beside them; documents under `depends/`, `src/test/`, and the vendored subtrees are upstream's; generated data files are described where they are used.
+
 | Document | Readers | Purpose |
 |----------|---------|---------|
 | [README.md](README.md) | Everyone | Front page, chain summary, build and run, this document map |
 | [ZERO_COIN.md](ZERO_COIN.md) | Miners, pools, exchanges, integrators | Chain economics, consensus parameters, addresses |
-| [BUILD_ZERO.md](BUILD_ZERO.md) | Builders, operators, maintainers | Build, configure, and release on Linux, macOS, and Windows |
-| [TEST_ZERO.md](TEST_ZERO.md) | Contributors, maintainers | Test runs, tiers, held scripts, release bar |
+| [BUILD_ZERO.md](BUILD_ZERO.md) | Builders, operators, maintainers | Build, configure, operate (recovery, clock, chain diagnostics), and release on Linux, macOS, and Windows |
+| [TEST_ZERO.md](TEST_ZERO.md) | Contributors, maintainers | Test runs, tiers, held scripts, release bar, operational checks |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contributors | Change workflow, review terms, coding rules that bind every change |
-| [TODO.md](TODO.md) | Contributors / maintainers | Open follow-ups for the full node |
-| [AGENTS.md](AGENTS.md) | Agents and humans editing the tree | Scope and documentation rules |
+| [TODO.md](TODO.md) | Contributors, maintainers | Release steps and open work for the full node |
+| [AGENTS.md](AGENTS.md) | Agents and humans editing the tree | Scope, git, shell, file, code, and documentation rules |
 | `doc/man/` | Operators (after install) | `zerod`, `zero-cli`, `zero-tx` manuals |
 | `doc/release-notes/` | Operators, miners, pools, integrators | Changes per release |
 | [doc/zeronodes.md](doc/zeronodes.md) | Maintainers | Zeronode, spork, SwiftTX, and budget implementation |

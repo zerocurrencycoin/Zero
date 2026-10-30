@@ -15,18 +15,18 @@ Open follow-ups for the Zero full node (`zerod`).
 **Status is the section.**
 
 - **Release** -- work the v4.1.0 tag waits for, in order. Nothing else belongs here.
-- **After release** -- accepted work the release does not wait for, grouped by subject. An item that needs keys, hosting, data, or a product decision, or that changes node behavior, ends with "Maintainer."; any other item is ready for a contributor. A short status note (postponed, not scheduled, decide after X) is allowed.
+- **After release** -- accepted work the release does not wait for, grouped by subject. A short status note (postponed, not scheduled, decide after X) is allowed.
 - **Done** -- remove the entry. The outcome lives in the code, the documentation of the behavior, and the release notes; no completed-items lists.
 
 ---
 
 ## Release
 
-1. **Branch cleanup** -- After the release content is complete and before the tags, squash and clean up the old branches, tags, and commits, including the `perf-*` and `zero-401` branches. List each branch with its merge and tag status before deletion.
+1. **Branch cleanup** -- Before the tags, delete branch `zero-401`; its history stays in tag `archive/zero-401`.
 2. **Release candidate** -- Tag `v4.1.0-rc1` on `zero-410` per BUILD_ZERO "Release".
 3. **Release platforms** -- Build, test, and package on Linux and Windows at the `v4.1.0-rc1` tag per TEST_ZERO "Release bar".
 4. **Release signing** -- Decide checksums and signing per platform; method in progress. Decide after the `v4.1.0-rc1` cross-platform tests, before v4.1.0; BUILD_ZERO "Release" then gets the signing and verify commands.
-5. **Release tag** -- Set the release version, tag `v4.1.0`, and merge into `master`, per BUILD_ZERO "Release".
+5. **Release tag** -- Set the release version, tag `v4.1.0`, and merge into `master`, per BUILD_ZERO "Release". In the same sitting as the v4.1.0 GitHub release, delete the `v4.0.1-RC-18` and `v4.0.1-RC-24` pre-releases with their tags (`gh release delete <tag> --cleanup-tag`); their binaries report v4.0.1 but were built from `fb9efafd1`, which is not on `zero-410`.
 
 ---
 
@@ -38,43 +38,44 @@ Wallet:
 
 RPC:
 
-- **Sprout RPCs** -- Decide each Sprout RPC's disposition and record test depth per RPC from the harness in `doc/RPCs.csv` (v4.1.0 ships the dispositions recorded now), then remove the code of RPCs that leave Zero, starting with the compiled-out raw JoinSplit RPCs; postponed. The accounts RPCs stay deprecated until Zerowallet lists transparent addresses with `listreceivedbyaddress`. Maintainer.
-- **Wallet interface** -- Write the public node-wallet interface contract that Zerowallet links to: RPCs and parameters it uses, error codes and retry rules, `zero.conf` keys, data and parameter paths, and the node-wallet version table. Then align the `zero.conf` Zerowallet writes (`rpcworkqueue`, `txindex`, `keeptx*`, `safekey`, macOS directory) with it in a coordinated Zerowallet release; under consideration. The v4.1.0 changes clients see are in its release notes, "Upgrade actions" and "RPC". Maintainer.
-- **getalldata cost** -- Measure poll cost on a large wallet first, then the follow-up steps. Maintainer.
+- **Sprout RPCs** -- Decide each Sprout RPC's disposition and record test depth per RPC from the harness in `doc/RPCs.csv` (v4.1.0 ships the dispositions recorded now), then remove the code of RPCs that leave Zero, starting with the compiled-out raw JoinSplit RPCs; postponed. The accounts RPCs stay deprecated until Zerowallet lists transparent addresses with `listreceivedbyaddress`.
+- **Wallet interface** -- Write the public node-wallet interface contract that Zerowallet links to: RPCs and parameters it uses, error codes and retry rules, `zero.conf` keys, data and parameter paths, and the node-wallet version table. Then align the `zero.conf` Zerowallet writes (`rpcworkqueue`, `txindex`, `keeptx*`, `safekey`, macOS directory) with it in a coordinated Zerowallet release; under consideration. The v4.1.0 changes clients see are in its release notes, "Upgrade actions" and "RPC".
+- **getalldata cost** -- Measure poll cost on a large wallet first, then the follow-up steps.
+- **Peer RPC during rebuild** -- Add `getpeerinfo` to the RPCs `src/rpc/server.cpp` serves while `fBuildingWitnessCache` is set (now `stop`, `help`, `getblockcount`, `getblockchaininfo`, `getnetworkinfo`), so monitors and `connect_nodes` do not get -33 during a witness build; it then waits for `cs_main` instead of failing. Needs a release note.
 
 Node operation:
 
-- **Reindex safeguards** -- Refuse a `reindex=` line in `zero.conf` and an unforced `DB_FLAG` mismatch unless `-reindexforce`; skip the wallet replay below a height. Maintainer.
-- **Conf checks** -- Check automatically that every key in `contrib/zero.conf` and `contrib/conf-templates/` is a parsed option and that shown defaults match `zerod -help` and `-help-debug`; add a default column to `doc/Options.csv` generated from the help text; run the check in `contrib/run-tests.sh` and `zcutil/check-release.sh`. `contrib/tools/inventory-check.py` counts commented-out `GetArg` calls as parsed options, so it missed `prune` and `txindex`; parse only live code. Maintainer.
-- **Lab setup** -- Harmonize datadir and configuration setup across the `ops-validate.sh` labs and templates, the RPC test cache, and height-bounded labs; exercise each template's use case, and replace the two-step Zerowallet check in TEST_ZERO "Release bar" with one run that copies the wallet in and syncs a datadir copy on lab ports. Maintainer.
-- **Chain diagnostics** -- Port the diagnostic and recovery tools that Zero lacks; postponed. Maintainer.
+- **Reindex safeguards** -- Refuse a `reindex=` line in `zero.conf` and an unforced `DB_FLAG` mismatch unless `-reindexforce`; skip the wallet replay below a height.
+- **Conf checks** -- Check automatically that every key in `contrib/zero.conf` and `contrib/conf-templates/` is a parsed option and that shown defaults match `zerod -help` and `-help-debug`; add a default column to `doc/Options.csv` generated from the help text; run the check in `contrib/run-tests.sh` and `zcutil/check-release.sh`. `contrib/tools/inventory-check.py` counts commented-out `GetArg` calls as parsed options, so it missed `prune` and `txindex`; parse only live code.
+- **Lab setup** -- Harmonize datadir and configuration setup across the `ops-validate.sh` labs and templates, the RPC test cache, and height-bounded labs; exercise each template's use case, and replace the two-step Zerowallet check in TEST_ZERO "Release bar" with one run that copies the wallet in and syncs a datadir copy on lab ports.
+- **Chain diagnostics** -- Port the diagnostic and recovery tools that Zero lacks; postponed.
 
 Network and P2P:
 
-- **Peer discovery** -- Review how a new node finds peers: the DNS seed names in `vSeeds` (`src/chainparams.cpp`) and their records, a crawling seeder that publishes only live nodes, and the fixed-seed fallback. `src/chainparamsseeds.h` has empty mainnet and testnet arrays, `contrib/seeds/nodes_main.txt` and `nodes_test.txt` list no nodes, and `contrib/seeds/README.md` describes Bitcoin Core 0.10 seeds; fill the fallback from long-running nodes and refresh it each release. Maintainer.
-- **Peer defenses** -- Port the peer-management features Bitcoin Core added after 0.12: the per-peer `addr` rate limit with its `getpeerinfo` counters (also in zcashd), feelers and test-before-evict, block-relay-only connections, anchors, and `-asmap`, each with its Bitcoin Core functional test adapted to Zero's harness; postponed. Maintainer.
-- **Tor compile-out** -- Add a `--disable-tor` configure option that compiles out Tor control; runtime onion is already off by default; keep it separate from I2P. Maintainer.
-- **Block relay** -- Port `sendheaders` (BIP 130); postponed. Maintainer.
+- **Peer discovery** -- Review how a new node finds peers: the DNS seed names in `vSeeds` (`src/chainparams.cpp`) and their records, a crawling seeder that publishes only live nodes, and the fixed-seed fallback. `src/chainparamsseeds.h` has empty mainnet and testnet arrays, `contrib/seeds/nodes_main.txt` and `nodes_test.txt` list no nodes, and `contrib/seeds/README.md` describes Bitcoin Core 0.10 seeds; fill the fallback from long-running nodes and refresh it each release.
+- **Peer defenses** -- Port the peer-management features Bitcoin Core added after 0.12: the per-peer `addr` rate limit with its `getpeerinfo` counters (also in zcashd), feelers and test-before-evict, block-relay-only connections, anchors, and `-asmap`, each with its Bitcoin Core functional test adapted to Zero's harness; postponed.
+- **Tor compile-out** -- Add a `--disable-tor` configure option that compiles out Tor control; runtime onion is already off by default; keep it separate from I2P.
+- **Block relay** -- Port `sendheaders` (BIP 130); postponed.
 
 Consensus:
 
-- **Time adjustment** -- Port zcashd's `-maxtimeadjustment` (v2.1.1-1) and its warning-only form (v2.1.2): the node uses its own clock, `getpeerinfo` keeps `timeoffset`, and the RPC warnings report a large median offset; add `timedata_tests` cases and a BUILD_ZERO "Clock" note that NTP is required; postponed. Maintainer.
-- **Difficulty review** -- Model Digishield with Zero's parameters (ZERO_COIN "Chain") against LWMA and ASERT on recorded chain data, and decide whether to change the algorithm in a network upgrade; postponed. Maintainer.
-- **Reorg defenses** -- Publish confirmation guidance for exchanges, then decide whether a consensus defense is needed; checkpoints are item "Checkpoint update"; not scheduled. Maintainer.
+- **Time adjustment** -- Port zcashd's `-maxtimeadjustment` (v2.1.1-1) and its warning-only form (v2.1.2): the node uses its own clock, `getpeerinfo` keeps `timeoffset`, and the RPC warnings report a large median offset; add `timedata_tests` cases and a BUILD_ZERO "Clock" note that NTP is required; postponed.
+- **Difficulty review** -- Model Digishield with Zero's parameters (ZERO_COIN "Chain") against LWMA and ASERT on recorded chain data, and decide whether to change the algorithm in a network upgrade; postponed.
+- **Reorg defenses** -- Publish confirmation guidance for exchanges, then decide whether a consensus defense is needed; checkpoints are item "Checkpoint update"; not scheduled.
 
 Mempool and fees:
 
-- **Fee policy** -- Decide on a conventional fee (ZIP 317) with the matching ZIP 401 constants, on free relay and coin-age priority, and on mempool limits for zero-fee and never-expiring transactions; postponed. Maintainer.
-- **Refusal analysis** -- Classify transactions refused from peers by cause and report the counts per class through RPC; postponed. Maintainer.
+- **Fee policy** -- Decide on a conventional fee (ZIP 317) with the matching ZIP 401 constants, on free relay and coin-age priority, and on mempool limits for zero-fee and never-expiring transactions; postponed.
+- **Refusal analysis** -- Classify transactions refused from peers by cause and report the counts per class through RPC; postponed.
 
 Mining:
 
-- **Coinbase tag** -- Add a `-coinbasetag=<text>` option that the internal miner and the `coinbasetxn` template append after the height (`COINBASE_FLAGS`, `CreateNewBlock` in `src/miner.cpp`), within the 100-byte coinbase input limit, so solo miners and pools that use the template are identifiable. Maintainer.
-- **Stats tools** -- Give `chain_stats.py`, `decode_coinbase.py`, and `block_rate_replay.py` in `contrib/stats/` one shared RPC module in place of their own copies, and run `--help` and `py_compile` of each in `contrib/run-tests.sh`; postponed. Maintainer.
+- **Coinbase tag** -- Add a `-coinbasetag=<text>` option that the internal miner and the `coinbasetxn` template append after the height (`COINBASE_FLAGS`, `CreateNewBlock` in `src/miner.cpp`), within the 100-byte coinbase input limit, so solo miners and pools that use the template are identifiable.
+- **Stats tools** -- Give `chain_stats.py`, `decode_coinbase.py`, and `block_rate_replay.py` in `contrib/stats/` one shared RPC module in place of their own copies, and run `--help` and `py_compile` of each in `contrib/run-tests.sh`; postponed.
 
 Monitoring:
 
-- **Peer monitoring** -- Evaluate the monitoring examples and code of Bitcoin Core (tracepoints, message capture, log rate limit, `logging` RPC), zcashd (`setlogfilter`), and bmon first. Report connections and peer interactions for monitoring: counts by direction, connect, disconnect, and ban events with reasons, per-peer message and byte counters, and address-manager health, through RPC and a periodic summary line; per-event lines stay under `-debug=net`. Keep the `receive version message` line and `-logips` as they are. Maintainer.
+- **Peer monitoring** -- Evaluate the monitoring examples and code of Bitcoin Core (tracepoints, message capture, log rate limit, `logging` RPC), zcashd (`setlogfilter`), and bmon first. Report connections and peer interactions for monitoring: counts by direction, connect, disconnect, and ban events with reasons, per-peer message and byte counters, and address-manager health, through RPC and a periodic summary line; per-event lines stay under `-debug=net`. Keep the `receive version message` line and `-logips` as they are.
 
 Logging:
 
@@ -99,29 +100,31 @@ Build, packaging, and release:
 
 - **Toolchain versions** -- Verify GCC, Rust, Python, and autotools versions per supported build OS, record them in BUILD_ZERO "Requirements", and check them in `zcutil/check-setup.sh`. Rust: Linux builds use the pinned 1.32.0 unless `RUST_USE_SYSTEM=1`, macOS the system Rust; decide the Linux default and the minimum Rust for `librustzcash`.
 - **Windows hardening** -- Pass `--enable-hardening` in `build-win.sh`; needs the MXE build host.
-- **Checkpoint update** -- Add a mainnet checkpoint and raise `nMinimumChainWork`, per Full description "Release constants"; postponed: needs investigation of the effects, coordination with pools and exchanges, and a validated way to detect and recover a node that is on a branch the checkpoint refuses. Maintainer.
-- **Deprecation baseline** -- Decide the deprecation baseline and window, per Full description "Release constants"; postponed. Maintainer.
-- **Upstream names** -- Upstream names stay in derived code, per Full description "Release constants"; review the three places where they send users to Zcash: the bug URL in `configure --help`, the security page in `zerod -help` and the man pages, and `doc/man/zcash-fetch-params.1`, which documents the script the release archives ship as `zero-fetch-params`. Maintainer.
-- **Params mirror** -- Make a Zero-controlled copy of the three parameter files the primary source of `fetch-params.sh`, with GitHub release assets as a second copy, keeping zcashd's host and IPFS as fallbacks; verify file names and checksums. Maintainer.
-- **Chain bootstrap** -- Document the end-user import path (`-loadblock`, auto-import), snapshot sourcing, and verification; linearize in `contrib/linearize/`. Maintainer.
-- **CI workflows** -- Replace the `master` workflow with `.github/workflows/tests.yml` and extend it; postponed. Maintainer.
-- **Contrib cleanup** -- Remove the inherited tools Zero does not use (`contrib/macdeploy`, `tidy_datadir.sh`, `verifysfbinaries`, `test-patches`, `spendfrom`, `verify-commits`, `qos`, `bitrpc`, and in `contrib/devtools` `github-merge.sh`, `fix-copyright-headers.py`, `optimize-pngs.py`) and their `contrib/README.md` entries; replace `contrib/init/` with one `zerod.service`; rename the bash completions to Zero's binaries and install them from the `.deb`. Maintainer.
-- **Base58 vectors** -- Port zcashd's two-byte address prefixes to `contrib/testgen/gen_base58_test_vectors.py`, regenerate `src/test/data/base58_keys_*.json` with it, and confirm `base58_tests` against Zero's prefixes; postponed. Maintainer.
-- **AMQP removal** -- Remove AMQP (`src/amqp/`, the Proton recipe in `depends`, `contrib/amqp/`, `proton_test.py`, `--enable-proton`), as zcashd did; ZMQ remains the notification path. Maintainer.
-- **Windows ZMQ** -- Review enabling ZMQ in Windows builds (`build-win.sh` passes `--disable-zmq`): features needed, implementation, and tests. Maintainer.
-- **Linux package** -- Add man pages, the example `zero.conf`, and bash completions to the `.deb` from `zcutil/release-linux.sh`, and the example `zero.conf` to the macOS and Windows archives. Maintainer.
+- **Checkpoint update** -- Add a mainnet checkpoint and raise `nMinimumChainWork`, per Full description "Release constants"; postponed: needs investigation of the effects, coordination with pools and exchanges, and a validated way to detect and recover a node that is on a branch the checkpoint refuses.
+- **Deprecation baseline** -- Decide the deprecation baseline and window, per Full description "Release constants"; postponed.
+- **Upstream names** -- Review the three places where they send users to Zcash: the bug URL in `configure --help`, the security page in `zerod -help` and the man pages, and `doc/man/zcash-fetch-params.1`, which documents the script the release archives ship as `zero-fetch-params`.
+- **Params mirror** -- Make a Zero-controlled copy of the three parameter files the primary source of `fetch-params.sh`, with GitHub release assets as a second copy, keeping zcashd's host and IPFS as fallbacks; verify file names and checksums.
+- **Parameter acquisition** -- Decide where proving parameters come from for `zerod` and Zerowallet, per Full description "Parameter acquisition"; postponed.
+- **Chain bootstrap** -- Document the end-user import path (`-loadblock`, auto-import), snapshot sourcing, and verification; linearize in `contrib/linearize/`.
+- **CI workflows** -- Replace the `master` workflow with `.github/workflows/tests.yml` and extend it; postponed.
+- **Contrib cleanup** -- Remove the inherited tools Zero does not use (`contrib/macdeploy`, `tidy_datadir.sh`, `verifysfbinaries`, `test-patches`, `spendfrom`, `verify-commits`, `qos`, `bitrpc`, and in `contrib/devtools` `github-merge.sh`, `fix-copyright-headers.py`, `optimize-pngs.py`) and their `contrib/README.md` entries; replace `contrib/init/` with one `zerod.service`; rename the bash completions to Zero's binaries and install them from the `.deb`.
+- **Base58 vectors** -- Port zcashd's two-byte address prefixes to `contrib/testgen/gen_base58_test_vectors.py`, regenerate `src/test/data/base58_keys_*.json` with it, and confirm `base58_tests` against Zero's prefixes; postponed.
+- **AMQP removal** -- Remove AMQP (`src/amqp/`, the Proton recipe in `depends`, `contrib/amqp/`, `proton_test.py`, `--enable-proton`), as zcashd did; ZMQ remains the notification path.
+- **Windows ZMQ** -- Review enabling ZMQ in Windows builds (`build-win.sh` passes `--disable-zmq`): features needed, implementation, and tests.
+- **Linux package** -- Add man pages, the example `zero.conf`, and bash completions to the `.deb` from `zcutil/release-linux.sh`, and the example `zero.conf` to the macOS and Windows archives.
+- **Script precedence** -- Decide the precedence between environment variables and command-line options in the build, release, and ops scripts; proposal: the environment overrides the option, each replaced value is printed, and CONTRIBUTING states the rule, per Full description "Script precedence"; postponed: verify on the native, Windows, macOS release, and ops paths.
 
 Documentation:
 
-- **Docs lint** -- Automate the documentation checks in `contrib/run-tests.sh`: relative links and section references resolve, ASCII outside README, no parentheticals in headings, named files exist, and documented commands run; then generate stated facts from the code. Maintainer.
-- **Recovery costs** -- Measure the time, disk, and memory of each BUILD_ZERO "Recovery" option on a mainnet datadir copy and on `ops-validate.sh` snapshots, and add them to that section with the tests that cover each option (`doc/Reindex_Rescan.csv`); update the section when an option changes. Maintainer.
-- **Pool guidance** -- Publish a pool-operator section: coinbase rules, identification, relay, transaction policy, and the s-nomp recipient fix; postponed. Maintainer.
-- **README claims** -- Back the README feature headings (fast and zero-cost transactions, ASIC resistance, unique algorithm) with facts and sources, or reword them; kept as branding for now. Maintainer.
+- **Docs lint** -- Automate the documentation checks in `contrib/run-tests.sh`: relative links and section references resolve, ASCII outside README, no parentheticals in headings, named files exist, and documented commands run; then generate stated facts from the code.
+- **Recovery costs** -- Measure the time, disk, and memory of each BUILD_ZERO "Recovery" option on a mainnet datadir copy and on `ops-validate.sh` snapshots, and add them to that section with the tests that cover each option (`doc/Reindex_Rescan.csv`); update the section when an option changes.
+- **Pool guidance** -- Publish a pool-operator section: coinbase rules, identification, relay, transaction policy, and the s-nomp recipient fix; postponed.
+- **README claims** -- Back the README feature headings (fast and zero-cost transactions, ASIC resistance, unique algorithm) with facts and sources, or reword them; kept as branding for now.
 
 Long-term, not scheduled:
 
-- **LevelDB update** -- Update `src/leveldb` to LevelDB 1.22 as in Bitcoin Core and zcashd; restores block-cache usage in `getdbinfo`. Set 32 MiB table files (`max_file_size`, as Bitcoin Core and zcashd `DBWRAPPER_MAX_FILE_SIZE`) so the block index and chain state fit the table cache. Maintainer.
-- **OpenSSL 3** -- Preference: move from OpenSSL 1.1.1w to 3.x, or remove OpenSSL as Bitcoin Core did; not scheduled. Call sites: wallet encryption in `src/wallet/crypter.cpp` (`EVP_BytesToKey`, AES-256-CBC through `EVP_*`), `OPENSSL_cleanse` in `src/support/cleanse.cpp`, locking and config setup in `src/util.cpp` (`CRYPTO_set_locking_callback`, `OPENSSL_no_config`, no-ops since 1.1.0), `BN_*` in `src/test/bignum.h`, and includes only in `src/init.cpp` and `src/zeronode/obfuscation.cpp`. RPC has no TLS (`-rpcssl` is refused). Maintainer.
+- **LevelDB update** -- Update `src/leveldb` to LevelDB 1.22 as in Bitcoin Core and zcashd; restores block-cache usage in `getdbinfo`. Set 32 MiB table files (`max_file_size`, as Bitcoin Core and zcashd `DBWRAPPER_MAX_FILE_SIZE`) so the block index and chain state fit the table cache.
+- **OpenSSL 3** -- Preference: move from OpenSSL 1.1.1w to 3.x, or remove OpenSSL as Bitcoin Core did; not scheduled. Call sites: wallet encryption in `src/wallet/crypter.cpp` (`EVP_BytesToKey`, AES-256-CBC through `EVP_*`), `OPENSSL_cleanse` in `src/support/cleanse.cpp`, locking and config setup in `src/util.cpp` (`CRYPTO_set_locking_callback`, `OPENSSL_no_config`, no-ops since 1.1.0), `BN_*` in `src/test/bignum.h`, and includes only in `src/init.cpp` and `src/zeronode/obfuscation.cpp`. RPC has no TLS (`-rpcssl` is refused).
 
 ---
 
@@ -137,7 +140,7 @@ Values compiled into each release. Once decided, BUILD_ZERO "Release" lists thei
 
 **Deprecation.** `src/deprecation.h`: `DEPRECATION_HEIGHT` is `APPROX_RELEASE_HEIGHT` plus `WEEKS_UNTIL_DEPRECATION` weeks of 120-second blocks: 1,385,000 + 520 x 5,040 = 4,005,800. `EnforceNodeDeprecation` runs on mainnet only: it warns once 4 weeks (20,160 blocks) before, through the log, `-alertnotify`, and the metrics screen, and shuts the node down at the height, with no option to override. `getdeprecationinfo` returns `deprecationheight`. `signrawtransaction` also takes `APPROX_RELEASE_HEIGHT` as the least height when it selects the consensus branch ID. The baseline 1,385,000 comes from an earlier release, so v4.1.0 inherits that release's shutdown height; blocks left: `getdeprecationinfo` minus `getblockcount`. Decide whether each release sets `APPROX_RELEASE_HEIGHT` to its release height, as zcashd does, and the window length; the comment "Fixing zero day size - was 1,392,080" in `deprecation.h` is change history and goes with the next edit.
 
-**Upstream names.** Code derived from Bitcoin Core and Zcash keeps their names, so a Zero tree compares and merges against upstream with small diffs. `AC_INIT` in `configure.ac` names the package `Zcash`, the bug URL `https://github.com/zcash/zcash/issues`, and the tarname `zcash`; they set `PACKAGE_NAME`, `PACKAGE_BUGREPORT`, `PACKAGE_TARNAME`, the `make dist` archive name, and the default install `docdir`. `_COPYRIGHT_YEAR` is 2022: `LicenseInfo` in `src/util.cpp` prints "2009-2022 The Bitcoin Core Developers" and "2015-2022 The Zcash Developers", with no Zero line, and the man pages copy it; `COPYRIGHT_YEAR` and `COPYRIGHT_STR` in `src/clientversion.h` are the fallbacks for builds without the configure header. `PrivacyInfo` in `src/util.cpp`, the man pages, and README "Security Warnings" point to `https://z.cash/support/security/`. `doc/man/zcash-fetch-params.1` keeps the Zcash name. The package name, tarname, library and header names (`libzcash`, `bitcoin-config.h`), and the upstream copyright lines stay; the license requires the upstream notices, and a Zero holder line is a separate decision. Only text that sends users to Zcash is reviewed.
+**Upstream names.** Derived code keeps the upstream names per CONTRIBUTING "Vendored subtrees". `AC_INIT` in `configure.ac` names the package `Zcash`, the bug URL `https://github.com/zcash/zcash/issues`, and the tarname `zcash`; they set `PACKAGE_NAME`, `PACKAGE_BUGREPORT`, `PACKAGE_TARNAME`, the `make dist` archive name, and the default install `docdir`. `_COPYRIGHT_YEAR` is 2022: `LicenseInfo` in `src/util.cpp` prints "2009-2022 The Bitcoin Core Developers" and "2015-2022 The Zcash Developers", with no Zero line, and the man pages copy it; `COPYRIGHT_YEAR` and `COPYRIGHT_STR` in `src/clientversion.h` are the fallbacks for builds without the configure header. `PrivacyInfo` in `src/util.cpp`, the man pages, and README "Security Warnings" point to `https://z.cash/support/security/`. `doc/man/zcash-fetch-params.1` keeps the Zcash name. The package name, tarname, library and header names (`libzcash`, `bitcoin-config.h`), and the upstream copyright lines stay; the license requires the upstream notices, and a Zero holder line is a separate decision. Only text that sends users to Zcash is reviewed.
 
 ### getalldata cost
 
@@ -164,6 +167,25 @@ Presence per project: `doc/RPCs.csv` and `doc/Options.csv`; the tools Zero has: 
 | `logging`, `setlogfilter` | Bitcoin Core, zcashd | Change debug categories at runtime; with item "Peer monitoring" |
 | `getindexinfo` | Bitcoin Core | Sync state of the transaction and Insight indexes |
 | `uptime`, `getmemoryinfo`, `getrpcinfo` | Bitcoin Core | Node health for operators |
+
+### Parameter acquisition
+
+Zero 4.1.0: `ZC_LoadParams()` (`src/init.cpp`) requires `sapling-spend.params`, `sapling-output.params`, and `sprout-groth16.params` (about 741 MiB) in the parameter directory and loads them at startup with `librustzcash_init_zksnark_params`. `zcutil/fetch-params.sh` downloads each from `download.z.cash` in two parts, `<name>.part.1` and `<name>.part.2`, and joins them; part 2 of the Sapling files is empty. Zerowallet downloads the same files itself before it starts `zerod` (`kParamFiles` in `connection.cpp`), a second copy of the file list and digests. The wallet download stays until this is decided.
+
+| Option | For | Against |
+|--------|-----|---------|
+| Wallet download, current | Works with Zero 4.1.0; progress in the wallet | Second copy of the file list and digests |
+| `zerod` prints a manifest (files, sizes, digests, URLs) | `zerod` owns the facts; no network code in `zerod` | Zerowallet still downloads |
+| Zerowallet runs `zero-fetch-params` | No second copy | Not in the Windows package; needs bash and curl or wget; no progress in the wallet |
+| `zerod` downloads before `ZC_LoadParams()` | One implementation for all clients | libcurl and network code in node startup |
+| Built-in Sapling parameters; Sprout file read only for Sprout proofs | No download for normal use | librustzcash and Rust update; binary about 49 MiB larger; Sprout spends still need 692 MiB |
+| Files in the release packages | No download | Packages 741 MiB larger; `zerod` needs a search path |
+
+References:
+
+- `zerod` downloads: Pirate `src/params.cpp`, `checkParams()` and `downloadFiles()`, called before `ZC_LoadParams()`: libcurl transfers with resume, SHA-256, progress through the warmup messages; it hashes all files at every start.
+- Built-in: zcashd 5.7.0, commit `dc5e4211a`. Crate `wagyu-zcash-parameters` 0.2.0 (data in `-1` to `-6`) feeds `zksnark_params()` in `src/rust/src/init.rs`; the Sprout Groth16 verifying key `sprout-groth16.vk` (1,828 bytes) is compiled in with `include_bytes!`; `prove()` in `src/rust/src/sprout.rs` opens `sprout-groth16.params` only to create a Sprout proof. Zebra does the same with `zcash_proofs` feature `bundled-prover`. Zero's librustzcash is pinned to commit `06da3b9`, and Linux builds use Rust 1.32.0 unless `RUST_USE_SYSTEM=1`.
+- Packages: Hush `src/init.cpp` searches `.`, `/usr/share/hush`, `..`, `./Contents/MacOS/`, then `~/.zcash-params`.
 
 ### CI workflows
 
@@ -199,7 +221,7 @@ Serial `rpc-tests.sh -all` on ARM64 macOS takes 1,355 s: Tier A 98 s, Tier B 1,1
 | Block and mempool sync | `sync_blocks`, `sync_mempools` (`wait=1`) in `test_framework/util.py` | About 300 | Poll every 0.1 s |
 | Async operation | `wait_and_assert_operationid_status_result` (`time.sleep(1)`) | About 70 | Poll every 0.2 s |
 | Node start | `wait_for_daemon_rpc` runs `zero-cli -rpcwait`, which retries every 1 s (`MilliSleep(1000)` in `src/bitcoin-cli.cpp`) | About 300 start and stop sites | Poll `getblockcount` from Python every 0.1 s |
-| Zeronode sync | `zeronode_startalias` (105 s) waits for sync steps of `ZERONODE_SYNC_TIMEOUT` (5 s), about 25 s per asset (`src/zeronode/zeronode-sync.h`) | 1 script | Regtest-only shorter timers; node code. Maintainer |
+| Zeronode sync | `zeronode_startalias` (105 s) waits for sync steps of `ZERONODE_SYNC_TIMEOUT` (5 s), about 25 s per asset (`src/zeronode/zeronode-sync.h`) | 1 script | Regtest-only shorter timers; node code |
 
 **Fewer iterations.** 51 scripts start from an empty chain and mine 721 blocks to a spendable coinbase, then sync them to 2 to 4 nodes; mining takes 4.5 s on one node, the syncs and polls cost more. `mergetoaddress_helper.py` mines `generate(1000)`: check whether fewer blocks test the same input limit. `walletbackup` (62 s), `wallet_archive` (55 s), and `zapwallettxes` (19 s) restart nodes repeatedly and gain from the node-start change. `txn_doublespend` runs twice to cover two paths and stays.
 
@@ -235,3 +257,23 @@ Fixed costs: `getblocktemplate_longpoll` (71 s) waits out the long-poll timeout 
 **Miner limits.** Warn or refuse in `GenerateBitcoins` (`src/miner.cpp`) when threads times the solver memory in README "Optional CPU mining" exceed physical memory; tromp checks cancellation only between rounds, so an out-of-memory miner does not stop.
 
 **Tromp validation.** Tromp runs only in the miner at (192,7): `zcbenchmark` cannot select it, regtest is (48,5), and mainnet cannot mine in isolation (`nMinimumChainWork`, `fMiningRequiresPeers`). Validate on two connected testnet lab nodes, one mining with one tromp thread for 180 s (24 solver runs, 4 blocks) and one validating, and check every solution, not only those meeting the target. After v4.1.0, run README "Optional CPU mining" on a synced mainnet node with one thread and add it to TEST_ZERO "Release bar".
+
+### Script precedence
+
+Proposal, not decided: an environment variable overrides the matching command-line option, which overrides the default, so an operator can override options that scripts pass. No document states a rule now. Settings read from both sources, with the change the proposal implies:
+
+| Setting | Environment | Option | Wins now | Change under the proposal |
+|---------|-------------|--------|----------|--------|
+| MXE root, `build-win.sh` | `MXE_ROOT` | `-m`, `--mxe` | environment | None in code; BUILD_ZERO "Windows" says `-m PATH` overrides `MXE_ROOT`, the reverse |
+| Make jobs, `makeargs_from_argv` in `zcutil/fzero.sh` | `FZERO_MAX_JOBS` | `-jN` | option; the cap applies only without `-j` | An exported value also caps `-jN`; the built-in default 8 does not |
+| C++ flags, `run_configure_native` in `build-native.sh` | `CXXFLAGS` in `CONFIGURE_FLAGS` | script `CXXFLAGS='-g'` after them | script | Pass `-g` before `$CONFIGURE_FLAGS`; update the BUILD_ZERO variable table |
+| C++ flags and configure options, `run_configure_win` in `build-win.sh` | `CXXFLAGS`, `CONFIGURE_FLAGS` | script defines | script; both ignored | Append them after the required defines and options |
+| Signing identity, `release-macos.sh` | `ZERO_CODESIGN_ID` | `--sign` | option | `SIGN_ID="${ZERO_CODESIGN_ID:-$2}"`; help text |
+| Notary profile, `release-macos.sh` | `ZERO_NOTARY_PROFILE` | `--notarize` | option | Same form; help text |
+| Snapshot, `contrib/ops-validate.sh` | `ZERO_OPS_SNAP` | `--snap=`, `snap=` | option | `SNAP` from the environment first, both forms |
+
+Settings read from one source only need no change: `CC`, `CXX`, `MAKE`, `HOST`, `BUILD`, `PYTHON`, `MACOSX_DEPLOYMENT_TARGET`, `RUST_USE_SYSTEM`, `ZERO_LOG_KEEP`, the other `ZERO_OPS_*` variables, and the script-internal `VERSION_OVERRIDE`, `EXPECT_REF`, and `LOG_FILE`.
+
+**Risk.** A stale export replaces a value a script or a documented command passes. Release builds: an exported `CXXFLAGS` changes the binaries (visible in `config.log`); an exported `ZERO_CODESIGN_ID` signs with another identity (visible in `codesign --verify`). The printed replacement line covers both.
+
+**Verification.** On Linux: `build.sh -j2` with and without `FZERO_MAX_JOBS=1`, a native configure with `CONFIGURE_FLAGS="CXXFLAGS=-O1"` checked in `config.log`, `ops-validate.sh` with `ZERO_OPS_SNAP` set, and a Windows rebuild with `CXXFLAGS` exported. On macOS: `release-macos.sh` with `ZERO_CODESIGN_ID` and `--sign` both given.
