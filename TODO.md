@@ -22,9 +22,10 @@ Open follow-ups for the Zero full node (`zerod`).
 
 ## Release
 
-1. **Release platforms** -- Build, test, and package on Linux and Windows at the `v4.1.0-rc1` tag per TEST_ZERO "Release bar".
-2. **Release signing** -- Decide after the `v4.1.0-rc1` cross-platform tests, before v4.1.0: the `SHA256SUMS` signature method and key holder; whether macOS archives ship with a Developer ID signature and notarization; whether Windows archives ship with Authenticode. Then add the sign and verify commands to BUILD_ZERO "Release".
-3. **Release tag** -- Set the release version, tag `v4.1.0`, and merge into `master`, per BUILD_ZERO "Release". In the same sitting as the v4.1.0 GitHub release, delete the `v4.0.1-RC-18` and `v4.0.1-RC-24` pre-releases with their tags (`gh release delete <tag> --cleanup-tag`); their binaries report v4.0.1 but were built from `fb9efafd1`, which is not on `zero-410`.
+1. **Release platforms** -- Build, test, and package on Linux and Windows at the `v4.1.0-rc2` tag per TEST_ZERO "Release bar".
+2. **Release signing** -- macOS archives ship unsigned in v4.1.0. Decide after the `v4.1.0-rc2` cross-platform tests, before v4.1.0: the `SHA256SUMS` signature method and key holder; whether Windows archives ship with Authenticode. Then add the sign and verify commands to BUILD_ZERO "Release".
+3. **Release tag** -- Set the release version, tag `v4.1.0`, and merge into `master`, per BUILD_ZERO "Release".
+4. **Release notes** -- After further validation of the `v4.1.0` builds, complete `doc/release-notes/release-notes-4.1.0.md` and the Zerowallet notes, then publish both GitHub releases per BUILD_ZERO "Release".
 
 ---
 
@@ -99,6 +100,8 @@ Tests:
 Build, packaging, and release:
 
 - **Script shebangs** -- Switch `zcutil/fetch-params.sh`, `contrib/tidy_datadir.sh`, `qa/pull-tester/rpc-tests.sh`, `qa/pull-tester/run-bitcoind-for-test.sh`, and `qa/pull-tester/tests-config.sh` from `#!/bin/bash` to `#!/usr/bin/env bash`, and run each under bash 3.2 and 5, per CONTRIBUTING "Shell scripts"; postponed.
+- **Old pre-releases** -- Delete the `v4.0.1-RC-18` and `v4.0.1-RC-24` GitHub pre-releases with their tags (`gh release delete <tag> --cleanup-tag`); their binaries report v4.0.1 but were built from `fb9efafd1`, which is not on `zero-410`; postponed.
+- **macOS signing** -- Sign macOS archives with a Developer ID and notarize them (`release-macos.sh --sign --notarize`); postponed.
 - **Toolchain versions** -- Verify GCC, Rust, Python, and autotools versions per supported build OS, record them in BUILD_ZERO "Requirements", and check them in `zcutil/check-setup.sh`. Rust: Linux builds use the pinned 1.32.0 unless `RUST_USE_SYSTEM=1`, macOS the system Rust; decide the Linux default and the minimum Rust for `librustzcash`.
 - **Windows hardening** -- Pass `--enable-hardening` in `build-win.sh`; needs the MXE build host.
 - **Checkpoint update** -- Add a mainnet checkpoint and raise `nMinimumChainWork`, per Full description "Release constants"; postponed: needs investigation of the effects, coordination with pools and exchanges, and a validated way to detect and recover a node that is on a branch the checkpoint refuses.
